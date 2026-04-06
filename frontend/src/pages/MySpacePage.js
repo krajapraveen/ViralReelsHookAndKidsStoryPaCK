@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Play, Download, Share2, RefreshCw, AlertTriangle, Clock, Film, Loader2, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
+import { Play, Download, Share2, RefreshCw, AlertTriangle, Clock, Film, Loader2, ChevronDown, ChevronUp, Bell, BellOff, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../utils/api';
 
 const STAGE_LABELS = {
-  // Story engine states
   INIT: 'Queued',
   PLANNING: 'Writing script',
   BUILDING_CHARACTER_CONTEXT: 'Building characters',
@@ -16,7 +15,6 @@ const STAGE_LABELS = {
   ASSEMBLING_VIDEO: 'Rendering video',
   VALIDATING: 'Finalizing',
   READY: 'Completed',
-  // Legacy pipeline stages
   scenes: 'Planning scenes',
   images: 'Creating artwork',
   voices: 'Generating narration',
@@ -85,7 +83,7 @@ function ProgressBar({ progress, color, animated }) {
   );
 }
 
-function InProgressCard({ job, highlighted, onRetry }) {
+function InProgressCard({ job, highlighted }) {
   const color = getStageColor(job);
   const stageLabel = getStageLabel(job);
   const subStage = getSubStage(job);
@@ -131,9 +129,7 @@ function InProgressCard({ job, highlighted, onRetry }) {
   );
 }
 
-function CompletedCard({ job, highlighted }) {
-  const navigate = useNavigate();
-
+function CompletedCard({ job, highlighted, justCompleted, onShareWhatsApp }) {
   const handleDownload = async (e) => {
     e.stopPropagation();
     if (!job.output_url) {
@@ -153,15 +149,6 @@ function CompletedCard({ job, highlighted }) {
     }
   };
 
-  const handleShare = (e) => {
-    e.stopPropagation();
-    const shareUrl = `${window.location.origin}/share/${job.job_id}`;
-    const text = encodeURIComponent(
-      `My AI-generated story video is ready!\n\nTitle: ${job.title}\n\nWatch it here:\n${shareUrl}\n\nCreated with Visionary Suite`
-    );
-    window.open(`https://wa.me/?text=${text}`, '_blank');
-  };
-
   const handleWatch = () => {
     if (job.output_url) {
       window.open(job.output_url, '_blank');
@@ -171,10 +158,19 @@ function CompletedCard({ job, highlighted }) {
   return (
     <div
       data-testid={`project-card-${job.job_id}`}
-      className={`group relative bg-zinc-900/80 border rounded-xl overflow-hidden transition-all duration-300 hover:border-white/20 ${
-        highlighted ? 'border-emerald-500 ring-1 ring-emerald-500/30' : 'border-white/10'
+      className={`group relative bg-zinc-900/80 border rounded-xl overflow-hidden transition-all duration-500 hover:border-white/20 ${
+        justCompleted
+          ? 'border-emerald-400 ring-2 ring-emerald-400/40 animate-[glow_2s_ease-in-out]'
+          : highlighted
+            ? 'border-emerald-500 ring-1 ring-emerald-500/30'
+            : 'border-white/10'
       }`}
     >
+      {justCompleted && (
+        <div className="absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/90 text-[10px] font-bold text-white" data-testid="just-completed-badge">
+          <Check className="w-3 h-3" /> Ready
+        </div>
+      )}
       <div className="relative aspect-video bg-zinc-800 cursor-pointer" onClick={handleWatch}>
         {job.thumbnail_url ? (
           <img src={job.thumbnail_url} alt={job.title} className="w-full h-full object-cover" />
@@ -210,7 +206,7 @@ function CompletedCard({ job, highlighted }) {
           </button>
           <button
             data-testid={`share-btn-${job.job_id}`}
-            onClick={handleShare}
+            onClick={(e) => { e.stopPropagation(); onShareWhatsApp(job); }}
             className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-emerald-600/30 hover:bg-emerald-600/50 text-xs text-emerald-300 transition-colors"
           >
             <Share2 className="w-3 h-3" /> WhatsApp
@@ -274,14 +270,47 @@ function SectionHeader({ title, count, icon: Icon, color, collapsed, onToggle })
   );
 }
 
+// ─── NOTIFICATION HELPERS ─────────────────────────────────────────────────────
+function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function fireBrowserNotification(title, body) {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      const n = new Notification(title, {
+        body,
+        icon: '/favicon.ico',
+        badge: '/favicon.ico',
+        tag: 'video-complete',
+        renotify: true,
+      });
+      n.onclick = () => {
+        window.focus();
+        n.close();
+      };
+    } catch {
+      // Silent fail on browsers that don't support Notification constructor
+    }
+  }
+}
+
+// ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function MySpacePage() {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [collapsedSections, setCollapsedSections] = useState({});
+  const [justCompletedIds, setJustCompletedIds] = useState(new Set());
+  const [notificationsEnabled, setNotificationsEnabled] = useState(
+    'Notification' in window && Notification.permission === 'granted'
+  );
   const [searchParams] = useSearchParams();
   const highlightId = searchParams.get('projectId');
   const highlightRef = useRef(null);
   const pollRef = useRef(null);
+  const prevStatusMap = useRef({});
 
   const fetchJobs = useCallback(async () => {
     try {
@@ -316,9 +345,51 @@ export default function MySpacePage() {
 
       allItems.sort((a, b) => {
         const da = a.created_at ? new Date(a.created_at).getTime() : 0;
-        const db = b.created_at ? new Date(b.created_at).getTime() : 0;
-        return db - da;
+        const db_ = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return db_ - da;
       });
+
+      // ── Detect newly completed jobs ──────────────────────────────────
+      const newlyCompleted = [];
+      for (const item of allItems) {
+        const prevStatus = prevStatusMap.current[item.job_id];
+        const curStatus = item.status;
+        if (
+          prevStatus &&
+          prevStatus !== 'COMPLETED' &&
+          curStatus === 'COMPLETED'
+        ) {
+          newlyCompleted.push(item);
+        }
+      }
+
+      // Update previous status map
+      const newMap = {};
+      for (const item of allItems) {
+        newMap[item.job_id] = item.status;
+      }
+      prevStatusMap.current = newMap;
+
+      // Fire notifications for newly completed jobs
+      for (const item of newlyCompleted) {
+        toast.success(
+          `Your video "${item.title}" is ready!`,
+          { duration: 8000, id: `complete-${item.job_id}` }
+        );
+        fireBrowserNotification(
+          'Your video is ready!',
+          `"${item.title}" has finished rendering. Watch it now.`
+        );
+        setJustCompletedIds(prev => new Set([...prev, item.job_id]));
+        // Clear the "just completed" highlight after 30s
+        setTimeout(() => {
+          setJustCompletedIds(prev => {
+            const next = new Set(prev);
+            next.delete(item.job_id);
+            return next;
+          });
+        }, 30000);
+      }
 
       setJobs(allItems);
     } catch (err) {
@@ -330,6 +401,8 @@ export default function MySpacePage() {
 
   useEffect(() => {
     fetchJobs();
+    // Request notification permission on mount
+    requestNotificationPermission();
   }, [fetchJobs]);
 
   // Auto-poll for in-progress items
@@ -363,8 +436,38 @@ export default function MySpacePage() {
     window.location.href = `/app/story-video-studio?projectId=${job.job_id}`;
   };
 
+  const handleShareWhatsApp = async (job) => {
+    try {
+      const res = await api.post(`/api/story-engine/share-link/${job.job_id}`);
+      if (res.data?.whatsapp_url) {
+        window.open(res.data.whatsapp_url, '_blank');
+      }
+    } catch {
+      // Fallback to basic share
+      const shareUrl = `${window.location.origin}/share/${job.job_id}`;
+      const text = encodeURIComponent(
+        `Check out my AI video: ${job.title}\n\n${shareUrl}\n\nMade with Visionary Suite`
+      );
+      window.open(`https://wa.me/?text=${text}`, '_blank');
+    }
+  };
+
   const toggleSection = (section) => {
     setCollapsedSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
+
+  const toggleNotifications = () => {
+    if ('Notification' in window) {
+      if (Notification.permission === 'granted') {
+        setNotificationsEnabled(prev => !prev);
+      } else if (Notification.permission === 'default') {
+        Notification.requestPermission().then(perm => {
+          setNotificationsEnabled(perm === 'granted');
+        });
+      } else {
+        toast.error('Notifications are blocked. Enable them in browser settings.');
+      }
+    }
   };
 
   // Categorize jobs
@@ -388,6 +491,7 @@ export default function MySpacePage() {
         <a
           href="/app/story-video-studio"
           className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm rounded-lg transition-colors"
+          data-testid="create-first-video-btn"
         >
           Create your first video
         </a>
@@ -399,13 +503,27 @@ export default function MySpacePage() {
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-6" data-testid="myspace-page">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-white">My Space</h1>
-        <button
-          onClick={fetchJobs}
-          className="p-2 rounded-lg hover:bg-white/5 text-zinc-500 hover:text-white transition-colors"
-          data-testid="refresh-btn"
-        >
-          <RefreshCw className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleNotifications}
+            className={`p-2 rounded-lg transition-colors ${
+              notificationsEnabled
+                ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30'
+                : 'hover:bg-white/5 text-zinc-500 hover:text-white'
+            }`}
+            data-testid="toggle-notifications-btn"
+            title={notificationsEnabled ? 'Notifications on' : 'Notifications off'}
+          >
+            {notificationsEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+          </button>
+          <button
+            onClick={fetchJobs}
+            className="p-2 rounded-lg hover:bg-white/5 text-zinc-500 hover:text-white transition-colors"
+            data-testid="refresh-btn"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* In Progress Section */}
@@ -423,7 +541,7 @@ export default function MySpacePage() {
             <div className="space-y-3 mt-2">
               {inProgress.map(job => (
                 <div key={job.job_id} ref={job.job_id === highlightId ? highlightRef : null}>
-                  <InProgressCard job={job} highlighted={job.job_id === highlightId} onRetry={handleRetry} />
+                  <InProgressCard job={job} highlighted={job.job_id === highlightId} />
                 </div>
               ))}
             </div>
@@ -445,7 +563,12 @@ export default function MySpacePage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
             {completed.map(job => (
               <div key={job.job_id} ref={job.job_id === highlightId ? highlightRef : null}>
-                <CompletedCard job={job} highlighted={job.job_id === highlightId} />
+                <CompletedCard
+                  job={job}
+                  highlighted={job.job_id === highlightId}
+                  justCompleted={justCompletedIds.has(job.job_id)}
+                  onShareWhatsApp={handleShareWhatsApp}
+                />
               </div>
             ))}
           </div>

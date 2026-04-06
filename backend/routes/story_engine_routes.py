@@ -1606,3 +1606,82 @@ async def admin_generation_analytics(
             "sample_size_reuse": len(reuse_times),
         },
     }
+
+
+
+# ─── SHARE LINK GENERATION ────────────────────────────────────────────────────
+@router.post("/share-link/{job_id}")
+async def generate_share_link(job_id: str, current_user: dict = Depends(get_current_user)):
+    """Generate or retrieve a share link for a completed story engine job."""
+    user_id = current_user.get("id") or str(current_user.get("_id"))
+
+    # Check story_engine_jobs first, then legacy pipeline_jobs
+    job = await db.story_engine_jobs.find_one(
+        {"job_id": job_id, "user_id": user_id},
+        {"_id": 0, "title": 1, "state": 1, "output_url": 1, "thumbnail_url": 1, "story_text": 1}
+    )
+    source = "story_engine"
+    if not job:
+        job = await db.pipeline_jobs.find_one(
+            {"job_id": job_id, "user_id": user_id},
+            {"_id": 0, "title": 1, "status": 1, "output_url": 1, "thumbnail_url": 1}
+        )
+        source = "legacy_pipeline"
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    # Verify job is completed
+    state = job.get("state") or job.get("status", "")
+    if state not in ("READY", "COMPLETED"):
+        raise HTTPException(status_code=400, detail="Video is not ready for sharing")
+
+    # Check if share link already exists for this job
+    existing = await db.shares.find_one({"generationId": job_id, "userId": user_id}, {"_id": 0})
+    if existing:
+        base_url = os.environ.get("FRONTEND_URL", os.environ.get("BACKEND_PUBLIC_URL", ""))
+        share_url = f"{base_url}/share/{existing['id']}"
+        whatsapp_text = f"Check out my AI video: {job.get('title', 'My Video')}\n\n{share_url}\n\nMade with Visionary Suite"
+        import urllib.parse
+        return {
+            "success": True,
+            "share_id": existing["id"],
+            "share_url": share_url,
+            "whatsapp_url": f"https://wa.me/?text={urllib.parse.quote(whatsapp_text)}",
+        }
+
+    # Create new share
+    import uuid
+    share_id = str(uuid.uuid4())[:12]
+    base_url = os.environ.get("FRONTEND_URL", os.environ.get("BACKEND_PUBLIC_URL", ""))
+    share_doc = {
+        "id": share_id,
+        "generationId": job_id,
+        "userId": user_id,
+        "type": "STORY",
+        "title": job.get("title", "Untitled"),
+        "preview": (job.get("story_text") or "")[:200],
+        "thumbnailUrl": job.get("thumbnail_url"),
+        "views": 0,
+        "shares": 0,
+        "forks": 0,
+        "storyContext": None,
+        "characters": [],
+        "tone": None,
+        "conflict": None,
+        "hookText": None,
+        "shareCaption": None,
+        "parentShareId": None,
+        "expiresAt": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat(),
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.shares.insert_one(share_doc)
+
+    share_url = f"{base_url}/share/{share_id}"
+    whatsapp_text = f"Check out my AI video: {job.get('title', 'My Video')}\n\n{share_url}\n\nMade with Visionary Suite"
+    import urllib.parse
+    return {
+        "success": True,
+        "share_id": share_id,
+        "share_url": share_url,
+        "whatsapp_url": f"https://wa.me/?text={urllib.parse.quote(whatsapp_text)}",
+    }
