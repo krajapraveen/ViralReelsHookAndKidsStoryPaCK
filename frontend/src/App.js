@@ -73,6 +73,7 @@ import AppTour, { TourProvider } from './components/AppTour';
 import { ProductGuideProvider } from './contexts/ProductGuideContext';
 import JourneyProgressBar from './components/guide/JourneyProgressBar';
 import GuideAssistant from './components/guide/GuideAssistant';
+import FirstActionOverlay from './components/guide/FirstActionOverlay';
 // NEW REBUILT FEATURES
 import StoryEpisodeCreator from './pages/StoryEpisodeCreator';
 import ContentChallengePlanner from './pages/ContentChallengePlanner';
@@ -216,6 +217,8 @@ function App() {
     <FeedbackProvider>
     <ProductGuideProvider>
     <ContentProtectionWrapper>
+      {/* Journey Progress Bar — fixed top for authenticated users */}
+      {isAuthenticated && <JourneyProgressBar />}
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/pricing" element={<Pricing />} />
@@ -383,14 +386,14 @@ function App() {
       <Route path="*" element={<Navigate to={isAuthenticated ? "/app" : "/"} replace />} />
       </Routes>
       
-      {/* Journey Progress Bar (mobile only) */}
-      {isAuthenticated && <JourneyProgressBar />}
-      
       {/* Responsive Support — Floating on desktop, Dock+Sheet on mobile/tablet */}
       <ResponsiveSupportWrapper />
       
-      {/* Guide Assistant — context-aware next-step helper */}
+      {/* Guide Assistant — action-driven next-step helper */}
       {isAuthenticated && <GuideAssistant />}
+      
+      {/* First Action Overlay — forces activation for new users */}
+      {isAuthenticated && <FirstActionOverlay />}
       
       {/* Cookie Consent Banner - GDPR/CCPA Compliance */}
       <CookieConsent />

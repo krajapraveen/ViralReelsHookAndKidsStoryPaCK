@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import api from '../utils/api';
+import { toast } from 'sonner';
 
 const GuideContext = createContext(null);
 
@@ -74,14 +75,14 @@ function getContextMessage(progress) {
   return { message: 'Explore your dashboard and create something new', action: 'explore' };
 }
 
-// Stuck detection messages
+// Stuck detection messages — action-oriented
 const STUCK_HINTS = {
-  '/app': 'Click "Continue Story" or "Create New" to begin',
+  '/app': 'Start by clicking Continue Story below',
   '/app/story-video-studio': 'Enter your story idea above, then click Generate',
   '/app/reel-generator': 'Type your reel topic and click Generate',
   '/app/stories': 'Pick a story theme to get started',
   '/app/story-generator': 'Enter a story idea and generate',
-  '/app/creator-tools': 'Pick a tool to boost your content creation',
+  '/app/creator-tools': 'Pick a tool to boost your content',
 };
 
 export function ProductGuideProvider({ children }) {
@@ -96,12 +97,12 @@ export function ProductGuideProvider({ children }) {
   const idleTimerRef = useRef(null);
   const lastInteractionRef = useRef(Date.now());
 
-  // Fetch progress on mount
+  // Fetch progress on mount AND re-fetch when pathname changes (catches post-login navigation)
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) { setLoading(false); return; }
-    fetchProgress();
-  }, []);
+    if (!progress) fetchProgress();
+  }, [location.pathname]);
 
   // Reset stuck hint on navigation
   useEffect(() => {
@@ -159,14 +160,33 @@ export function ProductGuideProvider({ children }) {
     setLoading(false);
   };
 
+  // Step success messages
+  const STEP_SUCCESS = {
+    create: 'Story started! Now customize it.',
+    customize: 'Looking great! Hit Generate.',
+    generate: 'Your story is ready!',
+    result: 'Your video is live!',
+    share: 'Shared! You are growing.',
+  };
+
   const updateStep = useCallback(async (step, action, feature, meta) => {
     try {
+      const prevCompleted = progress?.completed_steps || [];
       const { data } = await api.post('/api/user/progress/update', {
         step, action, feature, meta,
       });
-      if (data.success) setProgress(data.data);
+      if (data.success) {
+        setProgress(data.data);
+        // Show success toast for newly completed steps
+        const newCompleted = data.data.completed_steps || [];
+        const justCompleted = newCompleted.filter(s => !prevCompleted.includes(s));
+        if (justCompleted.length > 0) {
+          const msg = STEP_SUCCESS[justCompleted[justCompleted.length - 1]];
+          if (msg) toast.success(msg);
+        }
+      }
     } catch { /* ignore */ }
-  }, []);
+  }, [progress]);
 
   const dismissGuide = useCallback(async () => {
     setShowGuide(false);

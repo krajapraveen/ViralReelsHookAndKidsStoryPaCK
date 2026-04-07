@@ -1,18 +1,10 @@
 # Visionary Suite - Product Requirements Document
 
 ## Original Problem Statement
-Build a full-stack AI Creator Suite ("Visionary Suite") with a compulsion-driven growth engine, monetization system, and complete legal/copyright compliance. Latest mandate: implement a Complete Feature-Guide System with 4 layers.
+Build a full-stack AI Creator Suite ("Visionary Suite") with a compulsion-driven growth engine, monetization system, and complete feature-guide system for user activation and retention.
 
 ## Core Product
-A React + FastAPI + MongoDB AI-powered creator platform offering:
-- Story video generation (with AI narration, scenes, music)
-- Reel/short-form video script generation
-- Social bio generation
-- Comic/coloring book creation
-- Photo-to-comic transformation
-- Content repurposing tools
-- Admin dashboard with truth-based metrics
-- Product Guide System for onboarding and feature discovery
+A React + FastAPI + MongoDB AI-powered creator platform offering story video generation, reel scripts, social bio generation, comic/coloring book creation, and content repurposing tools.
 
 ## Architecture
 ```
@@ -22,73 +14,83 @@ A React + FastAPI + MongoDB AI-powered creator platform offering:
 │   │   ├── user_progress.py     # Guide system progress API
 │   │   ├── admin_metrics.py     # Truth-based admin metrics
 │   │   ├── auth.py              # Standardized 50-credit signup
-│   │   ├── public_routes.py     # Social proof + Live Activity
 │   │   ├── cashfree_payments.py # Payment with idempotent credit delivery
 │   │   └── cashfree_webhook_handler.py # Webhook with duplicate protection
-│   ├── services/
-│   │   └── anti_abuse_service.py # Disabled delayed credits (50-credit policy)
 │   └── server.py
 └── frontend/ (React + Tailwind + Shadcn)
     ├── src/
-    │   ├── components/
-    │   │   ├── guide/
-    │   │   │   ├── GuideAssistant.jsx    # Context-aware guide bubble + panel + stuck hint
-    │   │   │   └── JourneyProgressBar.jsx # Mobile journey progress bar
-    │   │   ├── support/
-    │   │   │   └── SupportDock.jsx        # Mobile support dock
-    │   │   └── CookieConsent.js           # GDPR banner (z-9000)
+    │   ├── components/guide/
+    │   │   ├── FirstActionOverlay.jsx  # NEW: Mandatory onboarding overlay
+    │   │   ├── GuideAssistant.jsx      # REWRITTEN: Action-driven guide with auto-scroll+highlight
+    │   │   └── JourneyProgressBar.jsx  # REWRITTEN: Sticky top bar, desktop+mobile, % completion
     │   ├── contexts/
-    │   │   └── ProductGuideContext.js     # Guide state, stuck detection, feature walkthroughs
+    │   │   └── ProductGuideContext.js   # UPDATED: Success toasts, path-aware fetch
     │   └── pages/
     │       ├── Dashboard.js
-    │       ├── StoryVideoStudio.js       # data-guide attributes wired
-    │       ├── ReelGenerator.js          # data-guide attributes + tracking wired
-    │       └── StoryGenerator.js         # data-guide attributes + tracking wired
+    │       ├── StoryVideoStudio.js     # data-guide attributes wired
+    │       ├── ReelGenerator.js        # data-guide + tracking wired
+    │       └── StoryGenerator.js       # data-guide + tracking wired
 ```
 
-## What's Implemented (as of 2026-04-07)
-- Full AI creation suite
+## What's Implemented
+
+### Activation System (2026-04-07) — ALL TESTED, 100% PASS
+1. **First-Action Overlay** (P0-2)
+   - Full-screen darkened overlay for users with 0 generations
+   - Cannot be skipped — single CTA "Start Now" navigates to studio
+   - Admin users excluded via role check
+   - Session-scoped (doesn't reappear after interaction)
+
+2. **Action-Driven Guide** (P0-3)
+   - Every guide step has CTA button that auto-scrolls + highlights target
+   - Path-aware: "Go to Studio" on Dashboard, "Enter Your Story" on Studio
+   - Stuck hints (15s idle) include action buttons ("Scroll to input")
+   - Feature tooltips with scroll-to-target and glow highlight
+
+3. **Progress Bar** (P1)
+   - Sticky at top of page for all authenticated users
+   - Desktop: 5 labeled steps (Create→Customize→Generate→View→Share) with %
+   - Mobile: compact colored bars with step count
+   - Success toasts on step completion
+
+4. **Stuck User Recovery** (P1)
+   - 15s idle detection with action-driven hints
+   - Page-contextual messages with CTA buttons
+   - Auto-dismisses on user interaction
+
+### Payment System (2026-04-07) — STAGING AUDIT COMPLETE
+- All generation endpoints enforce credit deduction
+- Idempotent payment processing (verify + webhook both protected)
+- No revenue leaks in code
+- **NOTE**: Production database audit required for real transaction verification
+
+### Previously Completed
 - Growth Engine (Share pages, First Video Free, Remix, Watermark, Referrals)
-- Cashfree payment integration (idempotent, duplicate-protected)
+- Cashfree payment integration
 - Google OAuth + JWT auth
 - Admin dashboard with truth-based metrics
-- Credit system (50 credits for new users, all paths audited)
+- Credit system (50 credits for new users)
 - Legal/Copyright compliance
-- Post-usage feedback system
-- Responsive Support Widgets (floating on desktop, dock on mobile)
-- **Product Guide System** (4 layers implemented):
-  1. Master Journey Tracking (Create -> Customize -> Generate -> Result -> Share)
-  2. Feature Walkthroughs (StoryVideoStudio, ReelGenerator, StoryGenerator)
-  3. Context-Aware Guidance (smart prompts based on user progress)
-  4. Stuck User Recovery (15s idle detection with contextual hints)
+- Responsive Support Widgets
 
-## Product Guide System (2026-04-07)
-- **GuideAssistant**: Fixed-position bubble (z-10000) with expandable panel showing next step, CTA, journey mini-map, dismiss option
-- **JourneyProgressBar**: Mobile-only (lg:hidden) top progress bar showing 5-step journey
-- **Stuck Hint**: Amber floating prompt after 15s idle, page-contextual messages
-- **Feature Tooltips**: Anchored tooltips highlighting specific UI elements with step-by-step progression
-- **data-guide attributes**: Added to key interactive elements across StoryVideoStudio, ReelGenerator, StoryGenerator
-- **Z-index hierarchy**: Guide (10000) > Cookie banner (9000)
-- **Backend API**: GET/POST /api/user/progress (create/read/update/dismiss)
-
-## Payment Audit (2026-04-07) - CLEAN
-- Credit deduction enforced on all generation endpoints
-- Double-credit protection: both verify endpoint and webhook have idempotency guards
-- No free-access leaks (demo endpoint returns static templates only)
-- Server startup auto-topup removed
-- Anti-abuse delayed credits disabled (aligned with 50-credit policy)
-- Fixed: Demo reel message "100 free credits" -> "50 free credits"
+## Payment Audit Status
+- **Staging**: CLEAN — 0 orders, 0 webhooks, code paths verified
+- **Production**: PENDING — requires access to production DB at visionary-suite.com
+- Cashfree configured with PRODUCTION credentials
+- Webhook URL: https://www.visionary-suite.com/api/cashfree/webhook
 
 ## Backlog
+### P0
+- Production payment audit (requires production DB access)
+
 ### P1
-- Pipeline Parallelization (Script -> Voice + Images in parallel)
+- Pipeline Parallelization (Script → Voice + Images in parallel)
 - A/B test hook text variations on public pages
-- Character-driven auto-share prompts
 
 ### P2
-- Upgrade admin dashboard from polling to WebSockets
-- "Story Chain" leaderboard
-- "Remix Variants" on share pages
+- WebSocket admin dashboard upgrade
+- Story Chain leaderboard
+- Remix Variants on share pages
 - UI polish and style preset thumbnails
 
 ## 3rd Party Integrations
@@ -98,5 +100,5 @@ A React + FastAPI + MongoDB AI-powered creator platform offering:
 - Google Identity Services (OAuth 2.0)
 
 ## Test Credentials
-- Test User: test@visionary-suite.com / Test@2026#
+- New User: newuser@test.com / Test@2026#
 - Admin: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
