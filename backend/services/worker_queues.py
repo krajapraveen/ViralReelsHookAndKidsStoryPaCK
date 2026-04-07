@@ -21,10 +21,14 @@ class JobPriority(Enum):
 
 class QueueType(Enum):
     """Worker queue types - separate queues for different workloads"""
-    TEXT = "text"       # Fast text-only jobs (reels, scripts)
-    IMAGE = "image"     # Image generation jobs
-    VIDEO = "video"     # Video generation jobs (slowest)
-    BATCH = "batch"     # Batch processing jobs
+    TEXT = "text"           # Fast text-only jobs (reels, scripts)
+    IMAGE = "image"         # Image generation jobs
+    VIDEO = "video"         # Video generation jobs (slowest)
+    AUDIO = "audio"         # Audio/voiceover generation
+    EXPORT = "export"       # Packaging/export/download prep
+    WEBHOOK = "webhook"     # Payment/webhook/bookkeeping
+    ANALYTICS = "analytics" # Analytics/noncritical background tasks
+    BATCH = "batch"         # Batch processing jobs
 
 
 # Queue Configuration
@@ -33,7 +37,7 @@ QUEUE_CONFIG = {
         "max_concurrent": 5,
         "timeout_seconds": 60,
         "priority": JobPriority.HIGH,
-        "job_types": ["STORY_GENERATION", "REEL_GENERATION"],
+        "job_types": ["STORY_GENERATION", "REEL_GENERATION", "CAPTION_GENERATION"],
         "retry_limit": 3,
         "retry_delays": [5, 15, 30],
     },
@@ -41,17 +45,49 @@ QUEUE_CONFIG = {
         "max_concurrent": 3,
         "timeout_seconds": 120,
         "priority": JobPriority.NORMAL,
-        "job_types": ["TEXT_TO_IMAGE"],
+        "job_types": ["TEXT_TO_IMAGE", "COMIC_GENERATION", "PHOTO_TO_COMIC"],
         "retry_limit": 3,
         "retry_delays": [10, 30, 60],
     },
     QueueType.VIDEO: {
         "max_concurrent": 2,
         "timeout_seconds": 600,
-        "priority": JobPriority.LOW,
-        "job_types": ["TEXT_TO_VIDEO", "IMAGE_TO_VIDEO", "VIDEO_REMIX"],
+        "priority": JobPriority.NORMAL,
+        "job_types": ["TEXT_TO_VIDEO", "IMAGE_TO_VIDEO", "VIDEO_REMIX", "STORY_VIDEO"],
         "retry_limit": 2,
         "retry_delays": [30, 120],
+    },
+    QueueType.AUDIO: {
+        "max_concurrent": 3,
+        "timeout_seconds": 90,
+        "priority": JobPriority.NORMAL,
+        "job_types": ["VOICEOVER", "TTS_GENERATION", "AUDIO_GENERATION"],
+        "retry_limit": 3,
+        "retry_delays": [10, 30, 60],
+    },
+    QueueType.EXPORT: {
+        "max_concurrent": 3,
+        "timeout_seconds": 300,
+        "priority": JobPriority.LOW,
+        "job_types": ["EXPORT_VIDEO", "DOWNLOAD_PREP", "WATERMARK_APPLY"],
+        "retry_limit": 2,
+        "retry_delays": [15, 60],
+    },
+    QueueType.WEBHOOK: {
+        "max_concurrent": 5,
+        "timeout_seconds": 30,
+        "priority": JobPriority.CRITICAL,
+        "job_types": ["PAYMENT_WEBHOOK", "WEBHOOK_RETRY", "CREDIT_UPDATE"],
+        "retry_limit": 5,
+        "retry_delays": [2, 5, 15, 30, 60],
+    },
+    QueueType.ANALYTICS: {
+        "max_concurrent": 2,
+        "timeout_seconds": 120,
+        "priority": JobPriority.LOW,
+        "job_types": ["ANALYTICS_SYNC", "REPORT_GENERATION", "CLEANUP"],
+        "retry_limit": 1,
+        "retry_delays": [60],
     },
     QueueType.BATCH: {
         "max_concurrent": 1,
@@ -62,6 +98,9 @@ QUEUE_CONFIG = {
         "retry_delays": [60],
     }
 }
+
+# Per-user fairness: max concurrent jobs per user per queue
+MAX_JOBS_PER_USER = 3
 
 
 # Reverse mapping: job_type -> queue
@@ -80,14 +119,19 @@ class WorkerQueue:
         self.db = db
         self.processor = processor
         self.active_jobs: Dict[str, asyncio.Task] = {}
+        self._active_user_map: Dict[str, str] = {}  # job_id -> user_id for fairness
         self.is_running = False
         self.metrics = {
             "processed": 0,
             "succeeded": 0,
             "failed": 0,
             "retried": 0,
+            "dead_lettered": 0,
+            "cancelled": 0,
             "avg_processing_time": 0,
             "processing_times": [],
+            "p95_processing_time": 0,
+            "p99_processing_time": 0,
         }
     
     @property
@@ -95,14 +139,15 @@ class WorkerQueue:
         return "genstudio_jobs"
     
     async def get_next_jobs(self, limit: int = None) -> List[Dict[str, Any]]:
-        """Get next jobs for this queue based on job types"""
+        """Get next jobs for this queue based on job types, with per-user fairness."""
         if limit is None:
             limit = self.config["max_concurrent"] - len(self.active_jobs)
         
         if limit <= 0:
             return []
         
-        jobs = await self.db[self.collection_name].find(
+        # Get candidate jobs
+        candidates = await self.db[self.collection_name].find(
             {
                 "status": "QUEUED",
                 "jobType": {"$in": self.config["job_types"]},
@@ -112,9 +157,28 @@ class WorkerQueue:
                 ]
             },
             {"_id": 0}
-        ).sort([("priority", 1), ("createdAt", 1)]).limit(limit).to_list(limit)
+        ).sort([("priority", 1), ("createdAt", 1)]).limit(limit * 3).to_list(limit * 3)
         
-        return jobs
+        # Per-user fairness: count active jobs per user and skip users over limit
+        user_active = {}
+        for job_id, task in self.active_jobs.items():
+            # We track user_id from the job, stored when we locked it
+            uid = self._active_user_map.get(job_id)
+            if uid:
+                user_active[uid] = user_active.get(uid, 0) + 1
+        
+        fair_jobs = []
+        for job in candidates:
+            uid = job.get("userId", "anonymous")
+            current = user_active.get(uid, 0)
+            if current >= MAX_JOBS_PER_USER:
+                continue  # Skip — user has too many active jobs
+            user_active[uid] = current + 1
+            fair_jobs.append(job)
+            if len(fair_jobs) >= limit:
+                break
+        
+        return fair_jobs
     
     async def lock_job(self, job_id: str) -> bool:
         """Lock a job for processing"""
@@ -178,6 +242,26 @@ class WorkerQueue:
         
         finally:
             self.active_jobs.pop(job_id, None)
+            self._active_user_map.pop(job_id, None)
+    
+    async def cancel_job(self, job_id: str) -> bool:
+        """Cancel a queued or processing job."""
+        # Cancel if it's actively running
+        task = self.active_jobs.get(job_id)
+        if task and not task.done():
+            task.cancel()
+            self.active_jobs.pop(job_id, None)
+            self._active_user_map.pop(job_id, None)
+        
+        result = await self.db[self.collection_name].update_one(
+            {"id": job_id, "status": {"$in": ["QUEUED", "PROCESSING"]}},
+            {"$set": {"status": "CANCELLED", "completedAt": datetime.now(timezone.utc).isoformat()}}
+        )
+        if result.modified_count > 0:
+            self.metrics["cancelled"] += 1
+            logger.info(f"[{self.queue_type.value}] Job {job_id} cancelled")
+            return True
+        return False
     
     async def _handle_job_failure(self, job: Dict[str, Any], error: str):
         """Handle job failure with retry logic"""
@@ -205,27 +289,44 @@ class WorkerQueue:
             self.metrics["retried"] += 1
             logger.info(f"[{self.queue_type.value}] Job {job_id} scheduled for retry in {retry_delay}s (attempt {attempts + 1}/{self.config['retry_limit']})")
         else:
-            # Move to failed status - will trigger fallback output
+            # Move to dead-letter queue
             await self.db[self.collection_name].update_one(
                 {"id": job_id},
                 {
                     "$set": {
-                        "status": "FAILED",
+                        "status": "DEAD_LETTER",
                         "errorMessage": error,
                         "completedAt": datetime.now(timezone.utc).isoformat(),
-                        "exhaustedRetries": True
+                        "exhaustedRetries": True,
+                        "deadLetterAt": datetime.now(timezone.utc).isoformat(),
+                        "queueType": self.queue_type.value,
                     }
                 }
             )
-            logger.error(f"[{self.queue_type.value}] Job {job_id} failed after {attempts} attempts: {error}")
+            # Also log to dead_letter_jobs collection for admin visibility
+            await self.db.dead_letter_jobs.insert_one({
+                "job_id": job_id,
+                "queue_type": self.queue_type.value,
+                "job_type": job.get("jobType", "unknown"),
+                "user_id": job.get("userId"),
+                "error": error,
+                "attempts": attempts,
+                "created_at": job.get("createdAt"),
+                "dead_at": datetime.now(timezone.utc).isoformat(),
+            })
+            logger.error(f"[{self.queue_type.value}] Job {job_id} moved to DEAD LETTER after {attempts} attempts: {error}")
     
     def _record_processing_time(self, time_seconds: float):
-        """Record processing time for metrics"""
+        """Record processing time for metrics including percentiles"""
         self.metrics["processing_times"].append(time_seconds)
         # Keep last 100 samples
         if len(self.metrics["processing_times"]) > 100:
             self.metrics["processing_times"].pop(0)
-        self.metrics["avg_processing_time"] = sum(self.metrics["processing_times"]) / len(self.metrics["processing_times"])
+        times = sorted(self.metrics["processing_times"])
+        n = len(times)
+        self.metrics["avg_processing_time"] = sum(times) / n
+        self.metrics["p95_processing_time"] = times[int(n * 0.95)] if n > 0 else 0
+        self.metrics["p99_processing_time"] = times[int(min(n * 0.99, n - 1))] if n > 0 else 0
     
     async def run(self, poll_interval: float = 2.0):
         """Main worker loop"""
@@ -245,6 +346,13 @@ class WorkerQueue:
                         
                         # Try to lock the job
                         if await self.lock_job(job_id):
+                            # Track user for fairness
+                            self._active_user_map[job_id] = job.get("userId", "anonymous")
+                            # Check for cancellation before starting
+                            job_fresh = await self.db[self.collection_name].find_one({"id": job_id}, {"_id": 0, "status": 1})
+                            if job_fresh and job_fresh.get("status") == "CANCELLED":
+                                self._active_user_map.pop(job_id, None)
+                                continue
                             # Create task for processing
                             task = asyncio.create_task(self.process_job_with_timeout(job))
                             self.active_jobs[job_id] = task
@@ -268,13 +376,18 @@ class WorkerQueue:
             "active_jobs": len(self.active_jobs),
             "max_concurrent": self.config["max_concurrent"],
             "job_types": self.config["job_types"],
+            "timeout_seconds": self.config["timeout_seconds"],
             "metrics": {
                 "processed": self.metrics["processed"],
                 "succeeded": self.metrics["succeeded"],
                 "failed": self.metrics["failed"],
                 "retried": self.metrics["retried"],
-                "avg_processing_time_seconds": round(self.metrics["avg_processing_time"], 2),
-                "success_rate": round(self.metrics["succeeded"] / max(self.metrics["processed"], 1) * 100, 1)
+                "dead_lettered": self.metrics["dead_lettered"],
+                "cancelled": self.metrics["cancelled"],
+                "avg_processing_time_s": round(self.metrics["avg_processing_time"], 2),
+                "p95_processing_time_s": round(self.metrics["p95_processing_time"], 2),
+                "p99_processing_time_s": round(self.metrics["p99_processing_time"], 2),
+                "success_rate_pct": round(self.metrics["succeeded"] / max(self.metrics["processed"], 1) * 100, 1),
             }
         }
 

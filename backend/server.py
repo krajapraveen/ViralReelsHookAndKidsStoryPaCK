@@ -127,6 +127,7 @@ from routes.funnel_tracking import router as funnel_tracking_router
 from routes.pricing_api import router as pricing_api_router
 from routes.streaks import router as streaks_router
 from routes.asset_access import router as asset_access_router
+from routes.system_health_api import router as system_health_router
 
 # NEW FEATURE: Instagram Bio Generator
 from routes.instagram_bio_generator import router as instagram_bio_generator_router
@@ -253,6 +254,27 @@ app.add_middleware(PerformanceMiddleware)
 
 # Add Self-Healing middleware for request tracking and correlation IDs
 app.add_middleware(SelfHealingMiddleware)
+
+# Request latency tracking for system health observability
+from starlette.middleware.base import BaseHTTPMiddleware
+from routes.system_health_api import record_request
+import time as _time
+
+class LatencyTrackingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        start = _time.time()
+        try:
+            response = await call_next(request)
+            latency_ms = (_time.time() - start) * 1000
+            is_error = response.status_code >= 500
+            record_request(latency_ms, is_error)
+            return response
+        except Exception:
+            latency_ms = (_time.time() - start) * 1000
+            record_request(latency_ms, True)
+            raise
+
+app.add_middleware(LatencyTrackingMiddleware)
 
 # ==================== MIDDLEWARE ====================
 
@@ -477,6 +499,7 @@ api_router.include_router(funnel_tracking_router)
 api_router.include_router(pricing_api_router)
 api_router.include_router(streaks_router)
 api_router.include_router(asset_access_router)
+api_router.include_router(system_health_router)
 
 # Daily Report Service
 api_router.include_router(daily_report_router)

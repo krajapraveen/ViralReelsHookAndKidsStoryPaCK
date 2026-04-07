@@ -1,0 +1,90 @@
+/**
+ * k6 Scenario Configurations — Run specific test profiles.
+ *
+ * Usage:
+ *   k6 run --config load-tests/scenarios.json load-tests/mixed-workload.js
+ */
+{
+  "scenarios": {
+    "smoke_100": {
+      "executor": "constant-vus",
+      "vus": 100,
+      "duration": "2m"
+    },
+    "ramp_500": {
+      "executor": "ramping-vus",
+      "startVUs": 0,
+      "stages": [
+        { "duration": "1m", "target": 100 },
+        { "duration": "2m", "target": 500 },
+        { "duration": "2m", "target": 500 },
+        { "duration": "1m", "target": 0 }
+      ]
+    },
+    "ramp_1k": {
+      "executor": "ramping-vus",
+      "startVUs": 0,
+      "stages": [
+        { "duration": "1m", "target": 200 },
+        { "duration": "3m", "target": 1000 },
+        { "duration": "3m", "target": 1000 },
+        { "duration": "2m", "target": 0 }
+      ]
+    },
+    "ramp_3k": {
+      "executor": "ramping-vus",
+      "startVUs": 0,
+      "stages": [
+        { "duration": "2m", "target": 500 },
+        { "duration": "3m", "target": 3000 },
+        { "duration": "5m", "target": 3000 },
+        { "duration": "2m", "target": 0 }
+      ]
+    },
+    "ramp_5k": {
+      "executor": "ramping-vus",
+      "startVUs": 0,
+      "stages": [
+        { "duration": "2m", "target": 1000 },
+        { "duration": "3m", "target": 5000 },
+        { "duration": "5m", "target": 5000 },
+        { "duration": "2m", "target": 0 }
+      ]
+    },
+    "ramp_10k": {
+      "executor": "ramping-vus",
+      "startVUs": 0,
+      "stages": [
+        { "duration": "2m", "target": 1000 },
+        { "duration": "3m", "target": 5000 },
+        { "duration": "3m", "target": 10000 },
+        { "duration": "5m", "target": 10000 },
+        { "duration": "2m", "target": 0 }
+      ]
+    },
+    "spike": {
+      "executor": "ramping-vus",
+      "startVUs": 100,
+      "stages": [
+        { "duration": "1m", "target": 100 },
+        { "duration": "30s", "target": 10000 },
+        { "duration": "3m", "target": 10000 },
+        { "duration": "1m", "target": 100 },
+        { "duration": "2m", "target": 100 }
+      ]
+    },
+    "soak_1h": {
+      "executor": "constant-vus",
+      "vus": 3000,
+      "duration": "1h"
+    }
+  },
+  "thresholds": {
+    "http_req_duration": ["p(95)<2500"],
+    "page_latency": ["p(95)<1500"],
+    "api_latency": ["p(95)<2500"],
+    "queue_accept_latency": ["p(95)<2000"],
+    "error_rate": ["rate<0.005"],
+    "http_req_failed": ["rate<0.01"]
+  }
+}

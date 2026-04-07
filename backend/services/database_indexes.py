@@ -137,6 +137,29 @@ INDEX_DEFINITIONS = {
         {"keys": [("correlation_id", 1)], "options": {"name": "idx_incident_correlation"}},
         {"keys": [("status", 1)], "options": {"name": "idx_incident_status"}},
     ],
+    
+    # Funnel tracking events (conversion analytics)
+    "funnel_events": [
+        {"keys": [("session_id", 1)], "options": {"name": "idx_funnel_session"}},
+        {"keys": [("step", 1), ("timestamp", -1)], "options": {"name": "idx_funnel_step_time"}},
+        {"keys": [("user_id", 1), ("timestamp", -1)], "options": {"name": "idx_funnel_user_time"}},
+        {"keys": [("timestamp", -1)], "options": {"name": "idx_funnel_timestamp"}},
+    ],
+    
+    # Asset access logging (abuse detection)
+    "asset_access_log": [
+        {"keys": [("user_id", 1), ("asset_id", 1), ("timestamp", -1)], "options": {"name": "idx_access_user_asset_time"}},
+        {"keys": [("user_id", 1), ("timestamp", -1)], "options": {"name": "idx_access_user_time"}},
+        {"keys": [("action_type", 1), ("timestamp", -1)], "options": {"name": "idx_access_action_time"}},
+        {"keys": [("timestamp", -1)], "options": {"name": "idx_access_timestamp"}},
+    ],
+    
+    # Abuse events (admin review)
+    "abuse_events": [
+        {"keys": [("user_id", 1)], "options": {"name": "idx_abuse_user"}},
+        {"keys": [("timestamp", -1)], "options": {"name": "idx_abuse_timestamp"}},
+        {"keys": [("abuse_type", 1)], "options": {"name": "idx_abuse_type"}},
+    ],
 }
 
 
