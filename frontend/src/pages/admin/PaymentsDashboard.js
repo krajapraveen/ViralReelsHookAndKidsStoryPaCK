@@ -377,7 +377,9 @@ function SettlementsTab() {
               <th className="px-3 py-2 font-medium">Order ID</th>
               <th className="px-3 py-2 font-medium">Email</th>
               <th className="px-3 py-2 font-medium">Product</th>
-              <th className="px-3 py-2 font-medium">Amount</th>
+              <th className="px-3 py-2 font-medium">Gross</th>
+              <th className="px-3 py-2 font-medium">Net Settlement</th>
+              <th className="px-3 py-2 font-medium">Fees</th>
               <th className="px-3 py-2 font-medium">Paid At</th>
               <th className="px-3 py-2 font-medium">Settlement</th>
               <th className="px-3 py-2 font-medium">UTR</th>
@@ -385,18 +387,25 @@ function SettlementsTab() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800">
-            {settlements.map(o => (
-              <tr key={o.order_id} className="hover:bg-slate-800/40">
-                <td className="px-3 py-2 font-mono text-[10px] text-indigo-400">{(o.order_id || '').slice(-20)}</td>
-                <td className="px-3 py-2 text-white">{o.userEmail}</td>
-                <td className="px-3 py-2 text-slate-300">{o.productName}</td>
-                <td className="px-3 py-2 text-white font-medium">{o.displayAmount}</td>
-                <td className="px-3 py-2 text-slate-400">{(o.paidAt || '').slice(0, 16)}</td>
-                <td className="px-3 py-2"><StatusBadge status={o.settlementStatus || 'PENDING'} /></td>
-                <td className="px-3 py-2 text-[10px] font-mono text-slate-400">{o.settlementUTR || '-'}</td>
-                <td className="px-3 py-2 text-slate-400">{(o.settledAt || '-').slice(0, 16)}</td>
-              </tr>
-            ))}
+            {settlements.map(o => {
+              const gross = o.displayAmount || 0;
+              const net = o.settlementAmount || 0;
+              const fees = net > 0 ? (gross - net).toFixed(2) : '-';
+              return (
+                <tr key={o.order_id} className="hover:bg-slate-800/40">
+                  <td className="px-3 py-2 font-mono text-[10px] text-indigo-400">{(o.order_id || '').slice(-20)}</td>
+                  <td className="px-3 py-2 text-white">{o.userEmail}</td>
+                  <td className="px-3 py-2 text-slate-300">{o.productName}</td>
+                  <td className="px-3 py-2 text-white font-medium">{gross}</td>
+                  <td className="px-3 py-2 text-emerald-400 font-medium">{net || '-'}</td>
+                  <td className="px-3 py-2 text-amber-400 text-[10px]">{fees}</td>
+                  <td className="px-3 py-2 text-slate-400">{(o.paidAt || '').slice(0, 16)}</td>
+                  <td className="px-3 py-2"><StatusBadge status={o.settlementStatus || 'PENDING'} /></td>
+                  <td className="px-3 py-2 text-[10px] font-mono text-slate-400">{o.settlementUTR || '-'}</td>
+                  <td className="px-3 py-2 text-slate-400">{(o.settledAt || '-').slice(0, 16)}</td>
+                </tr>
+              );
+            })}
             {!settlements.length && <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-500">No settlements</td></tr>}
           </tbody>
         </table>
@@ -494,14 +503,32 @@ function OrderDrilldown({ orderId, onBack }) {
 
           {cf?.settlements?.length > 0 && (
             <div className="mt-2 border-t border-slate-700/40 pt-2">
-              <p className="text-[10px] text-slate-400 font-medium mb-1">Settlements</p>
-              {cf.settlements.map((s, i) => (
-                <div key={i} className="text-[10px] text-slate-300 mb-1">
-                  <span className="text-emerald-400">{s.settlement_amount}</span>
-                  <span className="text-slate-500 mx-1">UTR: {s.transfer_utr || 'pending'}</span>
-                  <span className="text-slate-600">{(s.transfer_time || '').slice(0, 19)}</span>
-                </div>
-              ))}
+              <p className="text-[10px] text-slate-400 font-medium mb-1">Settlements (Net vs Gross)</p>
+              {cf.settlements.map((s, i) => {
+                const gross = cf.order?.order_amount || 0;
+                const net = s.settlement_amount || 0;
+                const fees = (s.service_charge || 0) + (s.service_tax || 0);
+                return (
+                  <div key={i} className="text-[10px] mb-2 bg-slate-900/50 rounded-lg p-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-slate-500">Gross</span>
+                      <span className="text-white font-medium">{gross}</span>
+                    </div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-slate-500">Fees + Tax</span>
+                      <span className="text-amber-400">-{fees.toFixed(2)}</span>
+                    </div>
+                    <div className="flex items-center justify-between border-t border-slate-700/40 pt-1">
+                      <span className="text-slate-400 font-medium">Net Settlement</span>
+                      <span className="text-emerald-400 font-bold">{net}</span>
+                    </div>
+                    <div className="flex items-center justify-between mt-1 text-slate-600">
+                      <span>UTR: {s.transfer_utr || 'pending'}</span>
+                      <span>{(s.transfer_time || '').slice(0, 19)}</span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

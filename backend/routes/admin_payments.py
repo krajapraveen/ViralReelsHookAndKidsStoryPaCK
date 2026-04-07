@@ -521,7 +521,7 @@ async def get_settlements(
         "_id": 0, "order_id": 1, "userEmail": 1, "productName": 1,
         "displayAmount": 1, "status": 1, "settlementStatus": 1,
         "settlementId": 1, "settlementAmount": 1, "settlementUTR": 1,
-        "settledAt": 1, "paidAt": 1, "createdAt": 1,
+        "settledAt": 1, "paidAt": 1, "createdAt": 1, "currency": 1,
     }).sort("createdAt", -1).skip(skip).limit(limit)
     async for o in cursor:
         orders.append(o)
