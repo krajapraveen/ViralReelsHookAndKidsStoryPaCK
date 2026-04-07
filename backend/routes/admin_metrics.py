@@ -43,8 +43,9 @@ async def get_executive_summary(days: int = Query(30, ge=1, le=365), admin: dict
 
     # Total users (live DB count)
     total_users = await db.users.count_documents({"role": {"$ne": "deleted"}})
-    new_users_today = await db.users.count_documents({"created_at": {"$gte": today_start.isoformat()}})
-    new_users_period = await db.users.count_documents({"created_at": {"$gte": cutoff.isoformat()}})
+    # users.created_at is a datetime object, not a string
+    new_users_today = await db.users.count_documents({"created_at": {"$gte": today_start}})
+    new_users_period = await db.users.count_documents({"created_at": {"$gte": cutoff}})
 
     # Active users (24h) — users with any activity log
     active_24h = 0
@@ -70,14 +71,14 @@ async def get_executive_summary(days: int = Query(30, ge=1, le=365), admin: dict
     except Exception:
         active_sessions = 0
 
-    # Generations
-    total_generations = await db.pipeline_jobs.count_documents({"created_at": {"$gte": cutoff.isoformat()}})
+    # Generations — pipeline_jobs.created_at is a datetime, NOT a string
+    total_generations = await db.pipeline_jobs.count_documents({"created_at": {"$gte": cutoff}})
     completed_generations = await db.pipeline_jobs.count_documents({
-        "created_at": {"$gte": cutoff.isoformat()},
-        "status": "READY"
+        "created_at": {"$gte": cutoff},
+        "status": {"$in": ["COMPLETED", "READY"]}
     })
     failed_generations = await db.pipeline_jobs.count_documents({
-        "created_at": {"$gte": cutoff.isoformat()},
+        "created_at": {"$gte": cutoff},
         "status": "FAILED"
     })
     success_rate = _safe_rate(completed_generations, total_generations)
@@ -239,8 +240,8 @@ async def get_reliability_metrics(admin: dict = Depends(get_admin_user)):
     # Avg/Max render time (last 24h completed jobs)
     render_pipeline = [
         {"$match": {
-            "status": "READY",
-            "completed_at": {"$gte": _ago(hours=24).isoformat()},
+            "status": {"$in": ["READY", "COMPLETED"]},
+            "completed_at": {"$gte": _ago(hours=24)},
             "started_at": {"$exists": True}
         }},
         {"$project": {
@@ -1693,9 +1694,10 @@ async def growth_metrics(
 
     # ── 3. SHARE FUNNEL ──
     # Create → Share → Open → Continue → New Share
+    # NOTE: pipeline_jobs.created_at is a datetime object, not ISO string
     total_created = await db.pipeline_jobs.count_documents({
-        "created_at": {"$gte": since_str},
-        "status": "COMPLETED",
+        "created_at": {"$gte": since},
+        "status": {"$in": ["COMPLETED", "READY"]},
     })
     total_shares_created = await db.shares.count_documents({
         "createdAt": {"$gte": since_str},
@@ -1774,10 +1776,20 @@ async def growth_metrics(
          "rate": f"{reshare_rate}%"},
     ]
 
-    # ── TOP STORIES ──
+    # ── TOP STORIES (deduplicated by title) ──
     top_stories_pipeline = [
         {"$match": {"parentShareId": None}},
-        {"$sort": {"forks": -1}},
+        {"$sort": {"forks": -1, "views": -1}},
+        {"$group": {
+            "_id": "$title",
+            "id": {"$first": "$id"},
+            "title": {"$first": "$title"},
+            "forks": {"$max": "$forks"},
+            "views": {"$max": "$views"},
+            "hookText": {"$first": "$hookText"},
+            "createdAt": {"$first": "$createdAt"},
+        }},
+        {"$sort": {"forks": -1, "views": -1}},
         {"$limit": 10},
         {"$project": {"_id": 0, "id": 1, "title": 1, "forks": 1, "views": 1, "hookText": 1, "createdAt": 1}},
     ]
@@ -1866,14 +1878,23 @@ async def story_performance(
     Tracks views, continuations (forks), and continuation rate for each story.
     Answers: 'Which stories make people continue?'
     """
-    # Build sort criteria
+    # Build sort criteria — deduplicate by title to avoid test data pollution
     if sort_by == "continuation_rate":
-        # Need computed field — use aggregation
         pipeline = [
             {"$match": {"parentShareId": None}},
-            {"$addFields": {
-                "views": {"$ifNull": ["$views", 0]},
-                "forks": {"$ifNull": ["$forks", 0]},
+            {"$sort": {"views": -1, "forks": -1}},
+            {"$group": {
+                "_id": "$title",
+                "id": {"$first": "$id"},
+                "title": {"$first": "$title"},
+                "hookText": {"$first": "$hookText"},
+                "genre": {"$first": "$genre"},
+                "tone": {"$first": "$tone"},
+                "characters": {"$first": "$characters"},
+                "createdAt": {"$first": "$createdAt"},
+                "seeded": {"$first": "$seeded"},
+                "views": {"$max": {"$ifNull": ["$views", 0]}},
+                "forks": {"$max": {"$ifNull": ["$forks", 0]}},
             }},
             {"$addFields": {
                 "continuation_rate": {
@@ -1897,21 +1918,43 @@ async def story_performance(
             stories.append(doc)
     else:
         sort_field = sort_by
-        cursor = db.shares.find(
-            {"parentShareId": None},
-            {"_id": 0, "id": 1, "title": 1, "hookText": 1, "genre": 1,
-             "views": 1, "forks": 1, "tone": 1, "characters": 1,
-             "createdAt": 1, "seeded": 1},
-        ).sort(sort_field, -1).limit(limit)
+        # Deduplicate by title using aggregation
+        dedup_pipeline = [
+            {"$match": {"parentShareId": None}},
+            {"$sort": {sort_field: -1}},
+            {"$group": {
+                "_id": "$title",
+                "id": {"$first": "$id"},
+                "title": {"$first": "$title"},
+                "hookText": {"$first": "$hookText"},
+                "genre": {"$first": "$genre"},
+                "tone": {"$first": "$tone"},
+                "characters": {"$first": "$characters"},
+                "createdAt": {"$first": "$createdAt"},
+                "seeded": {"$first": "$seeded"},
+                "views": {"$max": {"$ifNull": ["$views", 0]}},
+                "forks": {"$max": {"$ifNull": ["$forks", 0]}},
+            }},
+            {"$sort": {sort_field: -1}},
+            {"$limit": limit},
+            {"$project": {"_id": 0, "id": 1, "title": 1, "hookText": 1, "genre": 1,
+                          "views": 1, "forks": 1, "tone": 1, "characters": 1,
+                          "createdAt": 1, "seeded": 1}},
+        ]
         stories = []
-        async for doc in cursor:
+        async for doc in db.shares.aggregate(dedup_pipeline):
             v = doc.get("views", 0)
             f = doc.get("forks", 0)
             doc["continuation_rate"] = round((f / v) * 100, 1) if v > 0 else 0
             stories.append(doc)
 
-    # Summary stats
-    total_stories = await db.shares.count_documents({"parentShareId": None})
+    # Summary stats — deduplicated count
+    dedup_count = await db.shares.aggregate([
+        {"$match": {"parentShareId": None}},
+        {"$group": {"_id": "$title"}},
+        {"$count": "total"},
+    ]).to_list(1)
+    total_stories = dedup_count[0]["total"] if dedup_count else 0
     total_views_agg = await db.shares.aggregate([
         {"$match": {"parentShareId": None}},
         {"$group": {"_id": None, "total_views": {"$sum": "$views"}, "total_forks": {"$sum": "$forks"}}},
@@ -1952,4 +1995,124 @@ async def story_performance(
             "avg_continuation_rate": avg_rate,
         },
         "genre_breakdown": genre_breakdown,
+    }
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FUNNEL DEBUG TRACE — Admin-only diagnostic endpoint
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/funnel-debug")
+async def funnel_debug(
+    days: int = Query(7, ge=1, le=90),
+    admin: dict = Depends(get_admin_user),
+):
+    """
+    Admin-only funnel debug trace.
+    Compares dashboard metrics against source-of-truth DB records
+    so admin can quickly diagnose where funnel numbers diverge.
+    """
+    since = _ago(days=days)
+    since_str = since.isoformat()
+
+    # Source of truth: pipeline_jobs (created_at is datetime)
+    jobs_total = await db.pipeline_jobs.count_documents({"created_at": {"$gte": since}})
+    jobs_completed = await db.pipeline_jobs.count_documents({
+        "created_at": {"$gte": since},
+        "status": {"$in": ["COMPLETED", "READY"]},
+    })
+    jobs_failed = await db.pipeline_jobs.count_documents({
+        "created_at": {"$gte": since},
+        "status": "FAILED",
+    })
+    jobs_pending = jobs_total - jobs_completed - jobs_failed
+
+    # Source of truth: shares
+    shares_root = await db.shares.count_documents({
+        "createdAt": {"$gte": since_str},
+        "parentShareId": None,
+    })
+    shares_forks = await db.shares.count_documents({
+        "createdAt": {"$gte": since_str},
+        "parentShareId": {"$ne": None},
+    })
+
+    # Source of truth: share_events
+    fork_events = await db.share_events.count_documents({
+        "type": "fork_initiated",
+        "timestamp": {"$gte": since_str},
+    })
+
+    # Source of truth: ab_events
+    ab_impressions = await db.ab_events.count_documents({
+        "action": "impression",
+        "timestamp": {"$gte": since_str},
+    })
+    ab_cta_clicks = await db.ab_events.count_documents({
+        "action": "cta_click",
+        "timestamp": {"$gte": since_str},
+    })
+    ab_create_clicks = await db.ab_events.count_documents({
+        "action": "create_click",
+        "timestamp": {"$gte": since_str},
+    })
+
+    # Source of truth: growth_events
+    ge_creation = await db.growth_events.count_documents({
+        "event": "creation_completed",
+        "timestamp": {"$gte": since_str},
+    })
+    ge_share_click = await db.growth_events.count_documents({
+        "event": "share_click",
+        "timestamp": {"$gte": since_str},
+    })
+    ge_first_video = await db.growth_events.count_documents({
+        "event": "first_video_created",
+        "timestamp": {"$gte": since_str},
+    })
+
+    # Share views aggregate
+    views_agg = await db.shares.aggregate([
+        {"$match": {"createdAt": {"$gte": since_str}}},
+        {"$group": {"_id": None, "total_views": {"$sum": "$views"}, "total_forks": {"$sum": "$forks"}}},
+    ]).to_list(1)
+    total_share_views = views_agg[0]["total_views"] if views_agg else 0
+    total_share_forks = views_agg[0]["total_forks"] if views_agg else 0
+
+    # Duplicate check
+    dup_pipeline = [
+        {"$match": {"parentShareId": None}},
+        {"$group": {"_id": "$title", "count": {"$sum": 1}}},
+        {"$match": {"count": {"$gt": 1}}},
+    ]
+    duplicates = []
+    async for doc in db.shares.aggregate(dup_pipeline):
+        duplicates.append({"title": doc["_id"], "count": doc["count"]})
+
+    return {
+        "period_days": days,
+        "since": since_str,
+        "funnel_trace": {
+            "1_landing_visits": {"source": "ab_events.impression", "count": ab_impressions},
+            "2_cta_clicks": {"source": "ab_events.cta_click + create_click", "count": ab_cta_clicks + ab_create_clicks},
+            "3_create_attempts": {"source": "pipeline_jobs (total)", "count": jobs_total},
+            "4_stories_created": {"source": "pipeline_jobs (COMPLETED/READY)", "count": jobs_completed},
+            "5_stories_failed": {"source": "pipeline_jobs (FAILED)", "count": jobs_failed},
+            "6_stories_pending": {"source": "pipeline_jobs (other)", "count": jobs_pending},
+            "7_shares_created": {"source": "shares (root)", "count": shares_root},
+            "8_share_views": {"source": "shares.views (sum)", "count": total_share_views},
+            "9_fork_events": {"source": "share_events (fork_initiated)", "count": fork_events},
+            "10_share_forks": {"source": "shares.forks (sum)", "count": total_share_forks},
+            "11_reshares": {"source": "shares (with parentShareId)", "count": shares_forks},
+        },
+        "growth_events_cross_check": {
+            "creation_completed": ge_creation,
+            "share_click": ge_share_click,
+            "first_video_created": ge_first_video,
+        },
+        "data_quality": {
+            "duplicate_titles": duplicates,
+            "duplicates_found": len(duplicates),
+        },
     }

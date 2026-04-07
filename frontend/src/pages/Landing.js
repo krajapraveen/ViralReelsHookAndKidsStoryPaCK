@@ -63,14 +63,13 @@ export default function Landing() {
   // Showcase = 100% static bundled data. ZERO API dependency for images.
   const showcase = getAllStaticBanners();
 
-  // A/B variant — persist so same user sees same variant
+  // A/B variant — Default to B (winning variant). Existing users keep their stored variant.
   const [heroVariant] = useState(() => {
     const stored = localStorage.getItem('ab_hero_variant');
     if (stored && HERO_VARIANTS[stored]) return stored;
-    const variants = Object.keys(HERO_VARIANTS);
-    const pick = variants[Math.floor(Math.random() * variants.length)];
-    localStorage.setItem('ab_hero_variant', pick);
-    return pick;
+    // New users get Variant B (production winner at 16% conversion)
+    localStorage.setItem('ab_hero_variant', 'B');
+    return 'B';
   });
   const hero = HERO_VARIANTS[heroVariant];
 

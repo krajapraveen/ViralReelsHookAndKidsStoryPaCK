@@ -1734,6 +1734,19 @@ async def execute_pipeline(job_id: str):
 
     logger.info(f"[PIPE {job_id[:8]}] COMPLETED in {total_ms}ms — assets ready, preview at {preview_path}")
 
+    # Track creation_completed growth event (source of truth for dashboard)
+    try:
+        await db.growth_events.insert_one({
+            "event": "creation_completed",
+            "user_id": job.get("user_id", ""),
+            "job_id": job_id,
+            "title": job.get("title", ""),
+            "tool": "story_video",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception as e:
+        logger.warning(f"[PIPE {job_id[:8]}] Failed to track creation_completed: {e}")
+
     # Finalize credit reservation → confirmed deduction
     await finalize_credits(job)
 

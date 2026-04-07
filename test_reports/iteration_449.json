@@ -1,0 +1,101 @@
+{
+  "summary": "P0 Fix Verified: Growth Dashboard funnel data quality fix for datetime/string type mismatch in MongoDB queries. All 18 backend tests passed. Frontend UI verified showing correct Story Created count (60) with 30d period. Landing page A/B variant B default working. Responsive support widgets regression check passed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_growth_dashboard_fix_iteration449.py",
+    "/app/test_reports/pytest/pytest_results_iteration449.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_growth_dashboard_fix_iteration449.py"
+  ],
+  "success_rate": {
+    "backend": "100% (18/18 tests passed)",
+    "frontend": "100% (all UI tests passed)"
+  },
+  "test_credentials": {
+    "admin": "admin@creatorstudio.ai / Cr3@t0rStud!o#2026",
+    "test_user": "test@visionary-suite.com / Test@2026#"
+  },
+  "seed_data_creation": "None - used existing data",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Growth Dashboard P0 fix verified. The datetime/string type mismatch in MongoDB queries for pipeline_jobs.created_at has been fixed. Key findings: (1) API /api/admin/metrics/growth?hours=720 returns share_funnel.created=60 (was 0 before fix), (2) API /api/admin/metrics/funnel-debug?days=90 returns funnel_trace.4_stories_created.count=60, (3) API /api/admin/metrics/summary?days=90 returns total_generations=290, completed=60, (4) API /api/admin/metrics/story-performance returns deduplicated stories, (5) Landing page sets heroVariant to 'B' by default for new users, (6) Desktop floating widgets visible, mobile support dock visible. Note: With shorter time periods (24h, 72h, 168h), Story Created shows 0 because the pipeline_jobs data is older than 7 days - this is expected behavior.",
+  "verified_features": [
+    {
+      "feature": "Growth Dashboard shows non-zero 'Story Created' count",
+      "status": "PASS",
+      "details": "With 30d period (hours=720), Story Created = 60. With shorter periods, shows 0 because data is older than 7 days."
+    },
+    {
+      "feature": "Growth Dashboard 'Share Funnel Drop-off' table shows correct counts",
+      "status": "PASS",
+      "details": "All stages showing correct counts: Landing Visit=183, CTA Click=1, Story Created=60, Story Shared=41, Share Opened=75, Continued=15, Re-shared=0"
+    },
+    {
+      "feature": "Growth Dashboard 'Continuation Rate' is non-zero",
+      "status": "PASS",
+      "details": "Continuation Rate = 20.0% (strong)"
+    },
+    {
+      "feature": "Growth Dashboard 'Share Rate' is non-zero",
+      "status": "PASS",
+      "details": "Share Rate = 68.3% (41 shares / 60 created)"
+    },
+    {
+      "feature": "Admin endpoint GET /api/admin/metrics/growth?hours=720",
+      "status": "PASS",
+      "details": "Returns share_funnel.created = 60"
+    },
+    {
+      "feature": "Admin endpoint GET /api/admin/metrics/funnel-debug?days=90",
+      "status": "PASS",
+      "details": "Returns funnel_trace.4_stories_created.count = 60, data_quality.duplicates_found = 2"
+    },
+    {
+      "feature": "Admin endpoint GET /api/admin/metrics/summary?days=90",
+      "status": "PASS",
+      "details": "Returns total_generations = 290, completed_generations = 60"
+    },
+    {
+      "feature": "Admin endpoint GET /api/admin/metrics/story-performance",
+      "status": "PASS",
+      "details": "Returns deduplicated stories (39 unique titles)"
+    },
+    {
+      "feature": "Landing page sets heroVariant to 'B' by default",
+      "status": "PASS",
+      "details": "localStorage.ab_hero_variant = 'B' for new users"
+    },
+    {
+      "feature": "Landing page hero shows Variant B content",
+      "status": "PASS",
+      "details": "Hero heading: 'Turn any idea into a viral AI video', Badge: 'No editing. No experience needed.'"
+    },
+    {
+      "feature": "Desktop floating chatbot and support widgets visible",
+      "status": "PASS",
+      "details": "Chatbot toggle and feedback toggle visible on desktop (1920px)"
+    },
+    {
+      "feature": "Mobile support dock visible, no floating widgets",
+      "status": "PASS",
+      "details": "Support dock visible at bottom, floating widgets hidden on mobile (375px)"
+    },
+    {
+      "feature": "Auth flows still work",
+      "status": "PASS",
+      "details": "Admin login returns valid token and correct credits"
+    }
+  ],
+  "rca_of_the_issue": "Root cause was a datetime/string type mismatch in MongoDB queries. pipeline_jobs.created_at is stored as a datetime object in MongoDB, but queries were comparing it with since_str (an ISO string). MongoDB cannot compare datetime to string, so it returned 0 results for all pipeline_jobs time-filtered queries. The fix changes all pipeline_jobs queries to use the datetime object directly (since) instead of the ISO string (since_str)."
+}
