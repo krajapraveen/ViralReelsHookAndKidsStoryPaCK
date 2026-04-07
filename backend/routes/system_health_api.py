@@ -11,7 +11,10 @@ Provides real-time visibility into:
 """
 from fastapi import APIRouter, Depends, Query
 from datetime import datetime, timezone, timedelta
-import os, sys, time, asyncio
+import os
+import sys
+import time
+import asyncio
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from shared import db, get_admin_user
@@ -275,3 +278,65 @@ async def stuck_jobs_detail(user: dict = Depends(get_admin_user)):
         {"_id": 0, "id": 1, "jobType": 1, "userId": 1, "startedAt": 1, "queueType": 1},
     ).limit(50).to_list(50)
     return {"count": len(stuck), "jobs": stuck}
+
+
+# ─── LOAD GUARD ENDPOINTS ─────────────────────────────────────────────────
+
+from pydantic import BaseModel
+from typing import Optional as Opt
+from services.admission_controller import get_load_guard, MODE_SEVERITY
+
+
+class LoadGuardRequest(BaseModel):
+    action: str  # "set_mode", "set_auto", "set_bypass"
+    mode: Opt[str] = None
+    auto_enabled: Opt[bool] = None
+    premium_bypass: Opt[bool] = None
+
+
+@router.get("/load-guard")
+async def load_guard_status(user: dict = Depends(get_admin_user)):
+    """Full Load Guard status: mode, signals, per-queue, recovery, audit."""
+    guard = get_load_guard()
+    return guard.get_status()
+
+
+@router.post("/load-guard")
+async def load_guard_control(request: LoadGuardRequest, user: dict = Depends(get_admin_user)):
+    """Admin control: set manual mode, toggle auto, toggle premium bypass."""
+    guard = get_load_guard()
+    admin_id = str(user.get("id", user.get("email", "unknown")))
+
+    if request.action == "set_mode":
+        if request.mode is not None and request.mode not in MODE_SEVERITY:
+            from fastapi import HTTPException as HE
+            raise HE(status_code=400, detail=f"Invalid mode. Valid: {list(MODE_SEVERITY.keys())}")
+        guard.set_manual_mode(request.mode, admin_id)
+        return {"success": True, "action": "set_mode", "mode": request.mode, "status": guard.get_status()}
+
+    if request.action == "set_auto":
+        if request.auto_enabled is None:
+            from fastapi import HTTPException as HE
+            raise HE(status_code=400, detail="auto_enabled is required for set_auto action")
+        guard.set_auto_enabled(request.auto_enabled, admin_id)
+        return {"success": True, "action": "set_auto", "auto_enabled": request.auto_enabled}
+
+    if request.action == "set_bypass":
+        if request.premium_bypass is None:
+            from fastapi import HTTPException as HE
+            raise HE(status_code=400, detail="premium_bypass is required for set_bypass action")
+        guard.set_premium_bypass(request.premium_bypass, admin_id)
+        return {"success": True, "action": "set_bypass", "premium_bypass": request.premium_bypass}
+
+    from fastapi import HTTPException as HE
+    raise HE(status_code=400, detail="Invalid action. Valid: set_mode, set_auto, set_bypass")
+
+
+@router.get("/load-guard/decisions")
+async def load_guard_decisions(
+    user: dict = Depends(get_admin_user),
+    limit: int = Query(50, ge=1, le=500),
+):
+    """Recent admission decisions with full metrics context."""
+    guard = get_load_guard()
+    return {"decisions": guard.get_recent_decisions(limit)}

@@ -431,7 +431,7 @@ async def generate_comic_book(
             raise HTTPException(status_code=429, detail=guardrail.reason)
 
         # ── 3. Admission controller ──────────────────────────────────
-        admission = await check_admission(user_id, user_plan)
+        admission = await check_admission(user_id, user_plan, job_type="COMIC_STORYBOOK")
         if not admission.admitted:
             await idem_svc.mark_failed(idempotency_key, admission.reason)
             raise HTTPException(

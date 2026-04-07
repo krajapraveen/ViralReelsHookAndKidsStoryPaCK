@@ -17,7 +17,7 @@ from services.pipeline_engine import (
     create_pipeline_job, resume_pipeline, get_job,
     ANIMATION_STYLES, AGE_GROUPS, VOICE_PRESETS, CREDIT_COSTS, PLAN_SCENE_LIMITS,
 )
-from services.admission_controller import check_admission, get_system_status, CONCURRENCY_LIMITS, LOAD_NORMAL
+from services.admission_controller import check_admission, get_system_status, CONCURRENCY_LIMITS, LOAD_NORMAL, get_load_guard
 from services.pipeline_worker import enqueue_job, get_worker_stats
 
 logger = logging.getLogger("pipeline_routes")
@@ -466,7 +466,7 @@ async def create_pipeline(
 
     # ── ADMISSION CONTROL ─────────────────────────────────────────────────
     user_plan = current_user.get("plan", "free")
-    admission = await check_admission(user_id, user_plan)
+    admission = await check_admission(user_id, user_plan, job_type="STORY_VIDEO")
     if not admission.admitted:
         raise HTTPException(
             status_code=429,

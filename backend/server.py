@@ -1075,6 +1075,18 @@ async def startup():
             logger.warning(f"Recovery daemon startup warning: {e}")
     asyncio.create_task(_delayed_recovery_daemon())
     
+    # Start Load Guard background snapshot collector
+    async def _start_load_guard():
+        await asyncio.sleep(5)
+        try:
+            from services.admission_controller import get_load_guard
+            guard = get_load_guard()
+            await guard.start()
+            logger.info("Load Guard snapshot collector started")
+        except Exception as e:
+            logger.warning(f"Load Guard startup warning: {e}")
+    asyncio.create_task(_start_load_guard())
+
     # Initialize self-healing system
     try:
         from services.self_healing_core import initialize_self_healing
