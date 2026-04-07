@@ -196,6 +196,13 @@ function App() {
     setPaywallOpen(true);
   }, []);
 
+  // Listen for paywall triggers from child components
+  useEffect(() => {
+    const handler = (e) => triggerPaywall(e.detail?.reason || 'exit_interception');
+    window.addEventListener('trigger-paywall', handler);
+    return () => window.removeEventListener('trigger-paywall', handler);
+  }, [triggerPaywall]);
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {

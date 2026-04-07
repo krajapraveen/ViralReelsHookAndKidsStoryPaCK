@@ -30,6 +30,9 @@ import {
 import CreationActionsBar from '../components/CreationActionsBar';
 import ContextualUpgrade from '../components/ContextualUpgrade';
 import ShareModal from '../components/ShareModal';
+import ResultRetentionEngine from '../components/guide/ResultRetentionEngine';
+import StickyGenerateAgain from '../components/guide/StickyGenerateAgain';
+import ExitInterceptionModal from '../components/guide/ExitInterceptionModal';
 
 const AGE_GROUPS = [
   { id: 'kids_3_5', name: 'Kids 3-5', description: 'Simple stories, bright colors' },
@@ -142,6 +145,10 @@ export default function StoryVideoStudio() {
 
   // Error recovery state — prevents blank page on any unhandled error
   const [componentError, setComponentError] = useState(null);
+  
+  // Exit interception state
+  const [showExitModal, setShowExitModal] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState(null);
   
   // NEW: WebSocket Real-Time Progress
   const [currentJobId, setCurrentJobId] = useState(null);
@@ -2402,7 +2409,37 @@ export default function StoryVideoStudio() {
               </div>
             </div>
             
-            {/* Project Summary */}
+            {/* ── RETENTION ENGINE ── */}
+            <ResultRetentionEngine
+              project={project}
+              storyText={storyText}
+              styleId={styleId}
+              onContinueStory={() => {
+                const projectId = project?.project_id;
+                if (projectId) navigate(`/app/story-video?continue=${projectId}`);
+              }}
+              onRemix={(preset) => {
+                setStep(1);
+                setProject(null);
+                setGeneratedImages([]);
+                setGeneratedVoices([]);
+                setRenderJob(null);
+                if (preset.style) {
+                  setStyleId(preset.style);
+                }
+                // Keep story text for remix
+              }}
+              onNewStory={() => {
+                setStep(1);
+                setProject(null);
+                setStoryText('');
+                setTitle('');
+                setGeneratedImages([]);
+                setGeneratedVoices([]);
+                setRenderJob(null);
+              }}
+              onShareClick={() => setShowShareAfterGen(true)}
+            />
             <div className="grid grid-cols-4 gap-4">
               <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-4 text-center">
                 <p className="text-2xl font-bold text-white">{project.scenes?.length || 0}</p>
@@ -2562,7 +2599,10 @@ export default function StoryVideoStudio() {
               </Button>
               <Button 
                 className="flex-1 bg-purple-500 hover:bg-purple-600"
-                onClick={() => navigate('/app/dashboard')}
+                onClick={() => {
+                  setPendingNavigation('/app/dashboard');
+                  setShowExitModal(true);
+                }}
               >
                 Back to Dashboard
               </Button>
@@ -2570,6 +2610,43 @@ export default function StoryVideoStudio() {
           </div>
         )}
       </main>
+
+      {/* Sticky "Generate Again" CTA */}
+      <StickyGenerateAgain
+        visible={step === 8}
+        onGenerateAgain={() => {
+          setStep(1);
+          setProject(null);
+          setStoryText('');
+          setTitle('');
+          setGeneratedImages([]);
+          setGeneratedVoices([]);
+          setRenderJob(null);
+        }}
+      />
+
+      {/* Exit Interception Modal */}
+      <ExitInterceptionModal
+        visible={showExitModal}
+        onStay={() => {
+          setShowExitModal(false);
+          setStep(1);
+          setProject(null);
+          setStoryText('');
+          setTitle('');
+          setGeneratedImages([]);
+          setGeneratedVoices([]);
+          setRenderJob(null);
+        }}
+        onUpgrade={() => {
+          setShowExitModal(false);
+          window.dispatchEvent(new CustomEvent('trigger-paywall', { detail: { reason: 'exit_interception' } }));
+        }}
+        onLeave={() => {
+          setShowExitModal(false);
+          if (pendingNavigation) navigate(pendingNavigation);
+        }}
+      />
 
       {/* Post-Generation Share Modal */}
       <ShareModal
