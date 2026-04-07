@@ -8,6 +8,7 @@ import uuid
 import json
 import hmac
 import hashlib
+import hashlib
 import base64
 import asyncio
 import os
@@ -88,25 +89,29 @@ class WebhookProcessor:
     
     @staticmethod
     async def record_webhook_event(event_id: str, order_id: str, event_type: str, 
-                                   payload: dict, status: str = "PENDING"):
+                                   payload: dict, status: str = "PENDING", extra: dict = None):
         """Record webhook event for tracking and idempotency"""
+        update_doc = {
+            "$set": {
+                "eventId": event_id,
+                "orderId": order_id,
+                "eventType": event_type,
+                "status": status,
+                "payload": payload,
+                "processedAt": datetime.now(timezone.utc).isoformat() if status == "PROCESSED" else None,
+                "updatedAt": datetime.now(timezone.utc).isoformat()
+            },
+            "$setOnInsert": {
+                "receivedAt": datetime.now(timezone.utc).isoformat(),
+                "retryCount": 0
+            }
+        }
+        if extra:
+            for k, v in extra.items():
+                update_doc["$set"][k] = v
         await db.webhook_events.update_one(
             {"eventId": event_id},
-            {
-                "$set": {
-                    "eventId": event_id,
-                    "orderId": order_id,
-                    "eventType": event_type,
-                    "status": status,
-                    "payload": payload,
-                    "processedAt": datetime.now(timezone.utc).isoformat() if status == "PROCESSED" else None,
-                    "updatedAt": datetime.now(timezone.utc).isoformat()
-                },
-                "$setOnInsert": {
-                    "receivedAt": datetime.now(timezone.utc).isoformat(),
-                    "retryCount": 0
-                }
-            },
+            update_doc,
             upsert=True
         )
     
@@ -365,14 +370,17 @@ async def handle_cashfree_webhook(request: Request, background_tasks: Background
     try:
         body = await request.body()
         body_str = body.decode('utf-8')
+        payload_hash = hashlib.sha256(body).hexdigest()
         
         # Verify signature
-        if not await processor.verify_signature(request, body):
+        sig_verified = await processor.verify_signature(request, body)
+        if not sig_verified:
             await db.webhook_security_events.insert_one({
                 "type": "SIGNATURE_FAILURE",
                 "ip": request.client.host if request.client else "unknown",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
-                "headers": dict(request.headers)
+                "headers": dict(request.headers),
+                "payloadHash": payload_hash,
             })
             raise HTTPException(status_code=403, detail="Invalid signature")
         
@@ -402,13 +410,14 @@ async def handle_cashfree_webhook(request: Request, background_tasks: Background
         if await processor.check_idempotency(event_id, order_id):
             return {"status": "DUPLICATE", "message": "Event already processed"}
         
-        # Record webhook receipt
+        # Record webhook receipt with raw payload hash and signature result
         await processor.record_webhook_event(
             event_id=event_id,
             order_id=order_id,
             event_type=event_type,
             payload=webhook_data,
-            status="PROCESSING"
+            status="PROCESSING",
+            extra={"payloadHash": payload_hash, "signatureVerified": sig_verified}
         )
         
         # Process based on event type

@@ -107,6 +107,7 @@ import TemplateLeaderboard from './pages/Admin/TemplateLeaderboard';
 // WORKER DASHBOARD
 import WorkerDashboard from './pages/admin/WorkerDashboard';
 import TTFDDashboard from './pages/admin/TTFDDashboard';
+import PaymentsDashboard from './pages/admin/PaymentsDashboard';
 // DAILY REPORT DASHBOARD
 import DailyReportDashboard from './pages/Admin/DailyReportDashboard';
 // ACCOUNT LOCK MANAGEMENT
@@ -297,6 +298,7 @@ function App() {
         <Route path="production-metrics" element={<ProductionMetrics />} />
         <Route path="media-security" element={<MediaSecurityDashboard />} />
         <Route path="content-engine" element={<ContentEngine />} />
+        <Route path="payments" element={<PaymentsDashboard />} />
       </Route>
       <Route path="/app/feature-requests" element={isAuthenticated ? <FeatureRequests /> : <Navigate to="/login" />} />
       <Route path="/app/privacy" element={isAuthenticated ? <PrivacySettings /> : <Navigate to="/login" />} />
