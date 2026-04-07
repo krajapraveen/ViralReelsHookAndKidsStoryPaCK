@@ -774,7 +774,7 @@ async def demo_reel(data: GenerateReelRequest):
                 "hashtags": [f"#{niche.lower().replace(' ', '')}", "#viral", "#trending", f"#{topic.split()[0].lower() if topic.split() else 'tips'}", "#reels"],
                 "posting_tips": ["Post between 6-9 PM for best engagement", "Use trending audio to boost reach", "Engage with comments in first hour", "Share to your story"]
             },
-            "message": "Sign up for full access with 100 free credits!"
+            "message": "Sign up for full access with 50 free credits!"
         }
     except HTTPException:
         raise

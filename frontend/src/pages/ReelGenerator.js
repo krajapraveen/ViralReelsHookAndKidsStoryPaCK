@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Textarea } from '../components/ui/textarea';
 import { generationAPI, creditAPI } from '../utils/api';
 import { markFeatureUsed } from '../utils/feedbackSession';
+import { useProductGuide } from '../contexts/ProductGuideContext';
 import { toast } from 'sonner';
 import {
   Sparkles, Copy, Download, Loader2, ArrowLeft, Coins, AlertCircle,
@@ -528,6 +529,7 @@ export default function ReelGenerator() {
   const [activePreset, setActivePreset] = useState(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const { updateStep: trackJourneyStep } = useProductGuide();
   const { remixData: incomingRemix, sourceTool: remixSource, sourceTitle: remixTitle, consumed: hasRemix, dismiss: dismissRemix } = useRemixData('reels');
 
   const [formData, setFormData] = useState({
@@ -596,6 +598,7 @@ export default function ReelGenerator() {
       }
       toast.success('Reel content pack generated!');
       markFeatureUsed('reel_generator');
+      trackJourneyStep('generate', 'generation_complete', 'reel_generator');
       analytics.trackGeneration('reel_generator', 10);
       setTimeout(() => setShowRatingModal(true), 2000);
       setTimeout(() => setShowUpsellModal(true), 4000);
@@ -849,11 +852,12 @@ export default function ReelGenerator() {
                     required rows={3}
                     className="bg-slate-900/60 border-slate-700/50 text-white placeholder:text-slate-600 focus:border-indigo-500 focus:ring-indigo-500/20 resize-none text-sm"
                     data-testid="reel-topic-input"
+                    data-guide="reel-input"
                   />
                 </div>
 
                 {/* Primary Controls Grid */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3" data-guide="reel-options">
                   <CompactSelect label="Platform" value={formData.platform} onChange={set('platform')} options={PLATFORMS} testId="reel-platform-select" />
                   <CompactSelect label="Hook Style" value={formData.hookStyle} onChange={set('hookStyle')} options={HOOK_STYLES} testId="reel-hook-style-select" />
                 </div>
@@ -916,6 +920,7 @@ export default function ReelGenerator() {
                   type="submit" disabled={loading}
                   className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-indigo-500/20"
                   data-testid="reel-generate-btn"
+                  data-guide="generate-btn"
                 >
                   {loading ? (
                     <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating...</>
@@ -928,7 +933,7 @@ export default function ReelGenerator() {
           </div>
 
           {/* ──────────── OUTPUT PANEL (3 cols) ──────────── */}
-          <div className="lg:col-span-3 space-y-4">
+          <div className="lg:col-span-3 space-y-4" data-guide="reel-output">
             <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-5 shadow-xl">
               {/* Output Header */}
               <div className="flex items-center justify-between mb-4">

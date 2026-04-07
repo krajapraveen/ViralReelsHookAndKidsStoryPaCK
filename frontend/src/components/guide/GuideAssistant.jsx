@@ -18,11 +18,11 @@ export default function GuideAssistant() {
   // Show after short delay
   useEffect(() => {
     if (!progress || progress.guide_dismissed) return;
-    const t = setTimeout(() => setIsVisible(true), 2000);
+    const t = setTimeout(() => setIsVisible(true), 1500);
     return () => clearTimeout(t);
   }, [progress]);
 
-  if (!progress || progress.guide_dismissed || !isVisible) return null;
+  if (!progress || progress.guide_dismissed) return null;
 
   // Feature walkthrough tooltip
   if (activeFeatureGuide) {
@@ -43,7 +43,7 @@ export default function GuideAssistant() {
   if (showStuckHint && stuckMessage) {
     return (
       <div
-        className="fixed bottom-20 lg:bottom-24 right-4 z-[9970] animate-in slide-in-from-right-5 fade-in duration-300"
+        className="fixed bottom-20 lg:bottom-24 right-4 z-[10000] animate-in slide-in-from-right-5 fade-in duration-300"
         data-testid="stuck-hint"
       >
         <div className="bg-amber-500/95 backdrop-blur-lg rounded-2xl px-4 py-3 shadow-xl max-w-[280px] border border-amber-400/50">
@@ -67,7 +67,11 @@ export default function GuideAssistant() {
 
   // Main guide bubble
   return (
-    <div className="fixed bottom-20 lg:bottom-6 right-4 lg:right-20 z-[9970]" ref={bubbleRef}>
+    <div
+      className={`fixed bottom-20 lg:bottom-6 right-4 lg:right-20 z-[10000] transition-all duration-500 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}
+      ref={bubbleRef}
+      data-testid="guide-wrapper"
+    >
       {/* Expanded panel */}
       {isExpanded && (
         <div
@@ -191,11 +195,11 @@ function FeatureTooltip({ guide, step, stepIdx, totalSteps, onNext, onDismiss })
   return (
     <>
       {/* Dimmed backdrop */}
-      <div className="fixed inset-0 bg-black/30 z-[9955]" onClick={onDismiss} />
+      <div className="fixed inset-0 bg-black/30 z-[9990]" onClick={onDismiss} />
 
       {/* Tooltip */}
       <div
-        className="fixed z-[9965] w-[300px] bg-slate-900 border border-indigo-500/40 rounded-2xl shadow-2xl p-4 animate-in fade-in slide-in-from-bottom-2 duration-200"
+        className="fixed z-[10000] w-[300px] bg-slate-900 border border-indigo-500/40 rounded-2xl shadow-2xl p-4 animate-in fade-in slide-in-from-bottom-2 duration-200"
         style={{ top: Math.min(pos.top, window.innerHeight - 200), left: Math.max(8, pos.left) }}
         data-testid="feature-tooltip"
       >

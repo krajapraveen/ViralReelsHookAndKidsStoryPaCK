@@ -1,0 +1,162 @@
+{
+  "summary": "Product Guide System testing iteration 451. Backend 100% (10/10 tests). Frontend: Guide bubble and journey progress bar work correctly on /app/story-video-studio but NOT on /app Dashboard page. Z-index fix verified (guide 10000 > cookie 9000). Stuck hint, dismiss, CTA navigation all working.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "GuideAssistant",
+        "issue": "Guide bubble (data-testid=guide-bubble) NOT visible on /app Dashboard page - component not rendering in DOM despite progress API returning guide_dismissed=false",
+        "selector": "[data-testid=\"guide-bubble\"]",
+        "priority": "HIGH",
+        "details": "Guide bubble renders correctly on /app/story-video-studio but NOT on /app Dashboard. The ProductGuideContext fetches progress successfully (verified via API call), but GuideAssistant component returns null on Dashboard. This is the same issue from iteration 450 - NOT FIXED."
+      },
+      {
+        "component": "JourneyProgressBar",
+        "issue": "Journey progress bar NOT visible on /app Dashboard page (mobile viewport)",
+        "selector": "[data-testid=\"journey-progress-bar\"]",
+        "priority": "HIGH",
+        "details": "Same root cause as guide bubble - component not rendering on Dashboard but works on story-video-studio"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_guide_system_iteration451.py",
+    "/app/test_reports/pytest/pytest_guide_system_iteration451.xml"
+  ],
+  "action_items": [
+    "CRITICAL: Fix guide bubble visibility on /app Dashboard page - GuideAssistant component not rendering despite progress being fetched",
+    "CRITICAL: Fix journey progress bar visibility on /app Dashboard page (mobile)",
+    "Debug why ProductGuideContext progress state is not triggering GuideAssistant render on Dashboard"
+  ],
+  "critical_code_review_comments": [
+    "GuideAssistant.jsx line 25: 'if (!progress || progress.guide_dismissed) return null' - progress is null on Dashboard despite API returning valid data",
+    "ProductGuideContext.js fetchProgress() is called on mount but progress state may not be updating correctly when Dashboard is the initial route after login",
+    "Possible race condition: Dashboard renders before ProductGuideContext finishes fetching progress"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_guide_system_iteration451.py"
+  ],
+  "success_rate": {
+    "backend": "100% (10/10 tests passed)",
+    "frontend": "70% - Guide works on story-video-studio but NOT on Dashboard"
+  },
+  "test_credentials": {
+    "test_user": "test@visionary-suite.com / Test@2026#",
+    "admin": "admin@creatorstudio.ai / Cr3@t0rStud!o#2026"
+  },
+  "seed_data_creation": "Reset user_progress.guide_dismissed=false and completed_steps=[] for test user via MongoDB",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Product Guide System backend APIs fully working. Frontend guide components work on /app/story-video-studio but NOT on /app Dashboard. The issue persists from iteration 450. When user logs in and lands on Dashboard, the guide bubble does not appear. But if user navigates to story-video-studio, the guide appears. The progress API returns correct data (guide_dismissed=false) but the GuideAssistant component is not rendering on Dashboard. Test user ID: ea3b038c-d523-4a49-9fa5-e00c761fa4aa. To reset guide: db.user_progress.update_one({user_id: 'ea3b038c-d523-4a49-9fa5-e00c761fa4aa'}, {$set: {guide_dismissed: false, completed_steps: []}})",
+  "verified_features": [
+    {
+      "feature": "GET /api/user/progress returns progress object",
+      "status": "PASS",
+      "details": "Returns current_step, completed_steps, features_used, guide_dismissed, total_generations, total_shares"
+    },
+    {
+      "feature": "POST /api/user/progress/update updates progress",
+      "status": "PASS",
+      "details": "Updates step, adds features, increments generation/share counters"
+    },
+    {
+      "feature": "POST /api/user/progress/dismiss-guide",
+      "status": "PASS",
+      "details": "Sets guide_dismissed=true in database"
+    },
+    {
+      "feature": "All 3 endpoints require auth (401 without token)",
+      "status": "PASS"
+    },
+    {
+      "feature": "Guide bubble on /app/story-video-studio",
+      "status": "PASS",
+      "details": "Visible after 1.5s delay, clickable to open panel"
+    },
+    {
+      "feature": "Guide panel contents",
+      "status": "PASS",
+      "details": "Shows 'Your Next Step' title, context message, 'Do it now' CTA, journey mini-map, dismiss button"
+    },
+    {
+      "feature": "CTA button navigation",
+      "status": "PASS",
+      "details": "'Do it now' navigates to /app/story-video-studio"
+    },
+    {
+      "feature": "Dismiss guide permanently",
+      "status": "PASS",
+      "details": "'Don't show again' sets guide_dismissed=true, bubble disappears"
+    },
+    {
+      "feature": "Stuck hint after 15s inactivity",
+      "status": "PASS",
+      "details": "Appears on story-video-studio page with message 'Enter your story idea above, then click Generate'"
+    },
+    {
+      "feature": "Stuck hint close button",
+      "status": "PASS",
+      "details": "X button closes the hint"
+    },
+    {
+      "feature": "Z-index: guide (10000) > cookie banner (9000)",
+      "status": "PASS",
+      "details": "Guide bubble clickable even with cookie banner visible"
+    },
+    {
+      "feature": "Cookie banner does NOT block guide clicks",
+      "status": "PASS"
+    },
+    {
+      "feature": "Journey progress bar (mobile) on story-video-studio",
+      "status": "PASS",
+      "details": "Visible on mobile viewport"
+    },
+    {
+      "feature": "Guide bubble on /app Dashboard",
+      "status": "FAIL",
+      "details": "NOT visible - component not in DOM despite progress API returning guide_dismissed=false"
+    },
+    {
+      "feature": "Journey progress bar on /app Dashboard (mobile)",
+      "status": "FAIL",
+      "details": "NOT visible - same root cause as guide bubble"
+    },
+    {
+      "feature": "data-guide attributes on StoryVideoStudio",
+      "status": "PARTIAL",
+      "details": "Elements exist in code but query_selector_all returns 0 on page load - may need scroll or interaction to render"
+    },
+    {
+      "feature": "data-guide attributes on ReelGenerator",
+      "status": "PASS",
+      "details": "All 4 attributes found: reel-input, reel-options, generate-btn, reel-output"
+    },
+    {
+      "feature": "Support dock visible on mobile",
+      "status": "PASS",
+      "details": "Chat, Support, Feedback buttons visible at bottom"
+    },
+    {
+      "feature": "Dashboard Continue Story button",
+      "status": "PASS",
+      "details": "Clickable, navigates to story-video-studio"
+    },
+    {
+      "feature": "Dashboard Remix button",
+      "status": "PASS",
+      "details": "Clickable, navigates to story-video-studio"
+    },
+    {
+      "feature": "Dashboard story cards clickable",
+      "status": "PASS",
+      "details": "175 story cards found, clickable without interception"
+    }
+  ],
+  "rca_of_the_issue": "The guide bubble and journey progress bar are not rendering on the Dashboard page. Investigation shows: 1) ProductGuideContext.fetchProgress() is called on mount and returns valid data (guide_dismissed=false). 2) However, GuideAssistant component's condition 'if (!progress || progress.guide_dismissed) return null' at line 25 is returning null on Dashboard. 3) The same components work correctly on /app/story-video-studio. 4) This suggests a timing/race condition where Dashboard renders before the progress state is updated in the context, OR the context is not properly propagating to components on the Dashboard route. The fix from iteration 450 (opacity animation instead of conditional render) may not have been applied correctly, or there's a different issue with how the context state is shared across routes."
+}

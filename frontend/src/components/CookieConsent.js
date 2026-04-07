@@ -152,7 +152,7 @@ export default function CookieConsent() {
 
   return (
     <div 
-      className="fixed bottom-0 left-0 right-0 z-[9999] p-4 md:p-6"
+      className="fixed bottom-0 left-0 right-0 z-[9000] p-4 md:p-6"
       data-testid="cookie-consent-banner"
     >
       <div className="max-w-4xl mx-auto bg-slate-900/95 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">

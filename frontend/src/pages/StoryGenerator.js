@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { generationAPI, creditAPI } from '../utils/api';
 import api from '../utils/api';
 import { markFeatureUsed } from '../utils/feedbackSession';
+import { useProductGuide } from '../contexts/ProductGuideContext';
 import { toast } from 'sonner';
 import { Sparkles, Download, Loader2, ArrowLeft, Coins, Clock, AlertCircle, Share2, LogOut, FileText, BookOpen, Palette, Gift, CheckCircle, XCircle, Eye, EyeOff } from 'lucide-react';
 import StoryProgressBar from '../components/StoryProgressBar';
@@ -42,6 +43,7 @@ export default function StoryGenerator() {
   const [showAnswers, setShowAnswers] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { updateStep: trackJourneyStep } = useProductGuide();
 
   const [formData, setFormData] = useState({
     ageGroup: '',
@@ -219,6 +221,7 @@ export default function StoryGenerator() {
         setLoading(false);
         toast.success('Story pack generated successfully!');
         markFeatureUsed('story_generator');
+        trackJourneyStep('generate', 'generation_complete', 'story_generator');
       } else if (response.data.status === 'FAILED') {
         setPolling(false);
         setLoading(false);
@@ -334,7 +337,7 @@ export default function StoryGenerator() {
                 <div>
                   <Label className="text-slate-300 font-medium text-sm mb-2 block">Age Group <span className="text-red-400">*</span></Label>
                   <Select value={formData.ageGroup} onValueChange={(value) => setFormData({...formData, ageGroup: value})}>
-                    <SelectTrigger className={`bg-slate-900/60 border-slate-600 text-white focus:ring-purple-500/20 ${!formData.ageGroup ? 'border-orange-500/50' : ''}`} data-testid="story-age-select">
+                    <SelectTrigger className={`bg-slate-900/60 border-slate-600 text-white focus:ring-purple-500/20 ${!formData.ageGroup ? 'border-orange-500/50' : ''}`} data-testid="story-age-select" data-guide="story-input">
                       <SelectValue placeholder="Select age group" />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-800 border-slate-700">
@@ -406,7 +409,7 @@ export default function StoryGenerator() {
               <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4">
                 <div className="flex items-center gap-2 text-purple-300"><Coins className="w-4 h-4" /><span className="font-medium">Cost: {getCreditCost()} credits</span></div>
               </div>
-              <Button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-3 rounded-xl transition-all duration-200 shadow-lg shadow-purple-500/25" data-testid="story-generate-btn">
+              <Button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-3 rounded-xl transition-all duration-200 shadow-lg shadow-purple-500/25" data-testid="story-generate-btn" data-guide="generate-btn">
                 {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{polling ? 'Generating... (30-90s)' : 'Starting...'}</> : <><Sparkles className="w-4 h-4 mr-2" />Generate Story Pack</>}
               </Button>
             </form>
@@ -435,7 +438,7 @@ export default function StoryGenerator() {
               />
             )}
             {!loading && !result && <div className="text-center py-12 text-slate-400"><Clock className="w-12 h-12 mx-auto mb-4 text-slate-600" /><p>Your story pack will appear here</p></div>}
-            {result && <div className="space-y-5 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar" data-testid="story-result">
+            {result && <div className="space-y-5 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar" data-testid="story-result" data-guide="result-area">
               {/* Free Tier Watermark Banner */}
               {isFreeTier && (
                 <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4 flex items-start gap-3">

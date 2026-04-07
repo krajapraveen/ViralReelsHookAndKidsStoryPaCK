@@ -12,7 +12,7 @@ export default function JourneyProgressBar() {
 
   return (
     <div
-      className="w-full bg-slate-900/80 backdrop-blur-lg border-b border-slate-800/60 px-3 py-2 lg:hidden"
+      className="w-full bg-slate-900/80 backdrop-blur-lg border-b border-slate-800/60 px-3 py-2 lg:hidden z-[10000] relative"
       data-testid="journey-progress-bar"
     >
       <div className="max-w-lg mx-auto flex items-center gap-1">

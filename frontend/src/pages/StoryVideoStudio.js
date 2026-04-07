@@ -1398,6 +1398,7 @@ export default function StoryVideoStudio() {
                       onChange={(e) => setStoryText(e.target.value)}
                       placeholder="Paste or type your story here..."
                       className="bg-slate-900/50 border-slate-600 text-white min-h-[300px]"
+                      data-guide="story-input"
                     />
                     <p className="text-xs text-slate-500 mt-1">
                       {storyText.length} / 50,000 characters
@@ -1474,7 +1475,7 @@ export default function StoryVideoStudio() {
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">Animation Style</label>
                       <Select value={animationStyle} onValueChange={setAnimationStyle}>
-                        <SelectTrigger className="bg-slate-900/50 border-slate-600 text-white" data-testid="animation-style-select">
+                        <SelectTrigger className="bg-slate-900/50 border-slate-600 text-white" data-testid="animation-style-select" data-guide="style-select">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1542,6 +1543,7 @@ export default function StoryVideoStudio() {
                   onClick={createProject}
                   disabled={loading || storyText.length < 50}
                   className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 h-14 text-lg"
+                  data-guide="generate-btn"
                 >
                   {loading ? (
                     <>
@@ -1815,7 +1817,7 @@ export default function StoryVideoStudio() {
         
         {/* Step 5: Images Generated */}
         {step === 5 && (
-          <div className="space-y-6">
+          <div className="space-y-6" data-guide="preview-area">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-bold text-white">Scene Images</h2>
@@ -2417,7 +2419,7 @@ export default function StoryVideoStudio() {
             </div>
             
             {/* NEW: Social Sharing Section */}
-            <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl border border-blue-500/30 p-6">
+            <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl border border-blue-500/30 p-6" data-guide="share-btn">
               <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
                 <Share2 className="w-5 h-5 text-blue-400" />
                 Share Your Video

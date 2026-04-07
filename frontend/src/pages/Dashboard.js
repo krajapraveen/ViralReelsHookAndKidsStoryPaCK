@@ -166,7 +166,8 @@ function HeroSection({ stories, navigate }) {
                 if (current.job_id && current.hook_variant_id) { axios.post(`${API}/api/engagement/hook-event`, { job_id: current.job_id, hook_variant_id: current.hook_variant_id, event_type: 'continue' }).catch(() => {}); }
                 navigate('/app/story-video-studio', { state: { prefill: prefillObj, freshSession: true } }); }}
                 className="inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm sm:text-base font-bold text-white bg-gradient-to-r from-[#6C5CE7] to-[#00C2FF] shadow-[0_0_24px_rgba(0,194,255,0.28)] hover:scale-[1.02] transition-transform duration-200"
-                data-testid="hero-play-btn">
+                data-testid="hero-play-btn"
+                data-guide="continue-story">
                 <Play className="w-4 h-4 fill-white mr-2" /> Continue Story
               </button>
               <button onClick={() => navigate('/app/story-video-studio', { state: { freshSession: true } })}
