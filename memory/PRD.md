@@ -1,85 +1,74 @@
 # Visionary Suite - Product Requirements Document
 
 ## Original Problem Statement
-Build a full-stack AI Creator Suite with compulsion-driven growth engine, monetization system, feature-guide system for user activation, production-grade payment verification dashboard, high-converting funnel analytics + smart paywall system, and retention/addiction engine.
+Build a full-stack AI Creator Suite with compulsion-driven growth engine, monetization, activation system, high-converting funnel analytics + smart paywall, retention/addiction engine, and content protection.
 
 ## Architecture
 ```
 /app/
 ├── backend/
-│   ├── config/
-│   │   └── pricing.py                    # Single source of truth for all plans & pricing
+│   ├── config/pricing.py                    # Single source of truth for plans
 │   ├── routes/
-│   │   ├── pricing_api.py                # GET /api/pricing-catalog/plans
-│   │   ├── funnel_tracking.py            # POST /api/funnel/track + GET /api/funnel/metrics
-│   │   ├── streaks.py                    # GET /api/streaks/my + GET /api/streaks/social-proof
-│   │   ├── admin_payments.py             # Payment verification & reconciliation
-│   │   ├── cashfree_webhook_handler.py   # Payload hash + signature verification
-│   │   └── admin_metrics.py              # Truth-based admin dashboard metrics
+│   │   ├── pricing_api.py                   # GET /api/pricing-catalog/plans
+│   │   ├── funnel_tracking.py               # POST /api/funnel/track + GET /api/funnel/metrics
+│   │   ├── streaks.py                       # GET /api/streaks/my + /social-proof
+│   │   ├── asset_access.py                  # Abuse detection + access logging
+│   │   ├── protected_download.py            # Signed URLs + watermarking + abuse check
+│   │   └── admin_metrics.py                 # Truth-based admin metrics
+│   ├── services/
+│   │   └── content_protection.py            # Signed tokens, watermarking (visible + diagonal)
 │   └── server.py
 └── frontend/
     ├── src/
     │   ├── components/
-    │   │   ├── UpgradeModal.js               # PRIMARY inline smart paywall
+    │   │   ├── ProtectedContent.jsx            # Anti-copy deterrence wrapper
+    │   │   ├── UpgradeModal.js                 # PRIMARY inline smart paywall
     │   │   └── guide/
-    │   │       ├── FirstActionOverlay.jsx     # Mandatory onboarding
-    │   │       ├── PostValueOverlay.jsx       # Post-value push → paywall connector
-    │   │       ├── ResultRetentionEngine.jsx  # Success banner + What Next + Remix + Streak
-    │   │       ├── StickyGenerateAgain.jsx    # Sticky bottom "Try one more?" CTA
-    │   │       ├── ExitInterceptionModal.jsx  # Loss aversion on exit
-    │   │       ├── GuideAssistant.jsx         # Action-driven guide
-    │   │       └── JourneyProgressBar.jsx     # Sticky top bar
-    │   ├── utils/
-    │   │   └── funnelTracker.js              # Fires funnel events with rich context
-    │   └── pages/
-    │       ├── PricingPage.js                # Secondary pricing (fetches from backend)
-    │       └── StoryVideoStudio.js           # Wires retention engine into result screen
+    │   │       ├── ResultRetentionEngine.jsx    # Success banner + What Next + Remix + Streak
+    │   │       ├── StickyGenerateAgain.jsx      # Sticky bottom CTA
+    │   │       ├── ExitInterceptionModal.jsx    # Loss aversion on exit
+    │   │       ├── PostValueOverlay.jsx         # Post-value → paywall connector
+    │   │       └── FirstActionOverlay.jsx       # Mandatory onboarding
+    │   ├── utils/funnelTracker.js              # Fires funnel events with rich context
+    │   └── App.css                             # Protected content CSS rules
 ```
 
 ## What's Implemented
 
-### Retention Engine (Continuous Action Loop) — COMPLETE (2026-04-07)
-100% tested (iteration_455, 9/9 backend + all frontend verified)
-1. **Success Banner**: Shows "Your story is ready!" with real social proof from DB (total creators, total generations)
-2. **What Next Panel**: 4 CTAs — Continue Story, Turn into Video, Make it Funnier, Create Another (highlighted)
-3. **Remix Strip**: Horizontal scroll with 6 one-click presets (Pixar, Anime, Funny, Dark, Kids, Epic)
-4. **Streak/Progress Bar**: Daily generation count, streak days, milestone progress (3→5→10→25)
-5. **Sticky "Generate Again"**: Fixed bottom CTA appears 2s after reaching result screen
-6. **Exit Interception**: Modal on leaving — "Unlock Unlimited" + "Just one more free try"
-7. **Streaks API**: GET /api/streaks/my (auth), GET /api/streaks/social-proof (public)
+### Content Protection System — COMPLETE (2026-04-07)
+100% tested (iteration_456, 14/14 backend + all frontend verified)
+1. **Frontend Deterrence**: ProtectedContent wrapper blocks right-click, copy, drag, keyboard shortcuts (Ctrl+C/X/S/A/P) on protected content only. Does NOT break buttons/links/inputs.
+2. **Video Hardening**: All video elements across 6 pages have `controlsList="nodownload noplaybackrate"` and `disablePictureInPicture`.
+3. **Abuse Detection**: Backend rate limiting (20 same-asset/5min, 100 cross-asset/5min, 30 signed-url/5min). Every access logged with user_id, asset_id, IP, user_agent.
+4. **Admin Monitoring**: GET /api/asset-access/admin/abuse-log + /admin/access-stats
+5. **Applied Across App**: StoryVideoStudio (step 8), StoryPreview (full page), Gallery, PublicCreation, SharePage, BrowsePage, PromoVideos, DailyViralIdeas
+6. **Pre-existing backend protections preserved**: Signed URLs (60s expiry), visible + diagonal watermarking, watermark removal purchase, R2 private storage, ownership validation
 
+### Retention Engine — COMPLETE (2026-04-07)
 ### Conversion Funnel System — COMPLETE (2026-04-07)
-100% tested (iteration_454, 18/18 backend + all frontend verified)
-- 11-step funnel tracking with rich context
-- Smart inline paywall (UpgradeModal = primary, PricingPage = secondary)
-- Post-value overlay → paywall connector
-- Dynamic pricing from backend
-
 ### Payment Verification Dashboard — COMPLETE
 ### Activation System — COMPLETE
-### Payment Audit — CONFIRMED WORKING
 
 ## Current Strategy
-**Phase**: Data collection (24-48h baseline)
-**Next moves** (sequential, not shotgun):
-1. Phase 0: Collect baseline funnel data (24-48h)
-2. Phase 1: Time-limited discount overlay (after 2+ paywall views)
-3. Phase 2: Paywall trust signals (pre-selected plan, social proof inside paywall)
-4. Phase 3: Loss aversion on paywall close
+**Phase**: Data collection baseline (24-48h no changes)
+**Next optimization sequence**:
+1. Phase 1: Time-limited discount overlay (2+ paywall views)
+2. Phase 2: Paywall trust signals
+3. Phase 3: Loss aversion on paywall close
 
 ## Backlog
 ### P1
 - Analyze funnel drop-off data
-- Time-limited discount overlay (Phase 1 of optimization)
+- Time-limited discount overlay
 - A/B test hook text / CTA copy
+- "Your story is trending" re-engagement hook
+- Cross-session comeback notifications
 
 ### P2
-- Dynamic pricing tests (active vs new users)
-- Pipeline Parallelization
-- WebSocket admin dashboard
+- Dynamic pricing tests
 - Explore feed (TikTok-style content discovery)
+- Pipeline Parallelization
 - Story Chain leaderboard
-- Remix Variants on share pages
 - Personalization feed
 
 ## Test Credentials
