@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import api, { paymentAPI, creditAPI } from '../utils/api';
 import HelpGuide from '../components/HelpGuide';
 import analytics from '../utils/analytics';
+import { trackFunnel } from '../utils/funnelTracker';
 
 export default function Billing() {
   const [products, setProducts] = useState([]);
@@ -64,6 +65,7 @@ export default function Billing() {
     // Track checkout start with enhanced e-commerce and funnel
     analytics.trackBeginCheckout(item, 'INR');
     analytics.trackFunnelStep('checkout_start', { product_id: productId, product_name: productName });
+    trackFunnel('payment_started', { source_page: 'billing', plan_selected: productId });
     
     try {
       // Use Cashfree API
@@ -95,8 +97,10 @@ export default function Billing() {
             // Detect cancel vs actual failure
             const msg = result.error.message || '';
             if (msg.includes('cancel') || msg.includes('closed') || msg.includes('dismiss')) {
+              trackFunnel('payment_abandoned', { source_page: 'billing', plan_selected: productId });
               toast.info('Payment was cancelled. No charges were made.');
             } else {
+              trackFunnel('payment_abandoned', { source_page: 'billing', plan_selected: productId, meta: { error: msg } });
               toast.error(`Payment did not complete: ${msg}. Please try again.`);
               analytics.trackError('payment_failed', msg, 'billing');
             }
@@ -112,6 +116,7 @@ export default function Billing() {
                   amount: productPrice 
                 });
                 analytics.trackFunnelComplete('main_conversion');
+                trackFunnel('payment_success', { source_page: 'billing', plan_selected: productId, meta: { order_id: response.data.orderId } });
                 toast.success(`Payment successful! ${verifyRes.data.creditsAdded} credits added to your account.`);
                 fetchData();
               } else {

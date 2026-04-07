@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import MediaSecurityDashboard from './pages/Admin/MediaSecurityDashboard';
 import AdminLayout from './components/AdminLayout';
@@ -74,6 +74,8 @@ import { ProductGuideProvider } from './contexts/ProductGuideContext';
 import JourneyProgressBar from './components/guide/JourneyProgressBar';
 import GuideAssistant from './components/guide/GuideAssistant';
 import FirstActionOverlay from './components/guide/FirstActionOverlay';
+import PostValueOverlay from './components/guide/PostValueOverlay';
+import { UpgradeModal } from './components/UpgradeModal';
 // NEW REBUILT FEATURES
 import StoryEpisodeCreator from './pages/StoryEpisodeCreator';
 import ContentChallengePlanner from './pages/ContentChallengePlanner';
@@ -186,6 +188,13 @@ function ProtectedRoute({ auth, children }) {
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [paywallReason, setPaywallReason] = useState('post_value');
+
+  const triggerPaywall = useCallback((reason = 'post_value') => {
+    setPaywallReason(reason);
+    setPaywallOpen(true);
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -396,6 +405,17 @@ function App() {
       
       {/* First Action Overlay — forces activation for new users */}
       {isAuthenticated && <FirstActionOverlay />}
+      
+      {/* Post-Value Overlay — triggers after first generation, connects to paywall */}
+      {isAuthenticated && <PostValueOverlay onTriggerPaywall={triggerPaywall} />}
+      
+      {/* Smart Paywall — inline, no navigation */}
+      <UpgradeModal
+        open={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+        reason={paywallReason}
+        triggerSource="app"
+      />
       
       {/* Cookie Consent Banner - GDPR/CCPA Compliance */}
       <CookieConsent />

@@ -1,8 +1,9 @@
 """
 Funnel Tracking — Activation → Conversion Pipeline
-Tracks 9 events from landing to payment with timestamps + session_id.
+Tracks events from landing to payment with rich context:
+user_id, session_id, plan_shown, source_page, generation_count, device.
 """
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Query
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 import uuid
@@ -22,14 +23,16 @@ FUNNEL_STEPS = [
     "result_viewed",
     "second_action",
     "paywall_viewed",
+    "plan_selected",
     "payment_started",
+    "payment_abandoned",
     "payment_success",
 ]
 
 
 @router.post("/track")
 async def track_funnel_event(request: Request):
-    """Track a funnel event. Works for both authenticated and anonymous users."""
+    """Track a funnel event with rich context. Works for both authenticated and anonymous users."""
     body = await request.json()
     step = body.get("step")
     if step not in FUNNEL_STEPS:
@@ -37,17 +40,20 @@ async def track_funnel_event(request: Request):
 
     session_id = body.get("session_id") or str(uuid.uuid4())
     user_id = body.get("user_id")
-    meta = body.get("meta", {})
 
-    # Try to get user from token if available
-    auth = request.headers.get("Authorization", "")
-    if auth.startswith("Bearer ") and not user_id:
+    # Try to extract user from token if available
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer ") and not user_id:
         try:
             from shared import verify_token
-            token_data = verify_token(auth.split(" ")[1])
+            token_data = verify_token(auth_header.split(" ")[1])
             user_id = token_data.get("sub")
         except Exception:
             pass
+
+    # Context fields for deep analysis
+    ctx = body.get("context", {})
+    ua = request.headers.get("user-agent", "")
 
     event = {
         "step": step,
@@ -55,9 +61,14 @@ async def track_funnel_event(request: Request):
         "session_id": session_id,
         "user_id": user_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "meta": meta,
+        "source_page": ctx.get("source_page", "unknown"),
+        "generation_count": ctx.get("generation_count", 0),
+        "plan_shown": ctx.get("plan_shown"),
+        "plan_selected": ctx.get("plan_selected"),
+        "device": ctx.get("device", "unknown"),
+        "meta": ctx.get("meta", {}),
         "ip": request.client.host if request.client else None,
-        "user_agent": request.headers.get("user-agent", "")[:200],
+        "user_agent": ua[:200],
     }
 
     await db.funnel_events.insert_one(event)
@@ -67,11 +78,12 @@ async def track_funnel_event(request: Request):
 @router.get("/metrics")
 async def get_funnel_metrics(
     user: dict = Depends(get_admin_user),
-    days: int = 7,
+    days: int = Query(7, ge=1, le=90),
 ):
-    """Admin endpoint: conversion % and drop-off % per step"""
+    """Admin endpoint: conversion % and drop-off % per step, with context breakdowns."""
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
 
+    # Unique sessions per step
     pipeline = [
         {"$match": {"timestamp": {"$gte": cutoff}}},
         {"$group": {
@@ -89,39 +101,70 @@ async def get_funnel_metrics(
 
     # Build funnel with conversion rates
     funnel = []
-    prev_count = None
+    top_count = None
     for step in FUNNEL_STEPS:
         count = step_counts.get(step, 0)
-        conversion = round((count / prev_count * 100), 1) if prev_count and prev_count > 0 else 100.0
-        drop_off = round(100 - conversion, 1) if prev_count else 0.0
+        if top_count is None and count > 0:
+            top_count = count
+        conversion = round((count / top_count * 100), 1) if top_count and top_count > 0 else 0.0
+        prev_step_count = funnel[-1]["count"] if funnel else top_count
+        step_drop = round(100 - (count / prev_step_count * 100), 1) if prev_step_count and prev_step_count > 0 else 0.0
         funnel.append({
             "step": step,
             "count": count,
-            "conversion_pct": conversion,
-            "drop_off_pct": drop_off,
+            "conversion_from_top_pct": conversion,
+            "drop_off_from_prev_pct": max(0, step_drop),
         })
-        if prev_count is None and count > 0:
-            prev_count = count
-        elif count > 0:
-            prev_count = count
 
-    # Total unique sessions and users
-    total_sessions = await db.funnel_events.aggregate([
+    # Device breakdown
+    device_pipeline = [
+        {"$match": {"timestamp": {"$gte": cutoff}}},
+        {"$group": {"_id": "$device", "count": {"$sum": 1}}},
+    ]
+    device_breakdown = {}
+    async for doc in db.funnel_events.aggregate(device_pipeline):
+        device_breakdown[doc["_id"] or "unknown"] = doc["count"]
+
+    # Source page breakdown
+    source_pipeline = [
+        {"$match": {"timestamp": {"$gte": cutoff}}},
+        {"$group": {"_id": "$source_page", "count": {"$sum": 1}}},
+    ]
+    source_breakdown = {}
+    async for doc in db.funnel_events.aggregate(source_pipeline):
+        source_breakdown[doc["_id"] or "unknown"] = doc["count"]
+
+    # Paywall micro-conversions
+    paywall_steps = ["paywall_viewed", "plan_selected", "payment_started", "payment_abandoned", "payment_success"]
+    paywall_funnel = []
+    for ps in paywall_steps:
+        paywall_funnel.append({"step": ps, "count": step_counts.get(ps, 0)})
+
+    # Total unique sessions & users
+    total_sessions_result = await db.funnel_events.aggregate([
         {"$match": {"timestamp": {"$gte": cutoff}}},
         {"$group": {"_id": "$session_id"}},
         {"$count": "total"},
     ]).to_list(1)
 
-    total_users = await db.funnel_events.aggregate([
+    total_users_result = await db.funnel_events.aggregate([
         {"$match": {"timestamp": {"$gte": cutoff}, "user_id": {"$ne": None}}},
         {"$group": {"_id": "$user_id"}},
         {"$count": "total"},
     ]).to_list(1)
 
+    # Biggest drop-off
+    drops = [f for f in funnel if f["count"] > 0]
+    biggest_drop = max(drops, key=lambda x: x["drop_off_from_prev_pct"])["step"] if len(drops) > 1 else None
+
     return {
+        "success": True,
         "period_days": days,
-        "total_sessions": total_sessions[0]["total"] if total_sessions else 0,
-        "total_users": total_users[0]["total"] if total_users else 0,
+        "total_sessions": total_sessions_result[0]["total"] if total_sessions_result else 0,
+        "total_users": total_users_result[0]["total"] if total_users_result else 0,
         "funnel": funnel,
-        "biggest_drop_off": max(funnel, key=lambda x: x["drop_off_pct"])["step"] if any(f["count"] > 0 for f in funnel) else None,
+        "biggest_drop_off": biggest_drop,
+        "device_breakdown": device_breakdown,
+        "source_breakdown": source_breakdown,
+        "paywall_micro_funnel": paywall_funnel,
     }

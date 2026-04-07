@@ -12,6 +12,7 @@ import { markFeatureUsed } from '../utils/feedbackSession';
 import { useProductGuide } from '../contexts/ProductGuideContext';
 import analytics from '../utils/analytics';
 import { trackToolOpenPrefilled, trackGenerateClick, trackCreationCompleted } from '../utils/growthAnalytics';
+import { trackFunnel, incrementGenerationCount } from '../utils/funnelTracker';
 import useWebSocketProgress from '../hooks/useWebSocketProgress';
 import { RealTimeProgressPanel } from '../components/RealTimeProgressPanel';
 import WaitingExperience from '../components/WaitingExperience';
@@ -632,6 +633,7 @@ export default function StoryVideoStudio() {
         toast.success('Project created! Analyzing story and generating scenes... This may take 30-60 seconds.');
         markFeatureUsed('story_video');
         trackJourneyStep('generate', null, 'story_video');
+        trackFunnel('generation_started', { source_page: 'studio' });
         await generateScenes(res.data.project_id);
       } else {
         console.error('Project creation returned success=false:', res.data);
@@ -989,6 +991,8 @@ export default function StoryVideoStudio() {
             setShowWaitingExperience(false);
             setStep(8);
             trackJourneyStep('result', 'generation_complete', 'story_video');
+            trackFunnel('generation_completed', { source_page: 'studio' });
+            incrementGenerationCount();
             
             // Show share modal instead of auto-redirect
             setShareModalData({

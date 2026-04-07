@@ -122,6 +122,10 @@ from routes.content_blueprint_library import router as blueprint_library_router
 from routes.security_management import router as security_management_router
 from routes.content_trending import router as content_trending_router
 
+# Funnel Tracking & Pricing API
+from routes.funnel_tracking import router as funnel_tracking_router
+from routes.pricing_api import router as pricing_api_router
+
 # NEW FEATURE: Instagram Bio Generator
 from routes.instagram_bio_generator import router as instagram_bio_generator_router
 
@@ -465,6 +469,10 @@ api_router.include_router(user_progress_router)
 api_router.include_router(health_router)
 api_router.include_router(content_protection_router)
 api_router.include_router(content_trending_router)
+
+# Funnel Tracking & Pricing API
+api_router.include_router(funnel_tracking_router)
+api_router.include_router(pricing_api_router)
 
 # Daily Report Service
 api_router.include_router(daily_report_router)

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { getStaticCardImg, getAllStaticBanners } from '../data/staticBanners';
+import { trackFunnel } from '../utils/funnelTracker';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -82,6 +83,8 @@ export default function Landing() {
     }).catch(() => {});
     // Track A/B impression
     axios.post(`${API}/api/public/ab-impression`, { variant: heroVariant, action: 'impression' }).catch(() => {});
+    // Track landing funnel event
+    trackFunnel('landing_view', { source_page: 'landing' });
   }, [heroVariant]);
 
   // Auto-refresh live feed
@@ -115,6 +118,7 @@ export default function Landing() {
   };
 
   const goCreateFresh = () => {
+    trackFunnel('first_action_click', { source_page: 'landing', meta: { action: 'create_fresh' } });
     navigate('/app/story-video-studio');
   };
 

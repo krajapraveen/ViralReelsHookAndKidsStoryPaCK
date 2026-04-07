@@ -4,87 +4,57 @@ import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import {
   ArrowLeft, Check, Zap, Crown, Star,
-  Sparkles, Film, BookOpen, Loader2
+  Sparkles, Film, Loader2
 } from 'lucide-react';
 import api from '../utils/api';
 
-const PLANS = [
-  {
-    id: 'free', name: 'Free', price: 0, period: '',
-    icon: Zap, accent: 'border-slate-700',
-    features: [
-      '50 free credits on signup',
-      'All tools unlocked',
-      'Watermarked outputs',
-      'Standard queue',
-    ],
-  },
-  {
-    id: 'weekly', name: 'Weekly', price: 149, period: '/wk',
-    icon: Zap, accent: 'border-blue-500',
-    features: [
-      '40 credits per week',
-      'All core tools unlocked',
-      'Standard support',
-    ],
-  },
-  {
-    id: 'monthly', name: 'Monthly', price: 499, period: '/mo',
-    icon: Star, accent: 'border-indigo-500', badge: 'POPULAR',
-    features: [
-      '200 credits per month',
-      'All core tools unlocked',
-      'Priority generation',
-      'HD downloads',
-    ],
-  },
-  {
-    id: 'quarterly', name: 'Quarterly', price: 1199, period: '/qtr',
-    icon: Crown, accent: 'border-amber-500', badge: 'BEST VALUE',
-    features: [
-      '750 credits per quarter',
-      'Faster generation queue',
-      'Bonus styles / packs',
-      'All core tools unlocked',
-    ],
-  },
-  {
-    id: 'yearly', name: 'Yearly', price: 3999, period: '/yr',
-    icon: Sparkles, accent: 'border-rose-500', badge: 'BEST DEAL',
-    features: [
-      '3,000 credits per year',
-      'Highest priority',
-      'Early feature access',
-      'Best value',
-      'All core tools unlocked',
-    ],
-  },
-];
-
-const TOPUPS = [
-  { id: 'topup_40', credits: 40, price: 99 },
-  { id: 'topup_120', credits: 120, price: 249, badge: 'POPULAR' },
-  { id: 'topup_300', credits: 300, price: 499, badge: 'BEST VALUE' },
-  { id: 'topup_700', credits: 700, price: 999 },
-];
-
 const TOOL_COSTS = [
-  { name: 'Caption / Text', credits: 1, icon: '1' },
-  { name: 'GIF Maker', credits: 2, icon: '2' },
-  { name: 'Photo to Comic', credits: 3, icon: '3' },
-  { name: 'Comic Storybook', credits: 5, icon: '5' },
-  { name: 'Story Video', credits: '8-12', icon: '10' },
+  { name: 'Caption / Text', credits: 1 },
+  { name: 'GIF Maker', credits: 2 },
+  { name: 'Photo to Comic', credits: 3 },
+  { name: 'Comic Storybook', credits: 5 },
+  { name: 'Story Video', credits: '8-12' },
 ];
+
+const PLAN_ICONS = { weekly: Zap, monthly: Star, quarterly: Crown, yearly: Sparkles };
+const PLAN_ACCENTS = { weekly: 'border-blue-500', monthly: 'border-indigo-500', quarterly: 'border-amber-500', yearly: 'border-rose-500' };
 
 export default function PricingPage() {
   const navigate = useNavigate();
+  const [plans, setPlans] = useState([]);
+  const [topups, setTopups] = useState([]);
   const [currentPlan, setCurrentPlan] = useState('free');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get('/api/monetization/my-limits').then(r => {
-      setCurrentPlan(r.data.plan || 'free');
-    }).catch(() => {});
+    Promise.all([
+      api.get('/api/pricing-catalog/plans'),
+      api.get('/api/monetization/my-limits').catch(() => ({ data: {} })),
+    ]).then(([pricingRes, limitsRes]) => {
+      if (pricingRes.data?.plans) setPlans(pricingRes.data.plans);
+      if (pricingRes.data?.topups) setTopups(pricingRes.data.topups);
+      setCurrentPlan(limitsRes.data?.plan || 'free');
+    }).catch(() => toast.error('Failed to load pricing'))
+      .finally(() => setLoading(false));
   }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <Loader2 className="w-6 h-6 text-indigo-400 animate-spin" />
+      </div>
+    );
+  }
+
+  // Add "Free" tier at the beginning
+  const allPlans = [
+    {
+      id: 'free', name: 'Free', period: 'free', price_inr: 0,
+      credits: 50, duration_days: 0, badge: null,
+      features: ['50 free credits on signup', 'All tools unlocked', 'Watermarked outputs', 'Standard queue'],
+    },
+    ...plans,
+  ];
 
   return (
     <div className="min-h-screen bg-slate-950" data-testid="pricing-page">
@@ -103,13 +73,14 @@ export default function PricingPage() {
       <main className="max-w-5xl mx-auto px-4 py-10">
         {/* Plans */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-16" data-testid="plans-grid">
-          {PLANS.map((plan) => {
-            const Icon = plan.icon;
+          {allPlans.map((plan) => {
+            const Icon = PLAN_ICONS[plan.period] || Zap;
+            const accent = PLAN_ACCENTS[plan.period] || 'border-slate-700';
             const isCurrent = plan.id === currentPlan;
             return (
               <div
                 key={plan.id}
-                className={`relative bg-slate-900/60 border-2 rounded-2xl p-5 flex flex-col ${plan.accent} ${
+                className={`relative bg-slate-900/60 border-2 rounded-2xl p-5 flex flex-col ${accent} ${
                   isCurrent ? 'ring-2 ring-indigo-500/50' : ''
                 }`}
                 data-testid={`plan-${plan.id}`}
@@ -122,10 +93,10 @@ export default function PricingPage() {
                 <Icon className="w-6 h-6 text-indigo-400 mb-3" />
                 <h3 className="text-base font-bold text-white mb-1">{plan.name}</h3>
                 <div className="flex items-baseline gap-1 mb-4">
-                  {plan.price > 0 ? (
+                  {plan.price_inr > 0 ? (
                     <>
-                      <span className="text-2xl font-bold text-white">INR {plan.price}</span>
-                      <span className="text-xs text-slate-500">{plan.period}</span>
+                      <span className="text-2xl font-bold text-white">INR {plan.price_inr}</span>
+                      <span className="text-xs text-slate-500">/{plan.period === 'weekly' ? 'wk' : plan.period === 'monthly' ? 'mo' : plan.period === 'quarterly' ? 'qtr' : 'yr'}</span>
                     </>
                   ) : (
                     <span className="text-2xl font-bold text-white">Free</span>
@@ -144,16 +115,16 @@ export default function PricingPage() {
                   className={`w-full text-xs font-semibold ${
                     isCurrent
                       ? 'bg-slate-700 text-slate-400 cursor-default'
-                      : plan.id === 'yearly'
+                      : plan.period === 'yearly'
                       ? 'bg-amber-600 hover:bg-amber-700 text-white'
                       : 'bg-indigo-600 hover:bg-indigo-700 text-white'
                   }`}
                   data-testid={`select-plan-${plan.id}`}
                   onClick={() => {
-                    if (!isCurrent) navigate('/app/billing');
+                    if (!isCurrent && plan.price_inr > 0) navigate('/app/billing');
                   }}
                 >
-                  {isCurrent ? 'Current Plan' : plan.price > 0 ? 'Upgrade' : 'Downgrade'}
+                  {isCurrent ? 'Current Plan' : plan.price_inr > 0 ? 'Upgrade' : 'Downgrade'}
                 </Button>
               </div>
             );
@@ -167,16 +138,16 @@ export default function PricingPage() {
           </h2>
           <p className="text-xs text-slate-500 mb-6">Need more without a subscription? Buy credits instantly.</p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4" data-testid="topups-grid">
-            {TOPUPS.map((t) => (
+            {topups.map((t) => (
               <div key={t.id} className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 flex flex-col items-center text-center relative" data-testid={`topup-${t.id}`}>
-                {t.badge && (
+                {t.popular && (
                   <span className="absolute -top-2.5 text-[10px] font-bold bg-amber-600 text-white px-2.5 py-0.5 rounded-full">
-                    {t.badge}
+                    POPULAR
                   </span>
                 )}
                 <span className="text-3xl font-bold text-white mb-1">{t.credits}</span>
                 <span className="text-xs text-slate-500 mb-3">credits</span>
-                <span className="text-lg font-semibold text-white mb-4">INR {t.price}</span>
+                <span className="text-lg font-semibold text-white mb-4">INR {t.price_inr}</span>
                 <Button
                   className="w-full bg-slate-700 hover:bg-slate-600 text-white text-xs"
                   onClick={() => navigate('/app/billing')}
@@ -198,7 +169,7 @@ export default function PricingPage() {
             {TOOL_COSTS.map((t, i) => (
               <div key={i} className={`flex items-center justify-between px-5 py-3 ${i > 0 ? 'border-t border-slate-800/50' : ''}`}>
                 <span className="text-sm text-white">{t.name}</span>
-                <span className="text-sm font-semibold text-indigo-400">{t.credits} credit{typeof t.credits === 'number' && t.credits !== 1 ? 's' : 's'}</span>
+                <span className="text-sm font-semibold text-indigo-400">{t.credits} credits</span>
               </div>
             ))}
           </div>
