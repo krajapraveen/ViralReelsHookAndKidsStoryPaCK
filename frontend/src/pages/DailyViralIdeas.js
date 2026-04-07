@@ -804,7 +804,7 @@ const VideoAsset = ({ url, isLocked, onDownload }) => {
           </div>
         ) : (
           <>
-            <video
+            <video controlsList="nodownload noplaybackrate" disablePictureInPicture
               ref={videoRef}
               controls={!isLocked}
               className="w-full max-w-md mx-auto rounded-xl"

@@ -33,6 +33,7 @@ import ShareModal from '../components/ShareModal';
 import ResultRetentionEngine from '../components/guide/ResultRetentionEngine';
 import StickyGenerateAgain from '../components/guide/StickyGenerateAgain';
 import ExitInterceptionModal from '../components/guide/ExitInterceptionModal';
+import ProtectedContent from '../components/ProtectedContent';
 
 const AGE_GROUPS = [
   { id: 'kids_3_5', name: 'Kids 3-5', description: 'Simple stories, bright colors' },
@@ -2289,7 +2290,7 @@ export default function StoryVideoStudio() {
         
         {/* Step 8: Final Video Player */}
         {step === 8 && project?.final_video_url && (
-          <div className="space-y-6">
+          <ProtectedContent className="space-y-6">
             {/* Urgent Download Warning */}
             <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-4 animate-pulse" data-testid="video-expiry-warning">
               <div className="flex items-center gap-3">
@@ -2335,6 +2336,8 @@ export default function StoryVideoStudio() {
                   ref={videoRef}
                   src={project.final_video_url?.startsWith('http') ? project.final_video_url : `${process.env.REACT_APP_BACKEND_URL}${project.final_video_url}`}
                   className="w-full h-full"
+                  controlsList="nodownload noplaybackrate"
+                  disablePictureInPicture
                   onTimeUpdate={(e) => setCurrentTime(e.target.currentTime)}
                   onLoadedMetadata={(e) => setDuration(e.target.duration)}
                   onPlay={() => setIsPlaying(true)}
@@ -2607,7 +2610,7 @@ export default function StoryVideoStudio() {
                 Back to Dashboard
               </Button>
             </div>
-          </div>
+          </ProtectedContent>
         )}
       </main>
 

@@ -20,6 +20,7 @@ from services.content_protection import (
     WATERMARK_REMOVAL_COST
 )
 from services.audit_log import log_admin_action, AuditAction
+from routes.asset_access import log_asset_access, check_abuse
 
 router = APIRouter(prefix="/protected-download", tags=["Protected Downloads"])
 
@@ -37,6 +38,11 @@ async def get_signed_url(
 ):
     """Generate a signed URL for secure file download"""
     user_id = str(user.get("id") or user.get("_id"))
+    
+    # Check for abuse before issuing signed URL
+    abuse = await check_abuse(user_id, request.file_id)
+    if abuse["blocked"]:
+        raise HTTPException(status_code=429, detail=abuse["reason"])
     
     # Verify user owns this file
     file_record = await db.user_files.find_one({
@@ -57,7 +63,12 @@ async def get_signed_url(
     # Generate signed token (60 second expiry)
     token = generate_signed_token(user_id, request.file_id, expiry_seconds=60)
     
-    # Log access
+    # Log access with abuse detection
+    await log_asset_access(
+        user_id=user_id,
+        asset_id=request.file_id,
+        action_type="signed_url_issue",
+    )
     await db.file_access_logs.insert_one({
         "user_id": user_id,
         "file_id": request.file_id,

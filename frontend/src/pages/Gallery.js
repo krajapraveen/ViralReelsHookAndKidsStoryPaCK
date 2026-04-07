@@ -110,7 +110,7 @@ function GalleryCard({ item, onPreview, onRemix }) {
       <div className="aspect-video bg-black/50 relative overflow-hidden">
         {/* Hover video preview (desktop) */}
         {showPreview && hasVideo && (
-          <video
+          <video controlsList="nodownload noplaybackrate" disablePictureInPicture
             ref={videoRef}
             src={item.preview_video_url || item.output_url || item.full_video_url}
             className="absolute inset-0 w-full h-full object-cover z-10"
@@ -339,7 +339,7 @@ function ImmersiveViewer({ seedItem, allItems, onClose, onRemix }) {
           <>
             {/* Preload adjacent videos as hidden elements */}
             {feed[currentIdx - 1] && (feed[currentIdx - 1].output_url || feed[currentIdx - 1].full_video_url) && (
-              <video
+              <video controlsList="nodownload noplaybackrate" disablePictureInPicture
                 key={`pre-${currentIdx - 1}`}
                 ref={el => { videoRefs.current[currentIdx - 1] = el; }}
                 src={feed[currentIdx - 1].output_url || feed[currentIdx - 1].full_video_url}
@@ -347,14 +347,14 @@ function ImmersiveViewer({ seedItem, allItems, onClose, onRemix }) {
               />
             )}
             {feed[currentIdx + 1] && (feed[currentIdx + 1].output_url || feed[currentIdx + 1].full_video_url) && (
-              <video
+              <video controlsList="nodownload noplaybackrate" disablePictureInPicture
                 key={`pre-${currentIdx + 1}`}
                 ref={el => { videoRefs.current[currentIdx + 1] = el; }}
                 src={feed[currentIdx + 1].output_url || feed[currentIdx + 1].full_video_url}
                 className="hidden" preload="auto" muted
               />
             )}
-            <video
+            <video controlsList="nodownload noplaybackrate" disablePictureInPicture
               key={`main-${currentIdx}`}
               ref={el => { videoRefs.current[currentIdx] = el; }}
               src={item.output_url || item.full_video_url}

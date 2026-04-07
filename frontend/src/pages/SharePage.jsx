@@ -253,7 +253,7 @@ export default function SharePage() {
             {/* Video Player */}
             {hasVideo ? (
               <div className="rounded-2xl overflow-hidden border border-white/[0.08] bg-black mb-6 fade-up shadow-2xl shadow-violet-500/10" data-testid="video-player-container">
-                <video
+                <video controlsList="nodownload noplaybackrate" disablePictureInPicture
                   ref={videoRef}
                   src={data.videoUrl}
                   poster={data.thumbnailUrl || undefined}

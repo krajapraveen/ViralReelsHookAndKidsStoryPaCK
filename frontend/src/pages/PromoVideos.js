@@ -147,7 +147,7 @@ export default function PromoVideos() {
                   {/* Video Preview or Placeholder */}
                   <div className="aspect-video bg-slate-900 relative flex items-center justify-center">
                     {video.status === 'COMPLETED' && video.downloadUrl ? (
-                      <video
+                      <video controlsList="nodownload noplaybackrate" disablePictureInPicture
                         src={`${API_URL}${video.downloadUrl}`}
                         controls
                         className="w-full h-full object-contain"

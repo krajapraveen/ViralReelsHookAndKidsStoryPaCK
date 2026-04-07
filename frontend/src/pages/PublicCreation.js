@@ -370,7 +370,7 @@ export default function PublicCreation() {
                   {/* ═══ AUTO-PLAY VIDEO PLAYER ═══ */}
                   {hasVideo ? (
                     <>
-                      <video
+                      <video controlsList="nodownload noplaybackrate" disablePictureInPicture
                         ref={videoRef}
                         src={safeMediaUrl(creation.video_url)}
                         poster={safeMediaUrl(creation.thumbnail_url || currentScene?.image_url)}

@@ -165,7 +165,7 @@ export default function BrowsePage() {
             <div className="bg-slate-900 rounded-2xl border border-slate-700 max-w-3xl w-full p-6" onClick={(e) => e.stopPropagation()}>
               <h3 className="text-lg font-bold text-white mb-4">{previewItem.title}</h3>
               {previewItem.video_url && (
-                <video src={previewItem.video_url} controls autoPlay className="w-full rounded-xl mb-4" />
+                <video controlsList="nodownload noplaybackrate" disablePictureInPicture src={previewItem.video_url} controls autoPlay className="w-full rounded-xl mb-4" />
               )}
               <div className="flex gap-3">
                 <Button onClick={() => handleRemix(previewItem)} className="bg-purple-600 hover:bg-purple-700">

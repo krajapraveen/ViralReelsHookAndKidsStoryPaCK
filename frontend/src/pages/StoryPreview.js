@@ -13,6 +13,7 @@ import { trackLoop } from '../utils/growthTracker';
 import api from '../utils/api';
 import EntitledDownloadButton from '../components/EntitledDownloadButton';
 import { useMediaEntitlement } from '../contexts/MediaEntitlementContext';
+import ProtectedContent from '../components/ProtectedContent';
 
 export default function StoryPreview() {
   const { jobId } = useParams();
@@ -151,7 +152,7 @@ export default function StoryPreview() {
   const isReady = preview.status === 'COMPLETED' || preview.status === 'PARTIAL';
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-[#0a0f1f] to-slate-950">
+    <ProtectedContent className="min-h-screen bg-gradient-to-b from-slate-950 via-[#0a0f1f] to-slate-950">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-lg border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -258,6 +259,8 @@ export default function StoryPreview() {
                     ref={videoPlayerRef}
                     src={preview.final_video_url}
                     controls
+                    controlsList="nodownload noplaybackrate"
+                    disablePictureInPicture
                     playsInline
                     className="w-full h-full object-cover"
                     onTimeUpdate={handleVideoTimeUpdate}
@@ -533,6 +536,6 @@ export default function StoryPreview() {
           </div>
         </div>
       </main>
-    </div>
+    </ProtectedContent>
   );
 }

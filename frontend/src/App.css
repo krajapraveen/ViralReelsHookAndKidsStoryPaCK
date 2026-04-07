@@ -115,3 +115,45 @@ div[style*="z-index: 99"] > a[href*="emergent"] {
   user-select: text !important;
   -webkit-touch-callout: default !important;
 }
+
+/* ============================================
+   PROTECTED CONTENT — Anti-copy deterrence CSS
+   Applied via <ProtectedContent> wrapper.
+   Deterrence only, not true security.
+   ============================================ */
+.protected-content {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Media elements: block drag but keep playback working */
+.protected-content img,
+.protected-content canvas {
+  -webkit-user-drag: none;
+  user-drag: none;
+  -webkit-touch-callout: none;
+}
+
+.protected-content video {
+  -webkit-touch-callout: none;
+}
+
+/* Keep buttons, links, inputs interactive */
+.protected-content button,
+.protected-content a,
+.protected-content [role="button"],
+.protected-content input,
+.protected-content textarea,
+.protected-content select {
+  -webkit-user-select: auto;
+  user-select: auto;
+  -webkit-touch-callout: default;
+  cursor: pointer;
+}
+
+/* Scrollbar styling inside protected content */
+.protected-content .scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
