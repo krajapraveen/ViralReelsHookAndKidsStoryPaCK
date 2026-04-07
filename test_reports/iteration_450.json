@@ -1,0 +1,138 @@
+{
+  "summary": "Product Guidance System testing complete. Backend 100% (12/12 tests). Frontend mostly working with one issue: guide bubble not visible on /app Dashboard page (works on /app/story-video-studio). Stuck hint, guide panel, dismiss, CTA navigation all working correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "GuideAssistant",
+        "issue": "Guide bubble (data-testid=guide-bubble) not visible on /app Dashboard page, but works correctly on /app/story-video-studio",
+        "selector": "[data-testid=\"guide-bubble\"]",
+        "priority": "MEDIUM",
+        "details": "The guide bubble renders at App.js level but doesn't appear on Dashboard. Works on story-video-studio page. Likely z-index or layout issue with Dashboard's full-screen hero section."
+      },
+      {
+        "component": "JourneyProgressBar",
+        "issue": "Journey progress bar not visible on /app Dashboard page (mobile), but works on /app/story-video-studio",
+        "selector": "[data-testid=\"journey-progress-bar\"]",
+        "priority": "MEDIUM",
+        "details": "Same root cause as guide bubble - component renders at App.js level but Dashboard layout may be hiding it."
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Cookie consent banner",
+        "issues": ["Cookie consent banner (z-[9999]) blocks clicks on guide bubble (z-[9970]) and stuck hint close button. Consider lowering cookie banner z-index or raising guide z-index."]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_product_guide_iteration450.py",
+    "/app/test_reports/pytest/pytest_product_guide_iteration450.xml"
+  ],
+  "action_items": [
+    "Fix guide bubble visibility on /app Dashboard page - investigate z-index or layout conflict with Dashboard hero section",
+    "Fix journey progress bar visibility on /app Dashboard page (mobile)",
+    "Consider adjusting z-index: cookie banner (z-[9999]) vs guide components (z-[9970]) to prevent click blocking"
+  ],
+  "critical_code_review_comments": [
+    "GuideAssistant and JourneyProgressBar are rendered at App.js level (lines 387, 393) but don't appear on Dashboard page - likely Dashboard's full-screen layout is covering them",
+    "Cookie consent banner z-index (9999) is higher than guide components (9970), causing click interception issues"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_product_guide_iteration450.py"
+  ],
+  "success_rate": {
+    "backend": "100% (12/12 tests passed)",
+    "frontend": "85% - Guide bubble/panel/stuck hint work on story-video-studio, but not on Dashboard"
+  },
+  "test_credentials": {
+    "test_user": "test@visionary-suite.com / Test@2026#",
+    "admin": "admin@creatorstudio.ai / Cr3@t0rStud!o#2026"
+  },
+  "seed_data_creation": "Reset user_progress.guide_dismissed=false and completed_steps=[] for test user via MongoDB",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Product Guidance System backend APIs fully working. Frontend guide components work on /app/story-video-studio but NOT on /app Dashboard. The issue is likely that Dashboard page has a full-screen layout that covers the fixed-position guide components. Cookie consent banner z-index (9999) is higher than guide (9970), causing click blocking. Test user ID: ea3b038c-d523-4a49-9fa5-e00c761fa4aa. To reset guide for testing: db.user_progress.update_one({user_id: 'ea3b038c-d523-4a49-9fa5-e00c761fa4aa'}, {$set: {guide_dismissed: false, completed_steps: []}})",
+  "verified_features": [
+    {
+      "feature": "GET /api/user/progress returns progress object",
+      "status": "PASS",
+      "details": "Returns current_step, completed_steps, features_used, guide_dismissed, total_generations, total_shares"
+    },
+    {
+      "feature": "POST /api/user/progress/update updates progress",
+      "status": "PASS",
+      "details": "Updates step, adds features, increments generation/share counters"
+    },
+    {
+      "feature": "POST /api/user/progress/dismiss-guide",
+      "status": "PASS",
+      "details": "Sets guide_dismissed=true in database"
+    },
+    {
+      "feature": "All 3 endpoints require auth",
+      "status": "PASS",
+      "details": "Return 401 without token"
+    },
+    {
+      "feature": "Guide bubble on /app/story-video-studio",
+      "status": "PASS",
+      "details": "Visible after 2s delay, clickable to open panel"
+    },
+    {
+      "feature": "Guide panel contents",
+      "status": "PASS",
+      "details": "Shows 'Your Next Step' title, context message, 'Do it now' CTA, journey mini-map, dismiss button"
+    },
+    {
+      "feature": "CTA navigation",
+      "status": "PASS",
+      "details": "'Do it now' navigates to /app/story-video-studio"
+    },
+    {
+      "feature": "Dismiss guide permanently",
+      "status": "PASS",
+      "details": "'Don't show again' sets guide_dismissed=true, bubble disappears"
+    },
+    {
+      "feature": "Stuck hint after 15s inactivity",
+      "status": "PASS",
+      "details": "Appears on story-video-studio page with page-specific message"
+    },
+    {
+      "feature": "Stuck hint close button",
+      "status": "PASS",
+      "details": "X button closes the hint (with force=True due to cookie banner)"
+    },
+    {
+      "feature": "Journey progress bar (mobile)",
+      "status": "PARTIAL",
+      "details": "Visible on /app/story-video-studio but NOT on /app Dashboard"
+    },
+    {
+      "feature": "Guide bubble on /app Dashboard",
+      "status": "FAIL",
+      "details": "Not visible - 0 elements in DOM on Dashboard page"
+    },
+    {
+      "feature": "Support dock (mobile regression)",
+      "status": "PASS",
+      "details": "Support dock visible on mobile"
+    },
+    {
+      "feature": "Admin growth dashboard regression",
+      "status": "PASS",
+      "details": "Story Created > 0 with 30d period"
+    },
+    {
+      "feature": "Auth flows regression",
+      "status": "PASS",
+      "details": "Login works for test user and admin"
+    }
+  ],
+  "rca_of_the_issue": "Guide bubble and journey progress bar are rendered at App.js level (outside Routes) but don't appear on /app Dashboard page. The Dashboard page (Dashboard.js) has a full-screen hero section and custom layout that may be covering the fixed-position guide components. The components work correctly on /app/story-video-studio which has a different layout. Additionally, cookie consent banner has z-index 9999 which is higher than guide components (9970), causing click interception."
+}

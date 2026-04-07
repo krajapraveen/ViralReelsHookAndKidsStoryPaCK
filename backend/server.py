@@ -103,6 +103,7 @@ from routes.daily_rewards_routes import router as daily_rewards_router
 
 # USER PROFILE ROUTES
 from routes.user_routes import router as user_profile_router
+from routes.user_progress import router as user_progress_router
 
 # HEALTH AND MONITORING
 from routes.health_routes import router as health_router
@@ -458,6 +459,7 @@ api_router.include_router(universe_router)
 api_router.include_router(download_expiry_router)
 api_router.include_router(notification_router)
 api_router.include_router(user_profile_router)
+api_router.include_router(user_progress_router)
 api_router.include_router(health_router)
 api_router.include_router(content_protection_router)
 api_router.include_router(content_trending_router)

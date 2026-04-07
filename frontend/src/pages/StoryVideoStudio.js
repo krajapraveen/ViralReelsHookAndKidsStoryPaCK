@@ -9,6 +9,7 @@ import { Slider } from '../components/ui/slider';
 import { toast } from 'sonner';
 import api from '../utils/api';
 import { markFeatureUsed } from '../utils/feedbackSession';
+import { useProductGuide } from '../contexts/ProductGuideContext';
 import analytics from '../utils/analytics';
 import { trackToolOpenPrefilled, trackGenerateClick, trackCreationCompleted } from '../utils/growthAnalytics';
 import useWebSocketProgress from '../hooks/useWebSocketProgress';
@@ -61,6 +62,7 @@ export default function StoryVideoStudio() {
   const location = useLocation();
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
+  const { updateStep: trackJourneyStep } = useProductGuide();
   
   // State - Steps: 1: Input, 2: Scenes, 3: Characters, 4: Prompts, 5: Images, 6: Voice, 7: Music, 8: Video
   const [step, setStep] = useState(1);
@@ -567,6 +569,7 @@ export default function StoryVideoStudio() {
         setStoryText(res.data.data.original_story);
         toast.success('Story uploaded successfully!');
         setStep(2);
+        trackJourneyStep('create', null, 'story_video');
       }
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to upload story');
@@ -628,6 +631,7 @@ export default function StoryVideoStudio() {
         setProject(res.data.data);
         toast.success('Project created! Analyzing story and generating scenes... This may take 30-60 seconds.');
         markFeatureUsed('story_video');
+        trackJourneyStep('generate', null, 'story_video');
         await generateScenes(res.data.project_id);
       } else {
         console.error('Project creation returned success=false:', res.data);
@@ -984,6 +988,7 @@ export default function StoryVideoStudio() {
             setLoading(false);
             setShowWaitingExperience(false);
             setStep(8);
+            trackJourneyStep('result', 'generation_complete', 'story_video');
             
             // Show share modal instead of auto-redirect
             setShareModalData({

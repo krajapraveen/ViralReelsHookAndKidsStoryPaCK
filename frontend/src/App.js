@@ -70,6 +70,9 @@ import ReferralProgram from './pages/ReferralProgram';
 import Gallery from './pages/Gallery';
 import ResponsiveSupportWrapper from './components/support/ResponsiveSupportWrapper';
 import AppTour, { TourProvider } from './components/AppTour';
+import { ProductGuideProvider } from './contexts/ProductGuideContext';
+import JourneyProgressBar from './components/guide/JourneyProgressBar';
+import GuideAssistant from './components/guide/GuideAssistant';
 // NEW REBUILT FEATURES
 import StoryEpisodeCreator from './pages/StoryEpisodeCreator';
 import ContentChallengePlanner from './pages/ContentChallengePlanner';
@@ -211,6 +214,7 @@ function App() {
     <MediaEntitlementProvider>
     <TourProvider>
     <FeedbackProvider>
+    <ProductGuideProvider>
     <ContentProtectionWrapper>
       <Routes>
         <Route path="/" element={<Landing />} />
@@ -379,12 +383,19 @@ function App() {
       <Route path="*" element={<Navigate to={isAuthenticated ? "/app" : "/"} replace />} />
       </Routes>
       
+      {/* Journey Progress Bar (mobile only) */}
+      {isAuthenticated && <JourneyProgressBar />}
+      
       {/* Responsive Support — Floating on desktop, Dock+Sheet on mobile/tablet */}
       <ResponsiveSupportWrapper />
+      
+      {/* Guide Assistant — context-aware next-step helper */}
+      {isAuthenticated && <GuideAssistant />}
       
       {/* Cookie Consent Banner - GDPR/CCPA Compliance */}
       <CookieConsent />
     </ContentProtectionWrapper>
+    </ProductGuideProvider>
     </FeedbackProvider>
     </TourProvider>
     </MediaEntitlementProvider>
