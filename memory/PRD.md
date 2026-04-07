@@ -72,6 +72,22 @@ A React + FastAPI + MongoDB AI-powered creator platform offering:
 ## Bug Found & Fixed During QA
 - Stale message string in email signup response said "10 free credits" instead of "50 free credits" (fixed in auth.py line 413-417)
 
+## P0 Growth Dashboard Fix (2026-04-07) — ALL PASS
+Root cause: datetime/string type mismatch in MongoDB queries. pipeline_jobs.created_at is a datetime, but queries compared it with ISO strings → always returned 0.
+
+**Fixed:**
+- [x] pipeline_jobs.created_at queries now use datetime objects (admin_metrics.py lines 46-47, 74-79, 243, 1697-1700)
+- [x] users.created_at queries also fixed (same type mismatch)
+- [x] Story Created: 0 → 60
+- [x] Continuation Rate: 0% → 20.0%
+- [x] Share Rate: 0% → 68.3%
+- [x] Branches/Story: 0 → 0.37
+- [x] Top Stories + Story-Level Performance deduplicated (39 unique from 42 raw)
+- [x] Variant B set as default production hero (was random A/B/C)
+- [x] Admin funnel debug endpoint added (/api/admin/metrics/funnel-debug)
+- [x] creation_completed growth event wired in pipeline completion
+- [x] Testing: 100% pass (18/18 backend + all UI, iteration_449.json)
+
 ## Backlog
 ### P1
 - Pipeline Parallelization (Script → Voice + Images in parallel)
