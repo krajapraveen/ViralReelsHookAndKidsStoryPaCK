@@ -1,64 +1,81 @@
 # Visionary Suite - Product Requirements Document
 
 ## Original Problem Statement
-Build a full-stack AI Creator Suite with compulsion-driven growth engine, monetization system, feature-guide system for user activation, and production-grade payment verification dashboard.
+Build a full-stack AI Creator Suite with compulsion-driven growth engine, monetization system, feature-guide system for user activation, production-grade payment verification dashboard, and high-converting funnel analytics + smart paywall system.
 
 ## Architecture
 ```
 /app/
 ├── backend/
+│   ├── config/
+│   │   └── pricing.py                 # Single source of truth for all plans & pricing
 │   ├── routes/
-│   │   ├── admin_payments.py        # Payment verification & reconciliation API (7 endpoints)
-│   │   ├── user_progress.py         # Guide system progress API
+│   │   ├── pricing_api.py             # GET /api/pricing-catalog/plans (exposes pricing to frontend)
+│   │   ├── funnel_tracking.py         # POST /api/funnel/track + GET /api/funnel/metrics
+│   │   ├── admin_payments.py          # Payment verification & reconciliation API
 │   │   ├── cashfree_webhook_handler.py # Stores payload hash + signature verification
+│   │   ├── user_progress.py           # Guide system progress API
+│   │   ├── admin_metrics.py           # Truth-based admin dashboard metrics
 │   │   └── ... (other routes)
 │   └── server.py
 └── frontend/
     ├── src/
-    │   ├── components/guide/
-    │   │   ├── FirstActionOverlay.jsx   # Mandatory onboarding (0-gen users)
-    │   │   ├── GuideAssistant.jsx       # Action-driven guide with auto-scroll+highlight
-    │   │   └── JourneyProgressBar.jsx   # Sticky top bar, desktop+mobile
-    │   └── pages/admin/
-    │       └── PaymentsDashboard.js     # 5-tab payment verification + drilldown
+    │   ├── components/
+    │   │   ├── UpgradeModal.js            # PRIMARY inline smart paywall (fetches from backend)
+    │   │   └── guide/
+    │   │       ├── FirstActionOverlay.jsx  # Mandatory onboarding (0-gen users)
+    │   │       ├── PostValueOverlay.jsx    # Post-value push → paywall connector
+    │   │       ├── GuideAssistant.jsx      # Action-driven guide
+    │   │       └── JourneyProgressBar.jsx  # Sticky top bar
+    │   ├── utils/
+    │   │   └── funnelTracker.js           # Fires funnel events with rich context
+    │   ├── pages/
+    │   │   ├── PricingPage.js             # SECONDARY pricing (fetches from backend, not hardcoded)
+    │   │   └── admin/
+    │   │       └── PaymentsDashboard.js   # 5-tab payment verification
+    │   └── App.js                         # Wires PostValueOverlay + UpgradeModal
 ```
 
 ## What's Implemented
 
+### Conversion Funnel System — COMPLETE (2026-04-07)
+100% tested (iteration_454, 18/18 backend + all frontend verified)
+1. **Funnel Analytics Backend**: POST /api/funnel/track (11 steps), GET /api/funnel/metrics (admin)
+   - Rich context: user_id, session_id, source_page, device, generation_count, plan_shown, plan_selected
+   - Conversion/drop-off %, device breakdown, source breakdown, paywall micro-funnel
+2. **Smart Paywall (Inline)**: UpgradeModal is PRIMARY paywall — no page navigation
+   - Fetches plans from backend /api/pricing-catalog/plans (NOT hardcoded)
+   - "MOST POPULAR" plan highlighted, emotional CTAs, "Continue with limited access" soft exit
+   - Integrates directly with Cashfree for payment
+   - Fires micro-conversion events (paywall_viewed, plan_selected, payment_started, payment_abandoned, payment_success)
+3. **Post-Value Overlay**: Shows after each generation
+   - 1st gen: "Your story is ready!" with Continue/Video/Share
+   - 2nd gen: "Unlock Unlimited" + "Continue with limited access" → triggers paywall
+4. **Dynamic PricingPage**: Fetches plans from backend (Free + 4 subscriptions + 4 topups)
+5. **Funnel Event Firing**: Landing (landing_view), CTA clicks (first_action_click), generation start/complete, result viewed, billing page events
+
 ### Payment Verification Dashboard — COMPLETE (2026-04-07)
 Route: `/app/admin/payments` | 100% tested (iteration_453)
-- 8-card stats strip, PRODUCTION badge everywhere
-- Orders tab: filterable, one-row truth per order
-- Webhooks tab: expandable, signature verification, payload hash
-- Reconciliation tab: mismatch queue + manual actions (Fetch, Reconcile, Replay Webhook)
-- Settlements tab: **Gross / Net Settlement / Fees** columns, UTR tracking
-- Drilldown: 4 panels (Business, Cashfree Truth Live, Webhook Trace, Credits) + mismatch detection
-- 6 mismatch types auto-detected
-
-### Payment Audit Result — CONFIRMED WORKING
-- Cashfree dashboard (merchant.cashfree.com) shows: 2 transactions, ₹298 collected, ₹194.42 settled
-- **NO payment bug** — system is working correctly
-- Difference (₹103.58) = gateway fees + GST (normal)
-- All 78 orders in production DB are from test@visionary-suite.com (test account)
 
 ### Activation System — COMPLETE (2026-04-07)
 100% tested (iteration_452, 22/22 tests)
-1. First-Action Overlay: mandatory for 0-gen users, blocks interaction
-2. Action-Driven Guide: path-aware CTAs, auto-scroll + highlight
-3. Progress Bar: sticky top, desktop (5 steps + %), mobile (compact)
-4. Stuck Recovery: 15s idle hints with action buttons
+
+### Payment Audit Result — CONFIRMED WORKING
+Cashfree production payments processing correctly.
 
 ## Backlog
 ### P1
-- Pipeline Parallelization (Script → Voice + Images in parallel)
-- Scheduled reconciliation job (every 15 mins)
+- Analyze funnel drop-off data once collected
+- A/B test hook text variations on public pages
+- Character-driven auto-share prompts after creation
 
 ### P2
-- Health tab charts
-- WebSocket admin dashboard
+- Dynamic pricing tests (active vs new users)
+- Pipeline Parallelization (Script → Voice + Images in parallel)
+- WebSocket admin dashboard upgrade
 - Story Chain leaderboard
+- Remix Variants on share pages
 
 ## Test Credentials
 - Admin: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
-- New User: newuser@test.com / Test@2026#
 - Test User: test@visionary-suite.com / Test@2026#
