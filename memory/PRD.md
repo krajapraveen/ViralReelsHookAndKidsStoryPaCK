@@ -1,104 +1,84 @@
 # Visionary Suite - Product Requirements Document
 
 ## Original Problem Statement
-Build a full-stack AI Creator Suite ("Visionary Suite") with a compulsion-driven growth engine, monetization system, and complete feature-guide system for user activation and retention.
+Build a full-stack AI Creator Suite with compulsion-driven growth engine, monetization system, feature-guide system for user activation, and production-grade payment verification dashboard.
 
 ## Core Product
-A React + FastAPI + MongoDB AI-powered creator platform offering story video generation, reel scripts, social bio generation, comic/coloring book creation, and content repurposing tools.
+React + FastAPI + MongoDB AI creator platform with story video generation, reel scripts, social bio, comics, and content repurposing tools.
 
 ## Architecture
 ```
 /app/
-├── backend/ (FastAPI + MongoDB)
+├── backend/
 │   ├── routes/
-│   │   ├── user_progress.py     # Guide system progress API
-│   │   ├── admin_metrics.py     # Truth-based admin metrics
-│   │   ├── auth.py              # Standardized 50-credit signup
-│   │   ├── cashfree_payments.py # Payment with idempotent credit delivery
-│   │   └── cashfree_webhook_handler.py # Webhook with duplicate protection
+│   │   ├── admin_payments.py        # NEW: Payment verification & reconciliation API
+│   │   ├── user_progress.py         # Guide system progress API
+│   │   ├── admin_metrics.py         # Truth-based admin metrics
+│   │   ├── auth.py                  # 50-credit signup
+│   │   ├── cashfree_payments.py     # Payment processing
+│   │   └── cashfree_webhook_handler.py # UPGRADED: payload hash + signature verification stored
 │   └── server.py
-└── frontend/ (React + Tailwind + Shadcn)
+└── frontend/
     ├── src/
     │   ├── components/guide/
-    │   │   ├── FirstActionOverlay.jsx  # NEW: Mandatory onboarding overlay
-    │   │   ├── GuideAssistant.jsx      # REWRITTEN: Action-driven guide with auto-scroll+highlight
-    │   │   └── JourneyProgressBar.jsx  # REWRITTEN: Sticky top bar, desktop+mobile, % completion
+    │   │   ├── FirstActionOverlay.jsx   # Mandatory onboarding (0-gen users)
+    │   │   ├── GuideAssistant.jsx       # Action-driven guide with auto-scroll+highlight
+    │   │   └── JourneyProgressBar.jsx   # Sticky top bar, desktop+mobile
     │   ├── contexts/
-    │   │   └── ProductGuideContext.js   # UPDATED: Success toasts, path-aware fetch
-    │   └── pages/
-    │       ├── Dashboard.js
-    │       ├── StoryVideoStudio.js     # data-guide attributes wired
-    │       ├── ReelGenerator.js        # data-guide + tracking wired
-    │       └── StoryGenerator.js       # data-guide + tracking wired
+    │   │   └── ProductGuideContext.js    # Success toasts, path-aware fetch
+    │   └── pages/admin/
+    │       └── PaymentsDashboard.js      # NEW: 5-tab payment verification dashboard
 ```
 
 ## What's Implemented
 
-### Activation System (2026-04-07) — ALL TESTED, 100% PASS
-1. **First-Action Overlay** (P0-2)
-   - Full-screen darkened overlay for users with 0 generations
-   - Cannot be skipped — single CTA "Start Now" navigates to studio
-   - Admin users excluded via role check
-   - Session-scoped (doesn't reappear after interaction)
+### Payment Verification Dashboard (2026-04-07) — 100% TESTED
+Route: `/app/admin/payments`
+- **Stats Strip**: 8 operational cards (Orders Today, Succeeded, Failed, Webhooks, WH Failures, Unreconciled, Settle Pending, Revenue)
+- **Orders Tab**: Filterable table (email, order ID, status, date, unreconciled only) with one-row truth per order
+- **Webhooks Tab**: Event list with expandable raw payload, signature verification status, payload hash
+- **Reconciliation Tab**: Mismatch queue with manual actions (Fetch from Cashfree, Reconcile, Replay Webhook, Inspect)
+- **Settlements Tab**: Settlement status, UTR, transfer time
+- **Order Drilldown**: 4-panel deep dive (Business View, Cashfree Truth Live, Webhook Trace, Credit Transactions)
+- **Mismatch Detection**: Automatically flags PAID_IN_CASHFREE_NOT_IN_DB, ACCESS_GRANTED_WITHOUT_PAYMENT, WEBHOOK_MISSING, SETTLEMENT_PENDING, DUPLICATE_WEBHOOK, SIGNATURE_VERIFICATION_FAILED
+- **PRODUCTION/SANDBOX badge** on every screen
+- **Admin-only access** (403 for non-admin users)
+- **Webhook handler upgraded**: stores raw payload SHA-256 hash and signature verification boolean
 
-2. **Action-Driven Guide** (P0-3)
-   - Every guide step has CTA button that auto-scrolls + highlights target
-   - Path-aware: "Go to Studio" on Dashboard, "Enter Your Story" on Studio
-   - Stuck hints (15s idle) include action buttons ("Scroll to input")
-   - Feature tooltips with scroll-to-target and glow highlight
+### Activation System (2026-04-07) — 100% TESTED
+1. **First-Action Overlay**: Full-screen mandatory for 0-generation users, blocks interaction, single "Start Now" CTA
+2. **Action-Driven Guide**: Path-aware CTAs with auto-scroll + element highlight (indigo glow)
+3. **Progress Bar**: Sticky top, desktop (5 labeled steps + %), mobile (compact bars)
+4. **Stuck Recovery**: 15s idle → action-driven hints with CTA buttons
 
-3. **Progress Bar** (P1)
-   - Sticky at top of page for all authenticated users
-   - Desktop: 5 labeled steps (Create→Customize→Generate→View→Share) with %
-   - Mobile: compact colored bars with step count
-   - Success toasts on step completion
-
-4. **Stuck User Recovery** (P1)
-   - 15s idle detection with action-driven hints
-   - Page-contextual messages with CTA buttons
-   - Auto-dismisses on user interaction
-
-### Payment System (2026-04-07) — STAGING AUDIT COMPLETE
-- All generation endpoints enforce credit deduction
-- Idempotent payment processing (verify + webhook both protected)
-- No revenue leaks in code
-- **NOTE**: Production database audit required for real transaction verification
-
-### Previously Completed
-- Growth Engine (Share pages, First Video Free, Remix, Watermark, Referrals)
-- Cashfree payment integration
-- Google OAuth + JWT auth
-- Admin dashboard with truth-based metrics
-- Credit system (50 credits for new users)
-- Legal/Copyright compliance
-- Responsive Support Widgets
-
-## Payment Audit Status
-- **Staging**: CLEAN — 0 orders, 0 webhooks, code paths verified
-- **Production**: PENDING — requires access to production DB at visionary-suite.com
-- Cashfree configured with PRODUCTION credentials
-- Webhook URL: https://www.visionary-suite.com/api/cashfree/webhook
+### Payment System Audit (2026-04-07)
+- **Staging**: 0 orders (preview DB is separate)
+- **Production DB (via backend)**: 78 orders, 24 webhooks, 19 successful
+- All orders from test@visionary-suite.com (test account, no real customers yet)
+- Cashfree: PRODUCTION credentials, webhook endpoint functional
+- Code: idempotent payment processing, duplicate webhook protection
 
 ## Backlog
 ### P0
-- Production payment audit (requires production DB access)
+- Production Cashfree dashboard verification (user must check merchant.cashfree.com manually)
 
 ### P1
 - Pipeline Parallelization (Script → Voice + Images in parallel)
-- A/B test hook text variations on public pages
+- Scheduled reconciliation job (every 15 mins)
 
 ### P2
-- WebSocket admin dashboard upgrade
+- WebSocket admin dashboard
 - Story Chain leaderboard
 - Remix Variants on share pages
-- UI polish and style preset thumbnails
+- Health tab charts (will populate with real volume)
 
 ## 3rd Party Integrations
 - OpenAI & Gemini (Emergent LLM Key)
 - Cloudflare R2 (Object Storage)
-- Cashfree (Payments)
+- Cashfree (Payments — PRODUCTION)
 - Google Identity Services (OAuth 2.0)
 
 ## Test Credentials
 - New User: newuser@test.com / Test@2026#
 - Admin: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
+- Test User: test@visionary-suite.com / Test@2026#
