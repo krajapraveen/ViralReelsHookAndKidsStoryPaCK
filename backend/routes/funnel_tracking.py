@@ -28,6 +28,15 @@ FUNNEL_STEPS = [
     "cta_video_clicked",
     "cta_share_clicked",
     "login_prompt_shown",
+    # Continue Story Loop events
+    "continue_clicked",
+    "story_part_generated",
+    "paywall_teaser_shown",
+    "paywall_shown",
+    "paywall_dismissed",
+    "paywall_converted",
+    "exit_offer_shown",
+    "discount_offer_shown",
     # Original funnel steps
     "generation_started",
     "generation_completed",

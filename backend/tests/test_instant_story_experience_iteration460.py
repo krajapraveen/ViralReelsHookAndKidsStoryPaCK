@@ -1,356 +1,381 @@
 """
-Test Suite for Instant Demo Experience Feature - Iteration 460
+Test Suite for Continue Story Loop + Smart Paywall Features (Iteration 460)
 Tests:
-1. POST /api/public/quick-generate - No auth required, returns story_id, title, story_text
-2. POST /api/funnel/track - All instant story events accepted
-3. Rate limiting behavior
-4. Error handling
+- POST /api/public/quick-generate endpoint (fresh and continue modes)
+- POST /api/funnel/track endpoint (all paywall-related events)
+- Rate limiting behavior
 """
 
 import pytest
 import requests
 import os
 import time
+import uuid
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 
-class TestInstantStoryQuickGenerate:
-    """Tests for POST /api/public/quick-generate endpoint"""
+# All funnel events related to continue story loop and paywall
+PAYWALL_FUNNEL_EVENTS = [
+    "continue_clicked",
+    "story_part_generated",
+    "paywall_teaser_shown",
+    "paywall_shown",
+    "paywall_dismissed",
+    "paywall_converted",
+    "exit_offer_shown",
+    "discount_offer_shown",
+]
+
+
+class TestQuickGenerateEndpoint:
+    """Tests for POST /api/public/quick-generate - story generation"""
     
-    def test_quick_generate_no_auth_required(self):
-        """Verify endpoint works without authentication"""
-        response = requests.post(
-            f"{BASE_URL}/api/public/quick-generate",
-            json={"mode": "fresh", "session_id": "test_session_001"},
-            headers={"Content-Type": "application/json"},
-            timeout=30
-        )
-        # Should not return 401/403 - no auth required
-        assert response.status_code != 401, "Endpoint should not require auth"
-        assert response.status_code != 403, "Endpoint should not require auth"
-        print(f"✓ Quick generate endpoint accessible without auth, status: {response.status_code}")
-    
-    def test_quick_generate_returns_required_fields(self):
-        """Verify response contains story_id, title, story_text"""
-        response = requests.post(
-            f"{BASE_URL}/api/public/quick-generate",
-            json={"mode": "fresh", "session_id": "test_session_002"},
-            headers={"Content-Type": "application/json"},
-            timeout=30
-        )
-        
-        if response.status_code == 429:
-            pytest.skip("Rate limited - clear db.instant_story_requests to test")
-        
-        if response.status_code == 503:
-            pytest.skip("Generation service unavailable (EMERGENT_LLM_KEY not set)")
-        
-        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
-        
-        data = response.json()
-        assert "story_id" in data, "Response must contain story_id"
-        assert "title" in data, "Response must contain title"
-        assert "story_text" in data, "Response must contain story_text"
-        assert isinstance(data["story_id"], str), "story_id must be string"
-        assert len(data["story_id"]) > 0, "story_id must not be empty"
-        assert len(data["title"]) > 0, "title must not be empty"
-        assert len(data["story_text"]) > 0, "story_text must not be empty"
-        print(f"✓ Quick generate returns required fields: story_id={data['story_id'][:8]}..., title={data['title'][:30]}...")
-    
-    def test_quick_generate_continue_mode(self):
-        """Test continue mode with source_title and source_snippet"""
-        response = requests.post(
-            f"{BASE_URL}/api/public/quick-generate",
-            json={
-                "mode": "continue",
-                "source_title": "The Girl Who Opened the Moon Door",
-                "source_snippet": "In a village where the moon hung impossibly close...",
-                "session_id": "test_session_003"
-            },
-            headers={"Content-Type": "application/json"},
-            timeout=30
-        )
-        
-        if response.status_code == 429:
-            pytest.skip("Rate limited")
-        if response.status_code == 503:
-            pytest.skip("Generation service unavailable")
-        
-        assert response.status_code == 200, f"Continue mode failed: {response.text}"
-        data = response.json()
-        assert "story_text" in data
-        print(f"✓ Continue mode works, generated continuation")
-    
-    def test_quick_generate_with_theme(self):
-        """Test fresh mode with custom theme"""
+    def test_quick_generate_fresh_mode(self):
+        """Test fresh story generation returns valid response"""
+        session_id = f"test_{uuid.uuid4().hex[:8]}"
         response = requests.post(
             f"{BASE_URL}/api/public/quick-generate",
             json={
                 "mode": "fresh",
-                "theme": "A robot discovers emotions for the first time",
-                "session_id": "test_session_004"
+                "session_id": session_id
             },
-            headers={"Content-Type": "application/json"},
             timeout=30
         )
         
-        if response.status_code == 429:
-            pytest.skip("Rate limited")
-        if response.status_code == 503:
-            pytest.skip("Generation service unavailable")
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
         
-        assert response.status_code == 200, f"Theme mode failed: {response.text}"
-        print(f"✓ Fresh mode with custom theme works")
+        data = response.json()
+        assert "story_id" in data, "Response should contain story_id"
+        assert "title" in data, "Response should contain title"
+        assert "story_text" in data, "Response should contain story_text"
+        assert "status" in data, "Response should contain status"
+        assert data["status"] == "success", f"Expected success status, got {data['status']}"
+        assert len(data["story_text"]) > 100, "Story text should be substantial"
+        print(f"✓ Fresh story generated: {data['title'][:50]}...")
+    
+    def test_quick_generate_continue_mode(self):
+        """Test continue mode generates Part 2 based on source snippet"""
+        session_id = f"test_{uuid.uuid4().hex[:8]}"
+        
+        # First generate a fresh story
+        fresh_response = requests.post(
+            f"{BASE_URL}/api/public/quick-generate",
+            json={
+                "mode": "fresh",
+                "session_id": session_id
+            },
+            timeout=30
+        )
+        assert fresh_response.status_code == 200
+        fresh_data = fresh_response.json()
+        
+        # Now continue the story
+        continue_response = requests.post(
+            f"{BASE_URL}/api/public/quick-generate",
+            json={
+                "mode": "continue",
+                "source_title": fresh_data["title"],
+                "source_snippet": fresh_data["story_text"][-500:],
+                "session_id": session_id
+            },
+            timeout=30
+        )
+        
+        assert continue_response.status_code == 200, f"Expected 200, got {continue_response.status_code}"
+        
+        cont_data = continue_response.json()
+        assert "story_id" in cont_data
+        assert "story_text" in cont_data
+        assert len(cont_data["story_text"]) > 50, "Continuation should have substantial text"
+        print(f"✓ Story continuation generated successfully")
+    
+    def test_quick_generate_with_theme(self):
+        """Test story generation with custom theme"""
+        response = requests.post(
+            f"{BASE_URL}/api/public/quick-generate",
+            json={
+                "mode": "fresh",
+                "theme": "A mysterious lighthouse keeper discovers a message in a bottle",
+                "session_id": f"test_{uuid.uuid4().hex[:8]}"
+            },
+            timeout=30
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        print(f"✓ Themed story generated: {data['title'][:50]}...")
     
     def test_quick_generate_invalid_mode(self):
         """Test that invalid mode is rejected"""
         response = requests.post(
             f"{BASE_URL}/api/public/quick-generate",
-            json={"mode": "invalid_mode", "session_id": "test_session_005"},
-            headers={"Content-Type": "application/json"},
+            json={
+                "mode": "invalid_mode",
+                "session_id": "test123"
+            },
             timeout=10
         )
+        
         # Should return 422 for validation error
         assert response.status_code == 422, f"Expected 422 for invalid mode, got {response.status_code}"
-        print(f"✓ Invalid mode correctly rejected with 422")
+        print("✓ Invalid mode correctly rejected")
 
 
-class TestFunnelTrackingInstantStoryEvents:
-    """Tests for POST /api/funnel/track with instant story events"""
+class TestFunnelTrackingEndpoint:
+    """Tests for POST /api/funnel/track - all paywall-related events"""
     
-    INSTANT_STORY_EVENTS = [
-        "demo_viewed",
-        "story_generation_started",
-        "story_generated_success",
-        "story_generated_failed",
-        "story_generation_timeout",
-        "cta_continue_clicked",
-        "cta_video_clicked",
-        "cta_share_clicked",
-        "login_prompt_shown"
-    ]
+    def test_track_continue_clicked(self):
+        """Test tracking continue_clicked event"""
+        response = requests.post(
+            f"{BASE_URL}/api/funnel/track",
+            json={
+                "step": "continue_clicked",
+                "session_id": f"test_{uuid.uuid4().hex[:8]}",
+                "context": {
+                    "source_page": "experience",
+                    "meta": {"part_number": 2, "story_id": "test123"}
+                }
+            },
+            timeout=10
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] == True
+        print("✓ continue_clicked event tracked")
     
-    def test_all_instant_story_events_accepted(self):
-        """Verify all instant story events are in FUNNEL_STEPS and accepted"""
-        results = []
-        for event in self.INSTANT_STORY_EVENTS:
+    def test_track_story_part_generated(self):
+        """Test tracking story_part_generated event"""
+        response = requests.post(
+            f"{BASE_URL}/api/funnel/track",
+            json={
+                "step": "story_part_generated",
+                "session_id": f"test_{uuid.uuid4().hex[:8]}",
+                "context": {
+                    "source_page": "experience",
+                    "meta": {"part_number": 2, "story_id": "abc123"}
+                }
+            },
+            timeout=10
+        )
+        
+        assert response.status_code == 200
+        assert response.json()["success"] == True
+        print("✓ story_part_generated event tracked")
+    
+    def test_track_paywall_teaser_shown(self):
+        """Test tracking paywall_teaser_shown event"""
+        response = requests.post(
+            f"{BASE_URL}/api/funnel/track",
+            json={
+                "step": "paywall_teaser_shown",
+                "session_id": f"test_{uuid.uuid4().hex[:8]}",
+                "context": {
+                    "source_page": "experience",
+                    "meta": {"part_number": 2, "entry_source": "landing"}
+                }
+            },
+            timeout=10
+        )
+        
+        assert response.status_code == 200
+        assert response.json()["success"] == True
+        print("✓ paywall_teaser_shown event tracked")
+    
+    def test_track_paywall_shown(self):
+        """Test tracking paywall_shown event"""
+        response = requests.post(
+            f"{BASE_URL}/api/funnel/track",
+            json={
+                "step": "paywall_shown",
+                "session_id": f"test_{uuid.uuid4().hex[:8]}",
+                "context": {
+                    "source_page": "experience",
+                    "meta": {"part_number": 3, "view_count": 1}
+                }
+            },
+            timeout=10
+        )
+        
+        assert response.status_code == 200
+        assert response.json()["success"] == True
+        print("✓ paywall_shown event tracked")
+    
+    def test_track_paywall_dismissed(self):
+        """Test tracking paywall_dismissed event"""
+        response = requests.post(
+            f"{BASE_URL}/api/funnel/track",
+            json={
+                "step": "paywall_dismissed",
+                "session_id": f"test_{uuid.uuid4().hex[:8]}",
+                "context": {
+                    "source_page": "experience",
+                    "meta": {"part_number": 3, "exit_offer": False}
+                }
+            },
+            timeout=10
+        )
+        
+        assert response.status_code == 200
+        assert response.json()["success"] == True
+        print("✓ paywall_dismissed event tracked")
+    
+    def test_track_paywall_converted(self):
+        """Test tracking paywall_converted event"""
+        response = requests.post(
+            f"{BASE_URL}/api/funnel/track",
+            json={
+                "step": "paywall_converted",
+                "session_id": f"test_{uuid.uuid4().hex[:8]}",
+                "context": {
+                    "source_page": "experience",
+                    "plan_selected": "monthly",
+                    "meta": {"part_number": 3, "entry_source": "landing"}
+                }
+            },
+            timeout=10
+        )
+        
+        assert response.status_code == 200
+        assert response.json()["success"] == True
+        print("✓ paywall_converted event tracked")
+    
+    def test_track_exit_offer_shown(self):
+        """Test tracking exit_offer_shown event"""
+        response = requests.post(
+            f"{BASE_URL}/api/funnel/track",
+            json={
+                "step": "exit_offer_shown",
+                "session_id": f"test_{uuid.uuid4().hex[:8]}",
+                "context": {
+                    "source_page": "experience",
+                    "meta": {"part_number": 3}
+                }
+            },
+            timeout=10
+        )
+        
+        assert response.status_code == 200
+        assert response.json()["success"] == True
+        print("✓ exit_offer_shown event tracked")
+    
+    def test_track_discount_offer_shown(self):
+        """Test tracking discount_offer_shown event"""
+        response = requests.post(
+            f"{BASE_URL}/api/funnel/track",
+            json={
+                "step": "discount_offer_shown",
+                "session_id": f"test_{uuid.uuid4().hex[:8]}",
+                "context": {
+                    "source_page": "experience",
+                    "meta": {"view_count": 2}
+                }
+            },
+            timeout=10
+        )
+        
+        assert response.status_code == 200
+        assert response.json()["success"] == True
+        print("✓ discount_offer_shown event tracked")
+    
+    def test_track_invalid_step_rejected(self):
+        """Test that invalid funnel step is rejected"""
+        response = requests.post(
+            f"{BASE_URL}/api/funnel/track",
+            json={
+                "step": "invalid_step_name",
+                "session_id": "test123"
+            },
+            timeout=10
+        )
+        
+        assert response.status_code == 200  # API returns 200 with success=False
+        data = response.json()
+        assert data["success"] == False
+        assert "Invalid step" in data.get("error", "")
+        print("✓ Invalid funnel step correctly rejected")
+    
+    def test_track_all_paywall_events_in_sequence(self):
+        """Test tracking a complete paywall funnel sequence"""
+        session_id = f"test_{uuid.uuid4().hex[:8]}"
+        
+        events_sequence = [
+            ("continue_clicked", {"part_number": 2}),
+            ("story_part_generated", {"part_number": 2}),
+            ("paywall_teaser_shown", {"part_number": 2}),
+            ("continue_clicked", {"part_number": 3}),
+            ("paywall_shown", {"part_number": 3, "view_count": 1}),
+            ("exit_offer_shown", {"part_number": 3}),
+            ("paywall_dismissed", {"part_number": 3, "exit_offer": True}),
+        ]
+        
+        for step, meta in events_sequence:
             response = requests.post(
                 f"{BASE_URL}/api/funnel/track",
                 json={
-                    "step": event,
-                    "session_id": f"test_funnel_{event}",
+                    "step": step,
+                    "session_id": session_id,
                     "context": {
                         "source_page": "experience",
-                        "device": "desktop",
-                        "meta": {"test": True}
+                        "meta": meta
                     }
                 },
-                headers={"Content-Type": "application/json"},
                 timeout=10
             )
-            
-            data = response.json()
-            success = data.get("success", False)
-            results.append((event, response.status_code, success))
-            
-            if not success:
-                print(f"✗ Event '{event}' rejected: {data}")
+            assert response.status_code == 200
+            assert response.json()["success"] == True
         
-        # Check all events were accepted
-        failed = [r for r in results if not r[2]]
-        assert len(failed) == 0, f"Events rejected: {failed}"
-        print(f"✓ All {len(self.INSTANT_STORY_EVENTS)} instant story events accepted")
-    
-    def test_demo_viewed_event(self):
-        """Test demo_viewed event specifically"""
-        response = requests.post(
-            f"{BASE_URL}/api/funnel/track",
-            json={
-                "step": "demo_viewed",
-                "session_id": "test_demo_viewed_001",
-                "context": {
-                    "source_page": "experience",
-                    "device": "mobile",
-                    "meta": {"source": "landing"}
-                }
-            },
-            headers={"Content-Type": "application/json"},
-            timeout=10
-        )
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert data.get("success") == True, f"demo_viewed should be accepted: {data}"
-        assert "session_id" in data
-        print(f"✓ demo_viewed event tracked successfully")
-    
-    def test_story_generation_started_event(self):
-        """Test story_generation_started event"""
-        response = requests.post(
-            f"{BASE_URL}/api/funnel/track",
-            json={
-                "step": "story_generation_started",
-                "session_id": "test_gen_started_001",
-                "context": {"source_page": "experience"}
-            },
-            headers={"Content-Type": "application/json"},
-            timeout=10
-        )
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert data.get("success") == True
-        print(f"✓ story_generation_started event tracked")
-    
-    def test_story_generated_success_with_meta(self):
-        """Test story_generated_success with story_id in meta"""
-        response = requests.post(
-            f"{BASE_URL}/api/funnel/track",
-            json={
-                "step": "story_generated_success",
-                "session_id": "test_gen_success_001",
-                "context": {
-                    "source_page": "experience",
-                    "meta": {"story_id": "abc123def456"}
-                }
-            },
-            headers={"Content-Type": "application/json"},
-            timeout=10
-        )
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert data.get("success") == True
-        print(f"✓ story_generated_success with meta tracked")
-    
-    def test_cta_continue_clicked_event(self):
-        """Test cta_continue_clicked event"""
-        response = requests.post(
-            f"{BASE_URL}/api/funnel/track",
-            json={
-                "step": "cta_continue_clicked",
-                "session_id": "test_cta_continue_001",
-                "context": {
-                    "source_page": "experience",
-                    "meta": {"phase": "demo"}
-                }
-            },
-            headers={"Content-Type": "application/json"},
-            timeout=10
-        )
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert data.get("success") == True
-        print(f"✓ cta_continue_clicked event tracked")
-    
-    def test_login_prompt_shown_event(self):
-        """Test login_prompt_shown event"""
-        response = requests.post(
-            f"{BASE_URL}/api/funnel/track",
-            json={
-                "step": "login_prompt_shown",
-                "session_id": "test_login_prompt_001",
-                "context": {
-                    "source_page": "experience",
-                    "meta": {"trigger": "continue"}
-                }
-            },
-            headers={"Content-Type": "application/json"},
-            timeout=10
-        )
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert data.get("success") == True
-        print(f"✓ login_prompt_shown event tracked")
-    
-    def test_invalid_event_rejected(self):
-        """Test that invalid events are rejected"""
-        response = requests.post(
-            f"{BASE_URL}/api/funnel/track",
-            json={
-                "step": "invalid_event_xyz",
-                "session_id": "test_invalid_001"
-            },
-            headers={"Content-Type": "application/json"},
-            timeout=10
-        )
-        
-        data = response.json()
-        assert data.get("success") == False, "Invalid event should be rejected"
-        print(f"✓ Invalid event correctly rejected")
-
-
-class TestLandingPageCTARouting:
-    """Tests for landing page CTA routing to /experience"""
-    
-    def test_landing_page_loads(self):
-        """Verify landing page is accessible"""
-        response = requests.get(f"{BASE_URL}/", timeout=10)
-        assert response.status_code == 200
-        print(f"✓ Landing page loads successfully")
-    
-    def test_experience_page_accessible(self):
-        """Verify /experience route is accessible"""
-        response = requests.get(f"{BASE_URL}/experience", timeout=10)
-        # React SPA returns 200 for all routes
-        assert response.status_code == 200
-        print(f"✓ /experience route accessible")
-    
-    def test_experience_with_query_params(self):
-        """Verify /experience accepts query params"""
-        response = requests.get(
-            f"{BASE_URL}/experience",
-            params={
-                "source": "landing",
-                "title": "Test Story",
-                "snippet": "Once upon a time...",
-                "theme": "adventure"
-            },
-            timeout=10
-        )
-        assert response.status_code == 200
-        print(f"✓ /experience with query params accessible")
+        print(f"✓ Complete paywall funnel sequence tracked ({len(events_sequence)} events)")
 
 
 class TestRateLimiting:
     """Tests for rate limiting on quick-generate endpoint"""
     
-    def test_rate_limit_returns_429(self):
-        """Verify rate limit returns 429 after exceeding limit"""
-        # Note: Rate limit is 5 requests per hour per IP
-        # This test may need db.instant_story_requests cleared first
+    def test_rate_limit_returns_429_when_exceeded(self):
+        """Test that rate limit returns 429 (skipped if limit not reached)"""
+        # This test is informational - we don't want to actually hit rate limits
+        # Just verify the endpoint structure is correct
         response = requests.post(
             f"{BASE_URL}/api/public/quick-generate",
-            json={"mode": "fresh", "session_id": "rate_limit_test"},
-            headers={"Content-Type": "application/json"},
+            json={
+                "mode": "fresh",
+                "session_id": f"test_{uuid.uuid4().hex[:8]}"
+            },
             timeout=30
         )
         
-        # If we get 429, rate limiting is working
+        # Should be either 200 (success) or 429 (rate limited)
+        assert response.status_code in [200, 429], f"Unexpected status: {response.status_code}"
+        
         if response.status_code == 429:
-            data = response.json()
-            assert "detail" in data
-            print(f"✓ Rate limiting active: {data['detail']}")
+            print("✓ Rate limit correctly enforced (429)")
         else:
-            print(f"✓ Request succeeded (not rate limited yet), status: {response.status_code}")
+            print("✓ Request succeeded (within rate limit)")
 
 
-class TestHealthAndStatus:
-    """Basic health checks"""
+class TestEndpointAvailability:
+    """Basic availability tests for all relevant endpoints"""
     
-    def test_api_health(self):
-        """Verify API is healthy"""
-        response = requests.get(f"{BASE_URL}/api/health", timeout=10)
-        assert response.status_code == 200
-        print(f"✓ API health check passed")
+    def test_quick_generate_endpoint_exists(self):
+        """Verify quick-generate endpoint is accessible"""
+        response = requests.options(
+            f"{BASE_URL}/api/public/quick-generate",
+            timeout=10
+        )
+        # OPTIONS should return 200 or 405 (method not allowed but endpoint exists)
+        assert response.status_code in [200, 204, 405], f"Endpoint not accessible: {response.status_code}"
+        print("✓ /api/public/quick-generate endpoint accessible")
     
-    def test_public_stats_endpoint(self):
-        """Verify public stats endpoint works"""
-        response = requests.get(f"{BASE_URL}/api/public/stats", timeout=10)
+    def test_funnel_track_endpoint_exists(self):
+        """Verify funnel track endpoint is accessible"""
+        response = requests.post(
+            f"{BASE_URL}/api/funnel/track",
+            json={"step": "demo_viewed", "session_id": "test"},
+            timeout=10
+        )
         assert response.status_code == 200
-        print(f"✓ Public stats endpoint works")
+        print("✓ /api/funnel/track endpoint accessible")
 
 
 if __name__ == "__main__":

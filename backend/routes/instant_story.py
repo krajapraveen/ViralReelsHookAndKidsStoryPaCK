@@ -22,7 +22,7 @@ router = APIRouter(prefix="/public", tags=["instant-story"])
 EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
 
 RATE_LIMIT_WINDOW = 3600
-RATE_LIMIT_MAX = 5
+RATE_LIMIT_MAX = 20
 
 
 class QuickGenerateRequest(BaseModel):

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Sparkles, Play, Share2, Film, RefreshCw, Loader2, CheckCircle } from 'lucide-react';
+import { Sparkles, Play, Share2, Film, RefreshCw, Loader2, CheckCircle, ChevronDown, Zap, BookOpen } from 'lucide-react';
 import { trackFunnel } from '../utils/funnelTracker';
+import StoryPaywall from './StoryPaywall';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -35,6 +36,13 @@ const LOADING_TEXTS = [
   "Building the cliffhanger...",
 ];
 
+const CONTINUE_LOADING_TEXTS = [
+  "Writing Part {n}...",
+  "Building the next twist...",
+  "Raising the stakes...",
+  "Crafting the cliffhanger...",
+];
+
 const GENERATION_TIMEOUT_MS = 20000;
 
 function getSessionId() {
@@ -46,9 +54,22 @@ function getSessionId() {
   return id;
 }
 
+function getLastCliffhanger(text) {
+  if (!text) return '';
+  const paragraphs = text.split('\n').filter(p => p.trim());
+  const last = paragraphs[paragraphs.length - 1]?.trim() || '';
+  if (last.length > 120) {
+    const sentences = last.match(/[^.!?…]+[.!?…]+/g) || [last];
+    return sentences[sentences.length - 1]?.trim() || last.slice(-100);
+  }
+  return last;
+}
+
 export default function InstantStoryExperience() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
+  // ─── Initial load state ────────────────────────────────────────
   const [phase, setPhase] = useState('loading');
   const [demoStory, setDemoStory] = useState(null);
   const [realStory, setRealStory] = useState(null);
@@ -57,29 +78,50 @@ export default function InstantStoryExperience() {
   const [genFailed, setGenFailed] = useState(false);
   const generationRef = useRef(false);
   const timeoutRef = useRef(null);
-  const mountTimeRef = useRef(Date.now());
+
+  // ─── Continuation loop state ───────────────────────────────────
+  const [continuations, setContinuations] = useState([]);
+  const [isGeneratingPart, setIsGeneratingPart] = useState(false);
+  const [continueLoadingIdx, setContinueLoadingIdx] = useState(0);
+  const [showTeaser, setShowTeaser] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallViewCount, setPaywallViewCount] = useState(() =>
+    parseInt(sessionStorage.getItem('pw_view_count') || '0', 10)
+  );
+  const continueEndRef = useRef(null);
+  const teaserDismissedRef = useRef(false);
 
   const source = searchParams.get('source') || 'landing';
   const sourceTitle = searchParams.get('title') || '';
   const sourceSnippet = searchParams.get('snippet') || '';
   const theme = searchParams.get('theme') || '';
 
-  // Pick random demo story on mount
+  // Computed values
+  const partNumber = 1 + continuations.length;
+  const activeStory = phase === 'real' && realStory
+    ? { title: realStory.title, story_text: realStory.story_text, image: demoStory?.image, story_id: realStory.story_id }
+    : demoStory
+    ? { title: demoStory.title, story_text: demoStory.story_text, image: demoStory.image, story_id: null }
+    : null;
+
+  const fullStoryText = activeStory
+    ? [activeStory.story_text, ...continuations.map(c => c.text)].join('\n\n')
+    : '';
+  const latestText = continuations.length > 0
+    ? continuations[continuations.length - 1].text
+    : activeStory?.story_text || '';
+
+  // ─── Initial Load Logic (unchanged) ────────────────────────────
   useEffect(() => {
-    const idx = Math.floor(Math.random() * DEMO_STORIES.length);
-    setDemoStory(DEMO_STORIES[idx]);
+    setDemoStory(DEMO_STORIES[Math.floor(Math.random() * DEMO_STORIES.length)]);
   }, []);
 
-  // Cycle loading text
   useEffect(() => {
     if (phase !== 'loading') return;
-    const interval = setInterval(() => {
-      setLoadingTextIdx(prev => (prev + 1) % LOADING_TEXTS.length);
-    }, 900);
+    const interval = setInterval(() => setLoadingTextIdx(prev => (prev + 1) % LOADING_TEXTS.length), 900);
     return () => clearInterval(interval);
   }, [phase]);
 
-  // Show demo after short loading — target <1s perceived load
   useEffect(() => {
     const timer = setTimeout(() => {
       setPhase('demo');
@@ -88,14 +130,11 @@ export default function InstantStoryExperience() {
     return () => clearTimeout(timer);
   }, [source]);
 
-  // Background generation
   const startGeneration = useCallback(async () => {
     if (generationRef.current) return;
     generationRef.current = true;
-
     try { trackFunnel('story_generation_started', { source }); } catch {}
 
-    // Set timeout — if backend doesn't respond in 20s, gracefully degrade
     timeoutRef.current = setTimeout(() => {
       if (!realStory) {
         setGenFailed(true);
@@ -104,22 +143,13 @@ export default function InstantStoryExperience() {
     }, GENERATION_TIMEOUT_MS);
 
     try {
-      const body = {
-        mode: sourceSnippet ? 'continue' : 'fresh',
-        session_id: getSessionId(),
-      };
-      if (sourceSnippet) {
-        body.source_title = sourceTitle;
-        body.source_snippet = sourceSnippet;
-      }
+      const body = { mode: sourceSnippet ? 'continue' : 'fresh', session_id: getSessionId() };
+      if (sourceSnippet) { body.source_title = sourceTitle; body.source_snippet = sourceSnippet; }
       if (theme) body.theme = theme;
 
       const res = await fetch(`${API}/api/public/quick-generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
-
       clearTimeout(timeoutRef.current);
 
       if (res.ok) {
@@ -137,96 +167,113 @@ export default function InstantStoryExperience() {
     }
   }, [source, sourceTitle, sourceSnippet, theme, realStory]);
 
-  // Trigger generation when demo phase starts
-  useEffect(() => {
-    if (phase === 'demo') {
-      startGeneration();
-    }
-  }, [phase, startGeneration]);
+  useEffect(() => { if (phase === 'demo') startGeneration(); }, [phase, startGeneration]);
 
-  // Auto-transition when real story arrives — smooth 400ms fade out, 400ms fade in
   useEffect(() => {
     if (realStory && phase === 'demo' && transitionState === 'idle') {
-      // Brief pause to let "ready" banner flash, then auto-swap
       const timer = setTimeout(() => {
         setTransitionState('fading-out');
         setTimeout(() => {
           setPhase('real');
           setTransitionState('fading-in');
-          setTimeout(() => {
-            setTransitionState('complete');
-          }, 500);
+          setTimeout(() => setTransitionState('complete'), 500);
         }, 400);
       }, 600);
       return () => clearTimeout(timer);
     }
   }, [realStory, phase, transitionState]);
 
-  // Cleanup timeout on unmount
+  useEffect(() => { return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); }; }, []);
+
+  // ─── Continuation loading text cycle ───────────────────────────
   useEffect(() => {
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, []);
+    if (!isGeneratingPart) return;
+    const interval = setInterval(() => setContinueLoadingIdx(prev => (prev + 1) % CONTINUE_LOADING_TEXTS.length), 1100);
+    return () => clearInterval(interval);
+  }, [isGeneratingPart]);
 
-  const currentStory = phase === 'real' && realStory ? {
-    title: realStory.title,
-    story_text: realStory.story_text,
-    image: demoStory?.image,
-    isReal: true,
-  } : demoStory ? {
-    title: demoStory.title,
-    story_text: demoStory.story_text,
-    image: demoStory.image,
-    isReal: false,
-  } : null;
-
-  const handleContinue = () => {
-    try { trackFunnel('cta_continue_clicked', { source, meta: { phase } }); } catch {}
-    const token = localStorage.getItem('token');
-    if (token) {
-      navigate('/app/story-video-studio', {
-        state: { prefill: { story_text: currentStory?.story_text, title: currentStory?.title } }
-      });
-    } else {
-      try { trackFunnel('login_prompt_shown', { source, meta: { trigger: 'continue' } }); } catch {}
-      sessionStorage.setItem('post_login_redirect', '/app/story-video-studio');
-      sessionStorage.setItem('post_login_story', JSON.stringify({
-        story_text: currentStory?.story_text,
-        title: currentStory?.title,
-      }));
-      navigate('/login?from=experience');
+  // Auto-scroll to new continuation
+  useEffect(() => {
+    if (continuations.length > 0 || isGeneratingPart) {
+      setTimeout(() => continueEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 200);
     }
-  };
+  }, [continuations.length, isGeneratingPart]);
 
-  const handleVideo = () => {
-    try { trackFunnel('cta_video_clicked', { source, meta: { phase } }); } catch {}
-    const token = localStorage.getItem('token');
-    if (token) {
-      navigate('/app/story-video-studio', {
-        state: { prefill: { story_text: currentStory?.story_text, title: currentStory?.title }, autoVideo: true }
+  // Show soft teaser after Part 2 renders
+  useEffect(() => {
+    if (continuations.length === 1 && !teaserDismissedRef.current) {
+      const timer = setTimeout(() => {
+        setShowTeaser(true);
+        try { trackFunnel('paywall_teaser_shown', { meta: { part_number: 2, story_id: activeStory?.story_id, entry_source: source } }); } catch {}
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [continuations.length, source, activeStory?.story_id]);
+
+  // ─── Continuation Generation ───────────────────────────────────
+  const generateContinuation = useCallback(async (nextPartNum) => {
+    setIsGeneratingPart(true);
+    setContinueLoadingIdx(0);
+
+    try {
+      const snippetText = latestText.slice(-800);
+      const res = await fetch(`${API}/api/public/quick-generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'continue',
+          source_title: activeStory?.title || 'Story',
+          source_snippet: snippetText,
+          session_id: getSessionId(),
+        }),
       });
+
+      if (res.ok) {
+        const data = await res.json();
+        setContinuations(prev => [...prev, { text: data.story_text, partNumber: nextPartNum, story_id: data.story_id }]);
+        try { trackFunnel('story_part_generated', { meta: { part_number: nextPartNum, story_id: data.story_id, entry_source: source } }); } catch {}
+      }
+    } catch {}
+    setIsGeneratingPart(false);
+  }, [latestText, activeStory?.title, source]);
+
+  // ─── Continue Button Handler ───────────────────────────────────
+  const handleContinueStory = useCallback(() => {
+    const nextPart = partNumber + 1;
+
+    try { trackFunnel('continue_clicked', { meta: { part_number: nextPart, story_id: activeStory?.story_id, entry_source: source } }); } catch {}
+
+    if (partNumber === 1) {
+      // Part 1 → generate Part 2 (no gate)
+      generateContinuation(2);
+    } else if (partNumber >= 2) {
+      // Part 2+ → hard paywall
+      const newCount = paywallViewCount + 1;
+      setPaywallViewCount(newCount);
+      sessionStorage.setItem('pw_view_count', String(newCount));
+      setShowPaywall(true);
+      try { trackFunnel('paywall_shown', { meta: { part_number: nextPart, story_id: activeStory?.story_id, view_count: newCount, entry_source: source } }); } catch {}
+    }
+  }, [partNumber, generateContinuation, activeStory?.story_id, source, paywallViewCount]);
+
+  // ─── Other Handlers ────────────────────────────────────────────
+  const handleVideo = () => {
+    try { trackFunnel('cta_video_clicked', { source, meta: { phase, part_number: partNumber } }); } catch {}
+    const token = localStorage.getItem('token');
+    const storyData = { story_text: fullStoryText, title: activeStory?.title };
+    if (token) {
+      navigate('/app/story-video-studio', { state: { prefill: storyData, autoVideo: true } });
     } else {
-      try { trackFunnel('login_prompt_shown', { source, meta: { trigger: 'video' } }); } catch {}
       sessionStorage.setItem('post_login_redirect', '/app/story-video-studio');
-      sessionStorage.setItem('post_login_story', JSON.stringify({
-        story_text: currentStory?.story_text,
-        title: currentStory?.title,
-      }));
+      sessionStorage.setItem('post_login_story', JSON.stringify(storyData));
       navigate('/login?from=experience');
     }
   };
 
   const handleShare = async () => {
-    try { trackFunnel('cta_share_clicked', { source, meta: { phase } }); } catch {}
+    try { trackFunnel('cta_share_clicked', { source, meta: { phase, part_number: partNumber } }); } catch {}
     if (navigator.share) {
-      try {
-        await navigator.share({
-          title: currentStory?.title,
-          text: currentStory?.story_text?.slice(0, 200) + '...',
-          url: window.location.href,
-        });
-      } catch {}
+      try { await navigator.share({ title: activeStory?.title, text: activeStory?.story_text?.slice(0, 200) + '...', url: window.location.href }); } catch {}
     } else {
       navigator.clipboard?.writeText(window.location.href);
     }
@@ -237,8 +284,10 @@ export default function InstantStoryExperience() {
     setGenFailed(false);
     setRealStory(null);
     setTransitionState('idle');
-    const idx = Math.floor(Math.random() * DEMO_STORIES.length);
-    setDemoStory(DEMO_STORIES[idx]);
+    setContinuations([]);
+    setShowTeaser(false);
+    teaserDismissedRef.current = false;
+    setDemoStory(DEMO_STORIES[Math.floor(Math.random() * DEMO_STORIES.length)]);
     setPhase('loading');
     setLoadingTextIdx(0);
     setTimeout(() => {
@@ -247,7 +296,7 @@ export default function InstantStoryExperience() {
     }, 600);
   };
 
-  // Compute banner state
+  // ─── Banner State ──────────────────────────────────────────────
   const getBannerState = () => {
     if (phase === 'real' || transitionState === 'complete') return 'personalized';
     if (realStory && transitionState !== 'idle') return 'swapping';
@@ -256,10 +305,15 @@ export default function InstantStoryExperience() {
     if (phase === 'demo') return 'generating';
     return 'none';
   };
-
   const bannerState = getBannerState();
 
-  // ─── LOADING PHASE ─────────────────────────────────────────────
+  // ─── CTA Text ─────────────────────────────────────────────────
+  const ctaText = partNumber === 1 ? 'Continue Story' : 'Continue to Part ' + (partNumber + 1);
+  const continueLoadingText = CONTINUE_LOADING_TEXTS[continueLoadingIdx].replace('{n}', String(partNumber + 1));
+
+  // ═══════════════════════════════════════════════════════════════
+  // LOADING PHASE
+  // ═══════════════════════════════════════════════════════════════
   if (phase === 'loading') {
     return (
       <div className="min-h-screen bg-[#0a0a10] flex items-center justify-center" data-testid="instant-story-loading">
@@ -269,14 +323,10 @@ export default function InstantStoryExperience() {
             <div className="absolute inset-2 rounded-full border-2 border-indigo-400/50 animate-pulse" />
             <Sparkles className="absolute inset-0 m-auto w-8 h-8 text-indigo-400 animate-pulse" />
           </div>
-          <p className="text-lg font-medium text-white mb-2" data-testid="loading-text">
-            {LOADING_TEXTS[loadingTextIdx]}
-          </p>
+          <p className="text-lg font-medium text-white mb-2" data-testid="loading-text">{LOADING_TEXTS[loadingTextIdx]}</p>
           <div className="flex items-center justify-center gap-1.5 mt-3">
             {[0, 1, 2].map(i => (
-              <div key={i} className="w-1.5 h-1.5 rounded-full bg-indigo-400 ist-dot" style={{
-                animationDelay: `${i * 0.2}s`,
-              }} />
+              <div key={i} className="w-1.5 h-1.5 rounded-full bg-indigo-400 ist-dot" style={{ animationDelay: `${i * 0.2}s` }} />
             ))}
           </div>
         </div>
@@ -284,240 +334,220 @@ export default function InstantStoryExperience() {
     );
   }
 
-  // ─── STORY DISPLAY (demo or real) ──────────────────────────────
+  // ═══════════════════════════════════════════════════════════════
+  // STORY EXPERIENCE
+  // ═══════════════════════════════════════════════════════════════
   return (
     <div className="min-h-screen bg-[#0a0a10]" data-testid="instant-story-experience">
-      {/* Top Banner — shows generation status */}
+      {/* ── Top Banner ──────────────────────────────────────── */}
       {bannerState === 'generating' && (
         <div className="fixed top-0 left-0 right-0 z-50 py-1.5 px-4 text-center ist-banner-gen" data-testid="generating-indicator">
           <div className="flex items-center justify-center gap-2 text-sm text-white">
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            <span>Personalizing your story...</span>
+            <Loader2 className="w-3.5 h-3.5 animate-spin" /><span>Personalizing your story...</span>
           </div>
         </div>
       )}
-
       {bannerState === 'failed' && (
         <div className="fixed top-0 left-0 right-0 z-50 py-1.5 px-4 text-center ist-banner-gen" data-testid="generating-failed-indicator">
           <div className="flex items-center justify-center gap-2 text-sm text-white/70">
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            <span>Still personalizing your story...</span>
+            <Loader2 className="w-3.5 h-3.5 animate-spin" /><span>Still personalizing your story...</span>
           </div>
         </div>
       )}
-
       {bannerState === 'ready' && (
         <div className="fixed top-0 left-0 right-0 z-50 py-2 px-4 text-center ist-banner-ready" data-testid="story-ready-banner">
           <div className="flex items-center justify-center gap-2 text-sm text-white font-medium">
-            <CheckCircle className="w-4 h-4" />
-            <span>Your personalized story is ready!</span>
+            <CheckCircle className="w-4 h-4" /><span>Your personalized story is ready!</span>
           </div>
         </div>
       )}
-
       {(bannerState === 'personalized' || bannerState === 'swapping') && (
         <div className="fixed top-0 left-0 right-0 z-50 py-1.5 px-4 text-center ist-banner-done" data-testid="personalized-banner">
           <div className="flex items-center justify-center gap-2 text-sm text-emerald-200 font-medium">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Personalized for you</span>
+            <Sparkles className="w-3.5 h-3.5" /><span>Personalized for you</span>
           </div>
         </div>
       )}
 
-      {/* Main Content — with transition animations */}
+      {/* ── Main Content ────────────────────────────────────── */}
       <div className={`ist-content ${transitionState === 'fading-out' ? 'ist-fade-out' : ''} ${transitionState === 'fading-in' ? 'ist-fade-in' : ''}`}>
         {/* Hero Image */}
-        <div className="relative h-[40vh] sm:h-[50vh] overflow-hidden">
-          <img
-            src={currentStory?.image}
-            alt={currentStory?.title}
-            className="w-full h-full object-cover"
-            data-testid="story-hero-image"
-          />
+        <div className="relative h-[35vh] sm:h-[45vh] overflow-hidden">
+          <img src={activeStory?.image} alt={activeStory?.title} className="w-full h-full object-cover" data-testid="story-hero-image" />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a10] via-[#0a0a10]/40 to-transparent" />
         </div>
 
         {/* Content */}
-        <div className="relative -mt-20 px-4 sm:px-8 max-w-2xl mx-auto pb-40 sm:pb-32">
+        <div className="relative -mt-20 px-4 sm:px-8 max-w-2xl mx-auto pb-48 sm:pb-36">
           {/* Title */}
-          <h1 className={`text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight mb-6 ${phase === 'real' ? 'ist-title-pop' : ''}`}
-            data-testid="story-title"
-          >
-            {currentStory?.title}
+          <h1 className={`text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight mb-6 ${phase === 'real' ? 'ist-title-pop' : ''}`} data-testid="story-title">
+            {activeStory?.title}
           </h1>
 
-          {/* Story Text */}
-          <div className="prose prose-invert prose-lg max-w-none" data-testid="story-text">
-            {currentStory?.story_text?.split('\n').map((p, i) => (
+          {/* Part 1 — Initial Story */}
+          <div className="prose prose-invert prose-lg max-w-none" data-testid="story-text-part-1">
+            {activeStory?.story_text?.split('\n').map((p, i) => (
               p.trim() && <p key={i} className="text-slate-300 leading-relaxed text-base sm:text-lg mb-4">{p}</p>
             ))}
           </div>
 
-          {/* Cliffhanger indicator */}
-          <div className="mt-6 mb-6 flex items-center gap-2 text-amber-400/80">
-            <div className="w-8 h-px bg-amber-400/40" />
-            <span className="text-xs font-medium tracking-wider uppercase">To be continued...</span>
-            <div className="flex-1 h-px bg-amber-400/40" />
-          </div>
-
-          {/* Social proof */}
-          <div className="flex items-center gap-2 mb-6 text-slate-500 text-sm" data-testid="social-proof">
-            <div className="flex -space-x-1.5">
-              {[1,2,3].map(i => (
-                <div key={i} className="w-5 h-5 rounded-full border border-slate-700" style={{
-                  background: `hsl(${i * 80 + 200}, 50%, 30%)`,
-                }} />
-              ))}
+          {/* ── Continuation Parts ───────────────────────────── */}
+          {continuations.map((cont, idx) => (
+            <div key={idx} className="mt-8 ist-part-appear" data-testid={`story-text-part-${idx + 2}`}>
+              <div className="flex items-center gap-2 mb-4 text-indigo-400/60">
+                <div className="h-px flex-1 bg-indigo-400/20" />
+                <span className="text-[10px] font-bold tracking-widest uppercase">Part {idx + 2}</span>
+                <div className="h-px flex-1 bg-indigo-400/20" />
+              </div>
+              <div className="prose prose-invert prose-lg max-w-none">
+                {cont.text.split('\n').map((p, pi) => (
+                  p.trim() && <p key={pi} className="text-slate-300 leading-relaxed text-base sm:text-lg mb-4">{p}</p>
+                ))}
+              </div>
             </div>
-            <span>92% of readers continue this story</span>
-          </div>
+          ))}
 
-          {/* Desktop Action Buttons — visible inline */}
-          <div className="hidden sm:block space-y-3" data-testid="story-actions-desktop">
-            <button
-              onClick={handleContinue}
-              className="w-full py-4 px-6 rounded-xl font-semibold text-white text-base flex items-center justify-center gap-2.5 transition-all hover:scale-[1.02] active:scale-[0.98] ist-cta-primary"
-              data-testid="cta-continue-story"
-            >
-              <Play className="w-5 h-5" />
-              Continue Story
-            </button>
-
-            <button
-              onClick={handleVideo}
-              className="w-full py-3.5 px-6 rounded-xl font-medium text-white text-sm flex items-center justify-center gap-2.5 border border-white/10 bg-white/5 hover:bg-white/10 transition-all"
-              data-testid="cta-generate-video"
-            >
-              <Film className="w-4 h-4" />
-              Turn Into Video
-            </button>
-
-            <div className="flex gap-3">
-              <button
-                onClick={handleShare}
-                className="flex-1 py-3 px-4 rounded-xl font-medium text-slate-400 text-sm flex items-center justify-center gap-2 border border-white/5 hover:bg-white/5 transition-all"
-                data-testid="cta-share"
-              >
-                <Share2 className="w-4 h-4" />
-                Share
-              </button>
-              <button
-                onClick={handleRegenerate}
-                className="flex-1 py-3 px-4 rounded-xl font-medium text-slate-400 text-sm flex items-center justify-center gap-2 border border-white/5 hover:bg-white/5 transition-all"
-                data-testid="cta-regenerate"
-              >
-                <RefreshCw className="w-4 h-4" />
-                New Story
-              </button>
+          {/* ── Continuation Loading ─────────────────────────── */}
+          {isGeneratingPart && (
+            <div className="mt-8 text-center py-8 ist-part-appear" data-testid="continuation-loading">
+              <div className="relative w-12 h-12 mx-auto mb-4">
+                <div className="absolute inset-0 rounded-full border-2 border-indigo-500/30 animate-ping" />
+                <Sparkles className="absolute inset-0 m-auto w-5 h-5 text-indigo-400 animate-pulse" />
+              </div>
+              <p className="text-sm text-slate-400">{continueLoadingText}</p>
             </div>
-          </div>
+          )}
+
+          {/* ── Cliffhanger + CTA Section ────────────────────── */}
+          {!isGeneratingPart && (
+            <div ref={continueEndRef}>
+              {/* Cliffhanger */}
+              <div className="mt-6 mb-4 flex items-center gap-2 text-amber-400/80">
+                <div className="w-8 h-px bg-amber-400/40" />
+                <span className="text-xs font-medium tracking-wider uppercase">To be continued...</span>
+                <div className="flex-1 h-px bg-amber-400/40" />
+              </div>
+
+              {/* "What happens next?" prompt */}
+              <div className="mb-6 p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]" data-testid="what-happens-next">
+                <p className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-2">What happens next?</p>
+                <p className="text-slate-400 text-sm italic leading-relaxed">
+                  {getLastCliffhanger(latestText)}
+                </p>
+              </div>
+
+              {/* Social proof */}
+              <div className="flex items-center gap-2 mb-5 text-slate-500 text-sm" data-testid="social-proof">
+                <div className="flex -space-x-1.5">
+                  {[1,2,3].map(i => (
+                    <div key={i} className="w-5 h-5 rounded-full border border-slate-700" style={{ background: `hsl(${i * 80 + 200}, 50%, 30%)` }} />
+                  ))}
+                </div>
+                <span>92% of readers continue this story</span>
+              </div>
+
+              {/* Desktop CTAs */}
+              <div className="hidden sm:block space-y-3" data-testid="story-actions-desktop">
+                <button onClick={handleContinueStory} className="w-full py-4 px-6 rounded-xl font-semibold text-white text-base flex items-center justify-center gap-2.5 transition-all hover:scale-[1.02] active:scale-[0.98] ist-cta-primary ist-cta-pulse" data-testid="cta-continue-story">
+                  <Play className="w-5 h-5" />{ctaText}
+                </button>
+                <button onClick={handleVideo} className="w-full py-3.5 px-6 rounded-xl font-medium text-white text-sm flex items-center justify-center gap-2.5 border border-white/10 bg-white/5 hover:bg-white/10 transition-all" data-testid="cta-generate-video">
+                  <Film className="w-4 h-4" />Turn Into Video
+                </button>
+                <div className="flex gap-3">
+                  <button onClick={handleShare} className="flex-1 py-3 px-4 rounded-xl font-medium text-slate-400 text-sm flex items-center justify-center gap-2 border border-white/5 hover:bg-white/5 transition-all" data-testid="cta-share">
+                    <Share2 className="w-4 h-4" />Share
+                  </button>
+                  <button onClick={handleRegenerate} className="flex-1 py-3 px-4 rounded-xl font-medium text-slate-400 text-sm flex items-center justify-center gap-2 border border-white/5 hover:bg-white/5 transition-all" data-testid="cta-regenerate">
+                    <RefreshCw className="w-4 h-4" />New Story
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          <div ref={continueEndRef} />
         </div>
       </div>
 
-      {/* Mobile Sticky Bottom CTA — always visible, no scrolling needed */}
-      <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 p-3 ist-sticky-cta" data-testid="story-actions-mobile">
-        <button
-          onClick={handleContinue}
-          className="w-full py-3.5 px-6 rounded-xl font-semibold text-white text-base flex items-center justify-center gap-2.5 transition-all active:scale-[0.98] ist-cta-primary"
-          data-testid="cta-continue-story-mobile"
-        >
-          <Play className="w-5 h-5" />
-          Continue Story
-        </button>
-        <div className="flex gap-2 mt-2">
-          <button onClick={handleVideo} className="flex-1 py-2.5 px-3 rounded-lg font-medium text-white/80 text-xs flex items-center justify-center gap-1.5 border border-white/10 bg-white/5" data-testid="cta-video-mobile">
-            <Film className="w-3.5 h-3.5" /> Video
+      {/* ── Mobile Sticky CTA ───────────────────────────────── */}
+      {!isGeneratingPart && !showPaywall && (
+        <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 p-3 ist-sticky-cta" data-testid="story-actions-mobile">
+          <button onClick={handleContinueStory} className="w-full py-3.5 px-6 rounded-xl font-semibold text-white text-base flex items-center justify-center gap-2.5 transition-all active:scale-[0.98] ist-cta-primary ist-cta-pulse" data-testid="cta-continue-story-mobile">
+            <Play className="w-5 h-5" />{ctaText}
           </button>
-          <button onClick={handleShare} className="flex-1 py-2.5 px-3 rounded-lg font-medium text-white/80 text-xs flex items-center justify-center gap-1.5 border border-white/10 bg-white/5" data-testid="cta-share-mobile">
-            <Share2 className="w-3.5 h-3.5" /> Share
-          </button>
-          <button onClick={handleRegenerate} className="flex-1 py-2.5 px-3 rounded-lg font-medium text-white/80 text-xs flex items-center justify-center gap-1.5 border border-white/10 bg-white/5" data-testid="cta-new-mobile">
-            <RefreshCw className="w-3.5 h-3.5" /> New
-          </button>
+          <div className="flex gap-2 mt-2">
+            <button onClick={handleVideo} className="flex-1 py-2.5 px-3 rounded-lg font-medium text-white/80 text-xs flex items-center justify-center gap-1.5 border border-white/10 bg-white/5" data-testid="cta-video-mobile">
+              <Film className="w-3.5 h-3.5" /> Video
+            </button>
+            <button onClick={handleShare} className="flex-1 py-2.5 px-3 rounded-lg font-medium text-white/80 text-xs flex items-center justify-center gap-1.5 border border-white/10 bg-white/5" data-testid="cta-share-mobile">
+              <Share2 className="w-3.5 h-3.5" /> Share
+            </button>
+            <button onClick={handleRegenerate} className="flex-1 py-2.5 px-3 rounded-lg font-medium text-white/80 text-xs flex items-center justify-center gap-1.5 border border-white/10 bg-white/5" data-testid="cta-new-mobile">
+              <RefreshCw className="w-3.5 h-3.5" /> New
+            </button>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* ── Soft Paywall Teaser (bottom sheet after Part 2) ── */}
+      {showTeaser && !showPaywall && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 ist-teaser-slide" data-testid="paywall-teaser">
+          <div className="mx-auto max-w-lg bg-[#12121f] border-t border-x border-indigo-500/20 rounded-t-2xl px-5 py-5 sm:px-6">
+            <button onClick={() => { setShowTeaser(false); teaserDismissedRef.current = true; }} className="absolute top-3 right-4 text-slate-600 hover:text-slate-400 text-xs" data-testid="teaser-dismiss">
+              Dismiss
+            </button>
+            <div className="flex items-start gap-3">
+              <div className="shrink-0 w-9 h-9 rounded-full bg-amber-500/10 flex items-center justify-center mt-0.5">
+                <Zap className="w-4 h-4 text-amber-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white font-semibold text-sm mb-1">Your story is getting intense...</p>
+                <p className="text-slate-400 text-xs mb-3">Unlock the next chapter, video, and sharing.</p>
+                <button onClick={handleContinueStory} className="w-full py-3 px-4 rounded-xl font-semibold text-white text-sm flex items-center justify-center gap-2 ist-cta-primary transition-all active:scale-[0.98]" data-testid="teaser-cta">
+                  <BookOpen className="w-4 h-4" />Continue My Story
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Hard Paywall Modal ───────────────────────────────── */}
+      <StoryPaywall
+        open={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        storyTitle={activeStory?.title}
+        storyText={latestText}
+        source={source}
+        storyId={activeStory?.story_id}
+        partNumber={partNumber}
+        viewCount={paywallViewCount}
+      />
 
       <style>{`
-        /* Fade in on mount */
-        .ist-fadeIn {
-          animation: istFadeIn 0.5s ease-out forwards;
-        }
-        @keyframes istFadeIn {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: none; }
-        }
-
-        /* Loading dots */
-        .ist-dot {
-          animation: istDotPulse 1.2s ease-in-out infinite;
-        }
-        @keyframes istDotPulse {
-          0%, 100% { opacity: 0.4; transform: scale(0.8); }
-          50% { opacity: 1; transform: scale(1.2); }
-        }
-
-        /* Content fade out during transition */
-        .ist-fade-out {
-          animation: istContentFadeOut 0.4s ease-in forwards;
-        }
-        @keyframes istContentFadeOut {
-          from { opacity: 1; transform: scale(1); }
-          to { opacity: 0; transform: scale(0.98); }
-        }
-
-        /* Content fade in after swap */
-        .ist-fade-in {
-          animation: istContentFadeIn 0.5s ease-out forwards;
-        }
-        @keyframes istContentFadeIn {
-          from { opacity: 0; transform: scale(1.02); }
-          to { opacity: 1; transform: scale(1); }
-        }
-
-        /* Title pop animation on real story */
-        .ist-title-pop {
-          animation: istTitlePop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-        }
-        @keyframes istTitlePop {
-          0% { transform: scale(0.92); opacity: 0.5; }
-          50% { transform: scale(1.03); }
-          100% { transform: scale(1); opacity: 1; }
-        }
-
-        /* Banner styles */
-        .ist-banner-gen {
-          background: linear-gradient(90deg, rgba(99, 102, 241, 0.9), rgba(139, 92, 246, 0.9));
-          backdrop-filter: blur(8px);
-        }
-        .ist-banner-ready {
-          background: linear-gradient(90deg, rgba(16, 185, 129, 0.9), rgba(52, 211, 153, 0.9));
-          backdrop-filter: blur(8px);
-          animation: istBannerPulse 1.5s ease-in-out infinite;
-        }
-        @keyframes istBannerPulse {
-          0%, 100% { opacity: 0.95; }
-          50% { opacity: 1; }
-        }
-        .ist-banner-done {
-          background: rgba(16, 185, 129, 0.15);
-          backdrop-filter: blur(8px);
-          border-bottom: 1px solid rgba(16, 185, 129, 0.2);
-        }
-
-        /* Primary CTA gradient */
-        .ist-cta-primary {
-          background: linear-gradient(135deg, #6366f1, #8b5cf6);
-          box-shadow: 0 4px 24px rgba(99, 102, 241, 0.3);
-        }
-        .ist-cta-primary:hover {
-          box-shadow: 0 6px 32px rgba(99, 102, 241, 0.45);
-        }
-
-        /* Sticky bottom CTA background */
-        .ist-sticky-cta {
-          background: linear-gradient(to top, #0a0a10 60%, transparent);
-          padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
-        }
+        .ist-fadeIn { animation: istFadeIn 0.5s ease-out forwards; }
+        @keyframes istFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+        .ist-dot { animation: istDotPulse 1.2s ease-in-out infinite; }
+        @keyframes istDotPulse { 0%, 100% { opacity: 0.4; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.2); } }
+        .ist-fade-out { animation: istContentFadeOut 0.4s ease-in forwards; }
+        @keyframes istContentFadeOut { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(0.98); } }
+        .ist-fade-in { animation: istContentFadeIn 0.5s ease-out forwards; }
+        @keyframes istContentFadeIn { from { opacity: 0; transform: scale(1.02); } to { opacity: 1; transform: scale(1); } }
+        .ist-title-pop { animation: istTitlePop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+        @keyframes istTitlePop { 0% { transform: scale(0.92); opacity: 0.5; } 50% { transform: scale(1.03); } 100% { transform: scale(1); opacity: 1; } }
+        .ist-banner-gen { background: linear-gradient(90deg, rgba(99,102,241,0.9), rgba(139,92,246,0.9)); backdrop-filter: blur(8px); }
+        .ist-banner-ready { background: linear-gradient(90deg, rgba(16,185,129,0.9), rgba(52,211,153,0.9)); backdrop-filter: blur(8px); animation: istBannerPulse 1.5s ease-in-out infinite; }
+        @keyframes istBannerPulse { 0%, 100% { opacity: 0.95; } 50% { opacity: 1; } }
+        .ist-banner-done { background: rgba(16,185,129,0.15); backdrop-filter: blur(8px); border-bottom: 1px solid rgba(16,185,129,0.2); }
+        .ist-cta-primary { background: linear-gradient(135deg, #6366f1, #8b5cf6); box-shadow: 0 4px 24px rgba(99,102,241,0.3); }
+        .ist-cta-primary:hover { box-shadow: 0 6px 32px rgba(99,102,241,0.45); }
+        .ist-cta-pulse { animation: istCtaPulse 3s ease-in-out infinite; }
+        @keyframes istCtaPulse { 0%, 100% { box-shadow: 0 4px 24px rgba(99,102,241,0.3); } 50% { box-shadow: 0 6px 36px rgba(99,102,241,0.5); } }
+        .ist-sticky-cta { background: linear-gradient(to top, #0a0a10 60%, transparent); padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); }
+        .ist-part-appear { animation: istPartAppear 0.6s ease-out forwards; }
+        @keyframes istPartAppear { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+        .ist-teaser-slide { animation: istTeaserSlide 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes istTeaserSlide { from { transform: translateY(100%); } to { transform: translateY(0); } }
       `}</style>
     </div>
   );
