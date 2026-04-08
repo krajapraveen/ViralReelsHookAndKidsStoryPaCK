@@ -63,6 +63,112 @@ const HARD_TIMEOUT_MS = 15 * 60 * 1000;  // 15 min → background + notify
 // Stale detection: 90 seconds with no progress change
 const STALE_THRESHOLD_MS = 90 * 1000;
 
+// ─── COMPETITIVE COMPARISON COMPONENT ──────────────────────────────────────
+function CompetitiveComparison({ posterUrl, displayTitle, navigate, storyText, currentStyle, jobId, job }) {
+  const [topItem, setTopItem] = useState(null);
+
+  useEffect(() => {
+    const fetchTop = async () => {
+      try {
+        const res = await api.get('/api/gallery/remix-feed?limit=1');
+        if (res.data?.items?.[0]) setTopItem(res.data.items[0]);
+      } catch { /* silent */ }
+    };
+    fetchTop();
+  }, []);
+
+  if (!topItem || !posterUrl) return null;
+
+  const handleBeat = () => {
+    try {
+      api.post(`/api/gallery/${topItem.item_id}/remix`).catch(() => {});
+    } catch { /* fire-and-forget */ }
+    navigate('/app/story-video-studio', {
+      state: {
+        prompt: storyText || '',
+        remixFrom: {
+          title: topItem.title,
+          item_id: topItem.item_id,
+          remixes_count: (topItem.remixes_count || 0) + 1,
+          source: 'remix_gallery',
+        },
+        source_tool: 'competitive-comparison',
+        isRemix: true,
+      },
+    });
+    toast.success("You're remixing a trending story");
+  };
+
+  const handleImprove = () => {
+    localStorage.setItem('remix_video', JSON.stringify({
+      parent_video_id: jobId,
+      title: `Improved: ${displayTitle}`,
+      story_text: storyText || job?.story_text || '',
+      animation_style: currentStyle,
+      age_group: job?.age_group,
+      voice_preset: job?.voice_preset,
+    }));
+    navigate('/app/story-video-studio?remix=improve');
+    toast.success('Creating improved version!');
+  };
+
+  return (
+    <div className="bg-slate-900/50 border border-orange-500/10 rounded-xl p-4 space-y-3" data-testid="competitive-comparison">
+      <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+        <Zap className="w-3.5 h-3.5 text-orange-400" /> Can you beat this version?
+      </h3>
+      <div className="grid grid-cols-2 gap-3">
+        {/* Your version */}
+        <div className="rounded-lg border border-emerald-500/20 overflow-hidden">
+          <div className="aspect-video bg-zinc-800 overflow-hidden">
+            <img src={posterUrl} alt="Your version" className="w-full h-full object-cover" />
+          </div>
+          <div className="p-2 bg-emerald-500/5">
+            <p className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">Your version</p>
+            <p className="text-[11px] text-zinc-300 truncate">{displayTitle}</p>
+          </div>
+        </div>
+        {/* Top version */}
+        <div className="rounded-lg border border-orange-500/20 overflow-hidden">
+          <div className="aspect-video bg-zinc-800 overflow-hidden">
+            {topItem.thumbnail_url ? (
+              <img src={topItem.thumbnail_url} alt="Trending" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <Film className="w-6 h-6 text-zinc-700" />
+              </div>
+            )}
+          </div>
+          <div className="p-2 bg-orange-500/5">
+            <p className="text-[10px] font-semibold text-orange-400 uppercase tracking-wider flex items-center gap-1">
+              Trending
+              {topItem.remixes_count > 0 && <span className="text-zinc-500">&middot; {topItem.remixes_count.toLocaleString()} remixes</span>}
+            </p>
+            <p className="text-[11px] text-zinc-300 truncate">{topItem.title}</p>
+          </div>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={handleBeat}
+          className="flex-1 py-2.5 rounded-xl bg-orange-500/15 text-orange-300 text-xs font-bold hover:bg-orange-500/25 transition-colors flex items-center justify-center gap-1.5"
+          data-testid="beat-this-btn"
+        >
+          <RefreshCw className="w-3.5 h-3.5" /> Try to beat this
+        </button>
+        <button
+          onClick={handleImprove}
+          className="flex-1 py-2.5 rounded-xl bg-white/[0.06] text-zinc-300 text-xs font-medium hover:bg-white/10 transition-colors flex items-center justify-center gap-1.5"
+          data-testid="improve-version-btn"
+        >
+          <Sparkles className="w-3.5 h-3.5" /> Improve yours
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
 // ─── UI STATE MACHINE ─────────────────────────────────────────────────────────
 // Single source of truth. Contradictory states are structurally impossible.
 // States: IDLE | PROCESSING | VALIDATING | READY | PARTIAL_READY | FAILED
@@ -1944,6 +2050,54 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
               <span className="text-sm font-bold text-white block">Next Episode</span>
               <span className="text-[10px] text-slate-500">New adventure</span>
             </button>
+          </div>
+
+          {/* ═══ YOUR VERSION vs POPULAR — Competitive Comparison ═══ */}
+          <CompetitiveComparison
+            posterUrl={posterUrl}
+            displayTitle={displayTitle}
+            navigate={navigate}
+            storyText={storyText || job?.story_text || ''}
+            currentStyle={currentStyle}
+            jobId={jobId || job?.job_id}
+            job={job}
+          />
+
+          {/* ═══ INSTANT REMIX VARIANTS — One-click generation ═══ */}
+          <div className="bg-slate-900/50 border border-indigo-500/10 rounded-xl p-4 space-y-3" data-testid="instant-remix-section">
+            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+              <Zap className="w-3.5 h-3.5 text-indigo-400" /> Try a variation instantly
+            </h3>
+            <div className="grid grid-cols-4 gap-2" data-testid="instant-remix-buttons">
+              {[
+                { label: 'More dramatic', tone: 'dramatic', color: 'border-red-500/20 bg-red-500/[0.04] hover:bg-red-500/[0.08]', iconColor: 'text-red-400' },
+                { label: 'Shorter', tone: 'short', color: 'border-blue-500/20 bg-blue-500/[0.04] hover:bg-blue-500/[0.08]', iconColor: 'text-blue-400' },
+                { label: 'Faster-paced', tone: 'fast', color: 'border-amber-500/20 bg-amber-500/[0.04] hover:bg-amber-500/[0.08]', iconColor: 'text-amber-400' },
+                { label: 'More emotional', tone: 'emotional', color: 'border-pink-500/20 bg-pink-500/[0.04] hover:bg-pink-500/[0.08]', iconColor: 'text-pink-400' },
+              ].map(v => (
+                <button
+                  key={v.tone}
+                  onClick={() => {
+                    const baseStory = storyText || job?.story_text || '';
+                    localStorage.setItem('remix_video', JSON.stringify({
+                      parent_video_id: jobId || job?.job_id,
+                      title: `${v.label}: ${displayTitle}`,
+                      story_text: `[${v.label} version of "${displayTitle}"]\n\nOriginal:\n${baseStory.slice(0, 400)}\n\nDirection: Make this ${v.tone}.`,
+                      animation_style: currentStyle,
+                      age_group: job?.age_group,
+                      voice_preset: job?.voice_preset,
+                    }));
+                    navigate(`/app/story-video-studio?remix=${v.tone}`);
+                    toast.success(`Creating ${v.label.toLowerCase()} version!`);
+                  }}
+                  className={`p-3 rounded-xl border transition-all text-center group ${v.color}`}
+                  data-testid={`instant-remix-${v.tone}`}
+                >
+                  <Zap className={`w-4 h-4 ${v.iconColor} mx-auto mb-1.5`} />
+                  <span className="text-[11px] font-bold text-white block">{v.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* ═══ VIRAL LOOP: Share to unlock + reward ═══ */}

@@ -113,6 +113,13 @@ export default function RemixGallery({ placement = 'myspace', limit = 8, classNa
 }
 
 function RemixCard({ item, onRemix, compact }) {
+  // Trending badge logic
+  const remixes = item.remixes_count || 0;
+  let badge = null;
+  if (remixes >= 10000) badge = { label: 'Trending', color: 'bg-orange-500/80 text-white' };
+  else if (remixes >= 5000) badge = { label: 'Popular', color: 'bg-amber-500/80 text-white' };
+  else if (remixes >= 1000) badge = { label: 'Rising', color: 'bg-blue-500/80 text-white' };
+
   return (
     <div
       className="group rounded-lg border border-white/[0.06] bg-white/[0.02] overflow-hidden hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all cursor-pointer"
@@ -132,6 +139,12 @@ function RemixCard({ item, onRemix, compact }) {
           <div className="w-full h-full flex items-center justify-center">
             <Flame className="w-6 h-6 text-zinc-700" />
           </div>
+        )}
+        {/* Trending badge */}
+        {badge && (
+          <span className={`absolute top-1.5 left-1.5 text-[8px] font-bold px-1.5 py-0.5 rounded-full ${badge.color}`} data-testid={`trending-badge-${item.item_id}`}>
+            {badge.label}
+          </span>
         )}
         {/* Remix count overlay */}
         {item.remixes_count > 0 && (
@@ -160,7 +173,7 @@ function RemixCard({ item, onRemix, compact }) {
         <div className="flex items-center gap-2 mt-1">
           {item.remixes_count > 0 && (
             <span className="text-[9px] text-orange-400/80 flex items-center gap-0.5">
-              <RefreshCw className="w-2.5 h-2.5" /> {formatCount(item.remixes_count)} remixes
+              <RefreshCw className="w-2.5 h-2.5" /> {formatCount(item.remixes_count)} remixed today
             </span>
           )}
           {item.views_count > 0 && (

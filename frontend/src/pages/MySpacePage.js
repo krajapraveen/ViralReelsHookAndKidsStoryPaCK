@@ -818,6 +818,21 @@ export default function MySpacePage() {
           </div>
         </div>
 
+        {/* Session Streak */}
+        {(() => {
+          const today = new Date().toDateString();
+          const todayCount = jobs.filter(j => j.created_at && new Date(j.created_at).toDateString() === today).length;
+          if (todayCount < 1) return null;
+          return (
+            <div className="flex items-center gap-2 bg-orange-500/5 border border-orange-500/10 rounded-lg px-3 py-2" data-testid="session-streak">
+              <Zap className="w-4 h-4 text-orange-400" />
+              <p className="text-xs text-orange-300/90">
+                You&apos;ve created <span className="font-bold text-orange-300">{todayCount}</span> video{todayCount !== 1 ? 's' : ''} today — keep going
+              </p>
+            </div>
+          );
+        })()}
+
         {/* In Progress */}
         {inProgress.length > 0 && (
           <section>
