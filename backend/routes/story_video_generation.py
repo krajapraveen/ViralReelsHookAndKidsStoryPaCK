@@ -1397,7 +1397,7 @@ async def upload_music(
     file: UploadFile = File(...),
     name: str = Form(...),
     confirm_rights: bool = Form(...),
-    user_id: str = None
+    current_user: dict = Depends(get_current_user)
 ):
     """Upload user's own music (must confirm they have rights)"""
     
@@ -1407,8 +1407,7 @@ async def upload_music(
             detail="You must confirm that you have the rights to use this music"
         )
     
-    if not user_id:
-        user_id = "test_user"
+    user_id = current_user.get("id") or str(current_user.get("_id"))
     
     # Validate file type
     allowed_types = [".mp3", ".wav", ".ogg", ".m4a"]

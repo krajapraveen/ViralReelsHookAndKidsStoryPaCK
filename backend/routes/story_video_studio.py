@@ -11,7 +11,7 @@ import json
 import uuid
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends, Request
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends
 from pydantic import BaseModel, Field
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from dotenv import load_dotenv
@@ -436,24 +436,12 @@ async def get_project(
 
 @router.get("/projects")
 async def list_projects(
-    request: Request,
-    user_id: str = None,
     limit: int = 20,
-    skip: int = 0
+    skip: int = 0,
+    current_user: dict = Depends(get_current_user)
 ):
     """List user's top-level projects, collapsing duplicates by idempotency_key"""
-    # Extract user_id from auth token if not provided as query param
-    if not user_id:
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            try:
-                import jwt
-                payload = jwt.decode(auth_header.split(" ", 1)[1], options={"verify_signature": False})
-                user_id = payload.get("sub")
-            except Exception:
-                pass
-    if not user_id:
-        user_id = "test_user"
+    user_id = current_user.get("id") or str(current_user.get("_id"))
     
     # Only return parent/root projects (not branches/continuations)
     cursor = db.story_projects.find(
@@ -663,12 +651,10 @@ async def upload_story_file(
     language: str = Form(default="english"),
     age_group: str = Form(default="kids_5_8"),
     style_id: str = Form(default="storybook"),
-    user_id: str = None
+    current_user: dict = Depends(get_current_user)
 ):
     """Upload a story file (TXT, PDF, DOCX) and create a project"""
-    
-    if not user_id:
-        user_id = "test_user"
+    user_id = current_user.get("id") or str(current_user.get("_id"))
     
     # Check file type
     allowed_types = [".txt", ".pdf", ".docx"]
@@ -785,10 +771,9 @@ class ContinueVideoRequest(BaseModel):
 
 
 @router.post("/continue-video")
-async def continue_video(req: ContinueVideoRequest, user_id: str = None):
+async def continue_video(req: ContinueVideoRequest, current_user: dict = Depends(get_current_user)):
     """Quick Continue: create a new video project that continues an existing chain."""
-    if not user_id:
-        user_id = "test_user"
+    user_id = current_user.get("id") or str(current_user.get("_id"))
 
     parent = await db.story_projects.find_one({"project_id": req.parent_project_id}, {"_id": 0})
     if not parent:
@@ -844,10 +829,9 @@ async def continue_video(req: ContinueVideoRequest, user_id: str = None):
 
 
 @router.get("/active-video-chains")
-async def get_active_video_chains(user_id: str = None):
+async def get_active_video_chains(current_user: dict = Depends(get_current_user)):
     """Get user's active video story chains for dashboard resume."""
-    if not user_id:
-        user_id = "test_user"
+    user_id = current_user.get("id") or str(current_user.get("_id"))
 
     pipeline = [
         {"$match": {"user_id": user_id, "story_chain_id": {"$exists": True}}},
@@ -895,10 +879,9 @@ async def get_active_video_chains(user_id: str = None):
 
 
 @router.get("/video-chain/{chain_id}")
-async def get_video_chain(chain_id: str, user_id: str = None):
+async def get_video_chain(chain_id: str, current_user: dict = Depends(get_current_user)):
     """Get all projects in a video story chain."""
-    if not user_id:
-        user_id = "test_user"
+    user_id = current_user.get("id") or str(current_user.get("_id"))
 
     projects = await db.story_projects.find(
         {"story_chain_id": chain_id, "user_id": user_id},

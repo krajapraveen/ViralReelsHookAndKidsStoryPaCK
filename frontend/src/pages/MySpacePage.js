@@ -1,60 +1,137 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Play, Download, Share2, RefreshCw, AlertTriangle, Film, Loader2, ChevronDown, ChevronUp, Bell, BellOff, Check, Plus, X, Settings2 } from 'lucide-react';
+import {
+  Play, Download, Share2, RefreshCw, AlertTriangle, Film, Loader2,
+  ChevronDown, ChevronUp, Bell, BellOff, Check, Plus, X, Trash2,
+  Edit, Eye, Info, CheckCircle, Circle, HelpCircle, Clock, ArrowRight
+} from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../utils/api';
 
-const STAGE_LABELS = {
-  INIT: 'Queued',
-  PLANNING: 'Writing script',
-  BUILDING_CHARACTER_CONTEXT: 'Building characters',
-  PLANNING_SCENE_MOTION: 'Planning scenes',
-  GENERATING_KEYFRAMES: 'Creating artwork',
-  GENERATING_SCENE_CLIPS: 'Composing scenes',
-  GENERATING_AUDIO: 'Generating narration',
-  ASSEMBLING_VIDEO: 'Rendering video',
-  VALIDATING: 'Finalizing',
-  READY: 'Completed',
-  scenes: 'Planning scenes',
-  images: 'Creating artwork',
-  voices: 'Generating narration',
-  render: 'Rendering video',
-  upload: 'Finalizing',
+// ─── STATUS COPY (EXACT PRODUCTION SPEC) ──────────────────────────────────────
+const STATUS_COPY = {
+  QUEUED: {
+    label: 'Waiting in line',
+    color: '#fbbf24',
+    bgTint: 'bg-amber-500/5',
+    borderTint: 'border-amber-500/20',
+    badgeBg: 'bg-amber-500/15 text-amber-400',
+    what_this_is: 'This is your AI-generated video project based on your story and selected style.',
+    whats_happening: "Your project is waiting for processing. We'll start automatically as soon as capacity is available.",
+    what_to_do: 'No action needed. You can safely leave this page.',
+    what_next: "We'll begin generating scenes, narration, and video automatically.",
+  },
+  PROCESSING: {
+    label: 'Creating your video',
+    color: '#60a5fa',
+    bgTint: 'bg-blue-500/5',
+    borderTint: 'border-blue-500/20',
+    badgeBg: 'bg-blue-500/15 text-blue-400',
+    what_this_is: "We're turning your idea into a fully animated video with visuals, narration, and timing.",
+    whats_happening: null, // dynamic — overridden per sub-stage
+    what_to_do: 'No action needed. This usually takes 2\u20135 minutes.',
+    what_next: "Next, we'll add narration and assemble the final video.",
+  },
+  COMPLETED: {
+    label: 'Your video is ready',
+    color: '#34d399',
+    bgTint: 'bg-emerald-500/5',
+    borderTint: 'border-emerald-500/20',
+    badgeBg: 'bg-emerald-500/15 text-emerald-400',
+    what_this_is: 'This is your final AI-generated video created from your story, style, and narration settings.',
+    whats_happening: 'Your video has been successfully generated and is ready to use.',
+    what_to_do: 'Preview your video, then download, share, or create another version.',
+    what_next: 'You can reuse this project to generate improved or different versions.',
+  },
+  PARTIAL: {
+    label: 'Partially ready',
+    color: '#34d399',
+    bgTint: 'bg-emerald-500/5',
+    borderTint: 'border-emerald-500/20',
+    badgeBg: 'bg-emerald-500/15 text-emerald-400',
+    what_this_is: 'Some assets from your project are ready, though the full video may not have completed.',
+    whats_happening: 'Partial results are available for preview.',
+    what_to_do: 'Preview the available assets or retry for a full render.',
+    what_next: 'You can download what is ready or attempt to regenerate the full video.',
+  },
+  FAILED: {
+    label: 'Needs attention',
+    color: '#f87171',
+    bgTint: 'bg-red-500/5',
+    borderTint: 'border-red-500/20',
+    badgeBg: 'bg-red-500/15 text-red-400',
+    what_this_is: 'This project could not be completed due to an issue during generation.',
+    whats_happening: 'Something went wrong while creating your video.',
+    what_to_do: 'Try again. If the issue continues, adjust your inputs or try later.',
+    what_next: 'A retry will start the generation process again.',
+  },
 };
 
-const STAGE_COLORS = {
-  PLANNING: '#818cf8',
-  BUILDING_CHARACTER_CONTEXT: '#818cf8',
-  PLANNING_SCENE_MOTION: '#818cf8',
-  GENERATING_KEYFRAMES: '#f472b6',
-  GENERATING_SCENE_CLIPS: '#f472b6',
-  GENERATING_AUDIO: '#34d399',
-  ASSEMBLING_VIDEO: '#fb923c',
-  VALIDATING: '#fbbf24',
-  scenes: '#818cf8',
-  images: '#f472b6',
-  voices: '#34d399',
-  render: '#fb923c',
-  upload: '#fbbf24',
+// ─── PROGRESS TIMELINE ────────────────────────────────────────────────────────
+const TIMELINE_STAGES = [
+  { id: 'received', label: 'Story received' },
+  { id: 'planning', label: 'Preparing your story' },
+  { id: 'visuals', label: 'Creating visuals' },
+  { id: 'narration', label: 'Recording narration' },
+  { id: 'video', label: 'Building your video' },
+  { id: 'ready', label: 'Ready' },
+];
+
+const STAGE_TO_TIMELINE = {
+  'INIT': 0,
+  'PLANNING': 1, 'BUILDING_CHARACTER_CONTEXT': 1, 'PLANNING_SCENE_MOTION': 1,
+  'scenes': 1, 'scene_generation': 1,
+  'GENERATING_KEYFRAMES': 2, 'GENERATING_SCENE_CLIPS': 2,
+  'images': 2, 'image_generation': 2,
+  'GENERATING_AUDIO': 3, 'voices': 3, 'voice_generation': 3, 'tts': 3,
+  'ASSEMBLING_VIDEO': 4, 'render': 4, 'video_assembly': 4, 'rendering': 4,
+  'VALIDATING': 5, 'upload': 5, 'uploading': 5,
+  'READY': 5,
 };
 
-function getStageLabel(job) {
-  const state = job.engine_state || job.current_stage;
-  return STAGE_LABELS[state] || job.current_step || 'Processing';
+const SUB_STAGE_LABELS = {
+  'INIT': 'Preparing your story',
+  'PLANNING': 'Preparing your story',
+  'BUILDING_CHARACTER_CONTEXT': 'Preparing your story',
+  'PLANNING_SCENE_MOTION': 'Preparing your story',
+  'GENERATING_KEYFRAMES': 'Creating visuals',
+  'GENERATING_SCENE_CLIPS': 'Creating visuals',
+  'GENERATING_AUDIO': 'Recording narration',
+  'ASSEMBLING_VIDEO': 'Building your video',
+  'VALIDATING': 'Finalizing output',
+  'scenes': 'Preparing your story',
+  'scene_generation': 'Preparing your story',
+  'images': 'Creating visuals',
+  'image_generation': 'Creating visuals',
+  'voices': 'Recording narration',
+  'voice_generation': 'Recording narration',
+  'render': 'Building your video',
+  'video_assembly': 'Building your video',
+  'upload': 'Finalizing output',
+  'uploading': 'Finalizing output',
+  'tts': 'Recording narration',
+  'rendering': 'Building your video',
+};
+
+function getTimelineIndex(job) {
+  const state = job.engine_state || job.current_stage || '';
+  return STAGE_TO_TIMELINE[state] ?? 1;
 }
 
-function getSubStage(job) {
-  if (job.current_step && !job.current_step.startsWith('Your story')) {
-    return job.current_step;
-  }
-  return null;
+function getDynamicStageLabel(job) {
+  const state = job.engine_state || job.current_stage || '';
+  return SUB_STAGE_LABELS[state] || 'Processing your project';
 }
 
-function getStageColor(job) {
-  const state = job.engine_state || job.current_stage;
-  return STAGE_COLORS[state] || '#60a5fa';
+function getStatusKey(job) {
+  if (job.status === 'COMPLETED') return 'COMPLETED';
+  if (job.status === 'PARTIAL') return 'PARTIAL';
+  if (job.status === 'FAILED') return 'FAILED';
+  if (job.status === 'QUEUED') return 'QUEUED';
+  return 'PROCESSING';
 }
 
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
 function timeAgo(dateStr) {
   if (!dateStr) return '';
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -67,174 +144,330 @@ function timeAgo(dateStr) {
   return `${days}d ago`;
 }
 
-function ProgressBar({ progress, color, animated }) {
+function triggerDownload(job) {
+  if (!job.output_url) {
+    toast.error('Video not available for download');
+    return;
+  }
+  try {
+    const a = document.createElement('a');
+    a.href = job.output_url;
+    a.download = `${(job.title || 'video').replace(/[^a-z0-9]/gi, '-').toLowerCase()}-visionary-suite.mp4`;
+    a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch {
+    window.open(job.output_url, '_blank');
+  }
+}
+
+function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function fireBrowserNotification(title, body) {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      const n = new Notification(title, {
+        body,
+        icon: '/favicon.ico',
+        badge: '/favicon.ico',
+        tag: 'video-complete',
+        renotify: true,
+      });
+      n.onclick = () => { window.focus(); n.close(); };
+    } catch { /* silent */ }
+  }
+}
+
+// ─── PROGRESS TIMELINE COMPONENT ──────────────────────────────────────────────
+function ProgressTimeline({ currentIndex }) {
   return (
-    <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
-      <div
-        className="h-full rounded-full"
-        style={{
-          width: `${Math.min(progress, 100)}%`,
-          backgroundColor: color,
-          transition: 'width 2s ease-in-out',
-          animation: animated ? 'pulse 2s ease-in-out infinite' : 'none',
-        }}
-      />
+    <div className="space-y-1 py-2" data-testid="progress-timeline">
+      {TIMELINE_STAGES.map((stage, idx) => {
+        const isDone = idx < currentIndex;
+        const isCurrent = idx === currentIndex;
+        const isPending = idx > currentIndex;
+        return (
+          <div key={stage.id} className="flex items-center gap-2.5">
+            {isDone && <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />}
+            {isCurrent && (
+              <span className="relative flex h-4 w-4 items-center justify-center flex-shrink-0">
+                <span className="animate-ping absolute inline-flex h-3 w-3 rounded-full bg-blue-400 opacity-50" />
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500 border-2 border-blue-300" />
+              </span>
+            )}
+            {isPending && <Circle className="w-4 h-4 text-zinc-600 flex-shrink-0" />}
+            <span className={`text-xs ${isDone ? 'text-emerald-400/80' : isCurrent ? 'text-blue-300 font-medium' : 'text-zinc-600'}`}>
+              {stage.label}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function InProgressCard({ job, highlighted }) {
-  const color = getStageColor(job);
-  const stageLabel = getStageLabel(job);
-  const subStage = getSubStage(job);
-  const progress = job.progress || 0;
+// ─── INFO SECTION (reusable for each "What..." block) ─────────────────────────
+function InfoSection({ label, text, icon: Icon }) {
+  return (
+    <div className="py-1.5">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 flex items-center gap-1 mb-0.5">
+        <Icon className="w-3 h-3" /> {label}
+      </p>
+      <p className="text-xs text-zinc-300 leading-relaxed">{text}</p>
+    </div>
+  );
+}
+
+// ─── PROJECT CARD (UNIFIED — all statuses) ────────────────────────────────────
+function ProjectCard({ job, highlighted, justCompleted, onShare, onRetry, onDelete, onNavigate }) {
+  const [expanded, setExpanded] = useState(() => {
+    const s = getStatusKey(job);
+    return s === 'QUEUED' || s === 'PROCESSING';
+  });
+  const statusKey = getStatusKey(job);
+  const copy = STATUS_COPY[statusKey] || STATUS_COPY.PROCESSING;
+  const timelineIdx = statusKey === 'PROCESSING' ? getTimelineIndex(job) : -1;
+  const dynamicStage = statusKey === 'PROCESSING' ? getDynamicStageLabel(job) : null;
+
+  const handleWatch = () => {
+    if (job.output_url) window.open(job.output_url, '_blank');
+  };
 
   return (
     <div
       data-testid={`project-card-${job.job_id}`}
-      className={`relative bg-zinc-900/80 border rounded-xl p-4 transition-all duration-500 ${
-        highlighted ? 'border-indigo-500 ring-1 ring-indigo-500/30' : 'border-white/10'
+      className={`relative rounded-xl border transition-all duration-300 overflow-hidden ${copy.bgTint} ${
+        justCompleted
+          ? 'border-emerald-400 ring-2 ring-emerald-400/30'
+          : highlighted
+            ? `ring-1 ring-offset-0 ${copy.borderTint}`
+            : 'border-white/[0.08]'
       }`}
     >
-      <div className="flex items-start gap-3">
-        <div className="w-16 h-16 rounded-lg bg-zinc-800 flex items-center justify-center overflow-hidden flex-shrink-0">
+      {/* ─── Header Row ─── */}
+      <div
+        className="flex items-start gap-3 p-4 cursor-pointer"
+        onClick={() => setExpanded(v => !v)}
+        data-testid={`card-header-${job.job_id}`}
+      >
+        {/* Thumbnail */}
+        <div className="w-14 h-14 rounded-lg bg-zinc-800/80 flex items-center justify-center overflow-hidden flex-shrink-0">
           {job.thumbnail_url ? (
             <img src={job.thumbnail_url} alt="" className="w-full h-full object-cover" />
           ) : (
-            <Film className="w-6 h-6 text-zinc-600" />
+            <Film className="w-5 h-5 text-zinc-600" />
           )}
         </div>
+
+        {/* Title + Status */}
         <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-medium text-white truncate">{job.title}</h3>
+          <h3 className="text-sm font-semibold text-white truncate">{job.title || 'Untitled Project'}</h3>
           <div className="flex items-center gap-2 mt-1">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ backgroundColor: color }} />
-              <span className="relative inline-flex rounded-full h-2 w-2" style={{ backgroundColor: color }} />
+            <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${copy.badgeBg}`}>
+              {statusKey === 'PROCESSING' && (
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60" style={{ backgroundColor: copy.color }} />
+                  <span className="relative inline-flex rounded-full h-2 w-2" style={{ backgroundColor: copy.color }} />
+                </span>
+              )}
+              {copy.label}
             </span>
-            <span className="text-xs font-medium" style={{ color }}>{stageLabel}</span>
+            <span className="text-[10px] text-zinc-600">{timeAgo(job.created_at)}</span>
           </div>
-          {subStage && (
-            <p className="text-[11px] text-zinc-500 mt-0.5 truncate">{subStage}</p>
+          {/* Dynamic sub-stage for processing */}
+          {statusKey === 'PROCESSING' && dynamicStage && (
+            <p className="text-[11px] text-blue-400/80 mt-1">Currently: {dynamicStage}</p>
+          )}
+          {/* Progress bar for processing/queued */}
+          {(statusKey === 'PROCESSING' || statusKey === 'QUEUED') && (
+            <div className="w-full h-1 bg-white/[0.06] rounded-full overflow-hidden mt-2">
+              <div
+                className="h-full rounded-full transition-all duration-[2s] ease-in-out"
+                style={{
+                  width: `${Math.min(job.progress || 0, 100)}%`,
+                  backgroundColor: copy.color,
+                  animation: statusKey === 'PROCESSING' ? 'pulse 2.5s ease-in-out infinite' : 'none',
+                }}
+              />
+            </div>
           )}
         </div>
-        <span className="text-xs font-mono text-zinc-500">{progress}%</span>
-      </div>
-      <div className="mt-3">
-        <ProgressBar progress={progress} color={color} animated={true} />
-      </div>
-      <div className="flex justify-between items-center mt-2">
-        <span className="text-[10px] text-zinc-600">{timeAgo(job.created_at)}</span>
-      </div>
-    </div>
-  );
-}
 
-function CompletedCard({ job, highlighted, justCompleted, onShareWhatsApp }) {
-  const handleDownload = async (e) => {
-    e.stopPropagation();
-    triggerDownload(job);
-  };
+        {/* Expand toggle + progress % */}
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          {(statusKey === 'PROCESSING' || statusKey === 'QUEUED') && (
+            <span className="text-xs font-mono text-zinc-500">{job.progress || 0}%</span>
+          )}
+          {expanded ? <ChevronUp className="w-4 h-4 text-zinc-600" /> : <ChevronDown className="w-4 h-4 text-zinc-600" />}
+        </div>
+      </div>
 
-  const handleWatch = () => {
-    if (job.output_url) {
-      window.open(job.output_url, '_blank');
-    }
-  };
+      {/* ─── Expanded Detail ─── */}
+      {expanded && (
+        <div className="px-4 pb-4 pt-0 border-t border-white/[0.04] space-y-0">
+          <InfoSection icon={Info} label="What this is" text={copy.what_this_is} />
+          <InfoSection
+            icon={Clock}
+            label="What's happening now"
+            text={
+              statusKey === 'PROCESSING' && dynamicStage
+                ? `Currently: ${dynamicStage}`
+                : copy.whats_happening || 'Processing your project.'
+            }
+          />
 
-  return (
-    <div
-      data-testid={`project-card-${job.job_id}`}
-      className={`group relative bg-zinc-900/80 border rounded-xl overflow-hidden transition-all duration-500 hover:border-white/20 ${
-        justCompleted
-          ? 'border-emerald-400 ring-2 ring-emerald-400/40'
-          : highlighted
-            ? 'border-emerald-500 ring-1 ring-emerald-500/30'
-            : 'border-white/10'
-      }`}
-    >
+          {/* Progress Timeline — only for PROCESSING */}
+          {statusKey === 'PROCESSING' && <ProgressTimeline currentIndex={timelineIdx} />}
+
+          <InfoSection icon={ArrowRight} label="What you need to do" text={copy.what_to_do} />
+          <InfoSection icon={Eye} label="What happens next" text={copy.what_next} />
+
+          {/* ─── Asset Breakdown (completed only) ─── */}
+          {(statusKey === 'COMPLETED' || statusKey === 'PARTIAL') && (
+            <div className="mt-2 pt-2 border-t border-white/[0.04]">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-1.5">Project Assets</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { name: 'Script', desc: 'The story text used to generate your video.' },
+                  { name: 'Scenes', desc: 'The visuals created for each part of your story.' },
+                  { name: 'Voiceover', desc: 'The narration audio using your selected voice.' },
+                  { name: 'Final Video', desc: 'Your completed video with visuals, audio, and timing.' },
+                ].map(asset => (
+                  <div key={asset.name} className="bg-white/[0.03] rounded-lg px-2.5 py-2">
+                    <p className="text-[11px] font-medium text-zinc-300">{asset.name}</p>
+                    <p className="text-[10px] text-zinc-500 leading-snug">{asset.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ─── CTA BUTTONS ─── */}
+          <div className="flex flex-wrap gap-2 mt-3 pt-2 border-t border-white/[0.04]">
+            {/* QUEUED CTAs */}
+            {statusKey === 'QUEUED' && (
+              <>
+                <button
+                  data-testid={`view-details-btn-${job.job_id}`}
+                  onClick={() => onNavigate(job)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 text-amber-300 text-xs font-medium hover:bg-amber-500/25 transition-colors"
+                >
+                  <Eye className="w-3.5 h-3.5" /> View Details
+                </button>
+              </>
+            )}
+
+            {/* PROCESSING CTAs */}
+            {statusKey === 'PROCESSING' && (
+              <>
+                <button
+                  data-testid={`view-progress-btn-${job.job_id}`}
+                  onClick={() => onNavigate(job)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/15 text-blue-300 text-xs font-medium hover:bg-blue-500/25 transition-colors"
+                >
+                  <Eye className="w-3.5 h-3.5" /> View Progress
+                </button>
+                <button
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.06] text-zinc-400 text-xs hover:bg-white/10 transition-colors"
+                  onClick={() => toast.info("Your generation continues in the background. We'll notify you when it's ready.", { duration: 5000 })}
+                  data-testid={`leave-btn-${job.job_id}`}
+                >
+                  <ArrowRight className="w-3.5 h-3.5" /> Leave & come back later
+                </button>
+              </>
+            )}
+
+            {/* COMPLETED / PARTIAL CTAs */}
+            {(statusKey === 'COMPLETED' || statusKey === 'PARTIAL') && (
+              <>
+                <button
+                  data-testid={`preview-btn-${job.job_id}`}
+                  onClick={handleWatch}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-500/20 text-emerald-300 text-xs font-bold hover:bg-emerald-500/30 transition-colors"
+                >
+                  <Play className="w-4 h-4" /> Preview
+                </button>
+                <button
+                  data-testid={`download-btn-${job.job_id}`}
+                  onClick={(e) => { e.stopPropagation(); triggerDownload(job); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.06] text-zinc-300 text-xs hover:bg-white/10 transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5" /> Download
+                </button>
+                <button
+                  data-testid={`create-version-btn-${job.job_id}`}
+                  onClick={() => onNavigate(job, 'remix')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.06] text-zinc-300 text-xs hover:bg-white/10 transition-colors"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" /> Create Another Version
+                </button>
+                <button
+                  data-testid={`share-btn-${job.job_id}`}
+                  onClick={(e) => { e.stopPropagation(); onShare(job); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.06] text-zinc-300 text-xs hover:bg-white/10 transition-colors"
+                >
+                  <Share2 className="w-3.5 h-3.5" /> Share
+                </button>
+                {onDelete && (
+                  <button
+                    data-testid={`delete-btn-${job.job_id}`}
+                    onClick={(e) => { e.stopPropagation(); onDelete(job); }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.04] text-zinc-500 text-xs hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Delete
+                  </button>
+                )}
+              </>
+            )}
+
+            {/* FAILED CTAs */}
+            {statusKey === 'FAILED' && (
+              <>
+                <button
+                  data-testid={`retry-btn-${job.job_id}`}
+                  onClick={() => onRetry(job)}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-red-500/20 text-red-300 text-xs font-bold hover:bg-red-500/30 transition-colors"
+                >
+                  <RefreshCw className="w-4 h-4" /> Retry
+                </button>
+                <button
+                  data-testid={`edit-retry-btn-${job.job_id}`}
+                  onClick={() => onNavigate(job, 'edit')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.06] text-zinc-300 text-xs hover:bg-white/10 transition-colors"
+                >
+                  <Edit className="w-3.5 h-3.5" /> Edit & Retry
+                </button>
+                {onDelete && (
+                  <button
+                    data-testid={`delete-btn-${job.job_id}`}
+                    onClick={(e) => { e.stopPropagation(); onDelete(job); }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.04] text-zinc-500 text-xs hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Delete
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Just-completed badge */}
       {justCompleted && (
-        <div className="absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/90 text-[10px] font-bold text-white" data-testid="just-completed-badge">
+        <div className="absolute top-3 right-3 z-10 flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/90 text-[10px] font-bold text-white" data-testid="just-completed-badge">
           <Check className="w-3 h-3" /> Ready
         </div>
       )}
-      <div className="relative aspect-video bg-zinc-800 cursor-pointer" onClick={handleWatch}>
-        {job.thumbnail_url ? (
-          <img src={job.thumbnail_url} alt={job.title} className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Film className="w-8 h-8 text-zinc-700" />
-          </div>
-        )}
-        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-          <Play className="w-10 h-10 text-white fill-white" />
-        </div>
-      </div>
-      <div className="p-3">
-        <h3 className="text-sm font-medium text-white truncate">{job.title}</h3>
-        <div className="flex items-center gap-2 mt-1">
-          <span className="text-[10px] text-emerald-400 font-medium">Completed</span>
-          <span className="text-[10px] text-zinc-600">{timeAgo(job.completed_at || job.created_at)}</span>
-        </div>
-        <div className="flex gap-2 mt-3">
-          <button
-            data-testid={`watch-btn-${job.job_id}`}
-            onClick={handleWatch}
-            className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-xs text-white transition-colors"
-          >
-            <Play className="w-3 h-3" /> Watch
-          </button>
-          <button
-            data-testid={`download-btn-${job.job_id}`}
-            onClick={handleDownload}
-            className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-xs text-white transition-colors"
-          >
-            <Download className="w-3 h-3" /> Download
-          </button>
-          <button
-            data-testid={`share-btn-${job.job_id}`}
-            onClick={(e) => { e.stopPropagation(); onShareWhatsApp(job); }}
-            className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-emerald-600/30 hover:bg-emerald-600/50 text-xs text-emerald-300 transition-colors"
-          >
-            <Share2 className="w-3 h-3" /> Share
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
 
-function FailedCard({ job, onRetry }) {
-  const errorMsg = job.error || job.current_step || 'An error occurred during generation';
-
-  return (
-    <div
-      data-testid={`project-card-${job.job_id}`}
-      className="relative bg-zinc-900/80 border border-red-900/30 rounded-xl p-4"
-    >
-      <div className="flex items-start gap-3">
-        <div className="w-12 h-12 rounded-lg bg-red-950/50 flex items-center justify-center flex-shrink-0">
-          <AlertTriangle className="w-5 h-5 text-red-400" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-medium text-white truncate">{job.title}</h3>
-          <p className="text-[11px] text-red-400/80 mt-1 line-clamp-2">{errorMsg}</p>
-        </div>
-      </div>
-      <div className="flex justify-between items-center mt-3">
-        <span className="text-[10px] text-zinc-600">{timeAgo(job.created_at)}</span>
-        {job.has_recoverable_assets && (
-          <button
-            onClick={() => onRetry(job)}
-            className="flex items-center gap-1 px-3 py-1 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-xs text-red-300 transition-colors"
-          >
-            <RefreshCw className="w-3 h-3" /> Retry
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
+// ─── SECTION HEADER ───────────────────────────────────────────────────────────
 function SectionHeader({ title, count, icon: Icon, color, collapsed, onToggle }) {
   return (
     <button
@@ -256,50 +489,45 @@ function SectionHeader({ title, count, icon: Icon, color, collapsed, onToggle })
   );
 }
 
-// ─── DOWNLOAD HELPER ──────────────────────────────────────────────────────────
-function triggerDownload(job) {
-  if (!job.output_url) {
-    toast.error('Video not available for download');
-    return;
-  }
-  try {
-    const a = document.createElement('a');
-    a.href = job.output_url;
-    a.download = `${(job.title || 'video').replace(/[^a-z0-9]/gi, '-').toLowerCase()}-visionary-suite.mp4`;
-    a.target = '_blank';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  } catch {
-    window.open(job.output_url, '_blank');
-  }
-}
+// ─── HOW THIS WORKS (COLLAPSIBLE) ─────────────────────────────────────────────
+function HowThisWorks() {
+  const [open, setOpen] = useState(false);
+  const steps = [
+    'You enter your story or idea',
+    'We plan the scenes',
+    'We generate visuals',
+    'We create narration',
+    'We build your video',
+    'You preview and download',
+    'You can regenerate improved versions',
+  ];
 
-// ─── NOTIFICATION HELPERS ─────────────────────────────────────────────────────
-function requestNotificationPermission() {
-  if ('Notification' in window && Notification.permission === 'default') {
-    Notification.requestPermission();
-  }
-}
-
-function fireBrowserNotification(title, body) {
-  if ('Notification' in window && Notification.permission === 'granted') {
-    try {
-      const n = new Notification(title, {
-        body,
-        icon: '/favicon.ico',
-        badge: '/favicon.ico',
-        tag: 'video-complete',
-        renotify: true,
-      });
-      n.onclick = () => {
-        window.focus();
-        n.close();
-      };
-    } catch {
-      // Silent fail
-    }
-  }
+  return (
+    <div className="border border-white/[0.06] rounded-xl overflow-hidden" data-testid="how-this-works">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.02] transition-colors"
+      >
+        <span className="flex items-center gap-2 text-sm font-semibold text-zinc-300">
+          <HelpCircle className="w-4 h-4 text-zinc-500" />
+          How this works
+        </span>
+        {open ? <ChevronUp className="w-4 h-4 text-zinc-600" /> : <ChevronDown className="w-4 h-4 text-zinc-600" />}
+      </button>
+      {open && (
+        <div className="px-4 pb-4 space-y-2">
+          {steps.map((step, idx) => (
+            <div key={idx} className="flex items-start gap-2.5">
+              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-400 mt-0.5">
+                {idx + 1}
+              </span>
+              <p className="text-xs text-zinc-400 leading-relaxed">{step}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── COMPLETION PROMPT MODAL ──────────────────────────────────────────────────
@@ -311,23 +539,14 @@ function CompletionPromptModal({ job, onClose, onDownload, onShareWhatsApp, onCr
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-sm bg-zinc-900 border border-zinc-700/50 rounded-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
         <style>{`@keyframes pulseShare { 0%,100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); } 50% { box-shadow: 0 0 0 12px rgba(16,185,129,0); } }`}</style>
-        {/* Close button */}
-        <button
-          onClick={onClose}
-          className="absolute top-3 right-3 z-10 p-1 rounded-full bg-zinc-800/80 hover:bg-zinc-700 text-zinc-400 hover:text-white transition-colors"
-          data-testid="completion-prompt-close"
-        >
+        <button onClick={onClose} className="absolute top-3 right-3 z-10 p-1 rounded-full bg-zinc-800/80 hover:bg-zinc-700 text-zinc-400 hover:text-white transition-colors" data-testid="completion-prompt-close">
           <X className="w-4 h-4" />
         </button>
-
-        {/* Thumbnail */}
         <div className="relative aspect-video bg-zinc-800">
           {job.thumbnail_url ? (
             <img src={job.thumbnail_url} alt={job.title} className="w-full h-full object-cover" />
           ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <Film className="w-12 h-12 text-zinc-600" />
-            </div>
+            <div className="w-full h-full flex items-center justify-center"><Film className="w-12 h-12 text-zinc-600" /></div>
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-transparent" />
           <div className="absolute bottom-3 left-3 right-3">
@@ -338,37 +557,24 @@ function CompletionPromptModal({ job, onClose, onDownload, onShareWhatsApp, onCr
             <h3 className="text-white font-semibold text-base truncate" data-testid="completion-prompt-title">{job.title}</h3>
           </div>
         </div>
-
-        {/* Actions — Share is PRIMARY */}
         <div className="p-4 space-y-2">
           <p className="text-xs text-center text-amber-300/80 font-medium mb-1" data-testid="viral-nudge">
             This video can go viral — share it now
           </p>
           <button
-            onClick={() => { onShareWhatsApp(job); }}
+            onClick={() => onShareWhatsApp(job)}
             className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-500 transition-colors"
             style={{ animation: 'pulseShare 2.5s infinite' }}
             data-testid="completion-prompt-whatsapp"
           >
-            <Share2 className="w-5 h-5" />
-            Share with Friends
+            <Share2 className="w-5 h-5" /> Share with Friends
           </button>
           <div className="flex gap-2">
-            <button
-              onClick={() => { onDownload(job); onClose(); }}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/10 text-white text-sm hover:bg-white/15 transition-colors"
-              data-testid="completion-prompt-download"
-            >
-              <Download className="w-4 h-4" />
-              Download
+            <button onClick={() => { onDownload(job); onClose(); }} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/10 text-white text-sm hover:bg-white/15 transition-colors" data-testid="completion-prompt-download">
+              <Download className="w-4 h-4" /> Download
             </button>
-            <button
-              onClick={() => { onCreateAnother(); onClose(); }}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/10 text-zinc-300 text-sm hover:bg-white/15 hover:text-white transition-colors"
-              data-testid="completion-prompt-create-another"
-            >
-              <Plus className="w-4 h-4" />
-              Create Another
+            <button onClick={() => { onCreateAnother(); onClose(); }} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/10 text-zinc-300 text-sm hover:bg-white/15 hover:text-white transition-colors" data-testid="completion-prompt-create-another">
+              <Plus className="w-4 h-4" /> Create Another
             </button>
           </div>
         </div>
@@ -435,54 +641,30 @@ export default function MySpacePage() {
         return db_ - da;
       });
 
-      // ── Detect newly completed jobs ──────────────────────────────────
+      // ── Detect newly completed jobs ──
       const newlyCompleted = [];
       for (const item of allItems) {
         const prevStatus = prevStatusMap.current[item.job_id];
-        const curStatus = item.status;
-        if (prevStatus && prevStatus !== 'COMPLETED' && curStatus === 'COMPLETED') {
+        if (prevStatus && prevStatus !== 'COMPLETED' && item.status === 'COMPLETED') {
           newlyCompleted.push(item);
         }
       }
 
-      // Update previous status map
       const newMap = {};
-      for (const item of allItems) {
-        newMap[item.job_id] = item.status;
-      }
+      for (const item of allItems) { newMap[item.job_id] = item.status; }
       prevStatusMap.current = newMap;
 
-      // Handle newly completed jobs
       for (const item of newlyCompleted) {
-        // Toast notification
-        toast.success(
-          `Your video "${item.title}" is ready!`,
-          { duration: 8000, id: `complete-${item.job_id}` }
-        );
-
-        // Browser notification
-        fireBrowserNotification(
-          'Your video is ready!',
-          `"${item.title}" has finished rendering. Watch it now.`
-        );
-
-        // Mark as just completed (green glow)
+        toast.success(`Your video "${item.title}" is ready!`, { duration: 8000, id: `complete-${item.job_id}` });
+        fireBrowserNotification('Your video is ready!', `"${item.title}" has finished rendering. Watch it now.`);
         setJustCompletedIds(prev => new Set([...prev, item.job_id]));
         setTimeout(() => {
-          setJustCompletedIds(prev => {
-            const next = new Set(prev);
-            next.delete(item.job_id);
-            return next;
-          });
+          setJustCompletedIds(prev => { const next = new Set(prev); next.delete(item.job_id); return next; });
         }, 30000);
-
-        // Auto-download if preference is on
         if (autoDownload && item.output_url) {
           triggerDownload(item);
           toast.info(`Auto-downloading "${item.title}"`, { duration: 3000 });
         }
-
-        // Show completion prompt (only once per job)
         if (!promptedJobIds.current.has(item.job_id)) {
           promptedJobIds.current.add(item.job_id);
           setCompletionPromptJob(item);
@@ -502,30 +684,20 @@ export default function MySpacePage() {
     requestNotificationPermission();
   }, [fetchJobs]);
 
-  // Auto-poll for in-progress items
   useEffect(() => {
-    const hasInProgress = jobs.some(j =>
-      !['COMPLETED', 'FAILED', 'ARCHIVED', 'ORPHANED', 'PARTIAL'].includes(j.status)
-    );
-
+    const hasInProgress = jobs.some(j => !['COMPLETED', 'FAILED', 'ARCHIVED', 'ORPHANED', 'PARTIAL'].includes(j.status));
     if (hasInProgress) {
       pollRef.current = setInterval(fetchJobs, 4000);
     } else if (pollRef.current) {
       clearInterval(pollRef.current);
       pollRef.current = null;
     }
-
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [jobs, fetchJobs]);
 
-  // Auto-scroll to highlighted project
   useEffect(() => {
     if (highlightId && highlightRef.current) {
-      setTimeout(() => {
-        highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 300);
+      setTimeout(() => { highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300);
     }
   }, [highlightId, jobs]);
 
@@ -533,7 +705,17 @@ export default function MySpacePage() {
     window.location.href = `/app/story-video-studio?projectId=${job.job_id}`;
   };
 
-  const handleShareWhatsApp = async (job) => {
+  const handleNavigate = (job, mode) => {
+    if (mode === 'remix') {
+      navigate('/app/story-video-studio', { state: { prompt: '', remixFrom: { title: job.title, job_id: job.job_id } } });
+    } else if (mode === 'edit') {
+      navigate(`/app/story-video-studio?projectId=${job.job_id}`);
+    } else {
+      navigate(`/app/story-video-studio?projectId=${job.job_id}`);
+    }
+  };
+
+  const handleShare = async (job) => {
     try {
       const res = await api.post(`/api/story-engine/share-link/${job.job_id}`);
       if (res.data?.whatsapp_url) {
@@ -541,16 +723,23 @@ export default function MySpacePage() {
       }
     } catch {
       const shareUrl = `${window.location.origin}/share/${job.job_id}`;
-      const text = encodeURIComponent(
-        `Check out my AI video: ${job.title}\n\n${shareUrl}\n\nMade with Visionary Suite`
-      );
+      const text = encodeURIComponent(`Check out my AI video: ${job.title}\n\n${shareUrl}\n\nMade with Visionary Suite`);
       window.open(`https://wa.me/?text=${text}`, '_blank');
     }
   };
 
-  const handleCreateAnother = () => {
-    navigate('/app/story-video-studio');
+  const handleDelete = async (job) => {
+    if (!window.confirm(`Delete "${job.title}"? This cannot be undone.`)) return;
+    try {
+      await api.delete(`/api/story-engine/jobs/${job.job_id}`);
+      toast.success('Project deleted');
+      fetchJobs();
+    } catch {
+      toast.error('Failed to delete project');
+    }
   };
+
+  const handleCreateAnother = () => { navigate('/app/story-video-studio'); };
 
   const toggleSection = (section) => {
     setCollapsedSections(prev => ({ ...prev, [section]: !prev[section] }));
@@ -570,16 +759,14 @@ export default function MySpacePage() {
       if (Notification.permission === 'granted') {
         setNotificationsEnabled(prev => !prev);
       } else if (Notification.permission === 'default') {
-        Notification.requestPermission().then(perm => {
-          setNotificationsEnabled(perm === 'granted');
-        });
+        Notification.requestPermission().then(perm => setNotificationsEnabled(perm === 'granted'));
       } else {
         toast.error('Notifications are blocked. Enable them in browser settings.');
       }
     }
   };
 
-  // Categorize jobs
+  // Categorize
   const inProgress = jobs.filter(j => ['QUEUED', 'PROCESSING'].includes(j.status));
   const completed = jobs.filter(j => ['COMPLETED', 'PARTIAL'].includes(j.status));
   const failed = jobs.filter(j => ['FAILED'].includes(j.status));
@@ -594,16 +781,19 @@ export default function MySpacePage() {
 
   if (jobs.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-4" data-testid="myspace-empty">
-        <Film className="w-12 h-12 text-zinc-700" />
-        <p className="text-zinc-500 text-sm">No projects yet</p>
-        <a
-          href="/app/story-video-studio"
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm rounded-lg transition-colors"
-          data-testid="create-first-video-btn"
-        >
-          Create your first video
-        </a>
+      <div className="max-w-4xl mx-auto px-4 py-6 space-y-6" data-testid="myspace-empty">
+        <div className="flex flex-col items-center justify-center h-64 gap-4">
+          <Film className="w-12 h-12 text-zinc-700" />
+          <p className="text-zinc-500 text-sm">No projects yet</p>
+          <a
+            href="/app/story-video-studio"
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm rounded-lg transition-colors"
+            data-testid="create-first-video-btn"
+          >
+            Create your first video
+          </a>
+        </div>
+        <HowThisWorks />
       </div>
     );
   }
@@ -615,33 +805,22 @@ export default function MySpacePage() {
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold text-white">My Space</h1>
           <div className="flex items-center gap-1">
-            {/* Auto-download toggle */}
             <button
               onClick={toggleAutoDownload}
-              className={`p-2 rounded-lg transition-colors ${
-                autoDownload
-                  ? 'bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30'
-                  : 'hover:bg-white/5 text-zinc-500 hover:text-white'
-              }`}
+              className={`p-2 rounded-lg transition-colors ${autoDownload ? 'bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30' : 'hover:bg-white/5 text-zinc-500 hover:text-white'}`}
               data-testid="toggle-auto-download-btn"
               title={autoDownload ? 'Auto-download on' : 'Auto-download off'}
             >
               <Download className="w-4 h-4" />
             </button>
-            {/* Notification toggle */}
             <button
               onClick={toggleNotifications}
-              className={`p-2 rounded-lg transition-colors ${
-                notificationsEnabled
-                  ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30'
-                  : 'hover:bg-white/5 text-zinc-500 hover:text-white'
-              }`}
+              className={`p-2 rounded-lg transition-colors ${notificationsEnabled ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30' : 'hover:bg-white/5 text-zinc-500 hover:text-white'}`}
               data-testid="toggle-notifications-btn"
               title={notificationsEnabled ? 'Notifications on' : 'Notifications off'}
             >
               {notificationsEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
             </button>
-            {/* Refresh */}
             <button
               onClick={fetchJobs}
               className="p-2 rounded-lg hover:bg-white/5 text-zinc-500 hover:text-white transition-colors"
@@ -667,7 +846,14 @@ export default function MySpacePage() {
               <div className="space-y-3 mt-2">
                 {inProgress.map(job => (
                   <div key={job.job_id} ref={job.job_id === highlightId ? highlightRef : null}>
-                    <InProgressCard job={job} highlighted={job.job_id === highlightId} />
+                    <ProjectCard
+                      job={job}
+                      highlighted={job.job_id === highlightId}
+                      onShare={handleShare}
+                      onRetry={handleRetry}
+                      onDelete={handleDelete}
+                      onNavigate={handleNavigate}
+                    />
                   </div>
                 ))}
               </div>
@@ -680,20 +866,23 @@ export default function MySpacePage() {
           <SectionHeader
             title="Completed"
             count={completed.length}
-            icon={Play}
+            icon={CheckCircle}
             color="#34d399"
             collapsed={collapsedSections.completed}
             onToggle={() => toggleSection('completed')}
           />
           {!collapsedSections.completed && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
+            <div className="space-y-3 mt-2">
               {completed.map(job => (
                 <div key={job.job_id} ref={job.job_id === highlightId ? highlightRef : null}>
-                  <CompletedCard
+                  <ProjectCard
                     job={job}
                     highlighted={job.job_id === highlightId}
                     justCompleted={justCompletedIds.has(job.job_id)}
-                    onShareWhatsApp={handleShareWhatsApp}
+                    onShare={handleShare}
+                    onRetry={handleRetry}
+                    onDelete={handleDelete}
+                    onNavigate={handleNavigate}
                   />
                 </div>
               ))}
@@ -704,7 +893,7 @@ export default function MySpacePage() {
           )}
         </section>
 
-        {/* Create Another — Retention Loop */}
+        {/* Create Another */}
         <section className="border border-white/[0.06] rounded-xl p-4 bg-white/[0.02]" data-testid="create-another-section">
           <h3 className="text-sm font-semibold text-zinc-300 mb-3">Create another video</h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -731,7 +920,7 @@ export default function MySpacePage() {
         {failed.length > 0 && (
           <section>
             <SectionHeader
-              title="Failed"
+              title="Needs Attention"
               count={failed.length}
               icon={AlertTriangle}
               color="#f87171"
@@ -742,13 +931,23 @@ export default function MySpacePage() {
               <div className="space-y-3 mt-2">
                 {failed.map(job => (
                   <div key={job.job_id} ref={job.job_id === highlightId ? highlightRef : null}>
-                    <FailedCard job={job} onRetry={handleRetry} />
+                    <ProjectCard
+                      job={job}
+                      highlighted={job.job_id === highlightId}
+                      onShare={handleShare}
+                      onRetry={handleRetry}
+                      onDelete={handleDelete}
+                      onNavigate={handleNavigate}
+                    />
                   </div>
                 ))}
               </div>
             )}
           </section>
         )}
+
+        {/* How This Works */}
+        <HowThisWorks />
       </div>
 
       {/* Completion Prompt Modal */}
@@ -757,7 +956,7 @@ export default function MySpacePage() {
           job={completionPromptJob}
           onClose={() => setCompletionPromptJob(null)}
           onDownload={triggerDownload}
-          onShareWhatsApp={handleShareWhatsApp}
+          onShareWhatsApp={handleShare}
           onCreateAnother={handleCreateAnother}
         />
       )}
