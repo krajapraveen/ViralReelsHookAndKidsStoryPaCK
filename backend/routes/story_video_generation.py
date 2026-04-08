@@ -2126,6 +2126,83 @@ async def get_active_jobs(current_user: dict = Depends(get_current_user)):
 
 
 # =============================================================================
+# TIME ESTIMATE ENDPOINT — rolling averages for fuzzy UI estimates
+# =============================================================================
+
+@router.get("/time-estimates")
+async def get_time_estimates():
+    """Return rolling average durations per generation stage (last 50 completed jobs).
+    Used by the frontend to show fuzzy time estimates like 'About 1-2 minutes left'."""
+
+    # Aggregate average duration from completed render jobs
+    render_avg = await db.render_jobs.aggregate([
+        {"$match": {"status": "COMPLETED", "duration_ms": {"$exists": True, "$gt": 0}}},
+        {"$sort": {"completed_at": -1}},
+        {"$limit": 50},
+        {"$group": {"_id": None, "avg_ms": {"$avg": "$duration_ms"}, "count": {"$sum": 1}}}
+    ]).to_list(1)
+
+    # Aggregate from generation jobs (images, voices) by type
+    gen_avg = await db.generation_jobs.aggregate([
+        {"$match": {"status": "COMPLETED", "duration_ms": {"$exists": True, "$gt": 0}}},
+        {"$sort": {"completed_at": -1}},
+        {"$limit": 100},
+        {"$group": {"_id": "$job_type", "avg_ms": {"$avg": "$duration_ms"}, "count": {"$sum": 1}}}
+    ]).to_list(10)
+
+    # Aggregate from legacy pipeline_jobs
+    pipeline_avg = await db.pipeline_jobs.aggregate([
+        {"$match": {"status": "COMPLETED", "timing.total_duration_seconds": {"$exists": True, "$gt": 0}}},
+        {"$sort": {"completed_at": -1}},
+        {"$limit": 50},
+        {"$group": {"_id": None, "avg_sec": {"$avg": "$timing.total_duration_seconds"}, "count": {"$sum": 1}}}
+    ]).to_list(1)
+
+    # Build stage estimates (in seconds)
+    estimates = {
+        "planning": 30,       # default fallback
+        "scene_generation": 45,
+        "image_generation": 90,
+        "voice_generation": 30,
+        "video_assembly": 300,
+        "total": 300,
+    }
+
+    # Override with real data where available
+    for g in gen_avg:
+        job_type = g["_id"]
+        avg_sec = round(g["avg_ms"] / 1000) if g["avg_ms"] else None
+        if avg_sec and job_type:
+            if "image" in str(job_type).lower():
+                estimates["image_generation"] = avg_sec
+            elif "voice" in str(job_type).lower():
+                estimates["voice_generation"] = avg_sec
+
+    if render_avg and render_avg[0].get("avg_ms"):
+        estimates["video_assembly"] = round(render_avg[0]["avg_ms"] / 1000)
+
+    if pipeline_avg and pipeline_avg[0].get("avg_sec"):
+        estimates["total"] = round(pipeline_avg[0]["avg_sec"])
+
+    # Calculate total from parts
+    estimates["total"] = max(
+        estimates["total"],
+        estimates["planning"] + estimates["image_generation"] + estimates["voice_generation"] + estimates["video_assembly"]
+    )
+
+    return {
+        "success": True,
+        "estimates": estimates,
+        "sample_sizes": {
+            "render_jobs": render_avg[0]["count"] if render_avg else 0,
+            "generation_jobs": sum(g["count"] for g in gen_avg),
+            "pipeline_jobs": pipeline_avg[0]["count"] if pipeline_avg else 0,
+        }
+    }
+
+
+
+# =============================================================================
 # STORAGE STATUS ENDPOINT
 # =============================================================================
 
