@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import RemixGallery from '../components/RemixGallery';
 
 // ─── STATUS COPY (EXACT PRODUCTION SPEC) ──────────────────────────────────────
 const STATUS_COPY = {
@@ -622,6 +623,10 @@ function CompletionPromptModal({ job, onClose, onDownload, onShareWhatsApp, onCr
               <Plus className="w-4 h-4" /> Create Another
             </button>
           </div>
+          {/* Remix Gallery in completion modal */}
+          <div className="pt-2 border-t border-white/[0.06] mt-2">
+            <RemixGallery placement="completion" limit={3} />
+          </div>
         </div>
       </div>
     </div>
@@ -845,6 +850,9 @@ export default function MySpacePage() {
             <p className="text-zinc-600 text-xs py-4 text-center">No completed projects yet</p>
           )}
         </section>
+
+        {/* Remix Gallery — "People are remixing these" */}
+        <RemixGallery placement="myspace" limit={8} />
 
         {/* Create Another */}
         <section className="border border-white/[0.06] rounded-xl p-4 bg-white/[0.02]" data-testid="create-another-section">

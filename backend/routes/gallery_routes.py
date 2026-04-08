@@ -455,3 +455,84 @@ async def track_gallery_view(
         upsert=True,
     )
     return {"ok": True}
+
+
+@router.get("/remix-feed")
+async def get_remix_feed(limit: int = Query(8)):
+    """Return curated gallery items optimized for the 'Remix This' flow.
+    Sorted by remix_count DESC, filtered for quality (has thumbnail, has description)."""
+    items = await _get_merged_content(sort_field="remixes_count", limit=limit * 3)
+    
+    # Quality filter: must have thumbnail and non-empty description/story
+    curated = []
+    for item in items:
+        if not item.get("thumbnail_url"):
+            continue
+        if not (item.get("description") or item.get("story_text")):
+            continue
+        # Skip items with very short titles
+        if len(item.get("title", "")) < 3:
+            continue
+        curated.append({
+            "item_id": item.get("item_id", ""),
+            "title": item.get("title", ""),
+            "description": (item.get("description") or item.get("story_text", ""))[:120],
+            "thumbnail_url": item.get("thumbnail_url", ""),
+            "remixes_count": item.get("remixes_count", 0),
+            "views_count": item.get("views_count", 0),
+            "animation_style": item.get("animation_style", "cinematic"),
+            "category": item.get("category", ""),
+            "story_text": item.get("story_text", item.get("description", "")),
+            "is_seeded": item.get("is_seeded", False),
+        })
+        if len(curated) >= limit:
+            break
+    
+    return {"items": curated, "total": len(curated)}
+
+
+@router.post("/{item_id}/remix")
+async def remix_gallery_item(
+    item_id: str,
+    authorization: str = Header(None),
+):
+    """Start a remix from a gallery item. Increments remix count and returns pre-filled Studio data."""
+    user_id = _get_user_id_from_token(authorization)
+    
+    # Find the item in gallery_content or pipeline_jobs
+    item = await db.gallery_content.find_one({"item_id": item_id}, {"_id": 0})
+    source = "gallery"
+    if not item:
+        item = await db.pipeline_jobs.find_one({"job_id": item_id}, {"_id": 0})
+        source = "pipeline"
+    if not item:
+        return {"success": False, "error": "Item not found"}
+    
+    # Increment remix count
+    if source == "gallery":
+        await db.gallery_content.update_one({"item_id": item_id}, {"$inc": {"remixes_count": 1}})
+    else:
+        await db.pipeline_jobs.update_one({"job_id": item_id}, {"$inc": {"remix_count": 1}})
+    
+    # Log remix event
+    await db.remix_events.insert_one({
+        "user_id": user_id or "anonymous",
+        "source_item_id": item_id,
+        "source_title": item.get("title", ""),
+        "source_type": source,
+        "created_at": datetime.now(timezone.utc),
+    })
+    
+    return {
+        "success": True,
+        "prefill": {
+            "title": item.get("title", ""),
+            "description": (item.get("description") or item.get("story_text", ""))[:500],
+            "story_text": item.get("story_text", item.get("description", "")),
+            "animation_style": item.get("animation_style", "cartoon_2d"),
+            "category": item.get("category", ""),
+            "source_item_id": item_id,
+            "remixes_count": item.get("remixes_count", item.get("remix_count", 0)) + 1,
+        },
+    }
+

@@ -34,6 +34,7 @@ import ResultRetentionEngine from '../components/guide/ResultRetentionEngine';
 import StickyGenerateAgain from '../components/guide/StickyGenerateAgain';
 import ExitInterceptionModal from '../components/guide/ExitInterceptionModal';
 import ProtectedContent from '../components/ProtectedContent';
+import RemixGallery from '../components/RemixGallery';
 
 const AGE_GROUPS = [
   { id: 'kids_3_5', name: 'Kids 3-5', description: 'Simple stories, bright colors' },
@@ -1299,10 +1300,34 @@ export default function StoryVideoStudio() {
             />
           </div>
         )}
+
+        {/* "While you wait" Remix Gallery — shows during generation */}
+        {showWaitingExperience && loading && (
+          <div className="mb-8">
+            <RemixGallery placement="waiting" limit={4} />
+          </div>
+        )}
         
         {/* Step 1: Story Input */}
         {step === 1 && (
           <div className="space-y-8">
+            {/* Remix banner — shown when coming from Remix Gallery */}
+            {remixSource?.source === 'remix_gallery' && (
+              <div className="bg-gradient-to-r from-orange-500/10 to-amber-500/10 border border-orange-500/30 rounded-xl p-4 flex items-center gap-3" data-testid="remix-banner">
+                <div className="w-10 h-10 rounded-lg bg-orange-500/20 flex items-center justify-center flex-shrink-0">
+                  <RefreshCw className="w-5 h-5 text-orange-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-white">You're remixing a trending story</p>
+                  <p className="text-xs text-orange-300/70 truncate">
+                    Original: "{remixSource.title}"
+                    {remixSource.remixes_count > 0 && ` \u2022 ${remixSource.remixes_count} remixes`}
+                  </p>
+                </div>
+                <span className="text-[10px] px-2 py-1 rounded-full bg-orange-500/15 text-orange-300 font-semibold flex-shrink-0">Trending</span>
+              </div>
+            )}
+
             {/* Pricing Info */}
             {pricing && (
               <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-xl p-6">
