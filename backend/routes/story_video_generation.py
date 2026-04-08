@@ -2096,6 +2096,37 @@ async def get_video_player_data(project_id: str):
 
 
 # =============================================================================
+# ACTIVE JOBS ENDPOINT — for refresh-safe resume
+# =============================================================================
+
+@router.get("/active-jobs")
+async def get_active_jobs(current_user: dict = Depends(get_current_user)):
+    """Get all active/pending generation and render jobs for the current user.
+    Used on page load to resume progress UI after refresh/navigation."""
+    
+    user_id = current_user.get("id") or str(current_user.get("_id"))
+    
+    # Get active generation jobs (images, voices)
+    gen_jobs = await db.generation_jobs.find(
+        {"user_id": user_id, "status": {"$in": ["PENDING", "PROCESSING"]}},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(length=10)
+    
+    # Get active render jobs (video assembly)
+    render_jobs_list = await db.render_jobs.find(
+        {"user_id": user_id, "status": {"$in": ["PENDING", "PROCESSING"]}},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(length=10)
+    
+    return {
+        "success": True,
+        "generation_jobs": gen_jobs,
+        "render_jobs": render_jobs_list,
+        "total_active": len(gen_jobs) + len(render_jobs_list),
+    }
+
+
+# =============================================================================
 # STORAGE STATUS ENDPOINT
 # =============================================================================
 

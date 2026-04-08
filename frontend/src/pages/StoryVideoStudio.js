@@ -287,6 +287,40 @@ export default function StoryVideoStudio() {
     fetchMusicLibrary();
     fetchTemplates();
     analytics.trackFunnelStep('story_video_studio_view');
+    
+    // Refresh-safe resume: check for active jobs and restore progress UI
+    const resumeActiveJobs = async () => {
+      try {
+        const res = await api.get('/api/story-video-studio/generation/active-jobs');
+        if (res.data.success && res.data.total_active > 0) {
+          // Resume render job polling if active
+          const activeRender = res.data.render_jobs?.[0];
+          if (activeRender) {
+            setRenderJob(activeRender);
+            setGenerationStage('video_assembly');
+            setGenerationProgress(activeRender.progress || 0);
+            setShowWaitingExperience(true);
+            setLoading(true);
+            pollRenderStatus(activeRender.job_id);
+            toast.info('Resuming your video generation...', { duration: 4000 });
+            return;
+          }
+          // Resume generation job polling if active (images or voices)
+          const activeGen = res.data.generation_jobs?.[0];
+          if (activeGen) {
+            const stage = activeGen.job_type === 'voice_generation' ? 'voices' : 'images';
+            setGenerationStage(stage);
+            setGenerationProgress(activeGen.progress || 0);
+            setShowWaitingExperience(true);
+            setLoading(true);
+            if (stage === 'images') pollImageGenerationStatus(activeGen.job_id);
+            else pollVoiceGenerationStatus(activeGen.job_id);
+            toast.info('Resuming your content generation...', { duration: 4000 });
+          }
+        }
+      } catch {} // Silent fail — don't block page load
+    };
+    resumeActiveJobs();
   }, []);
   
   // Handle remix/variation navigation state (separate effect for clarity)
