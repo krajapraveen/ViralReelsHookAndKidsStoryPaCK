@@ -5,6 +5,7 @@ No auth required. Rate-limited by IP. Text-only for speed.
 
 import logging
 import os
+import re
 import time
 import hashlib
 from datetime import datetime, timezone, timedelta
@@ -123,7 +124,7 @@ async def quick_generate(request: Request, body: QuickGenerateRequest):
                 story_text = parts[1].strip()
         
         # Clean markdown from title
-        title = title.replace("**", "").replace("*", "").replace("#", "").strip()
+        title = re.sub(r'[*#_`~]+', '', title).strip().strip('"').strip("'").strip()
 
         snippet = story_text[:200] + "..." if len(story_text) > 200 else story_text
 

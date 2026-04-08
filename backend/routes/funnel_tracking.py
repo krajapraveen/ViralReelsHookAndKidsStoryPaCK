@@ -18,6 +18,17 @@ router = APIRouter(prefix="/funnel", tags=["Funnel Tracking"])
 FUNNEL_STEPS = [
     "landing_view",
     "first_action_click",
+    # Instant Demo Experience events
+    "demo_viewed",
+    "story_generation_started",
+    "story_generated_success",
+    "story_generated_failed",
+    "story_generation_timeout",
+    "cta_continue_clicked",
+    "cta_video_clicked",
+    "cta_share_clicked",
+    "login_prompt_shown",
+    # Original funnel steps
     "generation_started",
     "generation_completed",
     "result_viewed",
