@@ -166,6 +166,7 @@ import CharacterLibrary from './pages/CharacterLibrary';
 import CharacterDetail from './pages/CharacterDetail';
 import PublicCharacterPage from './pages/PublicCharacterPage';
 import { ContentProtectionWrapper } from './components/ContentProtectionWrapper';
+import GlobalUserBar from './components/GlobalUserBar';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { FeedbackProvider } from './contexts/FeedbackContext';
 import './App.css';
@@ -246,6 +247,8 @@ function App() {
         } catch {}
         return <JourneyProgressBar />;
       })()}
+      {/* Global User Bar — profile + credits, visible on ALL authenticated pages */}
+      {isAuthenticated && <GlobalUserBar />}
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/pricing" element={<Pricing />} />
