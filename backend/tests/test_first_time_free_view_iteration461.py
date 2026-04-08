@@ -17,7 +17,7 @@ import uuid
 import hashlib
 from datetime import datetime
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://trust-engine-5.preview.emergentagent.com').rstrip('/')
 
 class TestFirstTimeFreeViewBackend:
     """Backend API tests for first-time free viewing feature"""
