@@ -88,6 +88,7 @@ export default function InstantStoryExperience() {
   const [paywallViewCount, setPaywallViewCount] = useState(() =>
     parseInt(sessionStorage.getItem('pw_view_count') || '0', 10)
   );
+  const [allowFreeView, setAllowFreeView] = useState(false);
   const continueEndRef = useRef(null);
   const teaserDismissedRef = useRef(false);
 
@@ -155,7 +156,8 @@ export default function InstantStoryExperience() {
       if (res.ok) {
         const data = await res.json();
         setRealStory(data);
-        try { trackFunnel('story_generated_success', { source, meta: { story_id: data.story_id } }); } catch {}
+        if (data.allow_free_view) setAllowFreeView(true);
+        try { trackFunnel('story_generated_success', { source, meta: { story_id: data.story_id, allow_free_view: data.allow_free_view } }); } catch {}
       } else {
         setGenFailed(true);
         try { trackFunnel('story_generated_failed', { source }); } catch {}
@@ -241,20 +243,24 @@ export default function InstantStoryExperience() {
   const handleContinueStory = useCallback(() => {
     const nextPart = partNumber + 1;
 
-    try { trackFunnel('continue_clicked', { meta: { part_number: nextPart, story_id: activeStory?.story_id, entry_source: source } }); } catch {}
+    try { trackFunnel('continue_clicked', { meta: { part_number: nextPart, story_id: activeStory?.story_id, entry_source: source, allow_free_view: allowFreeView } }); } catch {}
 
     if (partNumber === 1) {
       // Part 1 → generate Part 2 (no gate)
       generateContinuation(2);
+    } else if (partNumber === 2 && allowFreeView) {
+      // First-time user: allow Part 3 without hard paywall
+      generateContinuation(3);
+      try { trackFunnel('first_time_free_view_used', { meta: { part_number: 3, story_id: activeStory?.story_id, entry_source: source } }); } catch {}
     } else if (partNumber >= 2) {
-      // Part 2+ → hard paywall
+      // Returning user or Part 4+: hard paywall
       const newCount = paywallViewCount + 1;
       setPaywallViewCount(newCount);
       sessionStorage.setItem('pw_view_count', String(newCount));
       setShowPaywall(true);
       try { trackFunnel('paywall_shown', { meta: { part_number: nextPart, story_id: activeStory?.story_id, view_count: newCount, entry_source: source } }); } catch {}
     }
-  }, [partNumber, generateContinuation, activeStory?.story_id, source, paywallViewCount]);
+  }, [partNumber, generateContinuation, activeStory?.story_id, source, paywallViewCount, allowFreeView]);
 
   // ─── Other Handlers ────────────────────────────────────────────
   const handleVideo = () => {
@@ -406,6 +412,38 @@ export default function InstantStoryExperience() {
               </div>
             </div>
           ))}
+
+          {/* ── Soft Upgrade CTA (first-time users after Part 3) ─── */}
+          {allowFreeView && continuations.length >= 2 && !isGeneratingPart && (
+            <div className="mt-8 p-5 rounded-xl bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-indigo-500/20 ist-part-appear" data-testid="soft-upgrade-cta">
+              <p className="text-white font-semibold text-sm mb-1">Upgrade to download, create more, and unlock premium quality</p>
+              <p className="text-slate-400 text-xs mb-4">You've experienced the full story — unlock premium features to do even more.</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    try { trackFunnel('soft_upgrade_clicked', { meta: { part_number: partNumber, story_id: activeStory?.story_id } }); } catch {}
+                    const token = localStorage.getItem('token');
+                    if (token) navigate('/app/pricing');
+                    else navigate('/login?from=experience');
+                  }}
+                  className="flex-1 py-3 px-4 rounded-xl font-semibold text-white text-sm flex items-center justify-center gap-2 ist-cta-primary"
+                  data-testid="soft-upgrade-btn"
+                >
+                  <Zap className="w-4 h-4" />
+                  Upgrade Now
+                </button>
+                <button
+                  onClick={() => {
+                    try { trackFunnel('soft_upgrade_dismissed', { meta: { part_number: partNumber } }); } catch {}
+                  }}
+                  className="flex-1 py-3 px-4 rounded-xl font-medium text-slate-400 text-sm flex items-center justify-center gap-2 border border-white/10 hover:bg-white/5 transition-all"
+                  data-testid="soft-continue-exploring-btn"
+                >
+                  Continue exploring for free
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* ── Continuation Loading ─────────────────────────── */}
           {isGeneratingPart && (

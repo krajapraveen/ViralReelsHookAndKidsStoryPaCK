@@ -97,7 +97,15 @@ async def quick_generate(request: Request, body: QuickGenerateRequest):
             "She opened her mouth to speak. But the words that came out weren't her own..."
         )
         # Skip DB writes in mock for max throughput
-        return {"story_id": story_id, "title": mock_title, "story_text": mock_text, "status": "success"}
+        return {"story_id": story_id, "title": mock_title, "story_text": mock_text, "status": "success", "allow_free_view": True}
+
+    # First-time free viewing check: has this IP generated stories in a DIFFERENT session before?
+    ip_hash_check = hashlib.sha256(ip.encode()).hexdigest()[:16]
+    prev_session_count = await db.instant_stories.count_documents({
+        "ip_hash": ip_hash_check,
+        "session_id": {"$ne": body.session_id or "anon"},
+    })
+    allow_free_view = prev_session_count == 0
 
     if not EMERGENT_KEY:
         raise HTTPException(status_code=503, detail="Generation service temporarily unavailable.")
@@ -174,6 +182,7 @@ async def quick_generate(request: Request, body: QuickGenerateRequest):
             "story_text": story_text,
             "snippet": snippet,
             "status": "success",
+            "allow_free_view": allow_free_view,
         }
 
     except Exception as e:

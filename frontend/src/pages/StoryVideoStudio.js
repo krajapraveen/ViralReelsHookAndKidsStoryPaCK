@@ -937,7 +937,7 @@ export default function StoryVideoStudio() {
         if (res.data.queue_priority) {
           setQueuePriority(res.data.queue_priority);
         }
-        toast.success('Video rendering started!');
+        toast.info('Your story video is being created. This usually takes at least 5 minutes. While it\'s processing, feel free to explore other features.', { duration: 10000 });
         // Start polling for status
         pollRenderStatus(res.data.job_id);
       }
@@ -1160,7 +1160,7 @@ export default function StoryVideoStudio() {
                 generationStage === 'image_generation' ? 'Generating images...' :
                 generationStage === 'voice_generation' ? 'Creating voice tracks...' :
                 generationStage === 'video_assembly' ? (
-                  generationProgress < 20 ? 'Preparing video assets...' :
+                  generationProgress < 20 ? 'Preparing video assets... This usually takes at least 5 minutes.' :
                   generationProgress < 40 ? 'Downloading assets from cloud...' :
                   generationProgress < 60 ? 'Encoding video segments...' :
                   generationProgress < 80 ? 'Concatenating video...' :
@@ -1211,7 +1211,7 @@ export default function StoryVideoStudio() {
                 generationStage === 'scene_generation' ? '30-60 seconds' :
                 generationStage === 'image_generation' ? '1-2 minutes' :
                 generationStage === 'voice_generation' ? '30 seconds' :
-                generationStage === 'video_assembly' ? '15-30 seconds' :
+                generationStage === 'video_assembly' ? 'at least 5 minutes' :
                 null
               }
               onNotifyMe={renderJob?.job_id ? async () => {

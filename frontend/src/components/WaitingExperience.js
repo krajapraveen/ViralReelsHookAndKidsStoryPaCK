@@ -279,6 +279,23 @@ export default function WaitingExperience({
         )}
       </div>
 
+      {/* Video Processing Info Banner — consistent 5-min messaging */}
+      {(stage === 'video_assembly' || stage === 'video_rendering') && (
+        <div className="mb-6 p-4 bg-blue-500/10 rounded-lg border border-blue-500/20" data-testid="video-wait-info">
+          <div className="flex items-start gap-3">
+            <Clock className="w-5 h-5 text-blue-400 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-white text-sm font-medium">
+                Your story video is being created. This usually takes at least 5 minutes. While it's processing, feel free to explore other features.
+              </p>
+              <p className="text-blue-400/60 text-xs mt-2">
+                Your video is safely processing in the background — you can leave this page.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Try Other Features / Notify Me */}
       {(onTryOtherFeature || onNotifyMe) && (
         <div className="mb-6 p-4 bg-purple-500/20 rounded-lg border border-purple-500/30">
