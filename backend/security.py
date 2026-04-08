@@ -2,6 +2,7 @@
 Security Module for CreatorStudio AI
 Implements comprehensive security measures against common vulnerabilities
 """
+import os
 import re
 import html
 import hashlib

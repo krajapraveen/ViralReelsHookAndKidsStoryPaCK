@@ -7,6 +7,8 @@ import logging
 import os
 import re
 import time
+import random
+import asyncio
 import hashlib
 from datetime import datetime, timezone, timedelta
 from typing import Optional
@@ -20,9 +22,14 @@ logger = logging.getLogger("instant_story")
 router = APIRouter(prefix="/public", tags=["instant-story"])
 
 EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+# LOAD_TEST_MODE: "mock" = mock LLM + skip ratelimit, "real" = real LLM + skip ratelimit, "" = production
+LOAD_TEST_MODE = os.environ.get("LOAD_TEST_MODE", "").lower()
 
 RATE_LIMIT_WINDOW = 3600
 RATE_LIMIT_MAX = 5
+
+# Concurrency limiter — prevents event loop saturation from too many concurrent LLM calls
+LLM_SEMAPHORE = asyncio.Semaphore(10)
 
 
 class QuickGenerateRequest(BaseModel):
@@ -72,13 +79,28 @@ async def quick_generate(request: Request, body: QuickGenerateRequest):
     """Generate a short text story instantly. No auth required."""
     ip = _get_client_ip(request)
 
-    if not await _check_rate_limit(ip):
+    if LOAD_TEST_MODE not in ("mock", "real") and not await _check_rate_limit(ip):
         raise HTTPException(status_code=429, detail="Too many requests. Please try again later.")
+
+    # Mock mode for load testing — returns instant response without LLM call
+    if LOAD_TEST_MODE == "mock":
+        await asyncio.sleep(random.uniform(0.05, 0.2))  # Simulate minimal processing
+        story_id = hashlib.sha256(f"{time.time()}{random.random()}".encode()).hexdigest()[:12]
+        mock_title = random.choice(["The Midnight Portal", "Shadows in the Deep", "The Last Signal", "Echoes of Tomorrow", "The Forgotten Key"])
+        mock_text = (
+            "The air crackled with electricity as she stepped through the threshold. "
+            "Everything she knew — her home, her family, the world itself — shattered like glass behind her.\n\n"
+            "Ahead lay a corridor of pure light, stretching into infinity. And at the end, "
+            "a figure waited. Not standing. Not sitting. Floating.\n\n"
+            "\"We've been expecting you,\" the figure said, its voice resonating in frequencies "
+            "that made her teeth ache. \"For three thousand years.\"\n\n"
+            "She opened her mouth to speak. But the words that came out weren't her own..."
+        )
+        # Skip DB writes in mock for max throughput
+        return {"story_id": story_id, "title": mock_title, "story_text": mock_text, "status": "success"}
 
     if not EMERGENT_KEY:
         raise HTTPException(status_code=503, detail="Generation service temporarily unavailable.")
-
-    import random
 
     if body.mode == "continue" and body.source_snippet:
         prompt = (
@@ -99,15 +121,17 @@ async def quick_generate(request: Request, body: QuickGenerateRequest):
         )
 
     try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        # Use semaphore to limit concurrent LLM calls — prevents event loop saturation
+        async with LLM_SEMAPHORE:
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
 
-        chat = LlmChat(
-            api_key=EMERGENT_KEY,
-            session_id=f"instant_{body.session_id or 'anon'}",
-            system_message="You are a master storyteller. Write vivid, cinematic stories that hook readers instantly.",
-        )
-        chat = chat.with_model("openai", "gpt-4o-mini")
-        response = await chat.send_message(UserMessage(text=prompt))
+            chat = LlmChat(
+                api_key=EMERGENT_KEY,
+                session_id=f"instant_{body.session_id or 'anon'}",
+                system_message="You are a master storyteller. Write vivid, cinematic stories that hook readers instantly.",
+            )
+            chat = chat.with_model("openai", "gpt-4o-mini")
+            response = await chat.send_message(UserMessage(text=prompt))
 
         text = (response.text if hasattr(response, 'text') else str(response)).strip()
 

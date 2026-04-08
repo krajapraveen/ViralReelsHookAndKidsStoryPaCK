@@ -91,7 +91,14 @@ async def track_funnel_event(request: Request):
         "user_agent": ua[:200],
     }
 
-    await db.funnel_events.insert_one(event)
+    async def _bg_insert(e):
+        try:
+            await db.funnel_events.insert_one(e)
+        except Exception:
+            pass
+
+    import asyncio
+    asyncio.create_task(_bg_insert(event))
     return {"success": True, "session_id": session_id}
 
 

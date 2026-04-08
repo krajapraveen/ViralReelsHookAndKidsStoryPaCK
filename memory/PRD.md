@@ -8,87 +8,62 @@ Build a full-stack AI Creator Suite with compulsion-driven growth engine, moneti
 /app/
 ├── backend/
 │   ├── routes/
-│   │   ├── system_health_api.py             # System health + Load Guard + Alert endpoints
-│   │   ├── funnel_tracking.py               # Conversion funnel (all events including loop + paywall)
-│   │   ├── instant_story.py                 # Zero-friction public story generation endpoint
+│   │   ├── instant_story.py                 # Zero-friction story generation (mock mode for load testing)
+│   │   ├── funnel_tracking.py               # All funnel events (fire-and-forget writes)
+│   │   ├── system_health_api.py             # System health + Load Guard
 │   │   └── pricing_api.py                   # Dynamic pricing
 │   ├── services/
-│   │   ├── worker_queues.py                 # 8 queues, fairness, dead-letter
-│   │   ├── admission_controller.py          # Load Guard: trend-aware, queue-class, graded, hysteresis
-│   │   └── load_guard_alerts.py             # Alert engine: Slack + DB persistence + dedup
-│   └── server.py                            # Load Guard startup
+│   │   ├── admission_controller.py          # Load Guard
+│   │   └── load_guard_alerts.py             # Slack alerts
+│   └── security.py                          # Global rate limits (slowapi)
 ├── frontend/src/
 │   ├── pages/
-│   │   ├── InstantStoryExperience.jsx       # Zero-friction demo + continuation loop (P0 COMPLETE)
-│   │   ├── StoryPaywall.jsx                 # Full-screen paywall with exit offer + discount timer (P0 COMPLETE)
-│   │   ├── Dashboard.js                     # Admin top bar
-│   │   ├── Landing.js                       # CTAs wired to /experience
-│   │   ├── PublicCreation.js                # Continue CTAs wired to /experience
-│   │   └── AdminDashboard.js                # Full admin panel
-│   ├── components/
-│   │   └── guide/JourneyProgressBar.jsx     # Hidden for admin users
-│   └── App.js                               # Routes including /experience
+│   │   ├── InstantStoryExperience.jsx       # Demo + continuation loop + paywall
+│   │   ├── StoryPaywall.jsx                 # Full-screen paywall modal
+│   │   └── Landing.js                       # CTAs → /experience
+│   └── App.js                               # Routes
 └── load-tests/
-    └── mixed-workload.js                    # k6 mixed traffic
+    ├── phase1-real-llm.js                   # Real LLM (10→50 VUs)
+    ├── phase2-mock-infra.js                 # Mock infra stress (1K→10K VUs)
+    ├── phase3-spike.js                      # Spike (0→3K in 10s)
+    ├── run-all.sh                           # Test runner
+    └── results/LOAD_TEST_REPORT.md          # Full report
 ```
 
-## Instant Demo Experience (P0 - COMPLETE)
-- Demo story renders in <1s, real story replaces via smooth transition
-- Tracking: demo_viewed, story_generation_started, story_generated_success/failed/timeout
-
-## Continue Story Loop (P0 - COMPLETE)
-- After Part 1, "What happens next?" prompt shows with last cliffhanger sentence
-- Clicking "Continue Story" generates Part 2 via /api/public/quick-generate (no auth, no input)
-- Parts accumulate with "PART N" dividers, auto-scroll to new content
-- CTA dynamically updates ("Continue to Part 3", etc.)
-- After Part 2 renders → soft bottom-sheet teaser slides up (dismissible)
-- On Part 3 attempt → full hard paywall modal blocks
-
-## Smart Paywall (P0 - COMPLETE)
-- Full-screen modal with backdrop blur (story visible behind)
-- Cliffhanger hook at top ("Wait... it gets even better")
-- "Unlock the next chapter" headline + 3 benefits + social proof
-- Tiered pricing: ₹99/mo (MOST POPULAR, pre-selected, glowing), ₹29 one-time, ₹199 Pro
-- "Continue My Story" CTA with pulse animation
-- Exit intent → "Don't lose your story" with ₹29 fallback
-- Hesitation nudge after 5s → "Your story is waiting..."
-- 20% discount timer on 2nd+ paywall view
-- Tracking: paywall_shown, paywall_converted, exit_offer_shown, discount_offer_shown
-
-## Tracking Events (All Verified in DB)
-- Activation: demo_viewed, story_generation_started, story_generated_success
-- Engagement: continue_clicked, story_part_generated
-- Conversion: paywall_teaser_shown, paywall_shown, paywall_dismissed, paywall_converted
-- Recovery: exit_offer_shown, discount_offer_shown
-
 ## Completed Systems
-1. Conversion Funnel (11-step + micro-conversions + loop + paywall events)
+1. Conversion Funnel (all events)
 2. Smart Inline Paywall (dynamic pricing)
-3. Retention Engine (Remix, Streak, Sticky CTA, Exit Interception)
-4. Content Protection (deterrence + signed URLs + abuse detection)
-5. Production Scale Readiness (queues + observability + k6)
-6. Load Guard / Kill Switch (trend-aware, queue-class, graded, hysteresis)
-7. Load Guard Alert System (Slack + DB + dedup + recovery alerts)
-8. Admin Panel Visibility Fix
-9. Instant Demo Experience (zero-friction activation)
-10. **Continue Story Loop** (Part 2 generation + addiction loop)
-11. **Smart Paywall** (story hostage paywall with exit offer + discount)
+3. Retention Engine
+4. Content Protection
+5. Production Scale Readiness (queues + observability)
+6. Load Guard / Kill Switch + Slack Alerts
+7. **Instant Demo Experience** — zero-friction activation
+8. **Continue Story Loop** — Part 2 generation addiction loop
+9. **Smart Paywall** — story hostage paywall with exit offer + discount
+10. **Load Testing** — 3-phase (real LLM, mock infra, spike)
+
+## Load Test Results Summary
+- **Safe capacity (1 worker)**: 10-20 concurrent users
+- **Degradation starts**: 50+ concurrent users
+- **System never crashes** — graceful degradation
+- **Production recommendation**: Scale to 4-8 uvicorn workers = 200-800 concurrent users
+- Full report: `/app/load-tests/results/LOAD_TEST_REPORT.md`
 
 ## Backlog
-### P0
-- Execute production ramp tests (100->500->1K->3K->5K->10K)
+### P0 (Immediate for production)
+- Scale to 4+ uvicorn workers
+- Client-side tracking batching
 
 ### P1
 - Paywall conversion analytics dashboard
-- A/B test hook text on public pages
-- Paywall Trust Signals (social proof strip with real data)
-- "Viral Story" re-engagement hook
-- Comeback Notifications (streak reminders)
-- Explore Feed (TikTok-style infinite scroll)
+- A/B test hook text
+- Separate tracking microservice
+- CloudFlare CDN deployment
 
 ### P2
-- Soft Loss Aversion on paywall close
-- WebSocket admin dashboard upgrade
+- Explore Feed, Comeback Notifications
+- WebSocket admin dashboard
+- LLM request queue (Redis-backed)
 
 ## Test Credentials
 - Admin: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
