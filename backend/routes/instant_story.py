@@ -38,6 +38,7 @@ class QuickGenerateRequest(BaseModel):
     source_snippet: Optional[str] = Field(None, max_length=1000)
     mode: str = Field("fresh", pattern="^(fresh|continue)$")
     session_id: Optional[str] = Field(None, max_length=64)
+    device_token: Optional[str] = Field(None, max_length=128)
 
 
 THEMES = [
@@ -99,13 +100,49 @@ async def quick_generate(request: Request, body: QuickGenerateRequest):
         # Skip DB writes in mock for max throughput
         return {"story_id": story_id, "title": mock_title, "story_text": mock_text, "status": "success", "allow_free_view": True}
 
-    # First-time free viewing check: has this IP generated stories in a DIFFERENT session before?
-    ip_hash_check = hashlib.sha256(ip.encode()).hexdigest()[:16]
-    prev_session_count = await db.instant_stories.count_documents({
-        "ip_hash": ip_hash_check,
-        "session_id": {"$ne": body.session_id or "anon"},
-    })
-    allow_free_view = prev_session_count == 0
+    # --- Multi-signal first-time free viewing check ---
+    # Primary: device_token (localStorage-persisted), Secondary: user_id (if logged in), Tertiary: IP hash
+    ip_hash_val = hashlib.sha256(ip.encode()).hexdigest()[:16]
+
+    # Extract user_id from auth token if present (optional, non-blocking)
+    user_id = None
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        try:
+            import jwt
+            payload = jwt.decode(auth_header.split(" ", 1)[1], options={"verify_signature": False})
+            user_id = payload.get("sub")
+        except Exception:
+            pass
+
+    # Build multi-signal query: device_token > user_id > IP
+    or_conditions = []
+    if body.device_token:
+        or_conditions.append({"device_token": body.device_token})
+    if user_id:
+        or_conditions.append({"user_id": user_id})
+    or_conditions.append({"ip_hash": ip_hash_val})
+    benefit_query = {"$or": or_conditions} if len(or_conditions) > 1 else or_conditions[0]
+
+    benefit = await db.first_time_benefits.find_one(benefit_query, {"_id": 0})
+
+    if benefit is None:
+        # First-time user → free viewing for their first story
+        allow_free_view = True
+        # Mark benefit IMMEDIATELY to prevent concurrent/multi-tab abuse
+        await db.first_time_benefits.insert_one({
+            "device_token": body.device_token or "",
+            "user_id": user_id or "",
+            "ip_hash": ip_hash_val,
+            "benefit_session_id": body.session_id or "anon",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+    elif benefit.get("benefit_session_id") == (body.session_id or "anon") and body.mode == "continue":
+        # Same session, continuing the free story → still allowed
+        allow_free_view = True
+    else:
+        # Returning user (diff session) OR second story attempt (same session, fresh) → paywall
+        allow_free_view = False
 
     if not EMERGENT_KEY:
         raise HTTPException(status_code=503, detail="Generation service temporarily unavailable.")

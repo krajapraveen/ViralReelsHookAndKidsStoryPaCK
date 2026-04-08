@@ -6,6 +6,16 @@ import StoryPaywall from './StoryPaywall';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
+// Persistent device token — survives refresh, new tabs, sessions
+function getDeviceToken() {
+  let token = localStorage.getItem('vs_device_token');
+  if (!token) {
+    token = 'dt_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem('vs_device_token', token);
+  }
+  return token;
+}
+
 const DEMO_STORIES = [
   {
     title: "The Girl Who Opened the Moon Door",
@@ -89,6 +99,7 @@ export default function InstantStoryExperience() {
     parseInt(sessionStorage.getItem('pw_view_count') || '0', 10)
   );
   const [allowFreeView, setAllowFreeView] = useState(false);
+  const [showFreeViewTooltip, setShowFreeViewTooltip] = useState(false);
   const continueEndRef = useRef(null);
   const teaserDismissedRef = useRef(false);
 
@@ -144,12 +155,16 @@ export default function InstantStoryExperience() {
     }, GENERATION_TIMEOUT_MS);
 
     try {
-      const body = { mode: sourceSnippet ? 'continue' : 'fresh', session_id: getSessionId() };
+      const body = { mode: sourceSnippet ? 'continue' : 'fresh', session_id: getSessionId(), device_token: getDeviceToken() };
       if (sourceSnippet) { body.source_title = sourceTitle; body.source_snippet = sourceSnippet; }
       if (theme) body.theme = theme;
 
+      const headers = { 'Content-Type': 'application/json' };
+      const authToken = localStorage.getItem('token');
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
       const res = await fetch(`${API}/api/public/quick-generate`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        method: 'POST', headers, body: JSON.stringify(body),
       });
       clearTimeout(timeoutRef.current);
 
@@ -212,6 +227,24 @@ export default function InstantStoryExperience() {
     }
   }, [continuations.length, source, activeStory?.story_id]);
 
+  // Free-view tooltip: show after 5-10s on Part 2 or Part 3 (first-time users only)
+  useEffect(() => {
+    if (!allowFreeView || continuations.length < 1 || continuations.length > 2 || isGeneratingPart) return;
+    const delay = 5000 + Math.random() * 5000;
+    const timer = setTimeout(() => {
+      setShowFreeViewTooltip(true);
+      try { trackFunnel('free_view_tooltip_shown', { meta: { part_number: continuations.length + 1, story_id: activeStory?.story_id } }); } catch {}
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [allowFreeView, continuations.length, isGeneratingPart, activeStory?.story_id]);
+
+  // Auto-dismiss tooltip after 7 seconds
+  useEffect(() => {
+    if (!showFreeViewTooltip) return;
+    const timer = setTimeout(() => setShowFreeViewTooltip(false), 7000);
+    return () => clearTimeout(timer);
+  }, [showFreeViewTooltip]);
+
   // ─── Continuation Generation ───────────────────────────────────
   const generateContinuation = useCallback(async (nextPartNum) => {
     setIsGeneratingPart(true);
@@ -219,14 +252,19 @@ export default function InstantStoryExperience() {
 
     try {
       const snippetText = latestText.slice(-800);
+      const headers = { 'Content-Type': 'application/json' };
+      const authToken = localStorage.getItem('token');
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
       const res = await fetch(`${API}/api/public/quick-generate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           mode: 'continue',
           source_title: activeStory?.title || 'Story',
           source_snippet: snippetText,
           session_id: getSessionId(),
+          device_token: getDeviceToken(),
         }),
       });
 
@@ -486,7 +524,7 @@ export default function InstantStoryExperience() {
 
               {/* Desktop CTAs */}
               <div className="hidden sm:block space-y-3" data-testid="story-actions-desktop">
-                <button onClick={handleContinueStory} className="w-full py-4 px-6 rounded-xl font-semibold text-white text-base flex items-center justify-center gap-2.5 transition-all hover:scale-[1.02] active:scale-[0.98] ist-cta-primary ist-cta-pulse" data-testid="cta-continue-story">
+                <button onClick={handleContinueStory} className={`w-full py-4 px-6 rounded-xl font-semibold text-white text-base flex items-center justify-center gap-2.5 transition-all hover:scale-[1.02] active:scale-[0.98] ist-cta-primary ${showFreeViewTooltip ? 'ist-cta-enhanced-pulse' : 'ist-cta-pulse'}`} data-testid="cta-continue-story">
                   <Play className="w-5 h-5" />{ctaText}
                 </button>
                 <button onClick={handleVideo} className="w-full py-3.5 px-6 rounded-xl font-medium text-white text-sm flex items-center justify-center gap-2.5 border border-white/10 bg-white/5 hover:bg-white/10 transition-all" data-testid="cta-generate-video">
@@ -510,7 +548,7 @@ export default function InstantStoryExperience() {
       {/* ── Mobile Sticky CTA ───────────────────────────────── */}
       {!isGeneratingPart && !showPaywall && (
         <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 p-3 ist-sticky-cta" data-testid="story-actions-mobile">
-          <button onClick={handleContinueStory} className="w-full py-3.5 px-6 rounded-xl font-semibold text-white text-base flex items-center justify-center gap-2.5 transition-all active:scale-[0.98] ist-cta-primary ist-cta-pulse" data-testid="cta-continue-story-mobile">
+          <button onClick={handleContinueStory} className={`w-full py-3.5 px-6 rounded-xl font-semibold text-white text-base flex items-center justify-center gap-2.5 transition-all active:scale-[0.98] ist-cta-primary ${showFreeViewTooltip ? 'ist-cta-enhanced-pulse' : 'ist-cta-pulse'}`} data-testid="cta-continue-story-mobile">
             <Play className="w-5 h-5" />{ctaText}
           </button>
           <div className="flex gap-2 mt-2">
@@ -523,6 +561,21 @@ export default function InstantStoryExperience() {
             <button onClick={handleRegenerate} className="flex-1 py-2.5 px-3 rounded-lg font-medium text-white/80 text-xs flex items-center justify-center gap-1.5 border border-white/10 bg-white/5" data-testid="cta-new-mobile">
               <RefreshCw className="w-3.5 h-3.5" /> New
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Free View Onboarding Tooltip (non-blocking) ── */}
+      {showFreeViewTooltip && (
+        <div className="fixed bottom-24 sm:bottom-auto sm:top-20 left-1/2 -translate-x-1/2 z-50 max-w-sm mx-auto ist-tooltip-appear" data-testid="free-view-tooltip">
+          <div className="bg-indigo-600/95 backdrop-blur-sm rounded-xl px-5 py-3 shadow-lg shadow-indigo-500/25 border border-indigo-400/30">
+            <div className="flex items-start gap-3">
+              <Zap className="w-5 h-5 text-amber-300 mt-0.5 shrink-0 ist-tooltip-icon-pulse" />
+              <div>
+                <p className="text-white text-sm font-semibold">You're seeing this for free</p>
+                <p className="text-indigo-200 text-xs mt-0.5">Upgrade to download, create more, and unlock premium quality</p>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -586,6 +639,12 @@ export default function InstantStoryExperience() {
         @keyframes istPartAppear { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
         .ist-teaser-slide { animation: istTeaserSlide 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         @keyframes istTeaserSlide { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        .ist-tooltip-appear { animation: istTooltipIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes istTooltipIn { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+        .ist-tooltip-icon-pulse { animation: istTooltipIconPulse 2s ease-in-out infinite; }
+        @keyframes istTooltipIconPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.15); } }
+        .ist-cta-enhanced-pulse { animation: istCtaEnhancedPulse 1.5s ease-in-out infinite; }
+        @keyframes istCtaEnhancedPulse { 0%, 100% { box-shadow: 0 4px 24px rgba(99,102,241,0.3); transform: scale(1); } 50% { box-shadow: 0 8px 40px rgba(99,102,241,0.6); transform: scale(1.02); } }
       `}</style>
     </div>
   );
