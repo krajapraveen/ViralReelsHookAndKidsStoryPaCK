@@ -1,90 +1,83 @@
 # Visionary Suite - Product Requirements Document
 
 ## Original Problem Statement
-Build a full-stack AI Creator Suite with compulsion-driven growth engine, monetization, activation, conversion funnel, retention engine, content protection, and production-grade scale readiness. Latest: Make the pipeline production-resilient so generation failures don't kill the user experience.
+Build a full-stack AI Creator Suite with compulsion-driven growth engine, monetization, activation, conversion funnel, retention engine, content protection, and production-grade resilience. Core mandate: Build network effects through a remix-driven engagement loop.
 
 ## Architecture
 ```
 /app/
 ├── backend/
 │   ├── routes/
-│   │   ├── instant_story.py                 # Zero-friction generation + multi-signal first-time detection
-│   │   ├── story_video_generation.py        # Image/voice/video generation + admission control + idempotency + time-estimates
+│   │   ├── gallery_routes.py                # Remix Gallery feed + remix action + quality filtering + seeding
+│   │   ├── remix_routes.py                  # Remix tracking
+│   │   ├── story_video_generation.py        # Generation + admission control + time-estimates
 │   │   ├── story_video_studio.py            # Project CRUD with strict auth
-│   │   ├── funnel_tracking.py               # Funnel events
-│   │   ├── system_health_api.py             # System health + Load Guard
-│   │   └── pricing_api.py                   # Dynamic pricing
+│   │   └── instant_story.py                 # First-time free viewing
 │   ├── services/
-│   │   ├── story_engine/
-│   │   │   ├── pipeline.py                  # CORE: Stage orchestrator with fallback-resilient character context
-│   │   │   ├── state_machine.py             # State transitions + retry limits
-│   │   │   ├── adapters/planning_llm.py     # LLM calls for planning, continuity, scene motion
-│   │   │   └── schemas.py                   # Job states + error codes
-│   │   ├── admission_controller.py          # Load Guard
-│   │   └── load_guard_alerts.py             # Slack alerts
-│   └── security.py                          # Global rate limits
+│   │   └── story_engine/
+│   │       └── pipeline.py                  # Resilient pipeline with character context fallback
+│   └── server.py
 ├── frontend/src/
+│   ├── components/
+│   │   └── RemixGallery.js                  # Reusable remix gallery (3 placements)
 │   ├── pages/
-│   │   ├── InstantStoryExperience.jsx       # Demo + continuation + free-view + tooltip + paywall
-│   │   ├── StoryVideoPipeline.js            # Result page with soft recovery error UX
-│   │   ├── StoryVideoStudio.js              # Video creation with idempotency + refresh-safe resume
-│   │   ├── MySpacePage.js                   # Full conversion UX with re-engagement + credit psychology
-│   │   └── PhotoToComic.js                  # Photo conversion with soft error UX
-│   └── App.js                               # Routes
+│   │   ├── MySpacePage.js                   # Full conversion UX + Remix Gallery
+│   │   ├── StoryVideoStudio.js              # Studio with remix banner + waiting gallery
+│   │   └── StoryVideoPipeline.js            # Soft recovery error UX
 ```
 
-## Completed Systems
-1-14. [Previous systems — see CHANGELOG.md]
+## Completed Systems (Cumulative)
+1-14. Backend stability, UX clarity, retention loops, auth hardening (see previous PRD versions)
 
-### Latest: Conversion & Retention Layer (2026-04-08)
-15. **Re-engagement Buttons** — 4 variants on completed cards (funnier, change style, reel, storybook)
-16. **Credit Psychology** — Credits badge + nudge text on completed cards
-17. **Dynamic Time Estimates** — Backend rolling averages + fuzzy frontend labels
-18. **Failure Recovery UX** — Encouraging copy + tip on failed cards
-19. **Skeleton Loading** — Animated placeholder cards during fetch
-20. **Completion Pulse** — Bounce badge + auto-scroll on just-completed
+### Conversion & Retention Layer (2026-04-08)
+15. Re-engagement buttons (4 variants on completed cards)
+16. Credit psychology (badge + nudge)
+17. Dynamic time estimates (rolling averages + fuzzy labels)
+18. Failure recovery UX (encouraging copy + tips)
+19. Skeleton loading (animated placeholders)
+20. Completion pulse (bounce badge + auto-scroll)
 
-### Latest: Pipeline Resilience Fix (2026-04-08)
-21. **Character Context Fallback** — `_stage_character_context` no longer fails the entire pipeline when LLM call fails. Builds basic character continuity from episode plan (names + minimal descriptions). Downstream stages handle it gracefully.
-22. **Soft Error UX** — All "Generation Issue" replaced with "Something needs a quick fix" (amber, not red). Retry is primary CTA. "Start Fresh" removed as primary — now ghost secondary "or start over with a new story". Encouraging copy: "This usually works on retry. Your credits have been preserved."
-23. **Character-Specific Tip** — When failure involves character continuity, shows: "Tip: We'll automatically use simpler character descriptions on retry."
+### Pipeline Resilience (2026-04-08)
+21. Character context fallback (graceful degradation, not fatal failure)
+22. Soft error UX (amber "needs a quick fix" instead of red "Generation Issue")
+23. Retry as primary CTA (never "Start Fresh" as primary)
 
-## Key Pipeline Resilience Design
-```python
-# OLD (fragile):
-if not continuity:
-    return {"status": "failed"}  # kills entire pipeline
+### Remix Gallery MVP (2026-04-08)
+24. **Gallery Feed API** — `GET /api/gallery/remix-feed` with quality filtering (has thumbnail, non-empty description, title >= 3 chars), sorted by remix_count DESC
+25. **Remix Action API** — `POST /api/gallery/{item_id}/remix` increments count, returns pre-filled Studio data
+26. **3 Placement Points**:
+    - MySpace: "People are remixing these" (8 cards between Completed and Create Another)
+    - CompletionPromptModal: "Try what others created" (3 cards after share/download buttons)
+    - During Wait: "While you wait… remix a trending story" (4 cards during generation)
+27. **Remix Cards** — Thumbnail, title, description, remix count badge, views count, hover "Remix This" overlay
+28. **Competitive Nudge** — "Can you make a better version?" below gallery
+29. **Remix Banner in Studio** — "You're remixing a trending story" with original title + remix count (shown when source === 'remix_gallery')
+30. **Quality-Filtered Seeding** — Auto-seed gallery with 20+ curated items, filtered for quality
 
-# NEW (resilient):
-if not continuity:
-    continuity = _build_fallback_continuity(episode_plan)  # basic characters from plan
-    # Pipeline continues with simpler descriptions
+## Key Growth Mechanics
 ```
-
-**Fallback continuity format:**
-```json
-{
-  "characters": [{"name": "...", "description": "A character named ...", "visual_tags": [], "color_palette": []}],
-  "style_notes": "",
-  "consistency_level": "basic",
-  "_fallback": true
-}
+User generates → Sees result → Sees remix gallery → Clicks "Remix This" 
+→ Studio pre-fills → Generates variation → Repeat
 ```
+**Target:** 1 generation → 3-5 generations per session
 
 ## Backlog
 ### P0 (Immediate)
-- Push Instagram traffic to /experience and collect 100+ paywall_shown events
+- Push Instagram traffic to /experience, collect 100+ paywall_shown events
 
 ### P1
 - Paywall conversion analytics & optimization
 - A/B test hook text variations
+- "Your version vs. popular version" comparison after remix generation
+- Streak system ("You created 3 stories today")
 
 ### P2
+- Character consistency system (embeddings + seed control)
 - Explore Feed (TikTok-style scroll)
 - Viral Story re-engagement hook
-- Character consistency system (prompt templates + embeddings + seed control)
 - WebSocket admin dashboard
 - Story Chain leaderboard
+- User opt-in gallery sharing
 
 ## Test Credentials
 - Test User: test@visionary-suite.com / Test@2026#
