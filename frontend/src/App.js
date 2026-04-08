@@ -234,8 +234,17 @@ function App() {
     <FeedbackProvider>
     <ProductGuideProvider>
     <ContentProtectionWrapper>
-      {/* Journey Progress Bar — fixed top for authenticated users */}
-      {isAuthenticated && <JourneyProgressBar />}
+      {/* Journey Progress Bar — fixed top for authenticated users (hide for admins) */}
+      {isAuthenticated && (() => {
+        try {
+          const t = localStorage.getItem('token');
+          if (t) {
+            const p = JSON.parse(atob(t.split('.')[1]));
+            if (p.role?.toUpperCase() === 'ADMIN' || p.role?.toUpperCase() === 'SUPERADMIN') return null;
+          }
+        } catch {}
+        return <JourneyProgressBar />;
+      })()}
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/pricing" element={<Pricing />} />

@@ -340,3 +340,61 @@ async def load_guard_decisions(
     """Recent admission decisions with full metrics context."""
     guard = get_load_guard()
     return {"decisions": guard.get_recent_decisions(limit)}
+
+
+# ─── ALERT LOG ENDPOINTS ──────────────────────────────────────────────────
+
+
+@router.get("/alerts")
+async def get_alerts(
+    user: dict = Depends(get_admin_user),
+    limit: int = Query(50, ge=1, le=200),
+    status: str = Query(None, description="Filter: active, deduped, resolved"),
+    alert_type: str = Query(None, description="Filter by alert type"),
+):
+    """Admin alert log with filtering."""
+    query = {}
+    if status:
+        query["status"] = status
+    if alert_type:
+        query["alert_type"] = alert_type
+
+    cursor = db.load_guard_alerts.find(
+        query, {"_id": 0},
+    ).sort("created_at", -1).limit(limit)
+    alerts = await cursor.to_list(length=limit)
+    return {"alerts": alerts, "count": len(alerts)}
+
+
+@router.get("/alerts/active")
+async def get_active_alerts(user: dict = Depends(get_admin_user)):
+    """Currently active (unresolved) incidents."""
+    cursor = db.load_guard_alerts.find(
+        {"status": "active"}, {"_id": 0},
+    ).sort("created_at", -1).limit(50)
+    alerts = await cursor.to_list(length=50)
+    return {"active_incidents": alerts, "count": len(alerts)}
+
+
+@router.get("/alerts/summary")
+async def get_alert_summary(user: dict = Depends(get_admin_user)):
+    """Alert counts by type and status."""
+    pipeline = [
+        {"$group": {
+            "_id": {"type": "$alert_type", "status": "$status"},
+            "count": {"$sum": 1},
+        }},
+    ]
+    summary = {}
+    async for doc in db.load_guard_alerts.aggregate(pipeline):
+        key = f"{doc['_id']['type']}:{doc['_id']['status']}"
+        summary[key] = doc["count"]
+
+    total = await db.load_guard_alerts.count_documents({})
+    active = await db.load_guard_alerts.count_documents({"status": "active"})
+
+    return {
+        "total_alerts": total,
+        "active_incidents": active,
+        "breakdown": summary,
+    }

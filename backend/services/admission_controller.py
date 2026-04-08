@@ -255,7 +255,13 @@ class LoadGuard:
         while self._running:
             try:
                 await self._collect_snapshot()
-                self._evaluate_and_update_mode()
+                await self._evaluate_and_update_mode()
+                # Signal-based alerts (dead letters, stuck jobs, queue wait, flapping)
+                try:
+                    from services.load_guard_alerts import get_alert_engine
+                    await get_alert_engine().check_signals(self.get_status())
+                except Exception as e:
+                    logger.debug("[LOAD_GUARD] Alert signal check error: %s", e)
             except Exception as e:
                 logger.error("[LOAD_GUARD] Snapshot collection error: %s", e, exc_info=True)
             await asyncio.sleep(SNAPSHOT_INTERVAL_S)
@@ -367,7 +373,7 @@ class LoadGuard:
 
     # ─── MODE EVALUATION ─────────────────────────────────────────────
 
-    def _evaluate_and_update_mode(self):
+    async def _evaluate_and_update_mode(self):
         # Manual override takes precedence
         if self._manual_mode is not None:
             if self._mode != self._manual_mode:
@@ -415,6 +421,7 @@ class LoadGuard:
                         "[LOAD_GUARD] ESCALATED: %s -> %s (sustained %.0fs, reasons: %s)",
                         old, self._mode, sustained, "; ".join(reasons),
                     )
+                    await self._fire_transition_alert(old, self._mode, escalation=True)
 
         elif cand_sev < curr_sev:
             # ── RECOVERY (step down one level at a time) ──────────────
@@ -434,6 +441,7 @@ class LoadGuard:
                     self._trigger_reasons = reasons if new_mode != GUARD_NORMAL else []
                     self._recovery_start = None
                     logger.info("[LOAD_GUARD] DE-ESCALATED: %s -> %s (held %.0fs)", old, new_mode, held)
+                    await self._fire_transition_alert(old, new_mode, escalation=False)
         else:
             # ── STABLE ────────────────────────────────────────────────
             self._candidate_mode = GUARD_NORMAL
@@ -594,6 +602,49 @@ class LoadGuard:
         if mode == GUARD_STRESSED:
             return [jt for jt, qt in JOB_TYPE_TO_QUEUE.items() if QUEUE_WEIGHT.get(qt) == "heavy"]
         return []
+
+    # ─── ALERT HELPERS ───────────────────────────────────────────────
+
+    def _current_signal_data(self) -> dict:
+        latest = self._snapshots[-1] if self._snapshots else None
+        if not latest:
+            return {}
+        a_rate, c_rate = self._get_rates()
+        max_wait = 0.0
+        for qt in QUEUE_TYPES:
+            snaps = self._per_queue.get(qt)
+            if snaps and snaps[-1].oldest_wait_s > max_wait:
+                max_wait = snaps[-1].oldest_wait_s
+        return {
+            "total_queued": latest.total_queued,
+            "system_saturation_pct": latest.saturation_pct,
+            "dead_letter_recent": latest.dead_letter_recent,
+            "stuck_count": latest.stuck_count,
+            "depth_trend": self._get_depth_trend(),
+            "admitted_rate": a_rate,
+            "completed_rate": c_rate,
+            "max_wait_s": max_wait,
+        }
+
+    def _distressed_queues(self) -> List[str]:
+        return [qt for qt in QUEUE_TYPES if self._is_queue_overloaded(qt)]
+
+    async def _fire_transition_alert(self, old_mode: str, new_mode: str, escalation: bool):
+        try:
+            from services.load_guard_alerts import get_alert_engine, ALERT_MODE_ESCALATION, ALERT_MODE_RECOVERY
+            engine = get_alert_engine()
+            engine.record_transition(old_mode, new_mode)
+            alert_type = ALERT_MODE_ESCALATION if escalation else ALERT_MODE_RECOVERY
+            await engine.fire(
+                alert_type=alert_type,
+                new_mode=new_mode,
+                previous_mode=old_mode,
+                affected_queues=self._distressed_queues(),
+                signals=self._current_signal_data(),
+                extra_context="; ".join(self._trigger_reasons) if self._trigger_reasons else "",
+            )
+        except Exception as e:
+            logger.debug("[LOAD_GUARD] Alert fire error: %s", e)
 
     # ─── ADMISSION CHECK ─────────────────────────────────────────────
 
@@ -770,6 +821,19 @@ class LoadGuard:
         })
         logger.warning("[LOAD_GUARD] Admin %s set manual mode: %s -> %s (mode: %s -> %s)",
                         admin_id, old_manual, mode, old_mode, self._mode)
+        # Fire manual override alert
+        try:
+            from services.load_guard_alerts import get_alert_engine, ALERT_MANUAL_OVERRIDE
+            asyncio.create_task(get_alert_engine().fire(
+                alert_type=ALERT_MANUAL_OVERRIDE,
+                new_mode=self._mode,
+                previous_mode=old_mode,
+                signals=self._current_signal_data(),
+                admin_id=admin_id,
+                extra_context=f"Manual mode set to {mode}" if mode else "Manual mode cleared (auto resumed)",
+            ))
+        except Exception as e:
+            logger.debug("[LOAD_GUARD] Manual override alert error: %s", e)
 
     def set_auto_enabled(self, enabled: bool, admin_id: str):
         old = self._auto_enabled

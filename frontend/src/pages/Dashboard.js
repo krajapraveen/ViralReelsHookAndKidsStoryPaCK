@@ -725,18 +725,19 @@ export default function Dashboard() {
 
       {/* ADMIN BAR — desktop only */}
       {isAdmin && (
-        <div className="fixed top-0 left-0 right-0 z-50 border-b border-indigo-500/20 hidden lg:block" style={{ background: 'rgba(11,11,15,.95)', backdropFilter: 'blur(12px)' }} data-testid="admin-top-bar">
-          <div className="flex items-center justify-between px-8 py-2">
-            <Link to="/app/admin" className="flex items-center gap-2 text-indigo-400 hover:text-indigo-300 transition-colors" data-testid="admin-menu-link">
-              <Shield className="w-4 h-4" /><span className="text-xs font-bold tracking-wide">ADMIN PANEL</span>
+        <div className="fixed top-0 left-0 right-0 z-[10001] border-b border-indigo-500/30" style={{ background: 'linear-gradient(135deg, rgba(15,15,25,.98), rgba(25,20,50,.98))', backdropFilter: 'blur(16px)' }} data-testid="admin-top-bar">
+          <div className="flex items-center justify-between px-4 sm:px-8 py-2.5">
+            <Link to="/app/admin" className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-indigo-500/15 border border-indigo-500/30 hover:bg-indigo-500/25 transition-all" data-testid="admin-menu-link">
+              <Shield className="w-4 h-4 text-indigo-400" />
+              <span className="text-sm font-bold tracking-wide text-indigo-300">Admin Panel</span>
             </Link>
-            <div className="flex items-center gap-3">
-              <Link to="/app/admin/growth" className="text-[11px] text-slate-400 hover:text-white font-medium transition-colors" data-testid="admin-quick-growth">Growth</Link>
-              <Link to="/app/admin/content-engine" className="text-[11px] text-slate-400 hover:text-white font-medium transition-colors">Content</Link>
-              <Link to="/app/admin/workers" className="text-[11px] text-slate-400 hover:text-white font-medium transition-colors">Jobs</Link>
-              <Link to="/app/admin/system-health" className="text-[11px] text-slate-400 hover:text-white font-medium transition-colors">Health</Link>
-              <Link to="/app/profile" className="w-7 h-7 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
-                <User className="w-3.5 h-3.5 text-indigo-400" />
+            <div className="flex items-center gap-1 sm:gap-3">
+              <Link to="/app/admin/growth" className="px-2.5 py-1 rounded-md text-xs text-slate-400 hover:text-white hover:bg-white/5 font-medium transition-all" data-testid="admin-quick-growth">Growth</Link>
+              <Link to="/app/admin/content-engine" className="px-2.5 py-1 rounded-md text-xs text-slate-400 hover:text-white hover:bg-white/5 font-medium transition-all hidden sm:block">Content</Link>
+              <Link to="/app/admin/workers" className="px-2.5 py-1 rounded-md text-xs text-slate-400 hover:text-white hover:bg-white/5 font-medium transition-all hidden sm:block">Jobs</Link>
+              <Link to="/app/admin/system-health" className="px-2.5 py-1 rounded-md text-xs text-slate-400 hover:text-white hover:bg-white/5 font-medium transition-all">Health</Link>
+              <Link to="/app/profile" className="w-8 h-8 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center ml-1">
+                <User className="w-4 h-4 text-indigo-400" />
               </Link>
             </div>
           </div>
@@ -745,7 +746,7 @@ export default function Dashboard() {
 
       {/* USER BAR — top-right for all authenticated users */}
       {isLoggedIn && (
-        <div className={`fixed ${isAdmin ? 'top-9 lg:top-9' : 'top-0'} right-0 z-40 p-3 sm:p-4`} data-testid="user-bar">
+        <div className={`fixed ${isAdmin ? 'top-[52px]' : 'top-0'} right-0 z-40 p-3 sm:p-4`} data-testid="user-bar">
           <div className="relative">
             <button
               onClick={() => setShowUserMenu(prev => !prev)}
@@ -815,7 +816,7 @@ export default function Dashboard() {
       )}
 
       {/* 1. HERO */}
-      <div className={isAdmin ? 'lg:pt-10' : ''}>
+      <div className={isAdmin ? 'pt-14' : ''}>
         <HeroSection stories={safeHeroPool} navigate={navigate} />
       </div>
 
