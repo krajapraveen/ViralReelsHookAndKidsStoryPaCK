@@ -70,12 +70,14 @@ class ImageGenerationRequest(BaseModel):
     project_id: str
     scene_numbers: Optional[List[int]] = None  # If None, generate all scenes
     provider: str = "openai"  # openai or gemini
+    idempotency_key: Optional[str] = None
     
 class VoiceGenerationRequest(BaseModel):
     project_id: str
     scene_numbers: Optional[List[int]] = None
     voice_id: str = "alloy"  # OpenAI voice: alloy, echo, fable, onyx, nova, shimmer
     user_api_key: Optional[str] = None  # For BYO_USER_KEY mode
+    idempotency_key: Optional[str] = None
     
 class VideoAssemblyRequest(BaseModel):
     project_id: str
@@ -83,6 +85,7 @@ class VideoAssemblyRequest(BaseModel):
     background_music_id: Optional[str] = None
     music_volume: float = 0.3  # 0.0 to 1.0
     animation_style: str = "auto"  # auto, zoom_in, zoom_out, pan_left, pan_right, ken_burns
+    idempotency_key: Optional[str] = None
 
 class MusicTrack(BaseModel):
     id: str
@@ -114,6 +117,71 @@ async def check_and_deduct_credits(user_id: str, amount: int, description: str) 
         raise HTTPException(status_code=402, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+# =============================================================================
+# ADMISSION CONTROL — Per-user and system-wide capacity guards
+# =============================================================================
+
+MAX_ACTIVE_JOBS_PER_USER = 2
+MAX_QUEUED_JOBS_PER_USER = 3
+MAX_TOTAL_ACTIVE_JOBS = 10
+
+
+async def check_generation_capacity(user_id: str, job_type: str) -> dict:
+    """Check if user and system can accept a new generation job.
+    Returns None if OK, or a structured error dict if capacity exceeded."""
+    
+    # Per-user active jobs across all job types
+    user_active_gen = await db.generation_jobs.count_documents({
+        "user_id": user_id,
+        "status": {"$in": ["PENDING", "PROCESSING"]}
+    })
+    user_active_render = await db.render_jobs.count_documents({
+        "user_id": user_id,
+        "status": {"$in": ["PENDING", "PROCESSING"]}
+    })
+    user_active = user_active_gen + user_active_render
+    
+    if user_active >= MAX_ACTIVE_JOBS_PER_USER:
+        logger.warning(f"[ADMISSION] User {user_id} hit per-user limit: {user_active} active jobs")
+        return {
+            "error_code": "USER_JOB_LIMIT",
+            "message": "You already have video generations in progress. Please wait for one to finish before starting another.",
+            "retry_after_seconds": 60,
+            "active_jobs": user_active,
+        }
+    
+    # System-wide capacity
+    total_active_gen = await db.generation_jobs.count_documents({
+        "status": {"$in": ["PENDING", "PROCESSING"]}
+    })
+    total_active_render = await db.render_jobs.count_documents({
+        "status": {"$in": ["PENDING", "PROCESSING"]}
+    })
+    total_active = total_active_gen + total_active_render
+    
+    if total_active >= MAX_TOTAL_ACTIVE_JOBS:
+        logger.warning(f"[ADMISSION] System capacity exceeded: {total_active} active jobs")
+        return {
+            "error_code": "CAPACITY_EXCEEDED",
+            "message": "Video generation is temporarily busy. Please try again in a few minutes.",
+            "retry_after_seconds": 180,
+            "can_queue_later": True,
+        }
+    
+    return None
+
+
+async def check_idempotency(collection_name: str, user_id: str, idempotency_key: str) -> dict:
+    """Check if a job with this idempotency key already exists. Returns existing job or None."""
+    if not idempotency_key:
+        return None
+    coll = db[collection_name]
+    existing = await coll.find_one(
+        {"user_id": user_id, "idempotency_key": idempotency_key},
+        {"_id": 0}
+    )
+    return existing
 
 # =============================================================================
 # PHASE 2: IMAGE GENERATION
@@ -373,6 +441,18 @@ async def generate_scene_images(
     if not user_id:
         raise HTTPException(status_code=401, detail="User not authenticated")
     
+    # Idempotency check
+    existing = await check_idempotency("generation_jobs", user_id, request.idempotency_key)
+    if existing:
+        return {"success": True, "job_id": existing["job_id"], "project_id": existing["project_id"],
+                "total_scenes": existing.get("total_scenes", 0), "credits_charged": existing.get("credits_charged", 0),
+                "message": "Returning existing job (duplicate request detected)."}
+    
+    # Admission control
+    guard = await check_generation_capacity(user_id, "image_generation")
+    if guard:
+        raise HTTPException(status_code=429, detail=guard)
+    
     # Get project
     project = await db.story_projects.find_one({"project_id": request.project_id})
     if not project:
@@ -414,6 +494,7 @@ async def generate_scene_images(
         "completed_scenes": 0,
         "credits_charged": total_cost,
         "images": [],
+        "idempotency_key": request.idempotency_key,
         "created_at": datetime.now(timezone.utc),
     }
     await db.generation_jobs.insert_one(job_doc)
@@ -781,6 +862,18 @@ async def generate_scene_voices(
     if not user_id:
         raise HTTPException(status_code=401, detail="User not authenticated")
     
+    # Idempotency check
+    existing = await check_idempotency("generation_jobs", user_id, request.idempotency_key)
+    if existing:
+        return {"success": True, "job_id": existing["job_id"], "project_id": existing["project_id"],
+                "total_scenes": existing.get("total_scenes", 0), "credits_charged": existing.get("credits_charged", 0),
+                "message": "Returning existing job (duplicate request detected)."}
+    
+    # Admission control
+    guard = await check_generation_capacity(user_id, "voice_generation")
+    if guard:
+        raise HTTPException(status_code=429, detail=guard)
+    
     if VOICE_PROVIDER_MODE == "BYO_USER_KEY" and not request.user_api_key:
         raise HTTPException(status_code=400, detail="Voice generation requires your own OpenAI API key.")
     
@@ -820,6 +913,7 @@ async def generate_scene_voices(
         "completed_scenes": 0,
         "credits_charged": total_cost,
         "voices": [],
+        "idempotency_key": request.idempotency_key,
         "created_at": datetime.now(timezone.utc),
     }
     await db.generation_jobs.insert_one(job_doc)
@@ -1375,6 +1469,18 @@ async def assemble_video(
     if not user_id:
         raise HTTPException(status_code=401, detail="User not authenticated")
     
+    # Idempotency check
+    existing = await check_idempotency("render_jobs", user_id, request.idempotency_key)
+    if existing:
+        return {"success": True, "job_id": existing["job_id"], "project_id": existing["project_id"],
+                "message": "Returning existing render job (duplicate request detected).",
+                "status": existing.get("status", "PENDING")}
+    
+    # Admission control
+    guard = await check_generation_capacity(user_id, "video_assembly")
+    if guard:
+        raise HTTPException(status_code=429, detail=guard)
+    
     # Get project
     project = await db.story_projects.find_one({"project_id": request.project_id})
     if not project:
@@ -1428,7 +1534,7 @@ async def assemble_video(
         from services.credits_service import get_credits_service
         svc = get_credits_service(db)
         try:
-            await svc.refund_credits(user_id, total_cost, reason=f"Refund: missing files for render", reference_id=user_id)
+            await svc.refund_credits(user_id, total_cost, reason="Refund: missing files for render", reference_id=user_id)
         except Exception:
             pass
         raise HTTPException(
@@ -1455,7 +1561,8 @@ async def assemble_video(
         "queued_at": datetime.now(timezone.utc),
         "queue_tier": queue_tier,
         "queue_priority": 0 if user_plan in ("admin", "demo") else 1 if user_plan in paid_plans else 10,
-        "progress": 0
+        "progress": 0,
+        "idempotency_key": request.idempotency_key,
     }
     
     await db.render_jobs.insert_one(render_job)

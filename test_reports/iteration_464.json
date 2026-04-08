@@ -1,0 +1,201 @@
+{
+  "iteration": 464,
+  "timestamp": "2026-04-08T11:00:00Z",
+  "summary": "P0 BLOCKER FIX Testing: Admission Control, Idempotency Protection, and Structured 429 Responses - All 14 tests passed. Backend correctly implements per-user job limits (MAX_ACTIVE_JOBS_PER_USER=2), system capacity limits (MAX_TOTAL_ACTIVE_JOBS=10), idempotency protection for all generation endpoints, and structured 429 error responses with error_code and retry_after_seconds.",
+  "total_tests": 14,
+  "passed": 14,
+  "failed": 0,
+  "skipped": 0,
+  "pass_rate": "100%",
+  "test_files": [
+    "/app/backend/tests/test_admission_control_idempotency_iteration464.py"
+  ],
+  "test_method": "pytest (backend) + Code Review",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "features_tested": {
+    "idempotency_key_in_image_generation_request": {
+      "status": "PASS",
+      "details": [
+        "ImageGenerationRequest model has idempotency_key: Optional[str] = None (line 73)",
+        "POST /api/story-video-studio/generation/images accepts idempotency_key without 422 error",
+        "check_idempotency called before job creation (line 445)"
+      ]
+    },
+    "idempotency_key_in_voice_generation_request": {
+      "status": "PASS",
+      "details": [
+        "VoiceGenerationRequest model has idempotency_key: Optional[str] = None (line 80)",
+        "POST /api/story-video-studio/generation/voices accepts idempotency_key without 422 error",
+        "check_idempotency called before job creation (line 866)"
+      ]
+    },
+    "idempotency_key_in_video_assembly_request": {
+      "status": "PASS",
+      "details": [
+        "VideoAssemblyRequest model has idempotency_key: Optional[str] = None (line 88)",
+        "POST /api/story-video-studio/generation/video/assemble accepts idempotency_key without 422 error",
+        "check_idempotency called before job creation (line 1473)"
+      ]
+    },
+    "check_idempotency_function": {
+      "status": "PASS",
+      "details": [
+        "Function defined at lines 175-184",
+        "Checks for existing job with same user_id + idempotency_key",
+        "Returns existing job document if found, None otherwise",
+        "Excludes _id from response"
+      ]
+    },
+    "check_generation_capacity_function": {
+      "status": "PASS",
+      "details": [
+        "Function defined at lines 130-172",
+        "Counts active jobs across BOTH generation_jobs AND render_jobs collections",
+        "Per-user limit: MAX_ACTIVE_JOBS_PER_USER = 2 (line 125)",
+        "System limit: MAX_TOTAL_ACTIVE_JOBS = 10 (line 127)",
+        "Returns structured error dict with error_code, message, retry_after_seconds"
+      ]
+    },
+    "429_response_user_job_limit": {
+      "status": "PASS",
+      "details": [
+        "When user_active >= MAX_ACTIVE_JOBS_PER_USER (lines 145-152)",
+        "Returns error_code: 'USER_JOB_LIMIT'",
+        "Returns message: 'You already have video generations in progress...'",
+        "Returns retry_after_seconds: 60",
+        "Returns active_jobs count"
+      ]
+    },
+    "429_response_capacity_exceeded": {
+      "status": "PASS",
+      "details": [
+        "When total_active >= MAX_TOTAL_ACTIVE_JOBS (lines 163-170)",
+        "Returns error_code: 'CAPACITY_EXCEEDED'",
+        "Returns message: 'Video generation is temporarily busy...'",
+        "Returns retry_after_seconds: 180",
+        "Returns can_queue_later: true"
+      ]
+    },
+    "admission_control_in_image_endpoint": {
+      "status": "PASS",
+      "details": [
+        "check_generation_capacity called at line 452",
+        "Returns 429 HTTPException if guard is not None (line 453-454)"
+      ]
+    },
+    "admission_control_in_voice_endpoint": {
+      "status": "PASS",
+      "details": [
+        "check_generation_capacity called at line 873",
+        "Returns 429 HTTPException if guard is not None (line 874-875)"
+      ]
+    },
+    "admission_control_in_video_endpoint": {
+      "status": "PASS",
+      "details": [
+        "check_generation_capacity called at line 1480",
+        "Returns 429 HTTPException if guard is not None (line 1481-1482)"
+      ]
+    },
+    "frontend_genIdemKey_helper": {
+      "status": "PASS",
+      "details": [
+        "Helper function at line 73",
+        "Uses crypto.randomUUID() with fallback to ik_{timestamp}_{random}",
+        "Called in image generation (line 804), voice generation (line 881), video assembly (line 955)"
+      ]
+    },
+    "frontend_handleGenerationError_helper": {
+      "status": "PASS",
+      "details": [
+        "Helper function at lines 76-90",
+        "Parses structured error response from admission control",
+        "Shows specific toast for USER_JOB_LIMIT (8s duration)",
+        "Shows specific toast for CAPACITY_EXCEEDED (10s duration)",
+        "Falls back to generic error message"
+      ]
+    },
+    "project_creation_idempotency": {
+      "status": "PASS",
+      "details": [
+        "First POST with idempotency_key creates new project",
+        "Second POST with SAME idempotency_key returns existing project_id",
+        "Message indicates 'duplicate request detected'"
+      ]
+    },
+    "list_projects_auth_extraction": {
+      "status": "PASS",
+      "details": [
+        "GET /api/story-video-studio/projects extracts user_id from JWT token",
+        "Returns only authenticated user's projects",
+        "No duplicate idempotency_keys in response"
+      ]
+    }
+  },
+  "code_review_verification": {
+    "backend_story_video_generation_py": {
+      "lines_verified": ["69-91", "107-165", "172-185", "445-454", "866-875", "1473-1482"],
+      "request_models": "Lines 69-91 - All three request models have idempotency_key: Optional[str] = None",
+      "check_generation_capacity": "Lines 130-172 - Correct implementation counting both generation_jobs and render_jobs",
+      "check_idempotency": "Lines 175-184 - Correct lookup by user_id + idempotency_key",
+      "image_endpoint_guards": "Lines 445-454 - Idempotency check then admission control",
+      "voice_endpoint_guards": "Lines 866-875 - Idempotency check then admission control",
+      "video_endpoint_guards": "Lines 1473-1482 - Idempotency check then admission control"
+    },
+    "backend_story_video_studio_py": {
+      "lines_verified": ["293-360", "427-479"],
+      "create_project_idempotency": "Lines 302-314 - Checks for existing project with same user_id + idempotency_key",
+      "list_projects_auth": "Lines 446-456 - Extracts user_id from JWT token"
+    },
+    "frontend_story_video_studio_js": {
+      "lines_verified": ["68-83", "806-817", "877-892", "949-972"],
+      "genIdemKey": "Line 73 - crypto.randomUUID() with fallback",
+      "handleGenerationError": "Lines 76-90 - Parses structured 429 responses",
+      "image_generation_call": "Lines 804-812 - Includes idempotency_key, uses handleGenerationError",
+      "voice_generation_call": "Lines 881-889 - Includes idempotency_key, uses handleGenerationError",
+      "video_assembly_call": "Lines 955-969 - Includes idempotency_key, uses handleGenerationError"
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_admission_control_idempotency_iteration464.py",
+    "/app/test_reports/pytest/pytest_admission_control_idempotency_iteration464.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "All P0 BLOCKER FIX features are correctly implemented",
+    "Admission control (MAX_ACTIVE_JOBS_PER_USER=2, MAX_TOTAL_ACTIVE_JOBS=10) is in place for all generation endpoints",
+    "Idempotency protection prevents duplicate job creation - same key returns existing job",
+    "Structured 429 responses include error_code (USER_JOB_LIMIT or CAPACITY_EXCEEDED) and retry_after_seconds",
+    "Frontend correctly handles 429 responses with specific toast messages",
+    "Frontend sends idempotency_key with all generation requests",
+    "check_generation_capacity counts jobs across BOTH generation_jobs AND render_jobs collections"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_admission_control_idempotency_iteration464.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "N/A (backend-only testing)"
+  },
+  "test_credentials": "test@visionary-suite.com / Test@2026#",
+  "seed_data_creation": "Test projects created and cleaned up during pytest execution",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "P0 BLOCKER FIX features fully verified. Admission control limits: MAX_ACTIVE_JOBS_PER_USER=2, MAX_TOTAL_ACTIVE_JOBS=10. Idempotency protection uses user_id + idempotency_key lookup in generation_jobs and render_jobs collections. 429 responses have structured format with error_code and retry_after_seconds. Frontend uses genIdemKey() helper and handleGenerationError() for proper error handling.",
+  "mocked_apis": "None - all real API calls",
+  "pytest_results": {
+    "total": 14,
+    "passed": 14,
+    "failed": 0,
+    "skipped": 0,
+    "duration": "7.17s"
+  }
+}

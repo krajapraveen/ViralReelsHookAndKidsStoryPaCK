@@ -69,6 +69,26 @@ export default function StoryVideoStudio() {
   const videoRef = useRef(null);
   const { updateStep: trackJourneyStep } = useProductGuide();
   
+  // Helper: generate idempotency key per action
+  const genIdemKey = () => crypto.randomUUID ? crypto.randomUUID() : `ik_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  
+  // Helper: handle structured 429/error responses from admission control
+  const handleGenerationError = (error, fallbackMsg) => {
+    const detail = error.response?.data?.detail;
+    if (detail && typeof detail === 'object') {
+      // Structured error from admission control
+      if (detail.error_code === 'USER_JOB_LIMIT') {
+        toast.error(detail.message || 'You already have generations in progress. Please wait.', { duration: 8000 });
+      } else if (detail.error_code === 'CAPACITY_EXCEEDED') {
+        toast.error(detail.message || 'Video generation is temporarily busy. Please try again in a few minutes.', { duration: 10000 });
+      } else {
+        toast.error(detail.message || fallbackMsg);
+      }
+    } else {
+      toast.error(typeof detail === 'string' ? detail : fallbackMsg);
+    }
+  };
+  
   // State - Steps: 1: Input, 2: Scenes, 3: Characters, 4: Prompts, 5: Images, 6: Voice, 7: Music, 8: Video
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -780,7 +800,8 @@ export default function StoryVideoStudio() {
     try {
       const res = await api.post('/api/story-video-studio/generation/images', {
         project_id: project.project_id,
-        provider: imageProvider
+        provider: imageProvider,
+        idempotency_key: genIdemKey(),
       });
       
       if (res.data.success && res.data.job_id) {
@@ -788,7 +809,7 @@ export default function StoryVideoStudio() {
         pollImageGenerationStatus(res.data.job_id);
       }
     } catch (error) {
-      toast.error(`${error.response?.data?.detail || 'Failed to start image generation'}`);
+      handleGenerationError(error, 'Failed to start image generation');
       setLoading(false);
       setShowWaitingExperience(false);
     }
@@ -856,7 +877,8 @@ export default function StoryVideoStudio() {
       const res = await api.post('/api/story-video-studio/generation/voices', {
         project_id: project.project_id,
         voice_id: selectedVoice,
-        user_api_key: userApiKey || undefined
+        user_api_key: userApiKey || undefined,
+        idempotency_key: genIdemKey(),
       });
       
       if (res.data.success && res.data.job_id) {
@@ -864,7 +886,7 @@ export default function StoryVideoStudio() {
         pollVoiceGenerationStatus(res.data.job_id);
       }
     } catch (error) {
-      toast.error(`${error.response?.data?.detail || 'Failed to start voice generation'}`);
+      handleGenerationError(error, 'Failed to start voice generation');
       setLoading(false);
       setShowWaitingExperience(false);
     }
@@ -929,7 +951,8 @@ export default function StoryVideoStudio() {
         include_watermark: includeWatermark,
         background_music_id: selectedMusic,
         music_volume: musicVolume,
-        animation_style: animationStyle
+        animation_style: animationStyle,
+        idempotency_key: genIdemKey(),
       });
       
       if (res.data.success) {
@@ -943,7 +966,7 @@ export default function StoryVideoStudio() {
         pollRenderStatus(res.data.job_id);
       }
     } catch (error) {
-      toast.error(`${error.response?.data?.detail || 'Failed to start video assembly'}. Credits have been refunded.`);
+      handleGenerationError(error, 'Failed to start video assembly');
       setLoading(false);
       setShowWaitingExperience(false);
     }
