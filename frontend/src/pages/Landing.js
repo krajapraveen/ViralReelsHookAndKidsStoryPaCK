@@ -109,17 +109,17 @@ export default function Landing() {
       },
     };
     localStorage.setItem('remix_data', JSON.stringify(data));
-    navigate('/app/story-video-studio');
+    navigate('/experience?source=landing&title=' + encodeURIComponent(item.title || '') + '&snippet=' + encodeURIComponent((item.story_text || '').slice(0, 300)));
   };
 
   const startFromHook = (hook) => {
     localStorage.setItem('onboarding_prompt', hook.prompt);
-    navigate('/app/story-video-studio?prompt=' + encodeURIComponent(hook.prompt));
+    navigate('/experience?source=landing&theme=' + encodeURIComponent(hook.prompt));
   };
 
   const goCreateFresh = () => {
     trackFunnel('first_action_click', { source_page: 'landing', meta: { action: 'create_fresh' } });
-    navigate('/app/story-video-studio');
+    navigate('/experience?source=landing');
   };
 
   return (

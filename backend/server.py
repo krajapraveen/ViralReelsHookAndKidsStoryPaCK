@@ -599,7 +599,9 @@ from routes.ttfd_analytics import router as ttfd_analytics_router
 api_router.include_router(ttfd_analytics_router)
 
 from routes.public_routes import router as public_router
+from routes.instant_story import router as instant_story_router
 api_router.include_router(public_router)
+api_router.include_router(instant_story_router)
 
 api_router.include_router(metrics_router)
 

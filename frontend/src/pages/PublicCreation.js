@@ -167,7 +167,7 @@ export default function PublicCreation() {
         body: JSON.stringify({ event: type === 'twist' ? 'add_twist_click' : type === 'funny' ? 'make_funny_click' : type === 'episode' ? 'next_episode_click' : 'continue_click', session_id: sessionStorage.getItem('growth_session_id') || 'unknown', source_slug: slug, meta: { type } }),
       }).catch(() => {});
     } catch {}
-    navigate(tool.path);
+    navigate(`/experience?source=continue&title=${encodeURIComponent(title)}&snippet=${encodeURIComponent((creation.story_text || creation.prompt || '').slice(0, 300))}`);
   };
 
   const pageUrl = `${window.location.origin}/v/${slug}`;

@@ -78,6 +78,7 @@ import PostValueOverlay from './components/guide/PostValueOverlay';
 import { UpgradeModal } from './components/UpgradeModal';
 // NEW REBUILT FEATURES
 import StoryEpisodeCreator from './pages/StoryEpisodeCreator';
+import InstantStoryExperience from './pages/InstantStoryExperience';
 import ContentChallengePlanner from './pages/ContentChallengePlanner';
 import CaptionRewriterPro from './pages/CaptionRewriterPro';
 // CONTENT BLUEPRINT LIBRARY
@@ -269,6 +270,7 @@ function App() {
         <Route path="/character/:characterId" element={<PublicCharacterPage />} />
         <Route path="/creator/:username" element={<CreatorProfile />} />
         <Route path="/series/:seriesId" element={<PublicSeries />} />
+        <Route path="/experience" element={<InstantStoryExperience />} />
         
         {/* Protected routes */}
         <Route path="/app" element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} />
