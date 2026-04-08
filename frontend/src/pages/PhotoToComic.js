@@ -663,7 +663,7 @@ function PhotoToComicInner() {
       VALIDATING: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />, title: 'Finalizing', subtitle: 'Preparing your comic...' },
       READY: { bg: 'bg-emerald-500/10 border-emerald-500/30', icon: <Check className="w-5 h-5 text-emerald-400" />, title: 'Your Comic is Ready', subtitle: 'All panels generated and verified' },
       PARTIAL_READY: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <Shield className="w-5 h-5 text-amber-400" />, title: 'Your Comic is Ready', subtitle: result.failedPanels ? `${result.readyPanels} optimized panels included` : (downloadReady ? 'Ready to download' : 'Finishing up...') },
-      FAILED: { bg: 'bg-red-500/10 border-red-500/30', icon: <RefreshCw className="w-5 h-5 text-red-400" />, title: 'Generation Issue', subtitle: 'Try a different style or photo for better results.' },
+      FAILED: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <RefreshCw className="w-5 h-5 text-amber-400" />, title: 'Something needs a quick fix', subtitle: 'Try again — or try a different style or photo for better results.' },
     };
     const statusCfg = STATUS_CONFIG[uiState] || STATUS_CONFIG.VALIDATING;
 

@@ -799,7 +799,13 @@ async def _stage_hooks_safe(job: dict) -> None:
 
 
 async def _stage_character_context(job: dict) -> Dict:
-    """Build character continuity package."""
+    """Build character continuity package.
+    
+    RESILIENCE: Character continuity is best-effort, NOT a hard dependency.
+    If the LLM call fails, we build a basic fallback from the episode plan
+    and continue the pipeline. Videos still generate — just with simpler
+    per-scene character descriptions instead of cross-scene consistency.
+    """
     job = await db.story_engine_jobs.find_one({"job_id": job["job_id"]}, {"_id": 0})
     if not job.get("episode_plan"):
         return {"status": "failed", "error": "No episode plan", "error_code": ErrorCode.SCENE_GENERATION_FAILED.value}
@@ -820,19 +826,82 @@ async def _stage_character_context(job: dict) -> Dict:
         style_id=job.get("style_id", "cartoon_2d"),
     )
 
+    used_fallback = False
     if not continuity:
-        return {"status": "failed", "error": "Failed to generate character continuity", "error_code": ErrorCode.MODEL_INVALID_RESPONSE.value}
+        # ── FALLBACK: Build basic continuity from episode plan ──
+        # Instead of failing the entire pipeline, extract character names
+        # from the episode plan and create minimal descriptions.
+        logger.warning(f"[PIPELINE] Character continuity LLM failed for {job['job_id'][:8]} — using best-effort fallback")
+        continuity = _build_fallback_continuity(job["episode_plan"])
+        used_fallback = True
 
     continuity["universe_id"] = job.get("story_chain_id", job["job_id"])
     continuity["story_chain_id"] = job.get("story_chain_id", job["job_id"])
     continuity["locked_at"] = datetime.now(timezone.utc).isoformat()
+    if used_fallback:
+        continuity["_fallback"] = True
 
     await db.story_engine_jobs.update_one(
         {"job_id": job["job_id"]},
         {"$set": {"character_continuity": continuity}},
     )
 
-    return {"status": "success", "output": {"characters": len(continuity.get("characters", []))}}
+    return {
+        "status": "success",
+        "output": {
+            "characters": len(continuity.get("characters", [])),
+            "used_fallback": used_fallback,
+        },
+    }
+
+
+def _build_fallback_continuity(episode_plan: dict) -> dict:
+    """Build a minimal character continuity package from the episode plan.
+    
+    Extracts character names from scenes and creates generic descriptions
+    so downstream stages (keyframes, scene clips) can still reference them.
+    This produces less consistent visuals but the video still generates.
+    """
+    characters = []
+    seen_names = set()
+
+    # Try to extract characters from scenes in the episode plan
+    scenes = episode_plan.get("scenes", [])
+    for scene in scenes:
+        for char_name in scene.get("characters", []):
+            name = char_name.strip() if isinstance(char_name, str) else str(char_name)
+            if name and name.lower() not in seen_names:
+                seen_names.add(name.lower())
+                characters.append({
+                    "name": name,
+                    "description": f"A character named {name}",
+                    "visual_tags": [],
+                    "color_palette": [],
+                })
+
+    # If no characters found in scenes, check top-level plan
+    if not characters:
+        for key in ("characters", "cast", "main_characters"):
+            raw = episode_plan.get(key, [])
+            if isinstance(raw, list):
+                for item in raw:
+                    name = item if isinstance(item, str) else (item.get("name", "") if isinstance(item, dict) else "")
+                    name = name.strip()
+                    if name and name.lower() not in seen_names:
+                        seen_names.add(name.lower())
+                        desc = item.get("description", f"A character named {name}") if isinstance(item, dict) else f"A character named {name}"
+                        characters.append({
+                            "name": name,
+                            "description": desc,
+                            "visual_tags": [],
+                            "color_palette": [],
+                        })
+
+    return {
+        "characters": characters,
+        "style_notes": "",
+        "consistency_level": "basic",
+    }
 
 
 async def _stage_scene_motion(job: dict) -> Dict:

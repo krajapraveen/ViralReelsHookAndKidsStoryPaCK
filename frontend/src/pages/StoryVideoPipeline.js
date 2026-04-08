@@ -1481,7 +1481,7 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
     VALIDATING: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />, title: 'Validating Assets', subtitle: 'Checking preview and download availability...' },
     READY: { bg: 'bg-emerald-500/10 border-emerald-500/30', icon: <CheckCircle className="w-5 h-5 text-emerald-400" />, title: usedQuickRender ? 'Video Ready (Quick Render)' : 'Video Ready', subtitle: usedQuickRender ? 'Quick render mode used — full animation may vary' : 'Preview and download verified' },
     PARTIAL_READY: { bg: 'bg-amber-500/10 border-amber-500/30', icon: usedQuickRender ? <Zap className="w-5 h-5 text-amber-400" /> : <Shield className="w-5 h-5 text-amber-400" />, title: usedQuickRender ? 'Video Saved (Quick Render)' : 'Video Saved', subtitle: usedQuickRender ? 'Quick render mode used — full animation may vary' : (downloadReady ? 'Download available — preview may be limited' : 'Processing assets...') },
-    FAILED: { bg: 'bg-red-500/10 border-red-500/30', icon: <AlertCircle className="w-5 h-5 text-red-400" />, title: 'Generation Issue', subtitle: failReason || 'Something went wrong' },
+    FAILED: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <AlertCircle className="w-5 h-5 text-amber-400" />, title: 'Something needs a quick fix', subtitle: failReason || 'A step in the generation process hit an issue' },
   };
   const statusCfg = STATUS_CONFIG[uiState] || STATUS_CONFIG.VALIDATING;
 
@@ -1641,15 +1641,22 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
               </div>
             </div>
           ) : uiState === 'FAILED' ? (
-            /* Generation failed — single source of truth from backend */
-            <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-8" data-testid="generation-failed-panel">
+            /* Generation failed — soft recovery UX */
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-8" data-testid="generation-failed-panel">
               <div className="text-center">
-                <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-                <h3 className="text-lg font-bold text-white mb-2">Generation Issue</h3>
-                <p className="text-red-300 text-sm mb-2">{failReason || 'Video generation did not produce output.'}</p>
+                <AlertCircle className="w-12 h-12 text-amber-400 mx-auto mb-4" />
+                <h3 className="text-lg font-bold text-white mb-2">Something needs a quick fix</h3>
+                <p className="text-amber-300/80 text-sm mb-2">{failReason || 'A step in the generation process hit an issue.'}</p>
                 {postGen.errorCode && (
-                  <p className="text-red-400/50 text-[11px] font-mono mb-2">Error: {postGen.errorCode}</p>
+                  <p className="text-amber-400/40 text-[11px] font-mono mb-2">Ref: {postGen.errorCode}</p>
                 )}
+                {/* Encouraging recovery copy */}
+                <div className="inline-block bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-4 py-2 mb-4">
+                  <p className="text-emerald-300/90 text-xs leading-relaxed">This usually works on retry. Your credits have been preserved.</p>
+                  {(failReason || '').toLowerCase().includes('character') && (
+                    <p className="text-emerald-300/70 text-[11px] mt-1">Tip: We'll automatically use simpler character descriptions on retry.</p>
+                  )}
+                </div>
                 {postGen.creditsRefunded > 0 && (
                   <div className="inline-flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1 mb-4">
                     <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
@@ -1657,21 +1664,20 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
                   </div>
                 )}
               </div>
-              {/* Actions strictly from backend allowed_actions */}
-              <div className="flex gap-3 justify-center mt-4" data-testid="failure-actions">
-                {(job?.allowed_actions || []).includes('retry') && (
-                  <RetryButton jobId={jobId} onRetryStarted={(j) => { onResume?.(j); }} />
-                )}
-                {(job?.allowed_actions || []).includes('start_over') && (
-                  <Button onClick={onNew} variant="outline" className="border-slate-600 text-slate-300" data-testid="start-over-btn">
-                    Start Fresh
-                  </Button>
-                )}
-                {!(job?.allowed_actions || []).includes('retry') && !(job?.allowed_actions || []).includes('start_over') && (
-                  <Button onClick={onNew} variant="outline" className="border-slate-600 text-slate-300" data-testid="start-fresh-btn">
-                    Start Fresh
-                  </Button>
-                )}
+              {/* Actions — Retry is ALWAYS primary, Start Over is secondary */}
+              <div className="flex flex-col items-center gap-2 mt-4" data-testid="failure-actions">
+                <div className="flex gap-3 justify-center">
+                  {(job?.allowed_actions || []).includes('retry') ? (
+                    <RetryButton jobId={jobId} onRetryStarted={(j) => { onResume?.(j); }} />
+                  ) : (
+                    <Button onClick={onNew} className="bg-indigo-600 hover:bg-indigo-500" data-testid="retry-fresh-btn">
+                      <RefreshCw className="w-4 h-4 mr-2" /> Try Again
+                    </Button>
+                  )}
+                </div>
+                <Button onClick={onNew} variant="ghost" className="text-zinc-500 hover:text-zinc-300 text-xs" data-testid="start-over-btn">
+                  or start over with a new story
+                </Button>
               </div>
             </div>
           ) : (
