@@ -1,83 +1,77 @@
 # Visionary Suite - Product Requirements Document
 
 ## Original Problem Statement
-Build a full-stack AI Creator Suite with compulsion-driven growth engine, monetization, activation, conversion funnel, retention engine, content protection, and production-grade resilience. Core mandate: Build network effects through a remix-driven engagement loop.
+Build a full-stack AI Creator Suite with compulsion-driven growth engine, network effects through remix-driven engagement loops, and addiction mechanics (competitive comparison, instant variants, streaks).
 
 ## Architecture
 ```
 /app/
-├── backend/
-│   ├── routes/
-│   │   ├── gallery_routes.py                # Remix Gallery feed + remix action + quality filtering + seeding
-│   │   ├── remix_routes.py                  # Remix tracking
-│   │   ├── story_video_generation.py        # Generation + admission control + time-estimates
-│   │   ├── story_video_studio.py            # Project CRUD with strict auth
-│   │   └── instant_story.py                 # First-time free viewing
-│   ├── services/
-│   │   └── story_engine/
-│   │       └── pipeline.py                  # Resilient pipeline with character context fallback
-│   └── server.py
+├── backend/routes/
+│   ├── gallery_routes.py          # Remix Gallery feed + remix action + quality filtering
+│   ├── story_video_generation.py  # Generation + admission control + time-estimates
+│   ├── story_video_studio.py      # Project CRUD with strict auth
+│   └── instant_story.py           # First-time free viewing
+├── backend/services/story_engine/
+│   └── pipeline.py                # Resilient pipeline with character context fallback
 ├── frontend/src/
 │   ├── components/
-│   │   └── RemixGallery.js                  # Reusable remix gallery (3 placements)
+│   │   └── RemixGallery.js        # Reusable remix gallery with trending badges
 │   ├── pages/
-│   │   ├── MySpacePage.js                   # Full conversion UX + Remix Gallery
-│   │   ├── StoryVideoStudio.js              # Studio with remix banner + waiting gallery
-│   │   └── StoryVideoPipeline.js            # Soft recovery error UX
+│   │   ├── MySpacePage.js         # Full conversion UX + Remix Gallery + Session Streak
+│   │   ├── StoryVideoPipeline.js  # Post-gen: Competitive Comparison + Instant Remix Variants
+│   │   └── StoryVideoStudio.js   # Studio with remix banner + waiting gallery
 ```
 
 ## Completed Systems (Cumulative)
-1-14. Backend stability, UX clarity, retention loops, auth hardening (see previous PRD versions)
 
-### Conversion & Retention Layer (2026-04-08)
+### Foundation (Previous Sessions)
+1-14. Backend stability, UX clarity, auth hardening, admission control, idempotency
+
+### Conversion & Retention Layer
 15. Re-engagement buttons (4 variants on completed cards)
-16. Credit psychology (badge + nudge)
+16. Credit psychology (badge + nudge on cards)
 17. Dynamic time estimates (rolling averages + fuzzy labels)
-18. Failure recovery UX (encouraging copy + tips)
-19. Skeleton loading (animated placeholders)
-20. Completion pulse (bounce badge + auto-scroll)
+18. Failure recovery UX (encouraging copy)
+19. Skeleton loading + Completion pulse
 
-### Pipeline Resilience (2026-04-08)
-21. Character context fallback (graceful degradation, not fatal failure)
-22. Soft error UX (amber "needs a quick fix" instead of red "Generation Issue")
-23. Retry as primary CTA (never "Start Fresh" as primary)
+### Pipeline Resilience
+20. Character context fallback (graceful degradation)
+21. Soft error UX (amber, not red; Retry primary, Start Fresh secondary)
 
-### Remix Gallery MVP (2026-04-08)
-24. **Gallery Feed API** — `GET /api/gallery/remix-feed` with quality filtering (has thumbnail, non-empty description, title >= 3 chars), sorted by remix_count DESC
-25. **Remix Action API** — `POST /api/gallery/{item_id}/remix` increments count, returns pre-filled Studio data
-26. **3 Placement Points**:
-    - MySpace: "People are remixing these" (8 cards between Completed and Create Another)
-    - CompletionPromptModal: "Try what others created" (3 cards after share/download buttons)
-    - During Wait: "While you wait… remix a trending story" (4 cards during generation)
-27. **Remix Cards** — Thumbnail, title, description, remix count badge, views count, hover "Remix This" overlay
-28. **Competitive Nudge** — "Can you make a better version?" below gallery
-29. **Remix Banner in Studio** — "You're remixing a trending story" with original title + remix count (shown when source === 'remix_gallery')
-30. **Quality-Filtered Seeding** — Auto-seed gallery with 20+ curated items, filtered for quality
+### Remix Gallery MVP
+22. Gallery Feed API with quality filtering
+23. Remix Action API (increment count + return pre-filled Studio data)
+24. 3 Placement Points: MySpace, CompletionModal, During-Wait
 
-## Key Growth Mechanics
+### Addiction Layer (Latest — 2026-04-08)
+25. **Competitive Comparison** — "Can you beat this version?" with side-by-side thumbnails (Your version vs. Trending), "Try to beat this" + "Improve yours" CTAs
+26. **Instant Remix Variants** — 4 one-click buttons: "More dramatic", "Shorter", "Faster-paced", "More emotional" (stores remix data + navigates to Studio)
+27. **Trending Badges** — Trending (>=10K), Popular (>=5K), Rising (>=1K) on gallery cards
+28. **Time-Bound Copy** — "X remixed today" instead of "X remixes" (creates urgency)
+29. **Session Streak** — "You've created X videos today — keep going" (visible when todayCount >= 1)
+
+## Growth Loop Architecture
 ```
-User generates → Sees result → Sees remix gallery → Clicks "Remix This" 
-→ Studio pre-fills → Generates variation → Repeat
+User generates → Sees result → Sees "Can you beat this?" → Clicks Remix/Beat
+→ Studio pre-fills → One-click variant → Generates again → Session streak grows
+→ Repeat (target: 3-5 generations per session)
 ```
-**Target:** 1 generation → 3-5 generations per session
 
 ## Backlog
-### P0 (Immediate)
+### P0
 - Push Instagram traffic to /experience, collect 100+ paywall_shown events
 
 ### P1
 - Paywall conversion analytics & optimization
 - A/B test hook text variations
-- "Your version vs. popular version" comparison after remix generation
-- Streak system ("You created 3 stories today")
+- Auto-play preview on gallery hover
 
 ### P2
 - Character consistency system (embeddings + seed control)
 - Explore Feed (TikTok-style scroll)
 - Viral Story re-engagement hook
-- WebSocket admin dashboard
-- Story Chain leaderboard
 - User opt-in gallery sharing
+- WebSocket admin dashboard
 
 ## Test Credentials
 - Test User: test@visionary-suite.com / Test@2026#
