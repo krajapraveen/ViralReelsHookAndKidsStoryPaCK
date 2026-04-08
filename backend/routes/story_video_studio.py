@@ -11,7 +11,7 @@ import json
 import uuid
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends, Request
 from pydantic import BaseModel, Field
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from dotenv import load_dotenv
@@ -94,6 +94,7 @@ class StoryInput(BaseModel):
     age_group: str = Field(default="kids_5_8")  # kids_3_5, kids_5_8, kids_8_12, teens, adults
     style_id: str = Field(default="storybook")
     title: Optional[str] = None
+    idempotency_key: Optional[str] = Field(None, max_length=128)
 
 class Character(BaseModel):
     name: str
@@ -297,6 +298,20 @@ async def create_project(
     """Create a new story project (Phase 1 - no credits required yet)"""
     
     user_id = user["id"]
+
+    # Idempotency check: if same user sends same key, return existing project
+    if story_input.idempotency_key:
+        existing = await db.story_projects.find_one(
+            {"user_id": user_id, "idempotency_key": story_input.idempotency_key},
+            {"_id": 0, "original_story": 0}
+        )
+        if existing:
+            return ProjectResponse(
+                success=True,
+                project_id=existing["project_id"],
+                message="Returning existing project (duplicate request detected).",
+                data=existing
+            )
     
     # Full safety pipeline — sanitize all user text fields
     from services.rewrite_engine import check_and_rewrite
@@ -332,6 +347,8 @@ async def create_project(
         "parent_project_id": None,
         "branch_type": "original",
         "sequence_number": 0,
+        # Idempotency
+        "idempotency_key": story_input.idempotency_key,
     }
     
     await db.story_projects.insert_one(project)
@@ -419,25 +436,71 @@ async def get_project(
 
 @router.get("/projects")
 async def list_projects(
+    request: Request,
     user_id: str = None,
     limit: int = 20,
     skip: int = 0
 ):
-    """List user's projects"""
+    """List user's top-level projects, collapsing duplicates by idempotency_key"""
+    # Extract user_id from auth token if not provided as query param
+    if not user_id:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            try:
+                import jwt
+                payload = jwt.decode(auth_header.split(" ", 1)[1], options={"verify_signature": False})
+                user_id = payload.get("sub")
+            except Exception:
+                pass
     if not user_id:
         user_id = "test_user"
     
+    # Only return parent/root projects (not branches/continuations)
     cursor = db.story_projects.find(
-        {"user_id": user_id},
-        {"_id": 0, "original_story": 0}  # Exclude large fields
-    ).sort("created_at", -1).skip(skip).limit(limit)
+        {"user_id": user_id, "parent_project_id": None},
+        {"_id": 0, "original_story": 0}
+    ).sort("created_at", -1).limit(200)
     
-    projects = await cursor.to_list(length=limit)
+    all_projects = await cursor.to_list(length=200)
+    
+    # Collapse duplicates that share the same idempotency_key (keep latest/most-progressed)
+    STATUS_ORDER = {'video_rendered': 5, 'voices_generated': 4, 'images_generated': 3, 'scenes_generated': 2, 'draft': 1, 'failed': 0}
+    seen_keys = {}
+    unique_projects = []
+    
+    for p in all_projects:
+        idem_key = p.get("idempotency_key")
+        if idem_key:
+            if idem_key in seen_keys:
+                # Keep the more-progressed version
+                existing_priority = STATUS_ORDER.get(seen_keys[idem_key].get("status", "draft"), 0)
+                current_priority = STATUS_ORDER.get(p.get("status", "draft"), 0)
+                if current_priority > existing_priority:
+                    seen_keys[idem_key] = p
+                continue
+            seen_keys[idem_key] = p
+        unique_projects.append(p)
+    
+    # Replace any idem_key entries with their best version
+    result = []
+    seen_idem = set()
+    for p in unique_projects:
+        idem_key = p.get("idempotency_key")
+        if idem_key and idem_key in seen_keys:
+            if idem_key not in seen_idem:
+                result.append(seen_keys[idem_key])
+                seen_idem.add(idem_key)
+        else:
+            result.append(p)
+    
+    # Apply pagination
+    paginated = result[skip:skip + limit]
     
     return {
         "success": True,
-        "projects": projects,
-        "count": len(projects)
+        "projects": paginated,
+        "count": len(paginated),
+        "total": len(result)
     }
 
 @router.delete("/projects/{project_id}")

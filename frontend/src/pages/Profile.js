@@ -479,25 +479,59 @@ export default function Profile() {
                   In Progress
                 </h3>
                 <div className="space-y-3">
-                  {userSpace.pending.map((item) => (
-                    <div 
-                      key={item.id}
-                      className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />
-                        <div>
-                          <p className="text-white font-medium">{item.title}</p>
-                          <p className="text-xs text-amber-400 capitalize">{item.status.replace('_', ' ')}</p>
+                  {userSpace.pending.map((item) => {
+                    const stageMap = {
+                      draft: { label: 'Step 1/5: Draft Created', pct: 20 },
+                      scenes_generated: { label: 'Step 2/5: Scenes Ready', pct: 40 },
+                      images_generated: { label: 'Step 3/5: Images Ready', pct: 60 },
+                      voices_generated: { label: 'Step 4/5: Voices Ready', pct: 80 },
+                    };
+                    const stage = stageMap[item.status] || { label: 'Processing', pct: 10 };
+                    return (
+                      <div 
+                        key={item.id}
+                        className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg"
+                        data-testid={`in-progress-item-${item.id}`}
+                      >
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="shrink-0">
+                            <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                              <Film className="w-5 h-5 text-amber-400" />
+                            </div>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-white font-medium truncate">{item.title}</p>
+                            <p className="text-xs text-amber-400">{stage.label}</p>
+                            <div className="mt-1.5 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                              <div className="h-full bg-amber-500 rounded-full transition-all" style={{ width: `${stage.pct}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 ml-3 shrink-0">
+                          <Link to="/app/story-video-studio">
+                            <Button variant="outline" size="sm" className="border-amber-500/50 text-amber-400" data-testid={`continue-project-${item.id}`}>
+                              Continue
+                            </Button>
+                          </Link>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-slate-500 hover:text-red-400 px-2"
+                            data-testid={`delete-project-${item.id}`}
+                            onClick={async () => {
+                              try {
+                                await api.delete(`/api/story-video-studio/projects/${item.id}`);
+                                toast.success('Project removed');
+                                fetchUserSpace();
+                              } catch { toast.error('Failed to remove project'); }
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
-                      <Link to="/app/story-video-studio">
-                        <Button variant="outline" size="sm" className="border-amber-500/50 text-amber-400">
-                          Continue
-                        </Button>
-                      </Link>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}

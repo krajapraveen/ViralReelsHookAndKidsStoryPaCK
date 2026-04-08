@@ -1,0 +1,186 @@
+{
+  "iteration": 463,
+  "timestamp": "2026-04-08T10:15:00Z",
+  "summary": "Idempotency Protection Bug Fix Testing - All 13 features verified working. Backend idempotency protection prevents duplicate project creation. Profile page shows friendly stage labels, progress bars, and delete buttons. No duplicate rows in In Progress section.",
+  "total_tests": 13,
+  "passed": 13,
+  "failed": 0,
+  "skipped": 0,
+  "pass_rate": "100%",
+  "test_files": [
+    "/app/backend/tests/test_idempotency_projects_iteration463.py"
+  ],
+  "test_method": "pytest (backend) + Playwright (frontend) + Code Review",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "features_tested": {
+    "idempotency_first_call_creates_project": {
+      "status": "PASS",
+      "details": [
+        "POST /api/story-video-studio/projects/create with idempotency_key creates new project",
+        "Returns success=true, project_id, and message 'Project created successfully'"
+      ]
+    },
+    "idempotency_duplicate_returns_existing": {
+      "status": "PASS",
+      "details": [
+        "Second POST with SAME idempotency_key returns existing project_id",
+        "Message indicates 'duplicate request detected' or 'existing project'",
+        "No new project created - prevents duplicate rows"
+      ]
+    },
+    "idempotency_different_key_creates_new": {
+      "status": "PASS",
+      "details": [
+        "POST with DIFFERENT idempotency_key creates a NEW project",
+        "Different project_ids returned for different keys"
+      ]
+    },
+    "idempotency_optional_key_works": {
+      "status": "PASS",
+      "details": [
+        "POST without idempotency_key still creates project normally",
+        "Backward compatible with old clients"
+      ]
+    },
+    "list_projects_auth_token_extracts_user_id": {
+      "status": "PASS",
+      "details": [
+        "GET /api/story-video-studio/projects with auth token extracts user_id from JWT",
+        "Returns only the authenticated user's projects",
+        "All returned projects have matching user_id"
+      ]
+    },
+    "list_projects_no_auth_fallback": {
+      "status": "PASS",
+      "details": [
+        "GET /api/story-video-studio/projects without auth falls back to 'test_user'",
+        "Returns test_user's projects or empty list"
+      ]
+    },
+    "list_projects_parent_only_filter": {
+      "status": "PASS",
+      "details": [
+        "GET /api/story-video-studio/projects returns only parent projects",
+        "All returned projects have parent_project_id=None",
+        "Child/continuation projects are filtered out"
+      ]
+    },
+    "list_projects_idempotency_collapse": {
+      "status": "PASS",
+      "details": [
+        "Duplicate idempotency_key records are collapsed",
+        "Only one project per idempotency_key returned",
+        "Most progressed version is kept"
+      ]
+    },
+    "delete_project_removes_assets": {
+      "status": "PASS",
+      "details": [
+        "DELETE /api/story-video-studio/projects/{project_id} deletes project",
+        "Associated assets (scene_assets, voice_tracks, render_jobs) also deleted",
+        "Returns success=true with 'deleted' message"
+      ]
+    },
+    "delete_nonexistent_returns_404": {
+      "status": "PASS",
+      "details": [
+        "DELETE non-existent project returns 404",
+        "Proper error handling"
+      ]
+    },
+    "profile_friendly_stage_labels": {
+      "status": "PASS",
+      "details": [
+        "Profile page 'In Progress' section shows friendly stage labels",
+        "Format: 'Step X/5: Stage Name'",
+        "Verified: 'Step 1/5: Draft Created' visible for draft projects"
+      ]
+    },
+    "profile_progress_bars": {
+      "status": "PASS",
+      "details": [
+        "Each in-progress project has a progress bar",
+        "Progress bar shows percentage based on stage (20% for draft, 40% for scenes, etc.)",
+        "Amber/green color scheme"
+      ]
+    },
+    "profile_delete_buttons": {
+      "status": "PASS",
+      "details": [
+        "Each in-progress project has a delete button",
+        "data-testid='delete-project-{id}' attribute present",
+        "Trash icon visible"
+      ]
+    },
+    "profile_no_duplicate_rows": {
+      "status": "PASS",
+      "details": [
+        "Profile page does NOT show duplicate rows for same-key projects",
+        "2 unique projects displayed with 2 unique project IDs",
+        "Idempotency collapse working correctly"
+      ]
+    }
+  },
+  "code_review_verification": {
+    "backend_story_video_studio_py": {
+      "lines_verified": ["92-97", "293-364", "437-504", "506-524"],
+      "idempotency_key_model": "Line 97 - idempotency_key: Optional[str] = Field(None, max_length=128)",
+      "create_project_idempotency_check": "Lines 302-314 - Checks for existing project with same user_id + idempotency_key",
+      "list_projects_auth_extraction": "Lines 446-456 - Extracts user_id from JWT token, falls back to test_user",
+      "list_projects_parent_filter": "Lines 459-462 - Filters to parent_project_id=None",
+      "list_projects_collapse_logic": "Lines 466-494 - Collapses duplicates by idempotency_key, keeps most progressed"
+    },
+    "frontend_story_video_studio_js": {
+      "lines_verified": ["627-630"],
+      "idempotency_key_generation": "Line 630 - crypto.randomUUID() or fallback ik_{timestamp}_{random}"
+    },
+    "frontend_profile_js": {
+      "lines_verified": ["482-536"],
+      "stage_map": "Lines 483-488 - Maps status to friendly labels (Step X/5: Stage Name)",
+      "progress_bar": "Lines 505-507 - Progress bar with percentage based on stage",
+      "delete_button": "Lines 519-529 - Delete button with data-testid and onClick handler"
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_idempotency_projects_iteration463.py",
+    "/app/test_reports/pytest/pytest_idempotency_projects_iteration463.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "All idempotency protection features are correctly implemented",
+    "Backend correctly checks for existing project with same user_id + idempotency_key before creating new",
+    "list_projects correctly extracts user_id from JWT token instead of defaulting to test_user",
+    "list_projects correctly filters to parent-only projects and collapses duplicates",
+    "Frontend generates unique idempotency_key using crypto.randomUUID() with fallback",
+    "Profile page correctly displays friendly stage labels, progress bars, and delete buttons",
+    "No duplicate rows observed in Profile page In Progress section"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_idempotency_projects_iteration463.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "test_credentials": "test@visionary-suite.com / Test@2026#",
+  "seed_data_creation": "Test projects created and cleaned up during pytest execution",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Idempotency protection is fully working. The test user (test@visionary-suite.com) has 2 draft projects in 'In Progress' state. Backend tests create and cleanup test projects automatically. Profile page UI shows friendly stage labels like 'Step 1/5: Draft Created' with progress bars and delete buttons. MongoDB index user_idempotency_idx is in place for efficient lookups.",
+  "mocked_apis": "None - all real API calls",
+  "pytest_results": {
+    "total": 10,
+    "passed": 10,
+    "failed": 0,
+    "skipped": 0,
+    "duration": "6.15s"
+  }
+}

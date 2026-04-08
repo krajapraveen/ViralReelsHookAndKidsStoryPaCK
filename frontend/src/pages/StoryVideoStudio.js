@@ -627,6 +627,7 @@ export default function StoryVideoStudio() {
         language,
         age_group: ageGroup,
         style_id: styleId,
+        idempotency_key: crypto.randomUUID ? crypto.randomUUID() : `ik_${Date.now()}_${Math.random().toString(36).slice(2)}`,
         // Attach series context if creating from a Story Series flow
         ...(seriesContext ? {
           series_id: seriesContext.series_id,
