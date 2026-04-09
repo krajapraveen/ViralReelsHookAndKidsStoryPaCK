@@ -593,6 +593,266 @@ async def viral_chain_stats(user: dict = Depends(get_current_user)):
     return {"success": True, "has_chain": True, "top_story": top_story}
 
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 6b. VIRAL MOMENTUM METER — Per-story momentum status
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/momentum-meter")
+async def viral_momentum_meter(user: dict = Depends(get_current_user)):
+    """Returns momentum status for user's stories with traction.
+    Levels: rising_fast, trending, spreading_widely"""
+    user_id = user.get("id") or str(user.get("_id"))
+    now = datetime.now(timezone.utc)
+
+    pipeline = [
+        {"$match": {"parent_user_id": user_id}},
+        {"$group": {
+            "_id": "$parent_job_id",
+            "parent_title": {"$first": "$parent_title"},
+            "parent_slug": {"$first": "$parent_slug"},
+            "total_remixes": {"$sum": 1},
+            "latest_remix": {"$max": "$created_at"},
+        }},
+        {"$match": {"total_remixes": {"$gte": 1}}},
+        {"$sort": {"total_remixes": -1}},
+        {"$limit": 5},
+    ]
+
+    stories = []
+    async for doc in db.remix_lineage.aggregate(pipeline):
+        jid = doc["_id"]
+        # Count remixes in last 24h and 7d
+        day_ago = (now - timedelta(hours=24)).isoformat()
+        week_ago = (now - timedelta(days=7)).isoformat()
+        remixes_24h = await db.remix_lineage.count_documents({
+            "parent_job_id": jid, "created_at": {"$gte": day_ago}
+        })
+        remixes_7d = await db.remix_lineage.count_documents({
+            "parent_job_id": jid, "created_at": {"$gte": week_ago}
+        })
+
+        # Determine momentum level
+        if remixes_24h >= 3:
+            level = "spreading_widely"
+            label = "Spreading Widely"
+            icon = "star"
+        elif remixes_24h >= 1 or remixes_7d >= 5:
+            level = "trending"
+            label = "Trending"
+            icon = "rocket"
+        elif remixes_7d >= 1:
+            level = "rising_fast"
+            label = "Rising Fast"
+            icon = "flame"
+        else:
+            level = "steady"
+            label = "Steady"
+            icon = "circle"
+
+        stories.append({
+            "job_id": jid,
+            "title": doc.get("parent_title", "Your Story"),
+            "slug": doc.get("parent_slug", ""),
+            "total_remixes": doc["total_remixes"],
+            "remixes_24h": remixes_24h,
+            "remixes_7d": remixes_7d,
+            "momentum_level": level,
+            "momentum_label": label,
+            "momentum_icon": icon,
+        })
+
+    return {"success": True, "stories": stories}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 6c. RESHARE + VIRAL PROGRESS NUDGE SYSTEM
+# ═══════════════════════════════════════════════════════════════════════════════
+
+RESHARE_COPY_VARIANTS = [
+    {"id": "momentum_v1", "text": "Your story is gaining momentum — share again to keep it growing", "category": "momentum"},
+    {"id": "momentum_v2", "text": "More creators are discovering your story today — extend its reach now", "category": "momentum"},
+]
+
+PROGRESS_COPY_VARIANTS = [
+    {"id": "curiosity_v1", "text": "Your story may be inspiring new creators right now — check its progress", "category": "curiosity"},
+    {"id": "curiosity_v2", "text": "Your viral chain may have grown since yesterday", "category": "curiosity"},
+]
+
+@router.get("/my-nudges")
+async def get_my_nudges(user: dict = Depends(get_current_user)):
+    """Get pending nudges for the current user (reshare + progress)."""
+    user_id = user.get("id") or str(user.get("_id"))
+    now = datetime.now(timezone.utc)
+
+    # Only return nudges from last 48h that haven't been dismissed
+    cutoff = (now - timedelta(hours=48)).isoformat()
+    nudges = []
+    async for n in db.viral_nudges.find(
+        {"user_id": user_id, "created_at": {"$gte": cutoff}, "dismissed": False},
+        {"_id": 0}
+    ).sort("created_at", -1).limit(3):
+        nudges.append(n)
+
+    return {"success": True, "nudges": nudges}
+
+
+@router.post("/dismiss-nudge")
+async def dismiss_nudge(user: dict = Depends(get_current_user)):
+    """Dismiss a nudge by nudge_id (passed in body)."""
+    # Accept nudge_id from request body
+    user_id = user.get("id") or str(user.get("_id"))
+    # Simple: dismiss all nudges for this user
+    await db.viral_nudges.update_many(
+        {"user_id": user_id, "dismissed": False},
+        {"$set": {"dismissed": True, "dismissed_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"success": True}
+
+
+@router.post("/generate-nudges")
+async def generate_nudges():
+    """Generate reshare and progress nudges for qualifying users.
+    Rules:
+    - Max 1 reshare nudge per 24h per story
+    - Max 1 progress nudge per 24h per user
+    - Only nudge stories with traction (>= 1 remix)
+    - Don't nudge inactive stories
+    """
+    now = datetime.now(timezone.utc)
+    day_ago = (now - timedelta(hours=24)).isoformat()
+    week_ago = (now - timedelta(days=7)).isoformat()
+    nudges_created = 0
+
+    # 1. RESHARE NUDGES — for stories with traction that weren't reshared in 12h
+    pipeline = [
+        {"$match": {"parent_user_id": {"$ne": ""}}},
+        {"$group": {
+            "_id": {"user": "$parent_user_id", "job": "$parent_job_id"},
+            "total": {"$sum": 1},
+            "title": {"$first": "$parent_title"},
+            "slug": {"$first": "$parent_slug"},
+            "latest": {"$max": "$created_at"},
+        }},
+        {"$match": {"total": {"$gte": 1}}},
+    ]
+
+    import hashlib
+    async for doc in db.remix_lineage.aggregate(pipeline):
+        uid = doc["_id"]["user"]
+        jid = doc["_id"]["job"]
+
+        # Check: no reshare nudge for this story in last 24h
+        existing = await db.viral_nudges.find_one({
+            "user_id": uid, "job_id": jid, "type": "reshare",
+            "created_at": {"$gte": day_ago},
+        })
+        if existing:
+            continue
+
+        # Check: story has recent activity (remix in last 7d)
+        recent = await db.remix_lineage.count_documents({
+            "parent_job_id": jid, "created_at": {"$gte": week_ago}
+        })
+        if recent == 0:
+            continue
+
+        # Pick copy variant deterministically (sticky by user+job)
+        variant_idx = int(hashlib.md5(f"{uid}{jid}".encode()).hexdigest(), 16) % len(RESHARE_COPY_VARIANTS)
+        variant = RESHARE_COPY_VARIANTS[variant_idx]
+
+        await db.viral_nudges.insert_one({
+            "user_id": uid,
+            "job_id": jid,
+            "type": "reshare",
+            "title": variant["text"],
+            "story_title": doc.get("title", "Your Story"),
+            "story_slug": doc.get("slug", ""),
+            "copy_variant_id": variant["id"],
+            "copy_category": variant["category"],
+            "remixes_since_share": recent,
+            "dismissed": False,
+            "created_at": now.isoformat(),
+        })
+        nudges_created += 1
+
+        # Also create as notification
+        await db.notifications.insert_one({
+            "user_id": uid,
+            "type": "reshare_nudge",
+            "title": variant["text"],
+            "message": f'"{doc.get("title", "Your Story")[:40]}" got {recent} new remix{"es" if recent != 1 else ""} — share it again to keep momentum.',
+            "link": f"/v/{doc.get('slug', '')}",
+            "read": False,
+            "copy_variant_id": variant["id"],
+            "created_at": now.isoformat(),
+        })
+
+    # 2. PROGRESS NUDGES — 24h after activity, if user hasn't checked chain stats
+    creators = await db.remix_lineage.distinct("parent_user_id")
+    for uid in creators:
+        if not uid:
+            continue
+
+        # Check: no progress nudge in last 24h
+        existing = await db.viral_nudges.find_one({
+            "user_id": uid, "type": "progress",
+            "created_at": {"$gte": day_ago},
+        })
+        if existing:
+            continue
+
+        # Check: user has recent remix activity
+        recent = await db.remix_lineage.count_documents({
+            "parent_user_id": uid, "created_at": {"$gte": day_ago}
+        })
+        if recent == 0:
+            continue
+
+        # Check: user hasn't viewed chain stats recently
+        recent_view = await db.analytics_events.find_one({
+            "event": "viral_chain_viewed",
+            "data.user_id": uid,
+            "timestamp": {"$gte": now - timedelta(hours=24)},
+        })
+        if recent_view:
+            continue
+
+        variant_idx = int(hashlib.md5(uid.encode()).hexdigest(), 16) % len(PROGRESS_COPY_VARIANTS)
+        variant = PROGRESS_COPY_VARIANTS[variant_idx]
+
+        await db.viral_nudges.insert_one({
+            "user_id": uid,
+            "type": "progress",
+            "title": variant["text"],
+            "copy_variant_id": variant["id"],
+            "copy_category": variant["category"],
+            "dismissed": False,
+            "created_at": now.isoformat(),
+        })
+        nudges_created += 1
+
+        await db.notifications.insert_one({
+            "user_id": uid,
+            "type": "viral_progress",
+            "title": variant["text"],
+            "message": "Your viral chain may have grown — check your creator space to see its progress.",
+            "link": "/app/my-space",
+            "read": False,
+            "copy_variant_id": variant["id"],
+            "created_at": now.isoformat(),
+        })
+
+    # Track analytics
+    await db.analytics_events.insert_one({
+        "event": "nudge_batch_generated",
+        "data": {"nudges_created": nudges_created},
+        "timestamp": now,
+    })
+
+    return {"success": True, "nudges_created": nudges_created}
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 7. VIRAL MILESTONES
 # ═══════════════════════════════════════════════════════════════════════════════

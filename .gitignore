@@ -519,3 +519,8 @@ frontend/node_modules/.cache/default-development/72.pack
 *.env
 *.env.*
 frontend/node_modules/.cache/default-development/74.pack
+-e 
+# Environment files
+*.env
+*.env.*
+frontend/node_modules/.cache/default-development/75.pack

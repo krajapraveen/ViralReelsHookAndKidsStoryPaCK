@@ -666,7 +666,8 @@ export default function PublicCreation() {
 
               {/* ═══ REMIX VARIANTS ═══ */}
               <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-3" data-testid="remix-variants">
-                <span className="text-[10px] font-semibold text-cyan-400 uppercase tracking-wider mb-2 block">Remix as...</span>
+                <span className="text-[10px] font-semibold text-cyan-400 uppercase tracking-wider mb-1 block">Create Your Version</span>
+                <p className="text-[10px] text-slate-500 mb-2">Inspired stories spread faster — make this one yours</p>
                 <div className="grid grid-cols-2 gap-2">
                   {[
                     { key: 'comic-storybook', label: 'Comic Book', color: 'text-amber-400 bg-amber-500/10 border-amber-500/15' },

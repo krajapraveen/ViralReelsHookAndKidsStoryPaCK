@@ -52,13 +52,16 @@ export default function SharePromptModal({ jobId, title, characterName, slug, on
   // Personalized viral-proof subtitle: use real numbers when available
   let viralProof = ctxSubtitle;
   if (context?.userViralStats?.total_remix_conversions > 0) {
-    viralProof = `Your stories generated ${context.userViralStats.total_remix_conversions} remixes — share this one to grow faster`;
+    viralProof = `Your stories inspired ${context.userViralStats.total_remix_conversions} creators — share this one to extend your reach`;
   } else if (!context?.isChallengeWinner && !context?.isTrending && !(context?.remixCount > 2)) {
-    viralProof = 'Stories shared early generate more remixes';
+    viralProof = 'Stories shared early reach more creators';
   }
 
   // "Share Again" CTA for stories with existing viral traction
   const showShareAgain = (context?.remixCount || 0) > 0;
+  const shareAgainMessage = showShareAgain
+    ? `This story already has ${context.remixCount} remix${context.remixCount !== 1 ? 'es' : ''} — share again to keep it growing`
+    : null;
 
   const shareText = characterName
     ? `I just created "${title}" starring ${characterName} with AI in seconds! Continue the story:`
@@ -210,18 +213,21 @@ export default function SharePromptModal({ jobId, title, characterName, slug, on
         </p>
 
         {/* Share Again CTA for stories with existing viral traction */}
-        {showShareAgain && (
-          <button
-            onClick={() => {
-              copyLink();
-              trackEvent('share_again_clicked', { job_id: jobId });
-            }}
-            className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs text-amber-300 bg-amber-500/[0.06] border border-amber-500/15 hover:bg-amber-500/10 transition-colors"
-            data-testid="share-prompt-share-again"
-          >
-            <TrendingUp className="w-3.5 h-3.5" />
-            Share Again to Extend Its Reach
-          </button>
+        {showShareAgain && shareAgainMessage && (
+          <div className="mt-2 space-y-1.5" data-testid="share-again-section">
+            <p className="text-[10px] text-emerald-400/80 text-center px-2">{shareAgainMessage}</p>
+            <button
+              onClick={() => {
+                copyLink();
+                trackEvent('share_again_clicked', { job_id: jobId, copy_variant_id: 'share_again_momentum', remixes: context?.remixCount });
+              }}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-emerald-300 bg-emerald-500/[0.06] border border-emerald-500/15 hover:bg-emerald-500/10 transition-colors"
+              data-testid="share-prompt-share-again"
+            >
+              <TrendingUp className="w-3.5 h-3.5" />
+              Share Again to Keep Momentum
+            </button>
+          </div>
         )}
       </div>
     </div>

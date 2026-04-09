@@ -730,6 +730,9 @@ export default function MySpacePage() {
   const [viralMyStats, setViralMyStats] = useState(null);
   const [viralChain, setViralChain] = useState(null);
   const [viralMilestones, setViralMilestones] = useState(null);
+  const [momentumMeter, setMomentumMeter] = useState([]);
+  const [viralNudges, setViralNudges] = useState([]);
+  const [newMilestone, setNewMilestone] = useState(null);
   const [searchParams] = useSearchParams();
   const highlightId = searchParams.get('projectId');
   const highlightRef = useRef(null);
@@ -757,7 +760,20 @@ export default function MySpacePage() {
     // Fetch viral stats
     api.get('/api/viral/rewards/status').then(r => setViralMyStats(r.data)).catch(() => {});
     api.get('/api/viral/chain-stats').then(r => { if (r.data?.has_chain) setViralChain(r.data.top_story); }).catch(() => {});
-    api.get('/api/viral/milestones').then(r => setViralMilestones(r.data)).catch(() => {});
+    api.get('/api/viral/milestones').then(r => {
+      setViralMilestones(r.data);
+      // Check for newly earned milestones to show celebration
+      if (r.data?.earned?.length > 0) {
+        const lastEarned = r.data.earned[r.data.earned.length - 1];
+        const seenKey = `milestone_seen_${lastEarned.id}`;
+        if (!sessionStorage.getItem(seenKey)) {
+          setNewMilestone(lastEarned);
+          sessionStorage.setItem(seenKey, 'true');
+        }
+      }
+    }).catch(() => {});
+    api.get('/api/viral/momentum-meter').then(r => setMomentumMeter(r.data?.stories || [])).catch(() => {});
+    api.get('/api/viral/my-nudges').then(r => setViralNudges(r.data?.nudges || [])).catch(() => {});
   }, []);
 
   const fetchJobs = useCallback(async () => {
@@ -951,13 +967,26 @@ export default function MySpacePage() {
           </div>
         )}
 
-        {/* VIRAL CHAIN TIMELINE — Top story with momentum */}
+        {/* VIRAL CHAIN TIMELINE — Top story with momentum + share again */}
         {viralChain && (
           <div className="bg-gradient-to-br from-rose-500/[0.04] to-violet-500/[0.04] border border-white/[0.06] rounded-2xl p-4" data-testid="viral-chain-timeline">
             <div className="flex items-center gap-2 mb-3">
               <Flame className="w-4 h-4 text-rose-400" />
               <h3 className="text-sm font-bold text-white">Your Top Viral Story</h3>
-              {viralChain.remixes_today > 0 && (
+              {/* Momentum Meter Badge */}
+              {(() => {
+                const m = momentumMeter.find(s => s.job_id === viralChain.job_id);
+                if (!m || m.momentum_level === 'steady') return null;
+                const mColors = { rising_fast: 'text-amber-400 bg-amber-500/10', trending: 'text-rose-400 bg-rose-500/10', spreading_widely: 'text-cyan-400 bg-cyan-500/10' };
+                const mIcons = { rising_fast: Flame, trending: Zap, spreading_widely: Sparkles };
+                const MIcon = mIcons[m.momentum_level] || Flame;
+                return (
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse inline-flex items-center gap-1 ${mColors[m.momentum_level] || ''}`} data-testid="momentum-meter-badge">
+                    <MIcon className="w-3 h-3" /> {m.momentum_label}
+                  </span>
+                );
+              })()}
+              {!momentumMeter.find(s => s.job_id === viralChain.job_id && s.momentum_level !== 'steady') && viralChain.remixes_today > 0 && (
                 <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full animate-pulse" data-testid="chain-momentum-badge">
                   +{viralChain.remixes_today} new remix{viralChain.remixes_today !== 1 ? 'es' : ''} today
                 </span>
@@ -976,17 +1005,32 @@ export default function MySpacePage() {
                 <p className="text-sm font-semibold text-white truncate">{viralChain.title}</p>
                 <p className="text-[11px] text-slate-500 mt-0.5">Your most viral creation</p>
               </div>
-              {viralChain.slug && (
-                <button
-                  onClick={() => { navigate(`/v/${viralChain.slug}`); trackEvent('viral_chain_viewed', { job_id: viralChain.job_id }); }}
-                  className="text-xs text-violet-400 hover:text-violet-300 font-medium flex-shrink-0"
-                  data-testid="chain-view-btn"
-                >
-                  View
-                </button>
-              )}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {viralChain.slug && (
+                  <button
+                    onClick={() => { navigate(`/v/${viralChain.slug}`); trackEvent('viral_chain_viewed', { job_id: viralChain.job_id }); }}
+                    className="text-xs text-violet-400 hover:text-violet-300 font-medium"
+                    data-testid="chain-view-btn"
+                  >
+                    View
+                  </button>
+                )}
+                {viralChain.slug && viralChain.total_remixes > 0 && (
+                  <button
+                    onClick={() => {
+                      const url = `${window.location.origin}/v/${viralChain.slug}`;
+                      navigator.clipboard.writeText(url).then(() => toast.success('Link copied — share it to keep the momentum going!'));
+                      trackEvent('reshare_from_chain', { job_id: viralChain.job_id, total_remixes: viralChain.total_remixes });
+                    }}
+                    className="px-2.5 py-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg hover:bg-emerald-500/20 transition-colors"
+                    data-testid="chain-share-again-btn"
+                  >
+                    <Share2 className="w-3 h-3 inline mr-1" /> Share Again
+                  </button>
+                )}
+              </div>
             </div>
-            {/* Chain stats — celebratory, not technical */}
+            {/* Chain stats */}
             <div className="grid grid-cols-3 gap-2">
               <div className="bg-white/[0.03] rounded-lg px-3 py-2 text-center">
                 <p className="text-lg font-bold text-white">{viralChain.total_remixes}</p>
@@ -1001,6 +1045,62 @@ export default function MySpacePage() {
                 <p className="text-[10px] text-slate-500">creator level{viralChain.chain_depth !== 1 ? 's' : ''}</p>
               </div>
             </div>
+            {/* Reshare nudge — contextual, momentum-driven */}
+            {viralChain.remixes_this_week > 0 && (
+              <div className="mt-3 p-2.5 rounded-lg bg-emerald-500/[0.04] border border-emerald-500/10 flex items-center gap-2" data-testid="chain-reshare-nudge">
+                <Zap className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                <span className="text-[11px] text-emerald-300 flex-1">Your story got {viralChain.remixes_this_week} new remix{viralChain.remixes_this_week !== 1 ? 'es' : ''} since you shared — share again to keep momentum</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* VIRAL PROGRESS NUDGE — 24h curiosity trigger */}
+        {viralNudges.length > 0 && viralNudges[0]?.type === 'progress' && (
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-500/[0.04] border border-violet-500/10 animate-[fadeIn_0.5s_ease-out]" data-testid="viral-progress-nudge">
+            <Sparkles className="w-4 h-4 text-violet-400 flex-shrink-0" />
+            <span className="text-sm text-violet-300 flex-1">{viralNudges[0].title}</span>
+            <button
+              onClick={() => { api.post('/api/viral/dismiss-nudge').catch(() => {}); setViralNudges([]); }}
+              className="text-slate-500 hover:text-slate-300 text-xs flex-shrink-0"
+              data-testid="nudge-dismiss-btn"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* MILESTONE CELEBRATION — Animated entrance for new badges */}
+        {newMilestone && (
+          <div className="bg-gradient-to-r from-amber-500/[0.08] to-rose-500/[0.08] border border-amber-500/20 rounded-2xl p-4 animate-[fadeIn_0.6s_ease-out]" data-testid="milestone-celebration">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center animate-[bounceIn_0.8s_ease-out]">
+                {newMilestone.icon === 'sparkles' && <Sparkles className="w-5 h-5 text-amber-400" />}
+                {newMilestone.icon === 'users' && <Users className="w-5 h-5 text-amber-400" />}
+                {newMilestone.icon === 'layers' && <Layers className="w-5 h-5 text-amber-400" />}
+                {newMilestone.icon === 'flame' && <Flame className="w-5 h-5 text-amber-400" />}
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-amber-300">{newMilestone.label}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">This is how creator momentum begins</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const shareText = `I just earned the "${newMilestone.label}" badge on Visionary Suite! Creating with AI is incredible.`;
+                    navigator.clipboard.writeText(shareText).then(() => toast.success('Milestone copied — share it with your audience!'));
+                    trackEvent('milestone_badge_shared', { milestone_id: newMilestone.id });
+                  }}
+                  className="px-2.5 py-1 text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg hover:bg-amber-500/20 transition-colors"
+                  data-testid="share-milestone-btn"
+                >
+                  <Share2 className="w-3 h-3 inline mr-1" /> Share Milestone
+                </button>
+                <button onClick={() => setNewMilestone(null)} className="text-slate-500 hover:text-slate-300" data-testid="dismiss-celebration-btn">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -1008,7 +1108,7 @@ export default function MySpacePage() {
         {viralMilestones?.earned?.length > 0 && (
           <div className="flex items-center gap-2 flex-wrap" data-testid="viral-milestones">
             {viralMilestones.earned.map(m => (
-              <div key={m.id} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/15 text-xs font-semibold text-amber-300" data-testid={`milestone-${m.id}`}>
+              <div key={m.id} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/15 text-xs font-semibold text-amber-300 transition-all hover:bg-amber-500/15 hover:scale-[1.02] cursor-default" data-testid={`milestone-${m.id}`}>
                 {m.icon === 'sparkles' && <Sparkles className="w-3 h-3" />}
                 {m.icon === 'users' && <Users className="w-3 h-3" />}
                 {m.icon === 'layers' && <Layers className="w-3 h-3" />}
