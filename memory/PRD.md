@@ -1,7 +1,7 @@
 # Visionary Suite - Product Requirements Document
 
 ## Original Problem Statement
-Build an AI Creator Suite with a compulsion-driven "Growth Engine" — a full-stack application featuring AI video generation, social sharing loops, and monetization via credits and payments. The platform must create irresistible user journeys from discovery to creation and sharing, with a retention layer that pulls users back daily.
+Build an AI Creator Suite with a compulsion-driven "Growth Engine" — a full-stack application featuring AI video generation, social sharing loops, and monetization via credits and payments. The platform must create irresistible user journeys with a multi-day retention engine that pulls creators back through notifications, email, challenges, and social proof.
 
 ## Architecture
 - **Frontend**: React (CRA) + TailwindCSS + Shadcn/UI
@@ -17,77 +17,67 @@ Build an AI Creator Suite with a compulsion-driven "Growth Engine" — a full-st
 
 ## What's Been Implemented
 
-### P0 Growth Loop (Compulsion Engine) — DONE
-- Redesigned public pages, 1-click continue, open-loop endings, enhanced social proof
+### Core Platform — DONE
+- P0 Growth Loop, P1 Monetization, MySpace UX, Pipeline Resilience, Remix Gallery, Addiction Layer, Trust Fixes
 
-### P1 Monetization — DONE
-- Cashfree payments, strict credit checks, 50-credit standard
+### P0 Failed Job Recovery — DONE (Apr 9)
+- Server-authoritative view_mode routing, FailedRecoveryScreen, deep-link support
+- Testing: 17/18 (iteration_470)
 
-### MySpace UX Overhaul — DONE
-- Plain-English copy, fuzzy time estimates, skeleton loading
+### Retention Layer — Release 1 — DONE (Apr 9)
+- In-App Notifications (bell, throttled, aggregated), Ownership Messaging, Daily Challenges, Soft Leaderboard, Mock Email
+- Testing: 25/25 (iteration_471)
 
-### Pipeline Resilience — DONE
-- Graceful degradation with character fallbacks
+### Retention Layer — Release 2 — DONE (Apr 9)
+- Real Resend email, auto-play hover preview, challenge participation tracking, challenge leaderboard, challenge badges
+- Testing: 24/24 (iteration_472)
 
-### Remix Gallery + Addiction Layer — DONE
-- Anonymous opt-in, trending badges, 1-click variants, session streaks
-
-### P0 Failed Job Recovery Routing — DONE (Apr 9, 2026)
-- Server-authoritative `view_mode` routing, FailedRecoveryScreen, deep-link support
-- Testing: 17/18 passed (iteration_470)
-
-### Retention Layer — Release 1 — DONE (Apr 9, 2026)
-- In-App Notification System with bell, aggregated/throttled notifications
-- Ownership Messaging ("X people remixed your story")
-- Daily Challenge System with admin-configurable challenges
-- Soft Leaderboard (Top Stories Today)
-- Mock Email Service with admin preview
-- Testing: 25/25 passed (iteration_471)
-
-### Retention Layer — Release 2 — DONE (Apr 9, 2026)
-- **Real Resend Email**: Wired Resend for comeback emails with per-user caps (max 2 remix/day, max 1 trending/12h, max 1 challenge/day). Domain verification required for full delivery.
-- **Auto-play Hover Preview**: RemixGallery cards auto-play muted video on hover (900ms delay). Global singleton controller ensures only one preview plays at a time.
-- **Challenge Participation Tracking**: `challenge_id` + `challenge_joined_at` stored in job documents. Studio shows "Challenge Entry" banner. MySpace shows challenge badge.
-- **Challenge Leaderboard**: Weighted scoring (remix_count * 0.6 + views * 0.4). Challenge endpoint returns leaderboard entries.
-- **Unsubscribe-ready metadata**: Each email event includes `email_type` and `user_preferences_key` for future compliance.
-- Testing: 24/24 passed (iteration_472)
+### Creator Digest — DONE (Apr 9)
+- **Weekly digest** computing per-user stats: total views, new remixes, top story highlight, momentum signal, percentile comparison, Rising Fast badge
+- **Smart skip**: No digest for zero-activity users or guest accounts
+- **Personalized CTA**: Dynamic based on user's top metric (remixes → "See who remixed", views → "See why trending")
+- **Per-user weekly cap**: Max 1 digest/week
+- **Admin controls**: Preview digest for any user, send to specific user, run-all weekly digest
+- **Email template**: Clean dark theme, 20-second read, stats + top story + momentum + CTA
+- **User lookup fix**: Searches by `id` field (matching users collection schema)
+- Testing: 14/14 (iteration_473)
 
 ---
 
 ## Email System Status
-- **Provider**: Resend (wired)
-- **API Key**: Configured in .env as RESEND_API_KEY
-- **Status**: Infrastructure working. Domain verification required for sending to non-owner emails.
-- **Admin preview**: `GET /api/retention/email-events`
-- **Safety**: Per-user caps, cooldown periods, unsubscribe metadata structure
+- **Provider**: Resend (wired, API key configured)
+- **Status**: Infrastructure complete. Domain verification needed for non-owner delivery.
+- **Templates**: story_remixed, story_trending, daily_challenge_live, ownership_milestone, creator_digest
+- **Safety**: Per-user caps, cooldowns, weekly digest cap, unsubscribe metadata
+- **Admin**: Preview at GET /api/retention/email-events
 
 ---
 
 ## Prioritized Backlog
 
-### P1 — Quality & Transparency
+### P0 — Immediate
+- Verify Resend domain for live email delivery (user action)
+
+### P1 — Next Features
+- Homepage featured challenge winner hero slot
 - "Improve consistency" CTA on completed cards
-- Quality transparency note for character fallback
-- Smarter retry logic (simplify prompt on retry)
-- A/B test hook text variations on public pages
+- A/B test hook text variations
 
 ### P2 — Growth & Polish
-- Resend domain verification for live email delivery
-- Challenge Leaderboard on homepage (featured winner)
+- Monthly creator milestone digest
 - "Remix Variants" on share pages
-- Admin dashboard WebSocket upgrade
-- Style preset preview thumbnails
-- "Story Chain" leaderboard
+- Admin WebSocket upgrade
+- Story Chain leaderboard
 
 ---
 
 ## Key Files
-- `/app/backend/services/retention_service.py` — Retention service (Resend email, notifications, challenges, stats)
-- `/app/backend/routes/retention_hooks.py` — Retention API routes
-- `/app/backend/routes/story_engine_routes.py` — Job APIs + view_mode + remix triggers + challenge tracking
+- `/app/backend/services/retention_service.py` — Full retention service (email, notifications, challenges, digest)
+- `/app/backend/routes/retention_hooks.py` — Retention API routes (challenges, digest, email preview)
+- `/app/backend/routes/story_engine_routes.py` — Job APIs + view_mode + remix triggers
 - `/app/frontend/src/components/NotificationBell.js` — Bell with retention types
 - `/app/frontend/src/components/RemixGallery.js` — Gallery with auto-play hover preview
 - `/app/frontend/src/components/GlobalUserBar.jsx` — Top nav with bell
-- `/app/frontend/src/pages/StoryVideoPipeline.js` — Studio + recovery + challenge banner
+- `/app/frontend/src/pages/StoryVideoPipeline.js` — Studio + recovery + challenge
 - `/app/frontend/src/pages/MySpacePage.js` — Dashboard + ownership + challenge badges
 - `/app/frontend/src/pages/Dashboard.js` — Challenge banner + Top Stories leaderboard
