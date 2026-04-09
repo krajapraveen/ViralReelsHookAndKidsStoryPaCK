@@ -445,7 +445,22 @@ async def get_rate_limit_status(current_user: dict = Depends(get_current_user)):
             "concurrent": 0, "max_concurrent": 10, "reason": None, "exempt": True,
         }
 
-    active_states = [s.value for s in JobState if s not in (JobState.READY, JobState.PARTIAL_READY, JobState.FAILED)]
+    # Use ACTIVE_STATES to exclude ALL terminal states (FAILED, FAILED_PLANNING, FAILED_IMAGES, etc.)
+    from services.story_engine.schemas import ACTIVE_STATES as SCHEMA_ACTIVE_STATES
+    active_states = [s.value for s in SCHEMA_ACTIVE_STATES]
+
+    # Human-readable state labels for frontend
+    state_labels = {
+        "INIT": "Starting up",
+        "PLANNING": "Planning story",
+        "BUILDING_CHARACTER_CONTEXT": "Building characters",
+        "PLANNING_SCENE_MOTION": "Planning scenes",
+        "GENERATING_KEYFRAMES": "Creating artwork",
+        "GENERATING_SCENE_CLIPS": "Composing scenes",
+        "GENERATING_AUDIO": "Recording narration",
+        "ASSEMBLING_VIDEO": "Building video",
+        "VALIDATING": "Finalizing",
+    }
 
     one_hour_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
     recent_count = await db.story_engine_jobs.count_documents({
@@ -470,15 +485,49 @@ async def get_rate_limit_status(current_user: dict = Depends(get_current_user)):
             {"_id": 0, "job_id": 1, "title": 1, "state": 1, "created_at": 1},
         ).sort("created_at", -1).to_list(5)
         active_jobs_list = [
-            {"job_id": j.get("job_id"), "title": j.get("title", "Untitled"), "state": j.get("state"), "created_at": j.get("created_at")}
+            {
+                "job_id": j.get("job_id"),
+                "title": j.get("title", "Untitled"),
+                "state": j.get("state"),
+                "state_label": state_labels.get(j.get("state"), j.get("state", "Processing")),
+                "created_at": j.get("created_at"),
+            }
             for j in active_docs
         ]
+
+    # Also fetch recently failed jobs so frontend can show recovery UI
+    from services.story_engine.schemas import PER_STAGE_FAILURE_STATES
+    failed_states = [s.value for s in PER_STAGE_FAILURE_STATES] + [JobState.FAILED.value]
+    failed_docs = await db.story_engine_jobs.find(
+        {"user_id": user_id, "state": {"$in": failed_states}},
+        {"_id": 0, "job_id": 1, "title": 1, "state": 1, "error": 1, "created_at": 1},
+    ).sort("created_at", -1).limit(5).to_list(5)
+
+    failed_state_labels = {
+        "FAILED_PLANNING": "Planning step needs retry",
+        "FAILED_IMAGES": "Image creation needs retry",
+        "FAILED_TTS": "Narration needs retry",
+        "FAILED_RENDER": "Video assembly needs retry",
+        "FAILED": "Needs attention",
+    }
+    failed_jobs_list = [
+        {
+            "job_id": j.get("job_id"),
+            "title": j.get("title", "Untitled"),
+            "state": j.get("state"),
+            "state_label": failed_state_labels.get(j.get("state"), "Needs attention"),
+            "error": j.get("error", ""),
+            "created_at": j.get("created_at"),
+        }
+        for j in failed_docs
+    ]
 
     return {
         "can_create": can_create, "recent_count": recent_count,
         "max_per_hour": MAX_VIDEOS_PER_HOUR, "concurrent": concurrent,
         "max_concurrent": MAX_CONCURRENT_JOBS, "reason": reason,
         "active_jobs": active_jobs_list,
+        "failed_jobs": failed_jobs_list,
     }
 
 
@@ -1501,10 +1550,13 @@ async def admin_retry_assembly(job_id: str, background_tasks: BackgroundTasks, a
 async def admin_pipeline_health(admin: dict = Depends(_get_admin)):
     """Admin: Pipeline health overview."""
     total_jobs = await db.story_engine_jobs.count_documents({})
-    active_states = [s.value for s in JobState if s not in (JobState.READY, JobState.PARTIAL_READY, JobState.FAILED)]
+    from services.story_engine.schemas import ACTIVE_STATES as SCHEMA_ACTIVE_STATES
+    active_states = [s.value for s in SCHEMA_ACTIVE_STATES]
     active = await db.story_engine_jobs.count_documents({"state": {"$in": active_states}})
     ready = await db.story_engine_jobs.count_documents({"state": "READY"})
-    failed = await db.story_engine_jobs.count_documents({"state": "FAILED"})
+    from services.story_engine.schemas import TERMINAL_STATES
+    all_failed_states = [s.value for s in TERMINAL_STATES if s not in (JobState.READY, JobState.PARTIAL_READY)]
+    failed = await db.story_engine_jobs.count_documents({"state": {"$in": all_failed_states}})
     return {
         "success": True,
         "total_jobs": total_jobs,

@@ -1171,7 +1171,7 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
                   <div className="flex items-center gap-2 min-w-0">
                     <Loader2 className="w-4 h-4 text-[var(--vs-text-accent)] animate-spin flex-shrink-0" />
                     <span className="text-white text-sm truncate">{job.title || 'Untitled Video'}</span>
-                    <span className="text-[var(--vs-text-muted)] text-[10px] flex-shrink-0 uppercase">{job.state}</span>
+                    <span className="text-[var(--vs-text-muted)] text-[10px] flex-shrink-0">{job.state_label || 'Processing'}</span>
                   </div>
                   <button
                     onClick={() => onViewJob(job)}
@@ -1183,6 +1183,31 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
                 </div>
               ))}
               <p className="text-[var(--vs-text-muted)] text-[10px] mt-2">Tip: You can view your video's progress or wait here — the slot will free up automatically once it's done.</p>
+            </div>
+          )}
+          {/* Failed jobs recovery section */}
+          {rateLimitStatus.failed_jobs?.length > 0 && (
+            <div className="space-y-2 mt-3 pt-3 border-t border-amber-500/10">
+              <p className="text-amber-400/70 text-xs font-semibold uppercase tracking-wider">Needs Attention</p>
+              {rateLimitStatus.failed_jobs.map((fj) => (
+                <div key={fj.job_id} className="flex items-center justify-between gap-3 bg-amber-500/[0.03] rounded-xl px-3 py-2.5 border border-amber-500/10">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                    <span className="text-white text-sm truncate">{fj.title || 'Untitled Video'}</span>
+                    <span className="text-amber-400/60 text-[10px] flex-shrink-0">{fj.state_label || 'Needs attention'}</span>
+                  </div>
+                  <div className="flex gap-1.5 flex-shrink-0">
+                    <RetryButton jobId={fj.job_id} onRetryStarted={() => { window.location.reload(); }} />
+                    <button
+                      onClick={() => window.location.href = `/app/my-space?projectId=${fj.job_id}`}
+                      className="h-7 px-2 text-[11px] rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
+                      data-testid={`view-failed-${fj.job_id}`}
+                    >
+                      Details
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
