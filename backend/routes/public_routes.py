@@ -1191,7 +1191,7 @@ async def get_alive_signals():
 
 @router.post("/ab-impression")
 async def track_ab_impression(request: Request):
-    """Track which A/B variant a visitor saw."""
+    """Track which A/B variant a visitor saw, with traffic source."""
     try:
         body = await request.json()
     except Exception:
@@ -1199,10 +1199,16 @@ async def track_ab_impression(request: Request):
 
     variant = body.get("variant", "A")
     action = body.get("action", "impression")
+    session_id = body.get("session_id", "")
+    traffic_source = body.get("traffic_source", "direct")
+    experiment_id = body.get("experiment_id", "hero_headline")
 
     await db.ab_events.insert_one({
         "variant": variant,
         "action": action,
+        "session_id": session_id,
+        "traffic_source": traffic_source,
+        "experiment_id": experiment_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     })
     return {"ok": True}

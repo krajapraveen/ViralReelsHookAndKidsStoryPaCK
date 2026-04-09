@@ -11,7 +11,8 @@ import { trackFunnel } from '../utils/funnelTracker';
 const API = process.env.REACT_APP_BACKEND_URL;
 
 // ─── A/B TEST HERO VARIANTS ─────────────────────────────────────────────────
-// ─── A/B TEST HERO VARIANTS ─────────────────────────────────────────────────
+// Week 1: A (Control - Emotional) vs B (Challenger - Prestige)
+// Only headline text changes. Layout, font, CTA, colors stay identical.
 
 function _timeAgo(dateStr) {
   if (!dateStr) return '';
@@ -24,23 +25,39 @@ function _timeAgo(dateStr) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+// Hardcoded variant data — only headline/badge/subtitle differ
 const HERO_VARIANTS = {
-  A: {
-    badge: 'Create viral AI videos in seconds',
-    heading: ['Create cinematic AI stories', 'in 30 seconds'],
+  headline_a: {
+    badge: 'Stories that stay with them',
+    heading: ['Create stories kids will', 'remember forever'],
     subtitle: 'Create cinematic videos, reels, and stories with AI — no editing, no experience needed. Free to start.',
   },
-  B: {
+  headline_b: {
     badge: 'No editing. No experience needed.',
-    heading: ['Turn any idea into a', 'viral AI video'],
+    heading: ['Create award-worthy', 'AI stories in minutes'],
     subtitle: 'Type a sentence. AI creates scenes, voiceover, and music. Download or share instantly.',
   },
-  C: {
-    badge: '12,000+ videos created and growing',
-    heading: ['People are making', 'viral videos with AI'],
-    subtitle: 'Create cinematic stories, reels, and comics with AI — in under a minute. No skills required.',
-  },
 };
+
+// Detect traffic source from referrer
+function _detectTrafficSource() {
+  const ref = document.referrer || '';
+  if (!ref) return 'direct';
+  if (ref.includes('instagram.com')) return 'instagram';
+  if (ref.includes('google.') || ref.includes('bing.') || ref.includes('duckduckgo.')) return 'organic';
+  if (ref.includes(window.location.hostname)) return 'internal';
+  return 'referral';
+}
+
+// Get or create a sticky session ID for anonymous A/B tracking
+function _getSessionId() {
+  let sid = localStorage.getItem('ab_session_id');
+  if (!sid) {
+    sid = 'ses_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem('ab_session_id', sid);
+  }
+  return sid;
+}
 
 // ─── STORY HOOK TEMPLATES (rotate for variety) ──────────────────────────────
 const STORY_HOOKS = [
@@ -64,28 +81,68 @@ export default function Landing() {
   // Showcase = 100% static bundled data. ZERO API dependency for images.
   const showcase = getAllStaticBanners();
 
-  // A/B variant — Default to B (winning variant). Existing users keep their stored variant.
-  const [heroVariant] = useState(() => {
-    const stored = localStorage.getItem('ab_hero_variant');
-    if (stored && HERO_VARIANTS[stored]) return stored;
-    // New users get Variant B (production winner at 16% conversion)
-    localStorage.setItem('ab_hero_variant', 'B');
-    return 'B';
+  // A/B variant — Sticky assignment via backend deterministic hash
+  const sessionId = _getSessionId();
+  const trafficSource = _detectTrafficSource();
+  const [heroVariant, setHeroVariant] = useState(() => {
+    // Use cached variant if available (instant render, no flash)
+    const cached = localStorage.getItem('ab_hero_variant_id');
+    if (cached && HERO_VARIANTS[cached]) return cached;
+    return 'headline_a'; // Default to control until backend responds
   });
   const hero = HERO_VARIANTS[heroVariant];
 
   useEffect(() => {
+    // 1. Request sticky assignment from backend
+    axios.post(`${API}/api/ab/assign`, {
+      session_id: sessionId,
+      experiment_id: 'hero_headline',
+    }).then(r => {
+      const vid = r.data?.variant_id;
+      if (vid && HERO_VARIANTS[vid]) {
+        setHeroVariant(vid);
+        localStorage.setItem('ab_hero_variant_id', vid);
+        // Track ab_variant_assigned event
+        axios.post(`${API}/api/public/ab-impression`, {
+          variant: vid,
+          action: 'ab_variant_assigned',
+          session_id: sessionId,
+          traffic_source: trafficSource,
+          experiment_id: 'hero_headline',
+        }).catch(() => {});
+      }
+    }).catch(() => {
+      // Backend unavailable — stick with cached or control
+    });
+
+    // 2. Fetch public data
     axios.get(`${API}/api/public/stats`).then(r => setStats(r.data)).catch(() => {});
     axios.get(`${API}/api/public/live-activity?limit=6`).then(r => setLiveFeed(r.data.items || [])).catch(() => {});
     axios.get(`${API}/api/public/alive`).then(r => setAliveSignals(r.data)).catch(() => {});
     axios.get(`${API}/api/public/featured-story`).then(r => {
       if (r.data?.found) setFeaturedStory(r.data);
     }).catch(() => {});
-    // Track A/B impression
-    axios.post(`${API}/api/public/ab-impression`, { variant: heroVariant, action: 'impression' }).catch(() => {});
-    // Track landing funnel event
+
+    // 3. Track landing funnel event
     trackFunnel('landing_view', { source_page: 'landing' });
-  }, [heroVariant]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Track impression once variant is stable
+  useEffect(() => {
+    axios.post(`${API}/api/public/ab-impression`, {
+      variant: heroVariant,
+      action: 'impression',
+      session_id: sessionId,
+      traffic_source: trafficSource,
+      experiment_id: 'hero_headline',
+    }).catch(() => {});
+    // Also track via the A/B conversion system
+    axios.post(`${API}/api/ab/convert`, {
+      session_id: sessionId,
+      experiment_id: 'hero_headline',
+      event: 'impression',
+    }).catch(() => {});
+  }, [heroVariant]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-refresh live feed
   useEffect(() => {
@@ -197,7 +254,8 @@ export default function Landing() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-8 fade-up-3" data-testid="hero-ctas">
             <button
               onClick={() => {
-                axios.post(`${API}/api/public/ab-impression`, { variant: heroVariant, action: 'cta_click' }).catch(() => {});
+                axios.post(`${API}/api/ab/convert`, { session_id: sessionId, experiment_id: 'hero_headline', event: 'experience_click' }).catch(() => {});
+                axios.post(`${API}/api/public/ab-impression`, { variant: heroVariant, action: 'cta_click', session_id: sessionId, traffic_source: trafficSource, experiment_id: 'hero_headline' }).catch(() => {});
                 goCreateFresh();
               }}
               className="group h-14 px-8 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white font-bold text-base hover:shadow-[0_0_40px_-8px_rgba(139,92,246,0.5)] transition-all hover:scale-[1.02] flex items-center gap-2 pulse-glow"
@@ -208,7 +266,8 @@ export default function Landing() {
             </button>
             <button
               onClick={() => {
-                axios.post(`${API}/api/public/ab-impression`, { variant: heroVariant, action: 'create_click' }).catch(() => {});
+                axios.post(`${API}/api/ab/convert`, { session_id: sessionId, experiment_id: 'hero_headline', event: 'click' }).catch(() => {});
+                axios.post(`${API}/api/public/ab-impression`, { variant: heroVariant, action: 'create_click', session_id: sessionId, traffic_source: trafficSource, experiment_id: 'hero_headline' }).catch(() => {});
                 if (showcaseRef.current) showcaseRef.current.scrollIntoView({ behavior: 'smooth' });
               }}
               className="h-14 px-8 rounded-xl border border-white/10 bg-white/[0.03] text-white font-bold text-base hover:bg-white/[0.06] transition-all flex items-center gap-2"

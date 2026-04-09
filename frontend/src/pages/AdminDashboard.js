@@ -1152,51 +1152,77 @@ export default function AdminDashboard() {
             <div className="space-y-6" data-testid="ab-testing-section">
               <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6">
                 <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-cyan-400" /> Active A/B Experiments
+                  <Zap className="w-4 h-4 text-cyan-400" /> Hero Headline A/B Test
                 </h3>
                 {ab?.experiments?.length > 0 ? (
                   <div className="space-y-6">
                     {ab.experiments.map(exp => (
-                      <div key={exp.experiment_id} className="bg-slate-800/50 rounded-xl p-4 space-y-3" data-testid={`ab-exp-${exp.experiment_id}`}>
+                      <div key={exp.experiment_id} className="bg-slate-800/50 rounded-xl p-4 space-y-4" data-testid={`ab-exp-${exp.experiment_id}`}>
                         <div className="flex items-center justify-between">
                           <div>
                             <h4 className="text-sm font-medium text-white">{exp.name}</h4>
-                            <p className="text-[10px] text-slate-500">Primary event: {exp.primary_event} | Min 200 sessions/variant</p>
+                            <p className="text-[10px] text-slate-500">
+                              Primary: {exp.primary_event} | Min {exp.min_sessions_per_variant} sessions/variant | Confidence needed: 95%
+                            </p>
                           </div>
-                          {exp.tentative_winner && (
-                            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                              Winner: {exp.tentative_winner}
+                          {exp.tentative_winner ? (
+                            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full flex items-center gap-1" data-testid={`ab-winner-${exp.experiment_id}`}>
+                              <CheckCircle className="w-3 h-3" /> Winner: {exp.variants.find(v => v.variant_id === exp.tentative_winner)?.label || exp.tentative_winner}
                             </span>
-                          )}
-                          {!exp.tentative_winner && (
+                          ) : (
                             <span className="text-[10px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">
                               Collecting data...
                             </span>
                           )}
                         </div>
-                        <div className="space-y-2">
-                          {exp.variants.map(v => {
-                            const maxSessions = Math.max(...exp.variants.map(x => x.sessions), 1);
-                            const barWidth = Math.max((v.sessions / maxSessions) * 100, 2);
-                            const isWinner = exp.tentative_winner === v.variant_id;
-                            return (
-                              <div key={v.variant_id} className={`rounded-lg p-2.5 ${isWinner ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-slate-700/30'}`}>
-                                <div className="flex items-center justify-between mb-1.5">
-                                  <span className="text-xs text-white font-medium">{v.label}</span>
-                                  <div className="flex items-center gap-3 text-[10px]">
-                                    <span className="text-slate-400">{v.sessions} sessions</span>
-                                    <span className={`font-bold ${isWinner ? 'text-emerald-400' : 'text-white'}`}>{v.primary_conv_rate}%</span>
-                                  </div>
-                                </div>
-                                <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
-                                  <div
-                                    className={`h-full rounded-full transition-all ${isWinner ? 'bg-emerald-500' : 'bg-cyan-500/60'}`}
-                                    style={{ width: `${barWidth}%` }}
-                                  />
-                                </div>
-                              </div>
-                            );
-                          })}
+                        {/* Clean minimal table */}
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs" data-testid={`ab-table-${exp.experiment_id}`}>
+                            <thead>
+                              <tr className="text-slate-500 border-b border-slate-700/50">
+                                <th className="pb-2 pr-4 font-medium">Variant</th>
+                                <th className="pb-2 pr-4 font-medium text-right">Impressions</th>
+                                <th className="pb-2 pr-4 font-medium text-right">Clicks</th>
+                                <th className="pb-2 pr-4 font-medium text-right">CTR %</th>
+                                <th className="pb-2 pr-4 font-medium text-right">Paywall %</th>
+                                <th className="pb-2 pr-4 font-medium text-right">Confidence %</th>
+                                <th className="pb-2 font-medium text-center">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {exp.variants.map(v => {
+                                const isWinner = exp.tentative_winner === v.variant_id;
+                                return (
+                                  <tr key={v.variant_id} className={`border-b border-slate-700/30 ${isWinner ? 'bg-emerald-500/[0.05]' : ''}`}>
+                                    <td className="py-2.5 pr-4">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-white font-medium">{v.label}</span>
+                                        {v.is_control && <span className="text-[8px] bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded-full font-bold uppercase">Control</span>}
+                                      </div>
+                                    </td>
+                                    <td className="py-2.5 pr-4 text-right text-slate-300 tabular-nums">{v.impressions?.toLocaleString() || 0}</td>
+                                    <td className="py-2.5 pr-4 text-right text-slate-300 tabular-nums">{v.clicks?.toLocaleString() || 0}</td>
+                                    <td className="py-2.5 pr-4 text-right font-bold tabular-nums">
+                                      <span className={isWinner ? 'text-emerald-400' : 'text-white'}>{v.ctr || 0}%</span>
+                                    </td>
+                                    <td className="py-2.5 pr-4 text-right text-slate-300 tabular-nums">{v.paywall_rate || 0}%</td>
+                                    <td className="py-2.5 pr-4 text-right text-slate-300 tabular-nums">
+                                      {exp.confidence !== undefined ? `${exp.confidence}%` : '—'}
+                                    </td>
+                                    <td className="py-2.5 text-center">
+                                      {isWinner ? (
+                                        <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">WINNER</span>
+                                      ) : v.sessions >= (exp.min_sessions_per_variant || 500) ? (
+                                        <span className="text-[9px] text-slate-500">Testing</span>
+                                      ) : (
+                                        <span className="text-[9px] text-amber-400">{exp.min_sessions_per_variant - v.sessions} more needed</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
                         </div>
                       </div>
                     ))}

@@ -26,7 +26,7 @@ class ConvertRequest(BaseModel):
     experiment_id: str
     event: str  # remix_click, generate_click, signup_completed
 
-VALID_CONVERSION_EVENTS = {"remix_click", "generate_click", "signup_completed", "share_click", "impression", "continue_click", "click"}
+VALID_CONVERSION_EVENTS = {"remix_click", "generate_click", "signup_completed", "share_click", "impression", "continue_click", "click", "experience_click", "paywall_shown"}
 
 # ─── DETERMINISTIC ASSIGNMENT ────────────────────────────────────────────────
 
@@ -151,7 +151,7 @@ async def ab_convert(data: ConvertRequest):
 
 @router.get("/results")
 async def ab_results(experiment_id: Optional[str] = Query(None)):
-    """Get results for one or all experiments. Simple counts + winner heuristic."""
+    """Get results for one or all experiments. Statistical confidence + winner heuristic."""
     query = {}
     if experiment_id:
         query["experiment_id"] = experiment_id
@@ -163,17 +163,15 @@ async def ab_results(experiment_id: Optional[str] = Query(None)):
     results = []
     for exp in experiments:
         eid = exp["experiment_id"]
+        min_sessions = exp.get("min_sessions", 500)
         variant_results = []
 
         for variant in exp["variants"]:
             vid = variant["id"]
-
-            # Count sessions assigned to this variant
             sessions = await db.ab_assignments.count_documents({"experiment_id": eid, "variant_id": vid})
 
-            # Count conversions per event
             conversions = {}
-            for event in VALID_CONVERSION_EVENTS:
+            for event in VALID_CONVERSION_EVENTS | {"experience_click", "paywall_shown"}:
                 count = await db.ab_conversions.count_documents({
                     "experiment_id": eid,
                     "variant_id": vid,
@@ -181,46 +179,114 @@ async def ab_results(experiment_id: Optional[str] = Query(None)):
                 })
                 conversions[event] = count
 
-            primary_event = exp.get("primary_event", "remix_click")
+            primary_event = exp.get("primary_event", "experience_click")
+            secondary_event = exp.get("secondary_event", "paywall_shown")
             primary_conversions = conversions.get(primary_event, 0)
-            conv_rate = round(primary_conversions / sessions * 100, 2) if sessions > 0 else 0
+            secondary_conversions = conversions.get(secondary_event, 0)
+            ctr = round(primary_conversions / sessions * 100, 2) if sessions > 0 else 0
+            paywall_rate = round(secondary_conversions / sessions * 100, 2) if sessions > 0 else 0
 
             variant_results.append({
                 "variant_id": vid,
                 "label": variant.get("label", vid),
+                "is_control": variant.get("is_control", False),
                 "sessions": sessions,
+                "impressions": sessions,
+                "clicks": primary_conversions,
+                "ctr": ctr,
+                "paywall_conversions": secondary_conversions,
+                "paywall_rate": paywall_rate,
                 "conversions": conversions,
-                "primary_conv_rate": conv_rate,
             })
 
-        # Winner heuristic: 20%+ uplift after 200+ sessions per variant
+        # Statistical confidence via z-test for proportions
+        confidence = _calc_confidence(variant_results) if len(variant_results) == 2 else 0
+
+        # Winner heuristic: min_sessions per variant + 95% confidence
         winner = None
-        if all(v["sessions"] >= 200 for v in variant_results) and variant_results:
-            best = max(variant_results, key=lambda v: v["primary_conv_rate"])
-            others = [v for v in variant_results if v["variant_id"] != best["variant_id"]]
-            if others:
-                second_best = max(others, key=lambda v: v["primary_conv_rate"])
-                if second_best["primary_conv_rate"] > 0:
-                    uplift = (best["primary_conv_rate"] - second_best["primary_conv_rate"]) / second_best["primary_conv_rate"]
-                    if uplift >= 0.20:
-                        winner = best["variant_id"]
+        if all(v["sessions"] >= min_sessions for v in variant_results) and confidence >= 95:
+            best = max(variant_results, key=lambda v: v["ctr"])
+            winner = best["variant_id"]
 
         results.append({
             "experiment_id": eid,
             "name": exp.get("name", eid),
-            "primary_event": exp.get("primary_event", "remix_click"),
+            "primary_event": exp.get("primary_event", "experience_click"),
+            "secondary_event": exp.get("secondary_event", ""),
             "active": exp.get("active", True),
             "variants": variant_results,
             "tentative_winner": winner,
-            "min_sessions_per_variant": 200,
+            "confidence": confidence,
+            "min_sessions_per_variant": min_sessions,
         })
 
     return {"success": True, "experiments": results}
 
 
+def _calc_confidence(variant_results):
+    """Z-test for two proportions. Returns confidence percentage (0-99.9)."""
+    import math
+    if len(variant_results) != 2:
+        return 0
+    n1, c1 = variant_results[0]["sessions"], variant_results[0]["clicks"]
+    n2, c2 = variant_results[1]["sessions"], variant_results[1]["clicks"]
+    if n1 < 30 or n2 < 30:
+        return 0
+    p1 = c1 / n1 if n1 > 0 else 0
+    p2 = c2 / n2 if n2 > 0 else 0
+    p_pool = (c1 + c2) / (n1 + n2) if (n1 + n2) > 0 else 0
+    se = math.sqrt(p_pool * (1 - p_pool) * (1/n1 + 1/n2)) if p_pool > 0 and p_pool < 1 else 0
+    if se == 0:
+        return 0
+    z = abs(p1 - p2) / se
+    # Approximate confidence from z-score
+    if z >= 2.576:
+        return 99
+    elif z >= 1.96:
+        return 95
+    elif z >= 1.645:
+        return 90
+    elif z >= 1.28:
+        return 80
+    elif z >= 1.0:
+        return 68
+    else:
+        return round(min(z / 1.96 * 95, 60), 1)
+
+
 # ─── SEED EXPERIMENTS ────────────────────────────────────────────────────────
 
 INITIAL_EXPERIMENTS = [
+    {
+        "experiment_id": "hero_headline",
+        "name": "Hero Headline — Week 1 (A vs B)",
+        "primary_event": "experience_click",
+        "secondary_event": "paywall_shown",
+        "active": True,
+        "min_sessions": 500,
+        "variants": [
+            {
+                "id": "headline_a",
+                "label": "Emotional (Control)",
+                "is_control": True,
+                "data": {
+                    "heading": ["Create stories kids will", "remember forever"],
+                    "badge": "Stories that stay with them",
+                    "subtitle": "Create cinematic videos, reels, and stories with AI — no editing, no experience needed. Free to start.",
+                },
+            },
+            {
+                "id": "headline_b",
+                "label": "Prestige (Challenger)",
+                "is_control": False,
+                "data": {
+                    "heading": ["Create award-worthy", "AI stories in minutes"],
+                    "badge": "No editing. No experience needed.",
+                    "subtitle": "Type a sentence. AI creates scenes, voiceover, and music. Download or share instantly.",
+                },
+            },
+        ],
+    },
     {
         "experiment_id": "cta_copy",
         "name": "CTA Copy Test",
