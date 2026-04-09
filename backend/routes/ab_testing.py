@@ -254,6 +254,92 @@ def _calc_confidence(variant_results):
         return round(min(z / 1.96 * 95, 60), 1)
 
 
+# ─── GET /api/ab/segmentation ────────────────────────────────────────────────
+
+MIN_SOURCE_SAMPLE = 100  # Minimum impressions per source/variant before declaring results reliable
+
+@router.get("/segmentation")
+async def ab_segmentation(experiment_id: str = Query("hero_headline")):
+    """Traffic source segmentation for an A/B experiment.
+    Shows per-source breakdown with impressions, CTR, confidence, and winner."""
+    exp = await db.ab_experiments.find_one(
+        {"experiment_id": experiment_id, "active": True}, {"_id": 0}
+    )
+    if not exp:
+        return {"success": True, "sources": [], "message": "Experiment not found or inactive"}
+
+    variant_ids = [v["id"] for v in exp["variants"]]
+    variant_labels = {v["id"]: v.get("label", v["id"]) for v in exp["variants"]}
+
+    # Get all distinct traffic sources
+    sources_raw = await db.ab_events.distinct("traffic_source", {"experiment_id": experiment_id})
+    sources = sorted([s for s in sources_raw if s], key=lambda s: s)
+
+    source_data = []
+    for source in sources:
+        rows = []
+        for vid in variant_ids:
+            # Count impressions for this source+variant
+            impressions = await db.ab_events.count_documents({
+                "experiment_id": experiment_id,
+                "traffic_source": source,
+                "variant": vid,
+                "action": "impression",
+            })
+            # Count clicks (cta_click action)
+            clicks = await db.ab_events.count_documents({
+                "experiment_id": experiment_id,
+                "traffic_source": source,
+                "variant": vid,
+                "action": "cta_click",
+            })
+            ctr = round(clicks / impressions * 100, 2) if impressions > 0 else 0
+            rows.append({
+                "variant_id": vid,
+                "label": variant_labels.get(vid, vid),
+                "impressions": impressions,
+                "clicks": clicks,
+                "ctr": ctr,
+            })
+
+        total_impressions = sum(r["impressions"] for r in rows)
+        sufficient = all(r["impressions"] >= MIN_SOURCE_SAMPLE for r in rows)
+
+        # Confidence for this source
+        if len(rows) == 2 and sufficient:
+            conf = _calc_confidence([
+                {"sessions": rows[0]["impressions"], "clicks": rows[0]["clicks"]},
+                {"sessions": rows[1]["impressions"], "clicks": rows[1]["clicks"]},
+            ])
+        else:
+            conf = 0
+
+        # Winner for this source
+        winner = None
+        if sufficient and conf >= 95:
+            best = max(rows, key=lambda r: r["ctr"])
+            winner = best["variant_id"]
+
+        source_data.append({
+            "source": source,
+            "total_impressions": total_impressions,
+            "variants": rows,
+            "sufficient_data": sufficient,
+            "confidence": conf,
+            "winner": winner,
+        })
+
+    # Sort by total traffic volume (highest first)
+    source_data.sort(key=lambda s: s["total_impressions"], reverse=True)
+
+    return {
+        "success": True,
+        "experiment_id": experiment_id,
+        "min_source_sample": MIN_SOURCE_SAMPLE,
+        "sources": source_data,
+    }
+
+
 # ─── SEED EXPERIMENTS ────────────────────────────────────────────────────────
 
 INITIAL_EXPERIMENTS = [

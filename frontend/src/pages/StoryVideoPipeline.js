@@ -1990,6 +1990,21 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
     }
   }, [uiState, jobId, showForceShare]);
 
+  // Auto-show contextual SHARE PROMPT after ForceShareGate is dismissed (once per project)
+  React.useEffect(() => {
+    if (uiState === 'READY' && !showForceShare && !showSharePrompt) {
+      const alreadyShown = sessionStorage.getItem(`share_prompt_${jobId}`);
+      const forceShared = sessionStorage.getItem(`force_share_${jobId}`);
+      if (!alreadyShown && forceShared) {
+        const timer = setTimeout(() => {
+          setShowSharePrompt(true);
+          sessionStorage.setItem(`share_prompt_${jobId}`, '1');
+        }, 3000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [uiState, jobId, showForceShare, showSharePrompt]);
+
   // Extract character name and cliffhanger from job data for share prompts
   const characterName = job?.characters?.[0]?.name || job?.character_name || '';
   const cliffhanger = job?.cliffhanger || '';
@@ -2011,6 +2026,21 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
             handleContinue(CONTINUE_DIRECTIONS[0]);
           }}
           onDismiss={() => setShowForceShare(false)}
+        />
+      )}
+      {/* Contextual Auto-Share Prompt — shows after ForceShareGate, once per project */}
+      {showSharePrompt && !showForceShare && (
+        <SharePromptModal
+          jobId={jobId}
+          title={displayTitle}
+          characterName={characterName}
+          slug={job?.slug || jobId}
+          onClose={() => setShowSharePrompt(false)}
+          context={{
+            isChallengeWinner: job?.is_challenge_winner || false,
+            isTrending: (job?.views || 0) > 20,
+            remixCount: job?.remix_count || 0,
+          }}
         />
       )}
       {/* Status Badge — single truth from uiState */}

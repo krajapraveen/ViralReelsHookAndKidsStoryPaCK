@@ -377,6 +377,7 @@ export default function AdminDashboard() {
   const [credits, setCredits] = useState({ data: null, state: 'loading', ts: null });
   const [conversion, setConversion] = useState({ data: null, state: 'loading', ts: null });
   const [abResults, setAbResults] = useState({ data: null, state: 'loading', ts: null });
+  const [abSegmentation, setAbSegmentation] = useState({ data: null, state: 'loading', ts: null });
   const [leaderboard, setLeaderboard] = useState({ data: null, state: 'loading', ts: null });
   const [kFactor, setKFactor] = useState({ data: null, state: 'loading', ts: null });
   const [shareRewards, setShareRewards] = useState({ data: null, state: 'loading', ts: null });
@@ -410,6 +411,7 @@ export default function AdminDashboard() {
     fetchSection('credits', setCredits, '/api/admin/metrics/credits');
     fetchSection('conversion', setConversion, '/api/admin/metrics/conversion');
     fetchSection('ab', setAbResults, '/api/ab/results');
+    fetchSection('abSeg', setAbSegmentation, '/api/ab/segmentation?experiment_id=hero_headline');
     fetchSection('leaderboard', setLeaderboard, '/api/admin/metrics/leaderboard');
     // K-factor endpoint doesn't return {success: true}, handle separately
     (async () => {
@@ -1232,6 +1234,68 @@ export default function AdminDashboard() {
                     <p className="text-sm text-slate-500">No A/B experiments active</p>
                     <p className="text-xs text-slate-600 mt-1">Experiments will appear once seeded and traffic flows through public pages</p>
                   </div>
+                )}
+              </div>
+
+              {/* Traffic Source Segmentation */}
+              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6" data-testid="ab-segmentation-section">
+                <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+                  <Target className="w-4 h-4 text-amber-400" /> Traffic Source Segmentation
+                </h3>
+                {abSegmentation.data?.sources?.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs" data-testid="ab-segmentation-table">
+                      <thead>
+                        <tr className="text-slate-500 border-b border-slate-700/50">
+                          <th className="pb-2 pr-4 font-medium">Source</th>
+                          <th className="pb-2 pr-4 font-medium">Variant</th>
+                          <th className="pb-2 pr-4 font-medium text-right">Impressions</th>
+                          <th className="pb-2 pr-4 font-medium text-right">CTR %</th>
+                          <th className="pb-2 pr-4 font-medium text-right">Confidence %</th>
+                          <th className="pb-2 font-medium text-center">Winner</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {abSegmentation.data.sources.map(src => (
+                          src.variants.map((v, vi) => (
+                            <tr key={`${src.source}-${v.variant_id}`} className={`border-b border-slate-700/20 ${src.winner === v.variant_id ? 'bg-emerald-500/[0.05]' : ''}`}>
+                              {vi === 0 && (
+                                <td className="py-2 pr-4 text-white font-medium capitalize" rowSpan={src.variants.length}>
+                                  {src.source}
+                                </td>
+                              )}
+                              <td className="py-2 pr-4 text-slate-300">{v.label}</td>
+                              <td className="py-2 pr-4 text-right text-slate-300 tabular-nums">{v.impressions}</td>
+                              <td className="py-2 pr-4 text-right tabular-nums">
+                                <span className={src.winner === v.variant_id ? 'text-emerald-400 font-bold' : 'text-white'}>{v.ctr}%</span>
+                              </td>
+                              {vi === 0 && (
+                                <>
+                                  <td className="py-2 pr-4 text-right text-slate-300 tabular-nums" rowSpan={src.variants.length}>
+                                    {src.confidence}%
+                                  </td>
+                                  <td className="py-2 text-center" rowSpan={src.variants.length}>
+                                    {!src.sufficient_data ? (
+                                      <span className="text-[9px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">Insufficient data</span>
+                                    ) : src.winner ? (
+                                      <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                                        {src.variants.find(x => x.variant_id === src.winner)?.label}
+                                      </span>
+                                    ) : (
+                                      <span className="text-[9px] text-slate-500">No winner yet</span>
+                                    )}
+                                  </td>
+                                </>
+                              )}
+                            </tr>
+                          ))
+                        ))}
+                      </tbody>
+                    </table>
+                    <p className="text-[10px] text-slate-600 mt-3">Min {abSegmentation.data.min_source_sample} impressions per variant per source required. Sources sorted by traffic volume.</p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500 text-center py-4">No traffic source data yet. Data appears once visitors reach the landing page.</p>
                 )}
               </div>
             </div>
