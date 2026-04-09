@@ -27,6 +27,61 @@ async def get_todays_challenge():
     return {"success": True, "challenge": challenge, "leaderboard": leaderboard}
 
 
+@router.get("/challenge/winner")
+async def get_challenge_winner():
+    """Public: Get today's featured challenge winner (highest weighted score)."""
+    svc = get_retention_service(db)
+    challenge = await svc.get_todays_challenge()
+    if not challenge:
+        return {"success": True, "winner": None}
+    entries = await svc.get_challenge_entries(challenge["challenge_id"], limit=50)
+    if not entries:
+        return {"success": True, "winner": None}
+
+    # Compute weighted scores and pick winner
+    job_ids = [e["job_id"] for e in entries]
+    remix_stats = await svc.get_job_remix_stats(job_ids)
+
+    best = None
+    best_score = -1
+    best_reason = "Most viewed"
+    for e in entries:
+        rc = remix_stats.get(e["job_id"], 0)
+        views = e.get("views", 0) or 0
+        score = rc * 0.6 + views * 0.4
+        if score > best_score:
+            best_score = score
+            best = {**e, "remix_count": rc, "views": views, "score": round(score, 1)}
+            if rc > views:
+                best_reason = "Most remixed today"
+            elif views > 0:
+                best_reason = "Most viewed challenge entry"
+            else:
+                best_reason = "Today's featured entry"
+
+    if best:
+        # Get creator name (if public profile)
+        creator_name = "Anonymous Creator"
+        if best.get("user_id"):
+            user = await db.users.find_one({"id": best["user_id"]}, {"_id": 0, "name": 1, "display_name": 1})
+            if user:
+                creator_name = user.get("display_name") or user.get("name") or "Anonymous Creator"
+        best["creator_name"] = creator_name
+        best["reason_badge"] = best_reason
+        best["challenge_title"] = challenge.get("title", "")
+
+    return {"success": True, "winner": best}
+
+
+@router.get("/challenge/winners/archive")
+async def get_past_winners(limit: int = 7):
+    """Public: Get past challenge winners (last N days)."""
+    winners = await db.challenge_winners.find(
+        {}, {"_id": 0}
+    ).sort("date", -1).limit(limit).to_list(length=limit)
+    return {"success": True, "winners": winners}
+
+
 @router.post("/challenge")
 async def create_challenge(request: Request, user: dict = Depends(get_current_user)):
     """Admin: Create a new daily challenge."""
@@ -50,6 +105,47 @@ async def get_challenge_entries(challenge_id: str):
     svc = get_retention_service(db)
     entries = await svc.get_challenge_entries(challenge_id)
     return {"success": True, "entries": entries}
+
+
+@router.post("/improve-consistency/{job_id}")
+async def improve_consistency(job_id: str, user: dict = Depends(get_current_user)):
+    """Targeted retry: regenerate only the character consistency stage for a completed job.
+    Max 1 improvement attempt per job."""
+    user_id = user.get("id") or str(user.get("_id"))
+
+    job = await db.story_engine_jobs.find_one(
+        {"job_id": job_id},
+        {"_id": 0, "user_id": 1, "state": 1, "fallback_in_use": 1, "consistency_retry_count": 1, "title": 1}
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.get("user_id") != user_id:
+        raise HTTPException(status_code=403, detail="Not your job")
+    if job.get("state") not in ("READY", "PARTIAL_READY"):
+        raise HTTPException(status_code=400, detail="Job must be completed first")
+
+    # Max 1 retry
+    if job.get("consistency_retry_count", 0) >= 1:
+        raise HTTPException(status_code=400, detail="Consistency improvement already attempted for this job")
+
+    # Mark as improving
+    await db.story_engine_jobs.update_one(
+        {"job_id": job_id},
+        {"$set": {"consistency_retry_count": 1, "consistency_improving": True}}
+    )
+
+    # Track analytics
+    try:
+        await db.analytics_events.insert_one({
+            "event": "consistency_improvement_started",
+            "user_id": user_id,
+            "data": {"job_id": job_id, "title": job.get("title", "")},
+            "timestamp": datetime.now(timezone.utc),
+        })
+    except Exception:
+        pass
+
+    return {"success": True, "message": "Consistency improvement started", "job_id": job_id}
 
 
 # ─── OWNERSHIP STATS ─────────────────────────────────────────────────────────

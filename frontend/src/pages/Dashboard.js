@@ -608,6 +608,7 @@ export default function Dashboard() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [dailyChallenge, setDailyChallenge] = useState(null);
   const [topStories, setTopStories] = useState([]);
+  const [challengeWinner, setChallengeWinner] = useState(null);
   const isAdmin = isAdminUser();
   const isLoggedIn = !!localStorage.getItem('token');
 
@@ -648,6 +649,10 @@ export default function Dashboard() {
     // Fetch top stories leaderboard
     axios.get(`${API}/api/retention/top-stories`).then(res => {
       if (res.data?.stories?.length) setTopStories(res.data.stories.slice(0, 5));
+    }).catch(() => {});
+    // Fetch challenge winner
+    axios.get(`${API}/api/retention/challenge/winner`).then(res => {
+      if (res.data?.winner) setChallengeWinner(res.data.winner);
     }).catch(() => {});
   }, []);
 
@@ -790,6 +795,60 @@ export default function Dashboard() {
               >
                 Join Challenge <ArrowRight className="w-4 h-4" />
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FEATURED CHALLENGE WINNER */}
+      {challengeWinner && (
+        <div className="px-4 sm:px-6 lg:px-10 py-2" data-testid="challenge-winner-slot">
+          <div className="relative overflow-hidden rounded-2xl border border-amber-500/20 bg-[#121218]">
+            <div className="flex items-stretch">
+              {/* Winner thumbnail */}
+              <div className="w-32 sm:w-40 flex-shrink-0 relative bg-zinc-800/60">
+                {challengeWinner.thumbnail_url ? (
+                  <img src={challengeWinner.thumbnail_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center min-h-[100px]">
+                    <Film className="w-8 h-8 text-zinc-700" />
+                  </div>
+                )}
+                {/* Reason badge overlay */}
+                <span className="absolute bottom-1.5 left-1.5 text-[8px] font-bold px-2 py-0.5 rounded-full bg-amber-500/90 text-white" data-testid="winner-reason-badge">
+                  {challengeWinner.reason_badge}
+                </span>
+              </div>
+              {/* Winner info */}
+              <div className="flex-1 p-4 sm:p-5 flex flex-col justify-center min-w-0">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Star className="w-4 h-4 text-amber-400" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">Featured Winner</span>
+                  <span className="text-[10px] text-zinc-600">Today's challenge</span>
+                </div>
+                <h3 className="text-base sm:text-lg font-bold text-white truncate mb-1" data-testid="winner-title">{challengeWinner.title}</h3>
+                <div className="flex items-center gap-3 text-xs text-zinc-400 mb-3">
+                  <span>by {challengeWinner.creator_name}</span>
+                  {challengeWinner.remix_count > 0 && <span>{challengeWinner.remix_count} remixes</span>}
+                  {challengeWinner.views > 0 && <span>{challengeWinner.views} views</span>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => navigate('/app/story-video-studio', { state: { prompt: '', remixFrom: { title: challengeWinner.title, job_id: challengeWinner.job_id } } })}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-semibold hover:bg-amber-500/30 transition-colors"
+                    data-testid="winner-remix-btn"
+                  >
+                    <RefreshCw className="w-3 h-3" /> Remix This Winner
+                  </button>
+                  <button
+                    onClick={() => navigate(`/app/story-video-studio?projectId=${challengeWinner.job_id}`)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/[0.06] text-zinc-400 text-xs hover:text-white hover:border-white/10 transition-colors"
+                    data-testid="winner-view-btn"
+                  >
+                    <Eye className="w-3 h-3" /> View Story
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
