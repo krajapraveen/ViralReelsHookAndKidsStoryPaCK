@@ -1,8 +1,54 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, Eye, Flame, ChevronLeft, ChevronRight } from 'lucide-react';
+import { RefreshCw, Eye, Flame, ChevronLeft, ChevronRight, Trophy } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../utils/api';
+
+// ─── GLOBAL PREVIEW CONTROLLER ──────────────────────────────────────────────
+// Only one video preview plays at a time across the entire app
+let activePreviewRef = null;
+function claimPreview(videoEl) {
+  if (activePreviewRef && activePreviewRef !== videoEl) {
+    try { activePreviewRef.pause(); activePreviewRef.currentTime = 0; } catch {}
+  }
+  activePreviewRef = videoEl;
+}
+function releasePreview(videoEl) {
+  if (activePreviewRef === videoEl) activePreviewRef = null;
+}
+
+// ─── HOVER PREVIEW HOOK ─────────────────────────────────────────────────────
+function useHoverPreview(previewUrl) {
+  const videoRef = useRef(null);
+  const timerRef = useRef(null);
+  const [showVideo, setShowVideo] = useState(false);
+
+  const onEnter = useCallback(() => {
+    if (!previewUrl) return;
+    timerRef.current = setTimeout(() => {
+      setShowVideo(true);
+      setTimeout(() => {
+        if (videoRef.current) {
+          claimPreview(videoRef.current);
+          videoRef.current.play().catch(() => {});
+        }
+      }, 50);
+    }, 900);
+  }, [previewUrl]);
+
+  const onLeave = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (videoRef.current) {
+      try { videoRef.current.pause(); videoRef.current.currentTime = 0; } catch {}
+      releasePreview(videoRef.current);
+    }
+    setShowVideo(false);
+  }, []);
+
+  useEffect(() => { return () => { if (timerRef.current) clearTimeout(timerRef.current); }; }, []);
+
+  return { videoRef, showVideo, onEnter, onLeave };
+}
 
 const SECTION_COPY = {
   completion: 'Try what others created',
@@ -113,6 +159,9 @@ export default function RemixGallery({ placement = 'myspace', limit = 8, classNa
 }
 
 function RemixCard({ item, onRemix, compact }) {
+  const previewUrl = item.preview_url || item.video_url;
+  const { videoRef, showVideo, onEnter, onLeave } = useHoverPreview(previewUrl);
+
   // Trending badge logic
   const remixes = item.remixes_count || 0;
   let badge = null;
@@ -124,24 +173,45 @@ function RemixCard({ item, onRemix, compact }) {
     <div
       className="group rounded-lg border border-white/[0.06] bg-white/[0.02] overflow-hidden hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all cursor-pointer"
       onClick={() => onRemix(item)}
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
       data-testid={`remix-card-${item.item_id}`}
     >
-      {/* Thumbnail */}
+      {/* Thumbnail / Auto-play Preview */}
       <div className={`relative ${compact ? 'aspect-[4/3]' : 'aspect-video'} bg-zinc-800/60 overflow-hidden`}>
         {item.thumbnail_url ? (
           <img
             src={item.thumbnail_url}
             alt={item.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${showVideo ? 'opacity-0' : 'opacity-100'}`}
             loading="lazy"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center">
+          <div className={`w-full h-full flex items-center justify-center ${showVideo ? 'opacity-0' : 'opacity-100'}`}>
             <Flame className="w-6 h-6 text-zinc-700" />
           </div>
         )}
+        {/* Auto-play video preview (muted, on hover) */}
+        {showVideo && previewUrl && (
+          <video
+            ref={videoRef}
+            src={previewUrl}
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            className="absolute inset-0 w-full h-full object-cover"
+            data-testid={`preview-video-${item.item_id}`}
+          />
+        )}
+        {/* Challenge entry badge */}
+        {item.challenge_id && (
+          <span className="absolute top-1.5 left-1.5 flex items-center gap-0.5 bg-emerald-500/90 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full" data-testid={`challenge-badge-${item.item_id}`}>
+            <Trophy className="w-2.5 h-2.5" /> Challenge Entry
+          </span>
+        )}
         {/* Trending badge */}
-        {badge && (
+        {badge && !item.challenge_id && (
           <span className={`absolute top-1.5 left-1.5 text-[8px] font-bold px-1.5 py-0.5 rounded-full ${badge.color}`} data-testid={`trending-badge-${item.item_id}`}>
             {badge.label}
           </span>
@@ -152,12 +222,14 @@ function RemixCard({ item, onRemix, compact }) {
             <RefreshCw className="w-2.5 h-2.5" /> {formatCount(item.remixes_count)}
           </span>
         )}
-        {/* Hover overlay */}
-        <div className="absolute inset-0 bg-indigo-600/0 group-hover:bg-indigo-600/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-          <span className="bg-white/90 text-zinc-900 text-[11px] font-bold px-3 py-1.5 rounded-full flex items-center gap-1 shadow-lg">
-            <RefreshCw className="w-3 h-3" /> Remix This
-          </span>
-        </div>
+        {/* Hover overlay (only when not playing video) */}
+        {!showVideo && (
+          <div className="absolute inset-0 bg-indigo-600/0 group-hover:bg-indigo-600/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+            <span className="bg-white/90 text-zinc-900 text-[11px] font-bold px-3 py-1.5 rounded-full flex items-center gap-1 shadow-lg">
+              <RefreshCw className="w-3 h-3" /> Remix This
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Info */}

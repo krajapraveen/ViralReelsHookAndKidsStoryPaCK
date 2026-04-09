@@ -397,6 +397,8 @@ function StoryVideoPipelineInner() {
   const [title, setTitle] = useState('');
   const [storyText, setStoryText] = useState('');
   const [animStyle, setAnimStyle] = useState('cartoon_2d');
+  const [challengeId, setChallengeId] = useState(null);
+  const [challengeTitle, setChallengeTitle] = useState('');
   const [ageGroup, setAgeGroup] = useState('kids_5_8');
   const [voicePreset, setVoicePreset] = useState('narrator_warm');
   const [jobId, setJobId] = useState(null);
@@ -564,6 +566,14 @@ function StoryVideoPipelineInner() {
       setStoryText(prompt);
       setShowWelcome(true);
       localStorage.removeItem('onboarding_prompt');
+    }
+
+    // Handle daily challenge
+    const challengeParam = searchParams.get('challenge');
+    if (challengeParam) {
+      setChallengeId(challengeParam);
+      if (locState?.prompt) setStoryText(locState.prompt);
+      if (locState?.challengeTitle) setChallengeTitle(locState.challengeTitle);
     }
 
     // ─── DEEP-LINK: projectId handled in separate useEffect after all hooks ───
@@ -846,6 +856,10 @@ function StoryVideoPipelineInner() {
       if (seriesContext?.series_id) {
         payload.series_id = seriesContext.series_id;
         payload.episode_number = seriesContext.episode_number;
+      }
+      // Attach challenge participation
+      if (challengeId) {
+        payload.challenge_id = challengeId;
       }
 
       const res = await api.post('/api/story-engine/create', payload);
@@ -1133,6 +1147,19 @@ function StoryVideoPipelineInner() {
             <h2 className="text-xl font-bold text-white mb-2">Let's turn your story into a cinematic video</h2>
             <p className="text-slate-400 text-sm max-w-md mx-auto mb-4">Your story is pre-filled below. Add a title, pick a style, and hit Generate.</p>
             <Button onClick={() => setShowWelcome(false)} variant="ghost" className="text-indigo-400 hover:text-indigo-300 text-sm">Got it</Button>
+          </div>
+        )}
+
+        {/* Challenge banner in Studio */}
+        {challengeId && challengeTitle && phase === 'input' && (
+          <div className="mb-4 px-4 py-3 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] flex items-center gap-3" data-testid="studio-challenge-banner">
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Challenge Entry</span>
+              <p className="text-xs text-zinc-300 truncate">{challengeTitle}</p>
+            </div>
           </div>
         )}
 

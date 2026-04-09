@@ -18,10 +18,13 @@ router = APIRouter(prefix="/retention", tags=["Retention"])
 
 @router.get("/challenge/today")
 async def get_todays_challenge():
-    """Public: Get today's daily challenge."""
+    """Public: Get today's daily challenge with leaderboard entries."""
     svc = get_retention_service(db)
     challenge = await svc.get_todays_challenge()
-    return {"success": True, "challenge": challenge}
+    leaderboard = []
+    if challenge:
+        leaderboard = await svc.get_challenge_entries(challenge["challenge_id"], limit=10)
+    return {"success": True, "challenge": challenge, "leaderboard": leaderboard}
 
 
 @router.post("/challenge")

@@ -357,6 +357,12 @@ function ProjectCard({ job, highlighted, justCompleted, onShare, onRetry, onDele
                 <Coins className="w-2.5 h-2.5" /> {creditsUsed} credit{creditsUsed !== 1 ? 's' : ''}
               </span>
             )}
+            {/* Challenge Entry badge */}
+            {job.challenge_id && (
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-full" data-testid={`challenge-entry-${job.job_id}`}>
+                Challenge Entry
+              </span>
+            )}
           </div>
           {/* Dynamic sub-stage + fuzzy time for processing */}
           {statusKey === 'PROCESSING' && (

@@ -1,22 +1,87 @@
 """
-Retention Service — Notification triggers, throttling, mock email, daily challenges.
-Provider-agnostic email abstraction. All emails are simulated (logged, not sent).
+Retention Service — Notification triggers, throttling, real email via Resend, daily challenges.
+Provider-agnostic email abstraction with per-user caps and unsubscribe metadata.
 """
+import os
 import uuid
+import asyncio
 import logging
+import resend
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict
+from dotenv import load_dotenv
 
+load_dotenv()
 logger = logging.getLogger(__name__)
 
+# ─── RESEND CONFIG ───────────────────────────────────────────────────────────
+resend.api_key = os.environ.get("RESEND_API_KEY", "")
+SENDER_EMAIL = os.environ.get("FROM_EMAIL") or os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+
 # ─── THROTTLE RULES ─────────────────────────────────────────────────────────
-# story_remixed: group within 30 min (aggregate N remixes into 1 notification)
-# story_trending: max 1 every 12 hours
-# daily_challenge_live: max 1 per day
 THROTTLE_RULES = {
     "story_remixed": {"window_minutes": 30, "aggregate": True},
     "story_trending": {"window_minutes": 720, "aggregate": False},
     "daily_challenge_live": {"window_minutes": 1440, "aggregate": False},
+}
+
+# ─── PER-USER EMAIL CAPS ────────────────────────────────────────────────────
+# max emails per user per day by type
+EMAIL_CAPS = {
+    "story_remixed": {"max_per_day": 2, "cooldown_hours": 6},
+    "story_trending": {"max_per_day": 1, "cooldown_hours": 12},
+    "daily_challenge_live": {"max_per_day": 1, "cooldown_hours": 24},
+    "ownership_milestone": {"max_per_day": 1, "cooldown_hours": 24},
+}
+
+# ─── EMAIL TEMPLATES ─────────────────────────────────────────────────────────
+
+def _render_email_html(template_type: str, payload: dict) -> str:
+    """Render clean, simple email HTML with CTA button."""
+    title = payload.get("subject", "Notification")
+    body = payload.get("body", "")
+    cta_text = payload.get("cta_text", "Open App")
+    cta_url = payload.get("cta_url", "https://trust-engine-5.preview.emergentagent.com/app")
+
+    return f"""
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; background: #0d0d18; color: #e4e4e7;">
+      <div style="margin-bottom: 24px;">
+        <span style="font-size: 12px; font-weight: 700; color: #a78bfa; letter-spacing: 1px; text-transform: uppercase;">Visionary Suite</span>
+      </div>
+      <h2 style="font-size: 20px; font-weight: 700; color: #ffffff; margin: 0 0 12px 0; line-height: 1.3;">{title}</h2>
+      <p style="font-size: 14px; color: #a1a1aa; line-height: 1.6; margin: 0 0 24px 0;">{body}</p>
+      <a href="{cta_url}" style="display: inline-block; padding: 12px 28px; background: linear-gradient(135deg, #7c3aed, #6366f1); color: #ffffff; font-size: 14px; font-weight: 600; text-decoration: none; border-radius: 10px;">{cta_text}</a>
+      <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #27272a;">
+        <p style="font-size: 11px; color: #52525b; margin: 0;">You're receiving this because you created content on Visionary Suite.</p>
+      </div>
+    </div>
+    """
+
+TEMPLATE_BUILDERS = {
+    "story_remixed": lambda p: {
+        "subject": p.get("subject", "Someone remixed your story!"),
+        "body": f'Your story "{p.get("original_title", "Untitled")}" was remixed! See what they created and remix it back.',
+        "cta_text": "See Remixes",
+        "cta_url": "https://trust-engine-5.preview.emergentagent.com/app/my-space",
+    },
+    "story_trending": lambda p: {
+        "subject": p.get("subject", "Your story is trending!"),
+        "body": f'"{p.get("original_title", p.get("title", "Your story"))}" is getting attention — {p.get("view_count", "many")} views and counting!',
+        "cta_text": "View Your Story",
+        "cta_url": "https://trust-engine-5.preview.emergentagent.com/app/my-space",
+    },
+    "daily_challenge_live": lambda p: {
+        "subject": p.get("subject", "New daily challenge is live!"),
+        "body": f'Today\'s challenge: "{p.get("challenge_title", "Create something amazing")}". Join now and see what others are creating!',
+        "cta_text": "Join Challenge",
+        "cta_url": f'https://trust-engine-5.preview.emergentagent.com/app/story-video-studio?challenge={p.get("challenge_id", "")}',
+    },
+    "ownership_milestone": lambda p: {
+        "subject": p.get("subject", "Your story hit a milestone!"),
+        "body": f'"{p.get("original_title", p.get("title", "Your story"))}" just hit {p.get("remix_count", "?")} remixes. People love your idea!',
+        "cta_text": "See Your Impact",
+        "cta_url": "https://trust-engine-5.preview.emergentagent.com/app/my-space",
+    },
 }
 
 
@@ -151,30 +216,115 @@ class RetentionService:
             "remix_count": remix_count,
         })
 
-    # ─── MOCK EMAIL SERVICE ───────────────────────────────────────────────
+    # ─── EMAIL SERVICE (Resend) ─────────────────────────────────────────────
     # Provider-agnostic: send_email(template_type, user_id, payload)
-    # All emails are SIMULATED — logged to email_events collection
+    # Real delivery via Resend. Logged to email_events. Per-user caps enforced.
+
+    async def _check_email_cap(self, user_id: str, template_type: str) -> bool:
+        """Check if user has exceeded email cap for this type today."""
+        cap = EMAIL_CAPS.get(template_type, {"max_per_day": 2, "cooldown_hours": 24})
+        day_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        count = await self.db.email_events.count_documents({
+            "user_id": user_id,
+            "template": template_type,
+            "status": {"$in": ["sent", "simulated"]},
+            "created_at": {"$gte": day_start.isoformat()},
+        })
+        if count >= cap["max_per_day"]:
+            return False
+        # Also check cooldown
+        cooldown_start = datetime.now(timezone.utc) - timedelta(hours=cap["cooldown_hours"])
+        recent = await self.db.email_events.find_one({
+            "user_id": user_id,
+            "template": template_type,
+            "status": {"$in": ["sent", "simulated"]},
+            "created_at": {"$gte": cooldown_start.isoformat()},
+        })
+        return recent is None
 
     async def send_email(self, template_type: str, user_id: str, payload: dict):
-        """Provider-agnostic email abstraction. Currently simulated."""
-        return await self._log_email_event(user_id, template_type, payload)
+        """Send email via Resend with per-user caps and logging."""
+        # Check caps
+        if not await self._check_email_cap(user_id, template_type):
+            logger.info(f"[EMAIL] Cap reached for {user_id[:8]} / {template_type}, skipping")
+            return None
 
-    async def _log_email_event(self, user_id: str, template_type: str, payload: dict):
-        """Log a simulated email event to the email_events collection."""
+        # Get user email
+        user = await self.db.users.find_one({"user_id": user_id}, {"_id": 0, "email": 1})
+        if not user or not user.get("email"):
+            # Try by _id string match
+            from bson import ObjectId
+            try:
+                user = await self.db.users.find_one({"_id": ObjectId(user_id)}, {"_id": 0, "email": 1})
+            except Exception:
+                pass
+        if not user or not user.get("email"):
+            logger.warning(f"[EMAIL] No email found for user {user_id[:8]}")
+            return None
+
+        recipient = user["email"]
+
+        # Build template
+        builder = TEMPLATE_BUILDERS.get(template_type)
+        if builder:
+            tpl = builder(payload)
+        else:
+            tpl = {"subject": payload.get("subject", "Notification"), "body": "", "cta_text": "Open App", "cta_url": ""}
+
+        html = _render_email_html(template_type, tpl)
+
+        # Log event first
         event = {
             "event_id": f"email_{uuid.uuid4().hex[:16]}",
             "user_id": user_id,
+            "recipient": recipient,
             "template": template_type,
-            "subject": payload.get("subject", f"[{template_type}] Notification"),
+            "subject": tpl["subject"],
             "payload": payload,
-            "status": "simulated",
+            "status": "pending",
+            "email_type": template_type,
+            "user_preferences_key": f"{template_type}_notifications",
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
+
         try:
             await self.db.email_events.insert_one(event)
-        except Exception as e:
-            logger.warning(f"[EMAIL] Failed to log email event: {e}")
-        return event
+        except Exception:
+            pass
+
+        # Send via Resend (non-blocking)
+        if resend.api_key:
+            try:
+                params = {
+                    "from": SENDER_EMAIL,
+                    "to": [recipient],
+                    "subject": tpl["subject"],
+                    "html": html,
+                }
+                result = await asyncio.to_thread(resend.Emails.send, params)
+                email_id = result.get("id") if isinstance(result, dict) else str(result)
+                # Update event status
+                await self.db.email_events.update_one(
+                    {"event_id": event["event_id"]},
+                    {"$set": {"status": "sent", "resend_id": email_id}}
+                )
+                logger.info(f"[EMAIL] Sent {template_type} to {recipient} (id: {email_id})")
+                return event
+            except Exception as e:
+                logger.warning(f"[EMAIL] Resend failed for {recipient}: {e}")
+                await self.db.email_events.update_one(
+                    {"event_id": event["event_id"]},
+                    {"$set": {"status": "failed", "error": str(e)}}
+                )
+                return event
+        else:
+            # No API key — simulate
+            await self.db.email_events.update_one(
+                {"event_id": event["event_id"]},
+                {"$set": {"status": "simulated"}}
+            )
+            logger.info(f"[EMAIL] Simulated {template_type} to {recipient} (no API key)")
+            return event
 
     # ─── DAILY CHALLENGES ─────────────────────────────────────────────────
 
@@ -232,17 +382,39 @@ class RetentionService:
     # ─── LEADERBOARD ──────────────────────────────────────────────────────
 
     async def get_top_stories_today(self, limit: int = 10) -> list:
-        """Get top stories by view count, created in the last 7 days."""
+        """Get top stories by weighted score (remix_count * 0.6 + views * 0.4), last 7 days."""
         week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
-        stories = await self.db.story_engine_jobs.find(
-            {
+        pipeline = [
+            {"$match": {
                 "state": {"$in": ["READY", "PARTIAL_READY"]},
                 "created_at": {"$gte": week_ago},
                 "gallery_opt_in": True,
-            },
-            {"_id": 0, "job_id": 1, "title": 1, "animation_style": 1,
-             "thumbnail_url": 1, "views": 1, "user_id": 1, "created_at": 1}
-        ).sort("views", -1).limit(limit).to_list(length=limit)
+            }},
+            {"$lookup": {
+                "from": "story_engine_jobs",
+                "localField": "job_id",
+                "foreignField": "reuse_info.parent_job_id",
+                "as": "remixes",
+            }},
+            {"$addFields": {
+                "remix_count": {"$size": "$remixes"},
+                "view_count": {"$ifNull": ["$views", 0]},
+                "score": {"$add": [
+                    {"$multiply": [{"$size": "$remixes"}, 0.6]},
+                    {"$multiply": [{"$ifNull": ["$views", 0]}, 0.4]},
+                ]},
+            }},
+            {"$sort": {"score": -1}},
+            {"$limit": limit},
+            {"$project": {
+                "_id": 0, "job_id": 1, "title": 1, "animation_style": 1,
+                "thumbnail_url": 1, "views": "$view_count", "remix_count": 1,
+                "score": 1, "user_id": 1, "created_at": 1,
+            }},
+        ]
+        stories = []
+        async for doc in self.db.story_engine_jobs.aggregate(pipeline):
+            stories.append(doc)
         return stories
 
 

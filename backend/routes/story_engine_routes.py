@@ -604,6 +604,7 @@ class CreateEngineRequest(BaseModel):
     quality_mode: str = Field(default="balanced")  # fast, balanced, high_quality
     series_id: Optional[str] = Field(default=None)  # Story Series context
     episode_number: Optional[int] = Field(default=None)  # Episode number within the series
+    challenge_id: Optional[str] = Field(default=None)  # Daily Challenge participation
 
 
 # ═══ QUALITY MODE STRATEGY ═══
@@ -714,6 +715,19 @@ async def create_engine_job(
         raise HTTPException(status_code=400, detail=error)
 
     job_id = result["job_id"]
+
+    # Store challenge participation if applicable
+    if request.challenge_id:
+        try:
+            await db.story_engine_jobs.update_one(
+                {"job_id": job_id},
+                {"$set": {
+                    "challenge_id": request.challenge_id,
+                    "challenge_joined_at": datetime.now(timezone.utc).isoformat(),
+                }}
+            )
+        except Exception:
+            pass
 
     # Mark free trial as used
     if is_guest:
@@ -944,6 +958,8 @@ async def get_status(job_id: str, current_user: dict = Depends(get_optional_user
             "slug": job.get("slug"),
             "story_chain_id": job.get("story_chain_id"),
             "episode_number": job.get("episode_number"),
+            "challenge_id": job.get("challenge_id"),
+            "challenge_joined_at": job.get("challenge_joined_at"),
             "series_id": job.get("series_id"),
             # Engine-specific fields
             "engine_state": state,
