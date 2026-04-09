@@ -1,7 +1,7 @@
 # Visionary Suite - Product Requirements Document
 
 ## Original Problem Statement
-Build an AI Creator Suite with a compulsion-driven "Growth Engine" — a full-stack application featuring AI video generation, social sharing loops, and monetization via credits and payments. The platform must create irresistible user journeys from discovery to creation and sharing.
+Build an AI Creator Suite with a compulsion-driven "Growth Engine" — a full-stack application featuring AI video generation, social sharing loops, and monetization via credits and payments. The platform must create irresistible user journeys from discovery to creation and sharing, with a retention layer that pulls users back daily.
 
 ## Architecture
 - **Frontend**: React (CRA) + TailwindCSS + Shadcn/UI
@@ -11,7 +11,7 @@ Build an AI Creator Suite with a compulsion-driven "Growth Engine" — a full-st
 
 ## Core User Personas
 - **Creators**: Generate AI videos from story prompts, customize styles, share socially
-- **Admins**: Monitor platform health, revenue, user metrics
+- **Admins**: Monitor platform health, revenue, user metrics, manage daily challenges
 
 ## Credentials
 - Test: test@visionary-suite.com / Test@2026#
@@ -25,66 +25,56 @@ Build an AI Creator Suite with a compulsion-driven "Growth Engine" — a full-st
 - Redesigned public pages with momentum-based social proof
 - 1-click continue flow (generation before login)
 - Enforced open-loop story endings
-- Enhanced social proof (momentum messaging, Character Power Score, time-based decay)
 
 ### P1 Monetization — DONE
 - Cashfree payments wired
-- Strict credit checks on all generation tools
-- 50-credit standard for all normal users
-- Admin Dashboard with real revenue/credit metrics
+- Strict credit checks, 50-credit standard for all normal users
 
 ### MySpace UX Overhaul — DONE
-- Plain-English copy, fuzzy time estimates, asset explanations
-- Skeleton loading, completed card pulse, re-engagement buttons
-- Credit psychology nudges
+- Plain-English copy, fuzzy time estimates, skeleton loading
 
 ### Pipeline Resilience — DONE
 - Graceful degradation: character continuity failures → warnings with fallbacks
-- Pipeline continues with simplified prompts instead of crashing
 
 ### Remix Gallery — DONE
-- Anonymous opt-in, filtered auto-seeding, "Remix This" flow
-- Trending badges
+- Anonymous opt-in, filtered auto-seeding, "Remix This" flow, Trending badges
 
 ### Addiction Layer — DONE
-- "Your vs Popular" comparisons, instant one-click variants
-- Session-based streaks
+- "Your vs Popular" comparisons, instant one-click variants, session streaks
 
 ### Trust & UI Fixes — DONE
-- Fixed broken Profile → Security tab
-- Truth-based admin satisfaction metric
-- Diverse, non-repeating "Live on the Platform" feed
-- Credit system consistency (eliminated hidden 100-credit grants)
+- Fixed Profile → Security, truth-based admin metrics, diverse live feed
 
 ### P0 Failed Job Recovery Routing — DONE (Apr 9, 2026)
-- **Root cause**: StoryVideoPipeline.js didn't read `projectId` from URL on page load
-- **Fix**: Server-authoritative `view_mode` routing (progress/result/failed_recovery)
-- Added `loadProjectById` deep-link handler
-- Built dedicated `FailedRecoveryScreen` with dynamic failure-specific messaging
-- Centralized `FAILED_STATE_LABELS` map — no raw enums leak to UI
+- Server-authoritative `view_mode` routing (progress/result/failed_recovery)
+- Dedicated `FailedRecoveryScreen` with dynamic failure-specific messaging
+- Deep-link support via `projectId` query param
+- Recovery analytics tracking
 - Backend DELETE /api/story-engine/jobs/{job_id} endpoint
-- Recovery analytics tracking (failed_job_viewed, retry_clicked, edit_retry_clicked, delete_failed_project)
-- MySpacePage "Retry" triggers actual API retry (not just navigation)
-- Legacy pipeline_jobs also include view_mode and retry_info
-- **Testing**: 17/18 passed, 0 failed (iteration_470)
+- **Testing**: 17/18 passed (iteration_470)
+
+### Retention Layer — Release 1 — DONE (Apr 9, 2026)
+- **In-App Notification System**: Bell icon in GlobalUserBar with unread badge, dropdown with clickable notifications. New types: `story_remixed`, `story_trending`, `daily_challenge_live`, `ownership_milestone`. Throttling: 30min aggregation for remix notifications, 12h cooldown for trending, 1/day for challenges.
+- **Ownership Messaging**: MySpace ProjectCard shows remix counts ("X people remixed your story", "People are remixing YOUR idea") with Trending badge for 5+ remixes.
+- **Daily Challenge System**: Admin-configurable challenges stored in MongoDB. Dashboard banner with "Today's Challenge" + Join Challenge CTA. Tracks participation count.
+- **Soft Leaderboard**: "Top Stories Today" section on Dashboard (populated when gallery jobs exist with views).
+- **Mock Email Service**: Provider-agnostic `send_email()` abstraction. All emails simulated/logged to `email_events` collection. Admin preview panel at `/api/retention/email-events`.
+- **Remix Notification Triggers**: Automatic notification to original author when their story is remixed. Milestone notifications at 5, 10, 25, 50, 100 remixes.
+- **Testing**: 25/25 passed (iteration_471)
 
 ---
 
 ## Prioritized Backlog
 
-### P0 — Retention Layer (Next)
-- In-App Notification System (remix, trending, daily challenge triggers)
-- Email comeback hooks
-- "Your Story" ownership messaging in MySpace cards
-- Daily Challenge block on homepage
-- Soft leaderboard ("Top Stories Today")
-- Auto-play gallery hover preview
+### P0 — Retention Layer (Remaining)
+- Email comeback hooks — wire real provider (Resend recommended)
+- Auto-play gallery hover preview (hover card → muted preview)
+- Challenge participation tracking in Studio
 
 ### P1 — Quality & Transparency
-- "Improve consistency" CTA on completed cards (regenerate character stage)
+- "Improve consistency" CTA on completed cards
 - Quality transparency note for character fallback
 - Smarter retry logic (simplify prompt on retry)
-- Improved fallback descriptions (extract adjectives from story text)
 - A/B test hook text variations on public pages
 
 ### P2 — Growth & Polish
@@ -97,8 +87,16 @@ Build an AI Creator Suite with a compulsion-driven "Growth Engine" — a full-st
 ---
 
 ## Key Files
+- `/app/backend/services/retention_service.py` — Retention service (notifications, email, challenges, stats)
+- `/app/backend/routes/retention_hooks.py` — Retention API routes
+- `/app/backend/routes/story_engine_routes.py` — Job APIs + view_mode routing + remix notification trigger
+- `/app/frontend/src/components/NotificationBell.js` — Bell with retention notification types
+- `/app/frontend/src/components/GlobalUserBar.jsx` — Top nav with bell integration
 - `/app/frontend/src/pages/StoryVideoPipeline.js` — Studio + recovery routing
-- `/app/frontend/src/pages/MySpacePage.js` — Dashboard + project cards
-- `/app/frontend/src/components/RemixGallery.js` — Social growth loop
-- `/app/backend/routes/story_engine_routes.py` — Job APIs + view_mode routing
-- `/app/backend/services/story_engine/pipeline.py` — Async generation pipeline
+- `/app/frontend/src/pages/MySpacePage.js` — Dashboard + ownership messaging
+- `/app/frontend/src/pages/Dashboard.js` — Daily Challenge banner + Top Stories leaderboard
+
+## Email System Status
+- **Current**: MOCKED — emails are logged to `email_events` collection, not sent
+- **Recommended next step**: Wire Resend for real delivery
+- **Admin preview**: `GET /api/retention/email-events` (admin-only)
