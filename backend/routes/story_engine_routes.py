@@ -249,6 +249,46 @@ def _state_to_substage(state: str, doc: dict = None) -> str:
     return labels.get(state, "Processing")
 
 
+def _compute_view_mode(state: str) -> str:
+    """Determine the frontend view mode based on job state. Server-authoritative routing."""
+    if state in ("READY", "PARTIAL_READY"):
+        return "result"
+    elif state in ("FAILED", "FAILED_PLANNING", "FAILED_IMAGES", "FAILED_TTS", "FAILED_RENDER"):
+        return "failed_recovery"
+    else:
+        return "progress"
+
+
+# Human-readable failure details — never expose raw enums to users
+FAILURE_DETAILS = {
+    "FAILED_PLANNING": {
+        "title": "We couldn't complete story planning for this video",
+        "suggestion": "The AI had trouble breaking your story into scenes. A retry usually fixes this.",
+        "stage_label": "Story Planning",
+    },
+    "FAILED_IMAGES": {
+        "title": "Scene artwork generation didn't complete",
+        "suggestion": "Some scene images couldn't be generated. Retrying will pick up where it left off.",
+        "stage_label": "Scene Artwork",
+    },
+    "FAILED_TTS": {
+        "title": "Voice narration generation hit an issue",
+        "suggestion": "The voiceover couldn't be created. A retry usually resolves this.",
+        "stage_label": "Voice Narration",
+    },
+    "FAILED_RENDER": {
+        "title": "The final video assembly did not complete",
+        "suggestion": "All scenes were created but the final video couldn't be assembled. Retry to finish.",
+        "stage_label": "Video Assembly",
+    },
+    "FAILED": {
+        "title": "This video didn't finish generating",
+        "suggestion": "Something went wrong during generation. You can retry or start fresh.",
+        "stage_label": "Generation",
+    },
+}
+
+
 
 def _make_presigned_url(stored_url: str) -> str:
     """Convert a stored R2 public URL to a presigned URL for direct access."""
@@ -259,6 +299,16 @@ def _make_presigned_url(stored_url: str) -> str:
         return presign_url(stored_url)
     except Exception:
         return stored_url
+
+
+def _legacy_compute_view_mode(status: str) -> str:
+    """Compute view_mode for legacy pipeline_jobs based on status."""
+    if status in ("COMPLETED", "PARTIAL"):
+        return "result"
+    elif status == "FAILED":
+        return "failed_recovery"
+    else:
+        return "progress"
 
 
 def _legacy_status_response(job: dict) -> dict:
@@ -296,12 +346,16 @@ def _legacy_status_response(job: dict) -> dict:
             fallback_data["fallback_video_url"] = _make_presigned_url(fallback["fallback_mp4"]["url"])
         if fallback.get("story_pack_zip", {}).get("url"):
             fallback_data["story_pack_url"] = _make_presigned_url(fallback["story_pack_zip"]["url"])
+    
+    status = job.get("status", "")
+    view_mode = _legacy_compute_view_mode(status)
+    
     return {
         "success": True,
         "job": {
             "job_id": job.get("job_id"),
             "title": job.get("title"),
-            "status": job.get("status"),
+            "status": status,
             "progress": job.get("progress", 0),
             "current_stage": job.get("current_stage"),
             "current_step": job.get("current_step"),
@@ -322,6 +376,15 @@ def _legacy_status_response(job: dict) -> dict:
             "has_recoverable_assets": bool(fallback_data) or len(scene_images) > 0,
             "slug": job.get("slug"),
             "source": "legacy_pipeline",
+            # Server-authoritative routing for legacy jobs
+            "view_mode": view_mode,
+            # Retry info for legacy jobs
+            "retry_info": {
+                "can_retry": status == "FAILED",
+                "current_attempt": 0,
+                "max_attempts": 0,
+                "total_retries": 0,
+            },
         },
     }
 
@@ -885,6 +948,10 @@ async def get_status(job_id: str, current_user: dict = Depends(get_optional_user
             **_resolve_allowed_actions(job),
             # Media entitlement — controls download/preview UI
             "media_access": media_access,
+            # Server-authoritative routing — frontend MUST use this to decide which view to render
+            "view_mode": _compute_view_mode(state),
+            # Human-readable failure details — only populated for failed states
+            "failure_detail": FAILURE_DETAILS.get(state),
         },
     }
 
@@ -1143,6 +1210,53 @@ async def cancel_job(job_id: str, current_user: dict = Depends(get_current_user)
         "message": "Job cancelled. Credits will be refunded.",
     }
 
+
+
+@router.delete("/jobs/{job_id}")
+async def delete_job(job_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete a job. Only the owner or admin can delete."""
+    user_id = current_user.get("id") or str(current_user.get("_id"))
+    job = await db.story_engine_jobs.find_one({"job_id": job_id}, {"_id": 0, "user_id": 1, "state": 1})
+    if not job:
+        # Try legacy
+        legacy = await db.pipeline_jobs.find_one({"job_id": job_id}, {"_id": 0, "user_id": 1})
+        if not legacy:
+            raise HTTPException(status_code=404, detail="Job not found")
+        if legacy.get("user_id") != user_id and current_user.get("role", "").upper() != "ADMIN":
+            raise HTTPException(status_code=403, detail="Not your job")
+        await db.pipeline_jobs.delete_one({"job_id": job_id})
+        return {"success": True, "message": "Project deleted"}
+
+    if job.get("user_id") != user_id and current_user.get("role", "").upper() != "ADMIN":
+        raise HTTPException(status_code=403, detail="Not your job")
+
+    await db.story_engine_jobs.delete_one({"job_id": job_id})
+    logger.info(f"[DELETE] Job {job_id[:8]} deleted by user {user_id[:12]}")
+    return {"success": True, "message": "Project deleted"}
+
+
+@router.post("/recovery-event")
+async def track_recovery_event(request: Request, current_user: dict = Depends(get_current_user)):
+    """Track failed job recovery analytics events."""
+    body = await request.json()
+    event = body.get("event")
+    job_id = body.get("job_id")
+    engine_state = body.get("engine_state")
+
+    if event not in ("failed_job_viewed", "retry_clicked", "edit_retry_clicked", "delete_failed_project"):
+        raise HTTPException(status_code=400, detail="Unknown recovery event")
+
+    user_id = current_user.get("id") or str(current_user.get("_id"))
+    try:
+        await db.analytics_events.insert_one({
+            "event": f"recovery_{event}",
+            "user_id": user_id,
+            "data": {"job_id": job_id, "engine_state": engine_state},
+            "timestamp": datetime.now(timezone.utc),
+        })
+    except Exception:
+        pass
+    return {"success": True}
 
 
 @router.get("/credit-check")

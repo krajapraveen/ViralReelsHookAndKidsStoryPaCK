@@ -739,9 +739,34 @@ export default function MySpacePage() {
     }
   }, [highlightId, jobs]);
 
-  const handleRetry = (job) => { window.location.href = `/app/story-video-studio?projectId=${job.job_id}`; };
+  const handleRetry = async (job) => {
+    try {
+      const res = await api.post(`/api/story-engine/retry/${job.job_id}`);
+      if (res.data?.success) {
+        toast.success('Retrying generation...');
+        // Navigate to studio to show progress
+        navigate(`/app/story-video-studio?projectId=${job.job_id}`);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Retry failed. Please try again.');
+      // Fallback: navigate to recovery screen
+      navigate(`/app/story-video-studio?projectId=${job.job_id}`);
+    }
+  };
   const handleNavigate = (job, mode) => {
     if (mode === 'remix') navigate('/app/story-video-studio', { state: { prompt: '', remixFrom: { title: job.title, job_id: job.job_id } } });
+    else if (mode === 'edit') {
+      // Pre-load story data so the Studio opens in edit mode
+      localStorage.setItem('remix_video', JSON.stringify({
+        parent_video_id: job.job_id,
+        title: job.title || '',
+        story_text: job.story_text || '',
+        animation_style: job.animation_style || 'cartoon_2d',
+        age_group: job.age_group || 'kids_5_8',
+        voice_preset: job.voice_preset || 'narrator_warm',
+      }));
+      navigate('/app/story-video-studio?remix=edit-retry');
+    }
     else navigate(`/app/story-video-studio?projectId=${job.job_id}`);
   };
   const handleShare = async (job) => {

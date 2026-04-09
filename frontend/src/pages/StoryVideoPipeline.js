@@ -31,6 +31,55 @@ const STAGE_ORDER = ['scenes', 'images', 'voices'];
 const STAGE_ICONS = { scenes: BookOpen, images: Image, voices: Mic };
 const STAGE_LABELS = { scenes: 'Scenes', images: 'Images', voices: 'Voices' };
 
+// ─── CENTRALIZED FAILURE LABELS ──────────────────────────────────────────────
+// Single source of truth: raw backend enums → human-readable copy.
+// NEVER display engine_state directly in the UI.
+const FAILED_STATE_LABELS = {
+  FAILED_PLANNING: {
+    title: "We couldn't complete story planning for this video",
+    suggestion: 'The AI had trouble breaking your story into scenes. A retry usually fixes this.',
+    stageLabel: 'Story Planning',
+  },
+  FAILED_IMAGES: {
+    title: "Scene artwork generation didn't complete",
+    suggestion: "Some scene images couldn't be generated. Retrying will pick up where it left off.",
+    stageLabel: 'Scene Artwork',
+  },
+  FAILED_TTS: {
+    title: 'Voice narration generation hit an issue',
+    suggestion: "The voiceover couldn't be created. A retry usually resolves this.",
+    stageLabel: 'Voice Narration',
+  },
+  FAILED_RENDER: {
+    title: 'The final video assembly did not complete',
+    suggestion: "All scenes were created but the final video couldn't be assembled. Retry to finish.",
+    stageLabel: 'Video Assembly',
+  },
+  FAILED: {
+    title: "This video didn't finish generating",
+    suggestion: 'Something went wrong during generation. You can retry or start fresh.',
+    stageLabel: 'Generation',
+  },
+};
+
+function getFailureLabel(engineState, serverDetail) {
+  if (serverDetail?.title) return { ...serverDetail, stageLabel: serverDetail.stage_label || serverDetail.stageLabel };
+  return FAILED_STATE_LABELS[engineState] || FAILED_STATE_LABELS.FAILED;
+}
+
+// ─── ANALYTICS HELPER ─────────────────────────────────────────────────────────
+function trackRecoveryEvent(event, jobId, engineState) {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch(`${process.env.REACT_APP_BACKEND_URL}/api/story-engine/recovery-event`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event, job_id: jobId, engine_state: engineState }),
+    }).catch(() => {});
+  } catch {}
+}
+
 // ─── SAFE ACTION WRAPPER ────────────────────────────────────────────────────
 // Prevents undefined handler crashes. Logs to monitoring endpoint.
 function safeAction(fn, label = 'action') {
@@ -517,6 +566,8 @@ function StoryVideoPipelineInner() {
       localStorage.removeItem('onboarding_prompt');
     }
 
+    // ─── DEEP-LINK: projectId handled in separate useEffect after all hooks ───
+
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
       if (hardTimeoutRef.current) clearTimeout(hardTimeoutRef.current);
@@ -533,8 +584,10 @@ function StoryVideoPipelineInner() {
         // Auto-reconnect ONLY if:
         // 1. Not a fresh session from Dashboard
         // 2. Job is genuinely recent (<10 min old)
+        // 3. No projectId deep-link in URL (deep-link takes priority)
         const locState = location?.state || window.history?.state?.usr;
-        if (!locState?.freshSession) {
+        const hasDeepLink = searchParams.get('projectId');
+        if (!locState?.freshSession && !hasDeepLink) {
           const active = (res.data.jobs || []).find(j => {
             if (!['QUEUED', 'PROCESSING'].includes(j.status)) return false;
             // Don't auto-reconnect to stale jobs (>10 min old)
@@ -684,22 +737,20 @@ function StoryVideoPipelineInner() {
             await validateAndResolve(jid, j);
           } else if (j.status === 'FAILED') {
             clearAllTimeouts();
-            // Check if there are recoverable assets
-            const hasRecoverable = j.has_recoverable_assets || j.fallback?.has_preview || j.fallback?.story_pack_url;
-            const canRetry = j.retry_info?.can_retry === true;
-            if (hasRecoverable) {
-              setPhase('postgen');
-              await validateAndResolve(jid, j);
+            // Use server-authoritative view_mode
+            if (j.view_mode === 'failed_recovery') {
+              setPhase('failed_recovery');
+              trackRecoveryEvent('failed_job_viewed', jid, j.engine_state);
             } else {
-              setPhase('postgen');
-              dispatchPostGen({
-                type: 'SET_FAILED',
-                reason: j.error || 'Generation failed',
-                stageDetail: j.error || 'No recoverable assets',
-                canRetry,
-                errorCode: j.error_code,
-                creditsRefunded: j.credits_refunded || 0,
-              });
+              // Fallback: recoverable assets → postgen, otherwise recovery
+              const hasRecoverable = j.has_recoverable_assets || j.fallback?.has_preview || j.fallback?.story_pack_url;
+              if (hasRecoverable) {
+                setPhase('postgen');
+                await validateAndResolve(jid, j);
+              } else {
+                setPhase('failed_recovery');
+                trackRecoveryEvent('failed_job_viewed', jid, j.engine_state);
+              }
             }
           }
         }
@@ -708,6 +759,40 @@ function StoryVideoPipelineInner() {
     poll();
     pollRef.current = setInterval(poll, 3000);
   }, [clearAllTimeouts, validateAndResolve]);
+
+  // ─── DEEP-LINK: Load project by ID from URL ────────────────────
+  const loadProjectById = useCallback(async (pid) => {
+    try {
+      const res = await api.get(`/api/story-engine/status/${pid}`);
+      if (res.data.success) {
+        const j = res.data.job;
+        setJobId(pid);
+        setJob(j);
+
+        const viewMode = j.view_mode || 'progress';
+        if (viewMode === 'failed_recovery') {
+          setPhase('failed_recovery');
+          trackRecoveryEvent('failed_job_viewed', pid, j.engine_state);
+        } else if (viewMode === 'result') {
+          setPhase('postgen');
+          validateAndResolve(pid, j);
+        } else {
+          setPhase('processing');
+          startPolling(pid);
+        }
+      }
+    } catch {
+      toast.error('Could not load the project. It may have been deleted.');
+    }
+  }, [validateAndResolve, startPolling]);
+
+  // Deep-link effect — runs after all hooks are initialized
+  useEffect(() => {
+    const deepLinkProjectId = searchParams.get('projectId');
+    if (deepLinkProjectId) {
+      loadProjectById(deepLinkProjectId);
+    }
+  }, [searchParams, loadProjectById]);
 
   // ─── GENERATE (with duplicate guard) ──────────────────────────────
   const handleGenerate = async () => {
@@ -887,7 +972,7 @@ function StoryVideoPipelineInner() {
   const viewJob = async (j) => {
     setJobId(j.job_id);
 
-    // Fetch full status (includes characters, cliffhanger) for completed/partial/failed jobs
+    // Fetch full status (includes view_mode, characters, cliffhanger)
     const fetchFullJob = async (jid) => {
       try {
         const res = await api.get(`/api/story-engine/status/${jid}`);
@@ -896,25 +981,21 @@ function StoryVideoPipelineInner() {
       return null;
     };
 
-    if (['COMPLETED', 'PARTIAL'].includes(j.status)) {
-      const fullJob = await fetchFullJob(j.job_id);
-      const jobData = fullJob || j;
-      setJob(jobData);
+    const fullJob = await fetchFullJob(j.job_id);
+    const jobData = fullJob || j;
+    setJob(jobData);
+
+    // Server-authoritative routing via view_mode
+    const viewMode = jobData.view_mode;
+
+    if (viewMode === 'failed_recovery') {
+      setPhase('failed_recovery');
+      trackRecoveryEvent('failed_job_viewed', j.job_id, jobData.engine_state);
+    } else if (viewMode === 'result') {
       setPhase('postgen');
       validateAndResolve(j.job_id, jobData);
-    } else if (j.status === 'FAILED') {
-      const fullJob = await fetchFullJob(j.job_id);
-      const jobData = fullJob || j;
-      if (jobData.has_recoverable_assets || jobData.fallback_status) {
-        setJob(jobData);
-        setPhase('postgen');
-        validateAndResolve(j.job_id, jobData);
-      } else {
-        setJob(jobData);
-        setPhase('postgen');
-        dispatchPostGen({ type: 'SET_FAILED', reason: jobData.error || 'Generation failed' });
-      }
     } else {
+      // Active job — show progress
       setPhase('processing');
       startPolling(j.job_id);
     }
@@ -946,13 +1027,13 @@ function StoryVideoPipelineInner() {
               { key: 'scenes', label: 'Scenes', icon: BookOpen, active: phase === 'processing' && (job?.current_stage === 'scenes' || !job) },
               { key: 'images', label: 'Images', icon: Image, active: phase === 'processing' && job?.current_stage === 'images' },
               { key: 'voices', label: 'Voice', icon: Mic, active: phase === 'processing' && job?.current_stage === 'voices' },
-              { key: 'result', label: 'Result', icon: Eye, active: phase === 'postgen' },
+              { key: 'result', label: 'Result', icon: Eye, active: phase === 'postgen' || phase === 'failed_recovery' },
             ].map((step, i) => (
               <div key={step.key} className="flex items-center">
-                {i > 0 && <div className={`w-6 h-px mx-1 ${step.active || (phase === 'postgen') || (phase === 'processing' && i <= ['prompt','scenes','images','voices','result'].indexOf(job?.current_stage || 'scenes')) ? 'bg-[var(--vs-primary-from)]' : 'bg-[var(--vs-border)]'}`} />}
+                {i > 0 && <div className={`w-6 h-px mx-1 ${step.active || (phase === 'postgen') || (phase === 'failed_recovery') || (phase === 'processing' && i <= ['prompt','scenes','images','voices','result'].indexOf(job?.current_stage || 'scenes')) ? 'bg-[var(--vs-primary-from)]' : 'bg-[var(--vs-border)]'}`} />}
                 <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-                  step.active ? 'bg-[var(--vs-cta)]/15 text-[var(--vs-text-accent)] border border-[var(--vs-border-glow)]'
-                  : (phase === 'postgen' || (phase === 'processing' && i < ['prompt','scenes','images','voices','result'].indexOf(job?.current_stage || 'scenes') + 1))
+                  step.active ? (phase === 'failed_recovery' && step.key === 'result' ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30' : 'bg-[var(--vs-cta)]/15 text-[var(--vs-text-accent)] border border-[var(--vs-border-glow)]')
+                  : (phase === 'postgen' || phase === 'failed_recovery' || (phase === 'processing' && i < ['prompt','scenes','images','voices','result'].indexOf(job?.current_stage || 'scenes') + 1))
                     ? 'text-[var(--vs-success)]'
                     : 'text-[var(--vs-text-muted)]'
                 }`} data-testid={`canvas-step-${step.key}`}>
@@ -1097,6 +1178,19 @@ function StoryVideoPipelineInner() {
             onRetryValidation={retryValidation}
             storyText={storyText}
             animStyle={animStyle}
+          />
+        )}
+
+        {phase === 'failed_recovery' && (
+          <FailedRecoveryScreen
+            job={job}
+            jobId={jobId}
+            onNew={handleNewVideo}
+            onRetryStarted={(data) => {
+              // After successful retry, switch to processing phase
+              setPhase('processing');
+              startPolling(jobId);
+            }}
           />
         )}
       </main>
@@ -1545,6 +1639,188 @@ function CancelButton({ jobId, onCancelled }) {
   );
 }
 
+
+
+// ─── FAILED RECOVERY SCREEN ─────────────────────────────────────────────────
+// Dedicated screen for failed jobs. Never shows Result page layout.
+// Renders dynamic failure-specific messaging. Retry preserves all inputs.
+function FailedRecoveryScreen({ job, jobId, onNew, onRetryStarted }) {
+  const navigate = useNavigate();
+  const [deleting, setDeleting] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+
+  const engineState = job?.engine_state || job?.status || 'FAILED';
+  const failDetail = getFailureLabel(engineState, job?.failure_detail);
+  const canRetry = job?.retry_info?.can_retry === true;
+  const creditsRefunded = job?.credits_refunded || 0;
+  const displayTitle = job?.title || 'Untitled Video';
+  const createdAt = job?.created_at ? new Date(job.created_at).toLocaleString() : '';
+
+  const handleRetry = async () => {
+    setRetrying(true);
+    trackRecoveryEvent('retry_clicked', jobId, engineState);
+    try {
+      const res = await api.post(`/api/story-engine/retry/${jobId}`);
+      if (res.data?.success) {
+        toast.success('Retrying your video...');
+        onRetryStarted?.(res.data);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Retry failed. Please try again.');
+    } finally {
+      setRetrying(false);
+    }
+  };
+
+  const handleEditRetry = () => {
+    trackRecoveryEvent('edit_retry_clicked', jobId, engineState);
+    localStorage.setItem('remix_video', JSON.stringify({
+      parent_video_id: jobId,
+      title: job?.title || '',
+      story_text: job?.story_text || '',
+      animation_style: job?.animation_style || 'cartoon_2d',
+      age_group: job?.age_group || 'kids_5_8',
+      voice_preset: job?.voice_preset || 'narrator_warm',
+    }));
+    navigate('/app/story-video-studio?remix=edit-retry');
+    toast.info('Edit your story and try again');
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm('Delete this project? This cannot be undone.')) return;
+    setDeleting(true);
+    trackRecoveryEvent('delete_failed_project', jobId, engineState);
+    try {
+      await api.delete(`/api/story-engine/jobs/${jobId}`);
+      toast.success('Project deleted');
+      navigate('/app/my-space', { replace: true });
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Could not delete');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-6 vs-fade-up-1" data-testid="failed-recovery-screen">
+      {/* Status Header */}
+      <div className="rounded-2xl border border-amber-500/30 bg-amber-500/[0.06] p-6" data-testid="recovery-status-header">
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-xl bg-amber-500/15 flex items-center justify-center flex-shrink-0">
+            <ShieldAlert className="w-6 h-6 text-amber-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-xl font-bold text-white mb-1" data-testid="recovery-title">This video needs attention</h2>
+            <p className="text-sm text-amber-300/90 leading-relaxed" data-testid="recovery-failure-title">{failDetail.title}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Project Info */}
+      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-white truncate" data-testid="recovery-project-title">{displayTitle}</h3>
+          {job?.animation_style && (
+            <span className="text-[10px] font-medium text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded-full" data-testid="recovery-style-badge">
+              {job.animation_style.replace(/_/g, ' ')}
+            </span>
+          )}
+        </div>
+        {createdAt && <p className="text-xs text-zinc-500">Created: {createdAt}</p>}
+
+        <div className="bg-amber-500/[0.04] border border-amber-500/10 rounded-lg p-3.5">
+          <p className="text-xs font-semibold text-amber-400/80 uppercase tracking-wider mb-1">What happened</p>
+          <p className="text-sm text-zinc-300 leading-relaxed" data-testid="recovery-suggestion">{failDetail.suggestion}</p>
+        </div>
+
+        {creditsRefunded > 0 && (
+          <div className="flex items-center gap-2 bg-emerald-500/[0.06] border border-emerald-500/15 rounded-lg px-3.5 py-2.5" data-testid="recovery-credits-refunded">
+            <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            <span className="text-sm text-emerald-300">{creditsRefunded} credits refunded to your account</span>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 bg-white/[0.02] rounded-lg px-3.5 py-2.5">
+          <Sparkles className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+          <span className="text-xs text-zinc-400">Your story and settings are preserved. Retry keeps everything as-is.</span>
+        </div>
+      </div>
+
+      {/* Recovery Actions */}
+      <div className="space-y-3" data-testid="recovery-actions">
+        {canRetry && (
+          <button
+            onClick={handleRetry}
+            disabled={retrying}
+            className="w-full group relative overflow-hidden rounded-xl p-4 text-left transition-all hover:scale-[1.005] active:scale-[0.995] disabled:opacity-60"
+            data-testid="recovery-retry-btn"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-violet-600 to-indigo-600 opacity-90 group-hover:opacity-100 transition-opacity" />
+            <div className="relative z-10 flex items-center gap-4">
+              <div className="w-11 h-11 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
+                {retrying ? <Loader2 className="w-5 h-5 text-white animate-spin" /> : <RefreshCw className="w-5 h-5 text-white" />}
+              </div>
+              <div className="flex-1">
+                <span className="text-base font-bold text-white block">{retrying ? 'Retrying...' : 'Retry Generation'}</span>
+                <span className="text-xs text-white/60">Pick up from {failDetail.stageLabel || 'where it stopped'} — your story is preserved</span>
+              </div>
+            </div>
+          </button>
+        )}
+
+        <button
+          onClick={handleEditRetry}
+          className="w-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-left hover:bg-white/[0.06] transition-all flex items-center gap-4"
+          data-testid="recovery-edit-retry-btn"
+        >
+          <div className="w-11 h-11 rounded-lg bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+            <BookOpen className="w-5 h-5 text-amber-400" />
+          </div>
+          <div className="flex-1">
+            <span className="text-sm font-semibold text-white block">Edit Story & Retry</span>
+            <span className="text-xs text-zinc-500">Modify your story or settings before regenerating</span>
+          </div>
+        </button>
+
+        <button
+          onClick={onNew}
+          className="w-full rounded-xl border border-white/[0.06] bg-white/[0.015] p-4 text-left hover:bg-white/[0.04] transition-all flex items-center gap-4"
+          data-testid="recovery-start-fresh-btn"
+        >
+          <div className="w-11 h-11 rounded-lg bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
+            <Sparkles className="w-5 h-5 text-indigo-400" />
+          </div>
+          <div className="flex-1">
+            <span className="text-sm font-semibold text-white block">Start Fresh</span>
+            <span className="text-xs text-zinc-500">Create a brand new video from scratch</span>
+          </div>
+        </button>
+
+        <div className="pt-2 border-t border-white/[0.04]">
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs text-zinc-500 hover:text-red-400 hover:bg-red-500/[0.06] transition-colors disabled:opacity-40"
+            data-testid="recovery-delete-btn"
+          >
+            <XCircle className="w-3.5 h-3.5" />
+            {deleting ? 'Deleting...' : 'Delete this project'}
+          </button>
+        </div>
+      </div>
+
+      <div className="text-center pt-2">
+        <button
+          onClick={() => navigate('/app/my-space')}
+          className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+          data-testid="recovery-back-btn"
+        >
+          <ArrowLeft className="w-3 h-3 inline mr-1" /> Back to My Space
+        </button>
+      </div>
+    </div>
+  );
+}
 
 
 // ─── POST-GENERATION PHASE (State Machine Driven) ─────────────────────────────
