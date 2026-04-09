@@ -127,6 +127,29 @@ Build an AI Creator Suite with a compulsion-driven "Growth Engine" — a full-st
 - **Hidden Analytics**: Events tracked: `hidden_rank_progress`, `hidden_reward_pending`, `hidden_streak_days`, `phase_c_activation_ready`.
 - Testing: 22/22 backend + all frontend passed (iteration_478)
 
+### Viral Optimization Sprint — DONE (Apr 9)
+**Goal:** Push readiness metrics toward GREENLIGHT through behavioral tuning, not feature expansion.
+
+1. **Raise Repeat Share Rate:**
+   - Momentum Meter badge on stories (Rising Fast / Trending / Spreading Widely)
+   - "Share Again" button on viral chain timeline with contextual copy
+   - Reshare nudge below chain when story has weekly remixes
+   - Improved SharePromptModal copy: momentum + pride + urgency tone
+   - Reshare notification system with 24h caps per story
+2. **Improve Chain Depth ≥2:**
+   - Changed remix CTA from "Remix as..." to "Create Your Version of This Story"
+   - Added helper text: "Inspired stories spread faster — make this one yours"
+3. **Improve Return-to-Inspect:**
+   - 24h viral progress nudge notifications (curiosity-driven copy)
+   - Max 1 progress nudge per 24h per user
+4. **Improve Badge Engagement:**
+   - Animated milestone celebration card with bounceIn animation
+   - "Share Milestone" micro-CTA on new badge reveals
+   - Hover effects on existing milestone badges
+
+All copy variants tagged with `copy_variant_id` for A/B attribution tracking.
+Testing: 15/15 backend + all frontend passed (iteration_479)
+
 ### P1 — Next Features
 - Optimize viral loop: improve share prompt conversion, share link CTR, notification emotional strength, share landing remix conversion
 - A/B Week 2: Winner of A vs B → test against Variant C (when threshold reached)
