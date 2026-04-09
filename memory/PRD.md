@@ -42,6 +42,11 @@ Build an AI Creator Suite with a compulsion-driven "Growth Engine" — a full-st
 - **User lookup fix**: Searches by `id` field (matching users collection schema)
 - Testing: 14/14 (iteration_473)
 
+### Prestige + Quality Loop — DONE (Apr 9)
+- **Homepage Featured Challenge Winner Hero Slot**: Prestigious design with trophy badge, winner reason badge, large thumbnail, gradient glow. Remix This Winner (primary) + View Winning Story (secondary) CTAs. Analytics: `hero_winner_impression`, `hero_winner_view_clicked`, `hero_winner_remix_clicked`. Graceful fallback when no winner: "Today's challenge winner will appear soon".
+- **Improve Consistency CTA**: Premium enhancement button on story_engine completed cards. Shows only on eligible jobs (source=story_engine, consistency_retry_count < 1). Max 1 retry per job enforced. Success: "Your characters now appear more consistent across scenes". Analytics: `improve_consistency_clicked`, `improve_consistency_success`, `improve_consistency_failed`. Auto-hides after use or for ineligible jobs.
+- Testing: 14/14 (iteration_474)
+
 ---
 
 ## Email System Status
@@ -59,9 +64,8 @@ Build an AI Creator Suite with a compulsion-driven "Growth Engine" — a full-st
 - Verify Resend domain for live email delivery (user action)
 
 ### P1 — Next Features
-- Homepage featured challenge winner hero slot
-- "Improve consistency" CTA on completed cards
-- A/B test hook text variations
+- A/B test hook text variations on public pages
+- Character-driven auto-share prompts after creation
 
 ### P2 — Growth & Polish
 - Monthly creator milestone digest
@@ -79,5 +83,5 @@ Build an AI Creator Suite with a compulsion-driven "Growth Engine" — a full-st
 - `/app/frontend/src/components/RemixGallery.js` — Gallery with auto-play hover preview
 - `/app/frontend/src/components/GlobalUserBar.jsx` — Top nav with bell
 - `/app/frontend/src/pages/StoryVideoPipeline.js` — Studio + recovery + challenge
-- `/app/frontend/src/pages/MySpacePage.js` — Dashboard + ownership + challenge badges
-- `/app/frontend/src/pages/Dashboard.js` — Challenge banner + Top Stories leaderboard
+- `/app/frontend/src/pages/MySpacePage.js` — Dashboard + ownership + challenge badges + Improve Consistency CTA
+- `/app/frontend/src/pages/Dashboard.js` — Challenge banner + Top Stories leaderboard + Featured Winner Hero Slot
