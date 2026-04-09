@@ -84,6 +84,69 @@ TEMPLATE_BUILDERS = {
     },
 }
 
+# ─── CREATOR DIGEST EMAIL TEMPLATE ──────────────────────────────────────────
+
+def _render_digest_html(digest: dict) -> str:
+    """Render Creator Digest email — 20-second read max."""
+    top = digest.get("top_story", {})
+    momentum = digest.get("momentum_text", "")
+    percentile = digest.get("percentile_text", "")
+    rising = digest.get("rising_fast", False)
+    cta = digest.get("cta", {})
+
+    stats_html = ""
+    views = digest.get("total_views", 0)
+    remixes = digest.get("new_remixes", 0)
+    if views > 0:
+        stats_html += f'<div style="display:inline-block;margin-right:24px;"><span style="font-size:28px;font-weight:800;color:#ffffff;">{views}</span><br/><span style="font-size:11px;color:#71717a;">views this week</span></div>'
+    if remixes > 0:
+        stats_html += f'<div style="display:inline-block;margin-right:24px;"><span style="font-size:28px;font-weight:800;color:#a78bfa;">{remixes}</span><br/><span style="font-size:11px;color:#71717a;">new remixes</span></div>'
+
+    top_story_html = ""
+    if top.get("title"):
+        top_story_html = f"""
+        <div style="margin:20px 0;padding:16px;border-radius:12px;border:1px solid #27272a;background:#18181b;">
+          <p style="font-size:10px;font-weight:700;color:#a78bfa;text-transform:uppercase;letter-spacing:1px;margin:0 0 6px 0;">Most Celebrated Story</p>
+          <p style="font-size:16px;font-weight:700;color:#ffffff;margin:0 0 4px 0;">{top["title"]}</p>
+          <p style="font-size:12px;color:#71717a;margin:0;">{top.get("views", 0)} views &bull; {top.get("remix_count", 0)} remixes</p>
+        </div>
+        """
+
+    badge_html = ""
+    if rising:
+        badge_html = '<div style="display:inline-block;padding:4px 12px;border-radius:20px;background:#7c3aed20;border:1px solid #7c3aed40;font-size:11px;font-weight:700;color:#a78bfa;margin-bottom:16px;">Rising Fast This Week</div><br/>'
+
+    momentum_html = ""
+    if momentum:
+        momentum_html = f'<p style="font-size:13px;color:#d4d4d8;margin:0 0 4px 0;">{momentum}</p>'
+
+    percentile_html = ""
+    if percentile:
+        percentile_html = f'<p style="font-size:12px;color:#71717a;margin:0 0 16px 0;">{percentile}</p>'
+
+    cta_text = cta.get("text", "See your dashboard")
+    cta_url = cta.get("url", "https://trust-engine-5.preview.emergentagent.com/app/my-space")
+
+    return f"""
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#0d0d18;color:#e4e4e7;">
+      <div style="margin-bottom:20px;">
+        <span style="font-size:12px;font-weight:700;color:#a78bfa;letter-spacing:1px;text-transform:uppercase;">Visionary Suite</span>
+        <span style="font-size:11px;color:#52525b;float:right;">Weekly Digest</span>
+      </div>
+      <h2 style="font-size:20px;font-weight:800;color:#ffffff;margin:0 0 6px 0;line-height:1.3;">Your story world is growing</h2>
+      <p style="font-size:13px;color:#a1a1aa;margin:0 0 20px 0;">Here's what happened this week.</p>
+      {badge_html}
+      <div style="margin-bottom:20px;">{stats_html}</div>
+      {momentum_html}
+      {percentile_html}
+      {top_story_html}
+      <a href="{cta_url}" style="display:inline-block;padding:12px 28px;background:linear-gradient(135deg,#7c3aed,#6366f1);color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;border-radius:10px;margin-top:8px;">{cta_text}</a>
+      <div style="margin-top:32px;padding-top:16px;border-top:1px solid #27272a;">
+        <p style="font-size:11px;color:#52525b;margin:0;">Sent weekly to active creators on Visionary Suite.</p>
+      </div>
+    </div>
+    """
+
 
 class RetentionService:
     def __init__(self, db):
@@ -250,9 +313,11 @@ class RetentionService:
             return None
 
         # Get user email
-        user = await self.db.users.find_one({"user_id": user_id}, {"_id": 0, "email": 1})
+        user = await self.db.users.find_one({"id": user_id}, {"_id": 0, "email": 1})
         if not user or not user.get("email"):
-            # Try by _id string match
+            # Fallback: try user_id field, then ObjectId
+            user = await self.db.users.find_one({"user_id": user_id}, {"_id": 0, "email": 1})
+        if not user or not user.get("email"):
             from bson import ObjectId
             try:
                 user = await self.db.users.find_one({"_id": ObjectId(user_id)}, {"_id": 0, "email": 1})
@@ -416,6 +481,217 @@ class RetentionService:
         async for doc in self.db.story_engine_jobs.aggregate(pipeline):
             stories.append(doc)
         return stories
+
+    # ─── CREATOR DIGEST ───────────────────────────────────────────────────
+
+    async def compute_digest(self, user_id: str) -> Optional[Dict]:
+        """Compute weekly digest stats for a single user. Returns None if no activity."""
+        week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+        two_weeks_ago = (datetime.now(timezone.utc) - timedelta(days=14)).isoformat()
+
+        # Get user's completed jobs
+        user_jobs = await self.db.story_engine_jobs.find(
+            {"user_id": user_id, "state": {"$in": ["READY", "PARTIAL_READY"]}},
+            {"_id": 0, "job_id": 1, "title": 1, "views": 1, "created_at": 1, "animation_style": 1}
+        ).to_list(length=500)
+
+        if not user_jobs:
+            return None
+
+        job_ids = [j["job_id"] for j in user_jobs]
+
+        # This week's remix count
+        this_week_remixes = await self.db.story_engine_jobs.count_documents({
+            "reuse_info.parent_job_id": {"$in": job_ids},
+            "created_at": {"$gte": week_ago},
+        })
+
+        # Last week's remix count (for momentum)
+        last_week_remixes = await self.db.story_engine_jobs.count_documents({
+            "reuse_info.parent_job_id": {"$in": job_ids},
+            "created_at": {"$gte": two_weeks_ago, "$lt": week_ago},
+        })
+
+        # Total views this week (approximate — sum views field)
+        total_views = sum(j.get("views", 0) for j in user_jobs)
+
+        # Skip if zero meaningful activity
+        if this_week_remixes == 0 and total_views == 0:
+            return None
+
+        # Find top story (most views + remixes)
+        remix_stats = await self.get_job_remix_stats(job_ids)
+        top_story = None
+        top_score = -1
+        for j in user_jobs:
+            rc = remix_stats.get(j["job_id"], 0)
+            sc = (j.get("views", 0) * 0.4) + (rc * 0.6)
+            if sc > top_score:
+                top_score = sc
+                top_story = {"title": j["title"], "views": j.get("views", 0), "remix_count": rc, "job_id": j["job_id"]}
+
+        # Momentum signal
+        momentum_text = ""
+        if this_week_remixes > last_week_remixes and last_week_remixes > 0:
+            growth = this_week_remixes - last_week_remixes
+            momentum_text = f"Your remixes grew by {growth} this week"
+        elif this_week_remixes > 0:
+            momentum_text = f"You gained {this_week_remixes} new remix{'es' if this_week_remixes > 1 else ''} this week"
+
+        # Percentile (compare against all creators)
+        total_creators = await self.db.story_engine_jobs.distinct("user_id", {"state": {"$in": ["READY", "PARTIAL_READY"]}})
+        total_creator_count = len(total_creators)
+        percentile_text = ""
+        if total_creator_count > 5:
+            # Count how many creators have fewer total remixes
+            all_user_remixes = {}
+            async for doc in self.db.story_engine_jobs.aggregate([
+                {"$match": {"reuse_info.parent_job_id": {"$exists": True}, "created_at": {"$gte": week_ago}}},
+                {"$lookup": {"from": "story_engine_jobs", "localField": "reuse_info.parent_job_id", "foreignField": "job_id", "as": "parent"}},
+                {"$unwind": {"path": "$parent", "preserveNullAndEmptyArrays": True}},
+                {"$group": {"_id": "$parent.user_id", "count": {"$sum": 1}}},
+            ]):
+                if doc["_id"]:
+                    all_user_remixes[doc["_id"]] = doc["count"]
+            my_remixes = all_user_remixes.get(user_id, 0)
+            below_count = sum(1 for v in all_user_remixes.values() if v < my_remixes)
+            if len(all_user_remixes) > 0 and my_remixes > 0:
+                pct = int((below_count / len(all_user_remixes)) * 100)
+                if pct >= 50:
+                    percentile_text = f"You outperformed {pct}% of creators this week"
+
+        # Rising Fast badge
+        rising_fast = this_week_remixes >= 5 and this_week_remixes > last_week_remixes * 1.5
+
+        # Personalized CTA
+        cta = {"text": "See your dashboard", "url": "https://trust-engine-5.preview.emergentagent.com/app/my-space"}
+        if this_week_remixes >= 3:
+            cta = {"text": "See who remixed your story", "url": "https://trust-engine-5.preview.emergentagent.com/app/my-space"}
+        elif total_views >= 50:
+            cta = {"text": "See why your story is trending", "url": "https://trust-engine-5.preview.emergentagent.com/app/my-space"}
+
+        return {
+            "user_id": user_id,
+            "total_views": total_views,
+            "new_remixes": this_week_remixes,
+            "last_week_remixes": last_week_remixes,
+            "top_story": top_story,
+            "momentum_text": momentum_text,
+            "percentile_text": percentile_text,
+            "rising_fast": rising_fast,
+            "cta": cta,
+            "computed_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    async def send_digest(self, user_id: str, digest: dict) -> Optional[Dict]:
+        """Send the Creator Digest email. Max 1/week."""
+        # Check weekly cap (1 digest per 7 days)
+        week_ago = (datetime.now(timezone.utc) - timedelta(days=6)).isoformat()
+        recent = await self.db.email_events.find_one({
+            "user_id": user_id,
+            "template": "creator_digest",
+            "status": {"$in": ["sent", "simulated"]},
+            "created_at": {"$gte": week_ago},
+        })
+        if recent:
+            logger.info(f"[DIGEST] Already sent this week to {user_id[:8]}, skipping")
+            return None
+
+        # Get user email
+        user = await self.db.users.find_one({"id": user_id}, {"_id": 0, "email": 1})
+        if not user or not user.get("email"):
+            user = await self.db.users.find_one({"user_id": user_id}, {"_id": 0, "email": 1})
+        if not user or not user.get("email"):
+            from bson import ObjectId
+            try:
+                user = await self.db.users.find_one({"_id": ObjectId(user_id)}, {"_id": 0, "email": 1})
+            except Exception:
+                pass
+        if not user or not user.get("email"):
+            return None
+
+        recipient = user["email"]
+        subject = "Your story world is growing this week"
+        if digest.get("rising_fast"):
+            subject = "You're rising fast this week"
+        elif digest.get("new_remixes", 0) >= 5:
+            subject = f"{digest['new_remixes']} new remixes on your stories this week"
+
+        html = _render_digest_html(digest)
+
+        event = {
+            "event_id": f"email_{uuid.uuid4().hex[:16]}",
+            "user_id": user_id,
+            "recipient": recipient,
+            "template": "creator_digest",
+            "subject": subject,
+            "payload": digest,
+            "status": "pending",
+            "email_type": "creator_digest",
+            "user_preferences_key": "weekly_digest",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        try:
+            await self.db.email_events.insert_one(event)
+        except Exception:
+            pass
+
+        if resend.api_key:
+            try:
+                params = {"from": SENDER_EMAIL, "to": [recipient], "subject": subject, "html": html}
+                result = await asyncio.to_thread(resend.Emails.send, params)
+                email_id = result.get("id") if isinstance(result, dict) else str(result)
+                await self.db.email_events.update_one(
+                    {"event_id": event["event_id"]},
+                    {"$set": {"status": "sent", "resend_id": email_id}}
+                )
+                logger.info(f"[DIGEST] Sent to {recipient}")
+                return event
+            except Exception as e:
+                logger.warning(f"[DIGEST] Resend failed for {recipient}: {e}")
+                await self.db.email_events.update_one(
+                    {"event_id": event["event_id"]},
+                    {"$set": {"status": "failed", "error": str(e)}}
+                )
+                return event
+        else:
+            await self.db.email_events.update_one(
+                {"event_id": event["event_id"]},
+                {"$set": {"status": "simulated"}}
+            )
+            return event
+
+    async def run_weekly_digest(self) -> Dict:
+        """Run digest for all active creators. Returns summary of sent/skipped counts."""
+        # Find all creators with completed jobs in last 30 days
+        month_ago = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+        active_users = await self.db.story_engine_jobs.distinct(
+            "user_id",
+            {"state": {"$in": ["READY", "PARTIAL_READY"]}, "created_at": {"$gte": month_ago}}
+        )
+
+        sent = 0
+        skipped = 0
+        for uid in active_users:
+            if not uid:
+                continue
+            try:
+                digest = await self.compute_digest(uid)
+                if digest:
+                    result = await self.send_digest(uid, digest)
+                    if result:
+                        sent += 1
+                    else:
+                        skipped += 1
+                else:
+                    skipped += 1
+            except Exception as e:
+                logger.warning(f"[DIGEST] Error for {uid[:8]}: {e}")
+                skipped += 1
+
+        logger.info(f"[DIGEST] Weekly run complete: {sent} sent, {skipped} skipped")
+        return {"sent": sent, "skipped": skipped, "total_creators": len(active_users)}
 
 
 def get_retention_service(db):

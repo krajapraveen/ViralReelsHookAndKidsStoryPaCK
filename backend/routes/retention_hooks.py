@@ -91,3 +91,40 @@ async def get_email_events(
     ).sort("created_at", -1).limit(limit).to_list(length=limit)
     total = await db.email_events.count_documents({})
     return {"success": True, "events": events, "total": total}
+
+
+# ─── CREATOR DIGEST ──────────────────────────────────────────────────────────
+
+@router.get("/digest/preview/{user_id}")
+async def preview_digest(user_id: str, user: dict = Depends(get_current_user)):
+    """Admin: Preview a digest for any user without sending."""
+    if user.get("role", "").upper() not in ("ADMIN", "SUPERADMIN"):
+        raise HTTPException(status_code=403, detail="Admin only")
+    svc = get_retention_service(db)
+    digest = await svc.compute_digest(user_id)
+    if not digest:
+        return {"success": True, "digest": None, "reason": "No meaningful activity this week"}
+    return {"success": True, "digest": digest}
+
+
+@router.post("/digest/send/{user_id}")
+async def send_single_digest(user_id: str, user: dict = Depends(get_current_user)):
+    """Admin: Send digest to a specific user (for testing)."""
+    if user.get("role", "").upper() not in ("ADMIN", "SUPERADMIN"):
+        raise HTTPException(status_code=403, detail="Admin only")
+    svc = get_retention_service(db)
+    digest = await svc.compute_digest(user_id)
+    if not digest:
+        return {"success": False, "reason": "No meaningful activity — digest skipped"}
+    result = await svc.send_digest(user_id, digest)
+    return {"success": True, "sent": result is not None, "digest": digest}
+
+
+@router.post("/digest/run")
+async def run_weekly_digest(user: dict = Depends(get_current_user)):
+    """Admin: Trigger weekly digest run for all active creators."""
+    if user.get("role", "").upper() not in ("ADMIN", "SUPERADMIN"):
+        raise HTTPException(status_code=403, detail="Admin only")
+    svc = get_retention_service(db)
+    summary = await svc.run_weekly_digest()
+    return {"success": True, "summary": summary}
