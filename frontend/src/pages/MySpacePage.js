@@ -4,7 +4,7 @@ import {
   Play, Download, Share2, RefreshCw, AlertTriangle, Film, Loader2,
   ChevronDown, ChevronUp, Bell, BellOff, Check, Plus, X, Trash2,
   Edit, Eye, Info, CheckCircle, Circle, HelpCircle, Clock, ArrowRight,
-  Coins, Sparkles, Palette, BookOpen, Zap
+  Coins, Sparkles, Palette, BookOpen, Zap, Users
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../utils/api';
@@ -287,7 +287,7 @@ const VARIATION_BUTTONS = [
 ];
 
 // ─── PROJECT CARD (UNIFIED) ──────────────────────────────────────────────────
-function ProjectCard({ job, highlighted, justCompleted, onShare, onRetry, onDelete, onNavigate, timeEstimates, userCredits }) {
+function ProjectCard({ job, highlighted, justCompleted, onShare, onRetry, onDelete, onNavigate, timeEstimates, userCredits, remixCount }) {
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(() => {
     const s = getStatusKey(job);
@@ -528,6 +528,30 @@ function ProjectCard({ job, highlighted, justCompleted, onShare, onRetry, onDele
         </div>
       )}
 
+      {/* ─── OWNERSHIP MESSAGING ─── */}
+      {remixCount > 0 && (statusKey === 'COMPLETED' || statusKey === 'PARTIAL') && (
+        <div className="mx-4 mb-3 px-3 py-2 rounded-lg bg-pink-500/[0.06] border border-pink-500/15" data-testid={`ownership-msg-${job.job_id}`}>
+          <div className="flex items-center gap-2">
+            <Users className="w-3.5 h-3.5 text-pink-400 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <span className="text-[11px] font-semibold text-pink-300">
+                {remixCount === 1 ? 'Someone remixed your story!' : `${remixCount} people remixed your story`}
+              </span>
+              {remixCount >= 3 && (
+                <span className="ml-1.5 text-[10px] text-pink-400/70 font-medium">
+                  — people are remixing YOUR idea
+                </span>
+              )}
+            </div>
+            {remixCount >= 5 && (
+              <span className="text-[9px] font-bold text-amber-400 bg-amber-500/15 px-1.5 py-0.5 rounded-full flex-shrink-0" data-testid={`trending-badge-${job.job_id}`}>
+                Trending
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Just-completed badge + pulse */}
       {justCompleted && (
         <div className="absolute top-3 right-3 z-10 flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/90 text-[10px] font-bold text-white animate-bounce" data-testid="just-completed-badge">
@@ -649,6 +673,7 @@ export default function MySpacePage() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(
     'Notification' in window && Notification.permission === 'granted'
   );
+  const [remixStats, setRemixStats] = useState({});
   const [searchParams] = useSearchParams();
   const highlightId = searchParams.get('projectId');
   const highlightRef = useRef(null);
@@ -721,6 +746,18 @@ export default function MySpacePage() {
         if (!promptedJobIds.current.has(item.job_id)) { promptedJobIds.current.add(item.job_id); setCompletionPromptJob(item); }
       }
       setJobs(allItems);
+
+      // Fetch remix stats for completed jobs (ownership messaging)
+      const completedIds = allItems
+        .filter(j => j.status === 'COMPLETED' || j.status === 'PARTIAL')
+        .map(j => j.job_id)
+        .slice(0, 50);
+      if (completedIds.length > 0) {
+        try {
+          const statsRes = await api.post('/api/retention/remix-stats', { job_ids: completedIds });
+          if (statsRes.data?.stats) setRemixStats(statsRes.data.stats);
+        } catch { /* silent */ }
+      }
     } catch (err) { console.error('Failed to fetch jobs:', err); } finally { setLoading(false); }
   }, [autoDownload]);
 
@@ -866,7 +903,7 @@ export default function MySpacePage() {
               <div className="space-y-3 mt-2">
                 {inProgress.map(job => (
                   <div key={job.job_id} ref={job.job_id === highlightId ? highlightRef : null}>
-                    <ProjectCard job={job} highlighted={job.job_id === highlightId} onShare={handleShare} onRetry={handleRetry} onDelete={handleDelete} onNavigate={handleNavigate} timeEstimates={timeEstimates} userCredits={userCredits} />
+                    <ProjectCard job={job} highlighted={job.job_id === highlightId} onShare={handleShare} onRetry={handleRetry} onDelete={handleDelete} onNavigate={handleNavigate} timeEstimates={timeEstimates} userCredits={userCredits} remixCount={remixStats[job.job_id] || 0} />
                   </div>
                 ))}
               </div>
@@ -881,7 +918,7 @@ export default function MySpacePage() {
             <div className="space-y-3 mt-2">
               {completed.map(job => (
                 <div key={job.job_id} ref={job.job_id === highlightId ? highlightRef : null}>
-                  <ProjectCard job={job} highlighted={job.job_id === highlightId} justCompleted={justCompletedIds.has(job.job_id)} onShare={handleShare} onRetry={handleRetry} onDelete={handleDelete} onNavigate={handleNavigate} timeEstimates={timeEstimates} userCredits={userCredits} />
+                  <ProjectCard job={job} highlighted={job.job_id === highlightId} justCompleted={justCompletedIds.has(job.job_id)} onShare={handleShare} onRetry={handleRetry} onDelete={handleDelete} onNavigate={handleNavigate} timeEstimates={timeEstimates} userCredits={userCredits} remixCount={remixStats[job.job_id] || 0} />
                 </div>
               ))}
             </div>
@@ -920,7 +957,7 @@ export default function MySpacePage() {
               <div className="space-y-3 mt-2">
                 {failed.map(job => (
                   <div key={job.job_id} ref={job.job_id === highlightId ? highlightRef : null}>
-                    <ProjectCard job={job} highlighted={job.job_id === highlightId} onShare={handleShare} onRetry={handleRetry} onDelete={handleDelete} onNavigate={handleNavigate} timeEstimates={timeEstimates} userCredits={userCredits} />
+                    <ProjectCard job={job} highlighted={job.job_id === highlightId} onShare={handleShare} onRetry={handleRetry} onDelete={handleDelete} onNavigate={handleNavigate} timeEstimates={timeEstimates} userCredits={userCredits} remixCount={remixStats[job.job_id] || 0} />
                   </div>
                 ))}
               </div>

@@ -789,6 +789,35 @@ async def create_engine_job(
     except Exception:
         pass
 
+    # ═══ RETENTION: Notify original author when their story is remixed ═══
+    if request.parent_video_id:
+        try:
+            from services.retention_service import get_retention_service
+            parent_job = await db.story_engine_jobs.find_one(
+                {"job_id": request.parent_video_id},
+                {"_id": 0, "user_id": 1, "title": 1}
+            )
+            if parent_job and parent_job.get("user_id"):
+                svc = get_retention_service(db)
+                await svc.notify_story_remixed(
+                    original_user_id=parent_job["user_id"],
+                    original_job_id=request.parent_video_id,
+                    original_title=parent_job.get("title", "Untitled"),
+                    remixer_user_id=user_id,
+                )
+                # Check for ownership milestones
+                remix_count = await db.story_engine_jobs.count_documents(
+                    {"reuse_info.parent_job_id": request.parent_video_id}
+                )
+                await svc.notify_ownership_milestone(
+                    user_id=parent_job["user_id"],
+                    job_id=request.parent_video_id,
+                    title=parent_job.get("title", "Untitled"),
+                    remix_count=remix_count,
+                )
+        except Exception as e:
+            logger.warning(f"[RETENTION] Failed to send remix notification: {e}")
+
     response = {
         "success": True,
         "job_id": job_id,

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Zap, Settings, CreditCard, LogOut } from 'lucide-react';
 import { useCredits } from '../contexts/CreditContext';
+import NotificationBell from './NotificationBell';
 
 function isAdminUser() {
   try {
@@ -26,7 +27,8 @@ export default function GlobalUserBar() {
 
   return (
     <div className={`fixed ${isAdmin ? 'top-[52px]' : 'top-0'} right-0 z-[10002] p-3 sm:p-4`} data-testid="global-user-bar">
-      <div className="relative">
+      <div className="relative flex items-center gap-2">
+        <NotificationBell />
         <button
           onClick={() => setOpen(prev => !prev)}
           className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-black/60 backdrop-blur-xl hover:bg-white/10 transition-colors"
