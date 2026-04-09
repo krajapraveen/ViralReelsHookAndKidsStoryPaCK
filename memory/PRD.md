@@ -87,10 +87,24 @@ Build an AI Creator Suite with a compulsion-driven "Growth Engine" — a full-st
 ### P0 — Immediate
 - Verify Resend domain for live email delivery (user action)
 
+### Viral Flywheel Engine v1 — Phase A (Foundation) — DONE (Apr 9)
+- **Viral Attribution Tracking**: New `viral_referrals` collection tracks share_source_user → click_session_id → attribution_depth → conversion. Supports multi-level chains.
+- **Share Landing Pages Enhanced**: Creator attribution badge, "Inspired by" lineage badge on `/v/{slug}` pages. Viral click tracked on page load. OG meta tags enhanced with remix count.
+- **Smart Headline Router**: `GET /api/ab/smart-route` auto-serves winning A/B variant per traffic source. Falls back to control (`headline_a`) when confidence < 95% or data insufficient. Safety-first design.
+- **Remix Lineage System**: `POST /api/viral/lineage` records parent→child relationships. `GET /api/viral/lineage/{job_id}` returns "Inspired by" data for visible attribution.
+- **Creator Rewards**: +1 credit per 5 remix conversions, max 5 bonus credits/day. `GET /api/viral/rewards/status` for current status.
+- **Viral Leaderboard**: Weighted scoring (remixes * 0.5 + chain_depth * 0.3 + signups * 0.2). Dashboard section shows top 5 viral creators.
+- **Viral Metrics**: Core metrics endpoint: share→click CTR, click→remix conversion, avg attribution depth, viral coefficient estimate.
+- **Personalized Dashboard Hero**: 3 segments (challenge-heavy, remix-heavy, default). Viral attribution badge showing total remix conversions + bonus credits earned.
+- **MySpace Viral Badge**: "Your stories generated X viral remixes this week" with bonus credit count.
+- **Grouped Creator Notifications**: When someone remixes a shared story, creator gets grouped daily notification (not spammy individual alerts).
+- Testing: 23/23 backend + all frontend passed (iteration_477)
+
 ### P1 — Next Features
+- Viral Flywheel Engine v1 — Phase B: Creator Loop (referral chain visibility, personalized share copy)
+- Viral Flywheel Engine v1 — Phase C: Gamification (leaderboard polish, reward loop activation, OG card optimization)
 - A/B Week 2: Winner of A vs B → test against Variant C ("Join thousands creating viral AI stories")
 - A/B Week 3: Lock winning headline, begin CTA button A/B testing
-- Personalized headline serving by channel (after segmentation data matures)
 
 ### P2 — Growth & Polish
 - Monthly creator milestone digest
