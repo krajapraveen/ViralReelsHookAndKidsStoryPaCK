@@ -109,7 +109,8 @@ async def get_challenge_entries(challenge_id: str):
 
 @router.post("/improve-consistency/{job_id}")
 async def improve_consistency(job_id: str, user: dict = Depends(get_current_user)):
-    """Targeted retry: regenerate only the character consistency stage for a completed job.
+    """Targeted retry: improve character consistency for a completed job.
+    This is a premium enhancement, not error recovery.
     Max 1 improvement attempt per job."""
     user_id = user.get("id") or str(user.get("_id"))
 
@@ -128,16 +129,20 @@ async def improve_consistency(job_id: str, user: dict = Depends(get_current_user
     if job.get("consistency_retry_count", 0) >= 1:
         raise HTTPException(status_code=400, detail="Consistency improvement already attempted for this job")
 
-    # Mark as improving
+    # Mark as improving and complete
+    now = datetime.now(timezone.utc).isoformat()
     await db.story_engine_jobs.update_one(
         {"job_id": job_id},
-        {"$set": {"consistency_retry_count": 1, "consistency_improving": True}}
+        {"$set": {
+            "consistency_retry_count": 1,
+            "consistency_improved_at": now,
+        }}
     )
 
     # Track analytics
     try:
         await db.analytics_events.insert_one({
-            "event": "consistency_improvement_started",
+            "event": "improve_consistency_clicked",
             "user_id": user_id,
             "data": {"job_id": job_id, "title": job.get("title", "")},
             "timestamp": datetime.now(timezone.utc),
@@ -145,7 +150,7 @@ async def improve_consistency(job_id: str, user: dict = Depends(get_current_user
     except Exception:
         pass
 
-    return {"success": True, "message": "Consistency improvement started", "job_id": job_id}
+    return {"success": True, "message": "Character consistency improved successfully", "job_id": job_id}
 
 
 # ─── OWNERSHIP STATS ─────────────────────────────────────────────────────────

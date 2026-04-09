@@ -13,6 +13,7 @@ import {
   Film, BookOpen, Star, ArrowRight, Shield, User,
   Camera, Palette, Megaphone, Lightbulb, Image as ImageIcon,
   RefreshCw, Share2, Activity, Home, Heart, LogOut, CreditCard,
+  Eye, Trophy, Award,
 } from 'lucide-react';
 
 import HeroMedia from '../components/HeroMedia';
@@ -586,6 +587,159 @@ function DashboardSkeleton() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   FEATURED CHALLENGE WINNER — Prestige Hero Slot
+   Must feel aspirational, not like a regular card.
+   Graceful fallback when no winner exists.
+   ═══════════════════════════════════════════════════════════════════ */
+function FeaturedWinnerHero({ winner, navigate }) {
+  const sectionRef = useRef(null);
+  const impressionFired = useRef(false);
+
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el || !winner) return;
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && !impressionFired.current) {
+        impressionFired.current = true;
+        trackLoop('hero_winner_impression', {
+          job_id: winner.job_id,
+          title: winner.title,
+          creator: winner.creator_name,
+          reason: winner.reason_badge,
+        });
+      }
+    }, { threshold: 0.3 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [winner]);
+
+  const handleRemix = () => {
+    trackLoop('hero_winner_remix_clicked', {
+      job_id: winner.job_id,
+      title: winner.title,
+    });
+    navigate('/app/story-video-studio', {
+      state: { prompt: '', remixFrom: { title: winner.title, job_id: winner.job_id }, source_surface: 'hero_winner' },
+    });
+  };
+
+  const handleView = () => {
+    trackLoop('hero_winner_view_clicked', {
+      job_id: winner.job_id,
+      title: winner.title,
+    });
+    navigate(`/app/story-video-studio?projectId=${winner.job_id}`);
+  };
+
+  // Graceful fallback: No valid winner
+  if (!winner) {
+    return (
+      <div className="px-4 sm:px-6 lg:px-10 py-2" data-testid="challenge-winner-slot">
+        <div className="relative overflow-hidden rounded-2xl border border-amber-500/10 bg-gradient-to-r from-amber-500/[0.03] to-transparent p-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+              <Trophy className="w-5 h-5 text-amber-500/40" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-amber-400/60" data-testid="winner-fallback-text">Today's challenge winner will appear soon</p>
+              <p className="text-[11px] text-zinc-600 mt-0.5">Winners are selected from today's challenge entries</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={sectionRef} className="px-4 sm:px-6 lg:px-10 py-2" data-testid="challenge-winner-slot">
+      <div className="relative overflow-hidden rounded-2xl border border-amber-500/25 bg-[#121218] shadow-[0_8px_32px_rgba(245,158,11,0.06)]">
+        {/* Subtle prestige glow */}
+        <div className="absolute -top-20 -right-20 w-56 h-56 bg-amber-500/[0.04] rounded-full blur-3xl pointer-events-none" />
+
+        <div className="flex items-stretch">
+          {/* Winner thumbnail — large, prominent */}
+          <div className="w-36 sm:w-48 lg:w-56 flex-shrink-0 relative bg-zinc-900/80 overflow-hidden">
+            {winner.thumbnail_url ? (
+              <img
+                src={winner.thumbnail_url}
+                alt={winner.title}
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center min-h-[140px] bg-gradient-to-br from-amber-900/20 to-zinc-900">
+                <Film className="w-10 h-10 text-amber-500/20" />
+              </div>
+            )}
+            {/* Gradient overlay */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent to-[#121218]/60 pointer-events-none" />
+            {/* Trophy badge overlay */}
+            <div className="absolute top-2.5 left-2.5 flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-500/90 backdrop-blur-sm" data-testid="winner-trophy-badge">
+              <Trophy className="w-3 h-3 text-white" />
+              <span className="text-[9px] font-extrabold text-white uppercase tracking-wider">Winner</span>
+            </div>
+            {/* Reason badge */}
+            <div className="absolute bottom-2 left-2 right-2" data-testid="winner-reason-badge">
+              <span className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-1 rounded-full bg-black/60 backdrop-blur-sm text-amber-300 border border-amber-500/20">
+                <Award className="w-2.5 h-2.5" />
+                {winner.reason_badge}
+              </span>
+            </div>
+          </div>
+
+          {/* Winner info — prestige layout */}
+          <div className="flex-1 p-4 sm:p-5 lg:p-6 flex flex-col justify-center min-w-0">
+            <div className="flex items-center gap-2 mb-2">
+              <Star className="w-4 h-4 text-amber-400" />
+              <span className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-amber-400">Featured Winner</span>
+              <span className="text-[10px] text-zinc-600 font-medium">Today's challenge</span>
+            </div>
+
+            <h3 className="text-lg sm:text-xl font-bold text-white truncate mb-1.5 leading-tight" data-testid="winner-title">
+              {winner.title}
+            </h3>
+
+            <div className="flex items-center gap-3 text-xs text-zinc-400 mb-4">
+              <span className="font-medium">by <span className="text-zinc-300">{winner.creator_name}</span></span>
+              {winner.remix_count > 0 && (
+                <span className="flex items-center gap-1">
+                  <RefreshCw className="w-2.5 h-2.5" /> {winner.remix_count} remix{winner.remix_count !== 1 ? 'es' : ''}
+                </span>
+              )}
+              {winner.views > 0 && (
+                <span className="flex items-center gap-1">
+                  <Eye className="w-2.5 h-2.5" /> {winner.views} view{winner.views !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              {/* Primary CTA — Remix */}
+              <button
+                onClick={handleRemix}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-white text-xs sm:text-sm font-bold shadow-[0_0_20px_rgba(245,158,11,0.2)] hover:shadow-[0_0_28px_rgba(245,158,11,0.3)] hover:scale-[1.02] transition-all duration-200"
+                data-testid="winner-remix-btn"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Remix This Winner
+              </button>
+              {/* Secondary CTA — View */}
+              <button
+                onClick={handleView}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/[0.08] text-zinc-400 text-xs font-medium hover:text-white hover:border-white/15 hover:bg-white/[0.03] transition-all duration-200"
+                data-testid="winner-view-btn"
+              >
+                <Eye className="w-3 h-3" /> View Winning Story
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
    MAIN DASHBOARD — Progressive loading, API-driven ordering
    Backend owns ALL ordering — frontend is a DUMB RENDERER.
    Uses: HeroMedia, StoryCardMedia, MediaPreloader per contract
@@ -800,59 +954,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* FEATURED CHALLENGE WINNER */}
-      {challengeWinner && (
-        <div className="px-4 sm:px-6 lg:px-10 py-2" data-testid="challenge-winner-slot">
-          <div className="relative overflow-hidden rounded-2xl border border-amber-500/20 bg-[#121218]">
-            <div className="flex items-stretch">
-              {/* Winner thumbnail */}
-              <div className="w-32 sm:w-40 flex-shrink-0 relative bg-zinc-800/60">
-                {challengeWinner.thumbnail_url ? (
-                  <img src={challengeWinner.thumbnail_url} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center min-h-[100px]">
-                    <Film className="w-8 h-8 text-zinc-700" />
-                  </div>
-                )}
-                {/* Reason badge overlay */}
-                <span className="absolute bottom-1.5 left-1.5 text-[8px] font-bold px-2 py-0.5 rounded-full bg-amber-500/90 text-white" data-testid="winner-reason-badge">
-                  {challengeWinner.reason_badge}
-                </span>
-              </div>
-              {/* Winner info */}
-              <div className="flex-1 p-4 sm:p-5 flex flex-col justify-center min-w-0">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <Star className="w-4 h-4 text-amber-400" />
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">Featured Winner</span>
-                  <span className="text-[10px] text-zinc-600">Today's challenge</span>
-                </div>
-                <h3 className="text-base sm:text-lg font-bold text-white truncate mb-1" data-testid="winner-title">{challengeWinner.title}</h3>
-                <div className="flex items-center gap-3 text-xs text-zinc-400 mb-3">
-                  <span>by {challengeWinner.creator_name}</span>
-                  {challengeWinner.remix_count > 0 && <span>{challengeWinner.remix_count} remixes</span>}
-                  {challengeWinner.views > 0 && <span>{challengeWinner.views} views</span>}
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => navigate('/app/story-video-studio', { state: { prompt: '', remixFrom: { title: challengeWinner.title, job_id: challengeWinner.job_id } } })}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-semibold hover:bg-amber-500/30 transition-colors"
-                    data-testid="winner-remix-btn"
-                  >
-                    <RefreshCw className="w-3 h-3" /> Remix This Winner
-                  </button>
-                  <button
-                    onClick={() => navigate(`/app/story-video-studio?projectId=${challengeWinner.job_id}`)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/[0.06] text-zinc-400 text-xs hover:text-white hover:border-white/10 transition-colors"
-                    data-testid="winner-view-btn"
-                  >
-                    <Eye className="w-3 h-3" /> View Story
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* FEATURED CHALLENGE WINNER — Prestige Slot */}
+      <FeaturedWinnerHero winner={challengeWinner} navigate={navigate} />
 
       {/* 2. METRICS STRIP */}
       <MetricsStrip metrics={metrics} />

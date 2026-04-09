@@ -1356,6 +1356,8 @@ async def list_user_jobs(current_user: dict = Depends(get_current_user)):
             "error": doc.get("error_message"),
             "has_recoverable_assets": bool(doc.get("keyframe_urls")),
             "engine_state": state,
+            "consistency_retry_count": doc.get("consistency_retry_count", 0),
+            "fallback_in_use": doc.get("fallback_in_use", False),
             "source": "story_engine",
         })
 

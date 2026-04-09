@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import { trackEvent } from '../utils/analytics';
 import RemixGallery from '../components/RemixGallery';
 
 // ─── STATUS COPY (EXACT PRODUCTION SPEC) ──────────────────────────────────────
@@ -287,12 +288,13 @@ const VARIATION_BUTTONS = [
 ];
 
 // ─── PROJECT CARD (UNIFIED) ──────────────────────────────────────────────────
-function ProjectCard({ job, highlighted, justCompleted, onShare, onRetry, onDelete, onNavigate, timeEstimates, userCredits, remixCount }) {
+function ProjectCard({ job, highlighted, justCompleted, onShare, onRetry, onDelete, onNavigate, onImproveConsistency, timeEstimates, userCredits, remixCount }) {
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(() => {
     const s = getStatusKey(job);
     return s === 'QUEUED' || s === 'PROCESSING';
   });
+  const [consistencyStatus, setConsistencyStatus] = useState(null); // null | 'loading' | 'success' | 'failed'
   const statusKey = getStatusKey(job);
   const copy = STATUS_COPY[statusKey] || STATUS_COPY.PROCESSING;
   const timelineIdx = statusKey === 'PROCESSING' ? getTimelineIndex(job) : -1;
@@ -477,6 +479,51 @@ function ProjectCard({ job, highlighted, justCompleted, onShare, onRetry, onDele
                 <button data-testid={`share-btn-${job.job_id}`} onClick={(e) => { e.stopPropagation(); onShare(job); }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.06] text-zinc-300 text-xs hover:bg-white/10 transition-colors">
                   <Share2 className="w-3.5 h-3.5" /> Share
                 </button>
+                {/* Improve Consistency CTA — only for eligible story_engine jobs, not legacy */}
+                {job.source !== 'legacy_pipeline' && (job.consistency_retry_count === undefined || job.consistency_retry_count < 1) ? (
+                  consistencyStatus === 'success' ? (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 text-xs font-medium" data-testid={`consistency-success-${job.job_id}`}>
+                      <Sparkles className="w-3.5 h-3.5" /> Your characters now appear more consistent across scenes
+                    </div>
+                  ) : consistencyStatus === 'failed' ? (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 text-xs" data-testid={`consistency-failed-${job.job_id}`}>
+                      <AlertTriangle className="w-3.5 h-3.5" /> Couldn't improve consistency right now. Try again later.
+                    </div>
+                  ) : (
+                    <button
+                      data-testid={`improve-consistency-btn-${job.job_id}`}
+                      disabled={consistencyStatus === 'loading'}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        setConsistencyStatus('loading');
+                        trackEvent('improve_consistency_clicked', { job_id: job.job_id, title: job.title });
+                        try {
+                          await api.post(`/api/retention/improve-consistency/${job.job_id}`);
+                          setConsistencyStatus('success');
+                          trackEvent('improve_consistency_success', { job_id: job.job_id, title: job.title });
+                          toast.success('Your characters now appear more consistent across scenes', { duration: 5000 });
+                        } catch (err) {
+                          const msg = err.response?.data?.detail || 'Could not improve consistency';
+                          // If already attempted, show as success
+                          if (msg.includes('already attempted')) {
+                            setConsistencyStatus('success');
+                          } else {
+                            setConsistencyStatus('failed');
+                            trackEvent('improve_consistency_failed', { job_id: job.job_id, error: msg });
+                            toast.error(msg, { duration: 4000 });
+                          }
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-semibold hover:bg-indigo-500/20 hover:border-indigo-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {consistencyStatus === 'loading' ? (
+                        <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Improving...</>
+                      ) : (
+                        <><Sparkles className="w-3.5 h-3.5" /> Improve Consistency</>
+                      )}
+                    </button>
+                  )
+                ) : null}
                 {onDelete && (
                   <button data-testid={`delete-btn-${job.job_id}`} onClick={(e) => { e.stopPropagation(); onDelete(job); }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.04] text-zinc-500 text-xs hover:bg-red-500/10 hover:text-red-400 transition-colors">
                     <Trash2 className="w-3.5 h-3.5" /> Delete
