@@ -59,6 +59,18 @@ Build an AI Creator Suite with a compulsion-driven "Growth Engine" — a full-st
 - **Only headline text changes** — layout, fonts, CTA, colors are identical between variants
 - Testing: 17/17 (iteration_475)
 
+### Traffic Source Segmentation + Auto-Share Prompts — DONE (Apr 9)
+- **Traffic Source Segmentation Dashboard**: Per-source breakdown of A/B test performance. Shows Source, Variant, Impressions, CTR%, Confidence%, Winner. Sources sorted by traffic volume (highest first). "Insufficient data" label for sources with <100 impressions per variant. Confidence calculated per-source via z-test.
+- **Character-Driven Auto-Share Prompts**: Contextual share modal that adapts messaging based on story status:
+  - Challenge Winner: "Share your winning challenge story!" (trophy icon)
+  - Trending: "Your story is gaining momentum — share it now!" (trending icon)
+  - Highly Remixed: "People love this story — invite more viewers!" (heart icon)
+  - Standard: "Share your new AI story with friends" (sparkles icon)
+- **CTA priority**: Copy Share Link (primary) > Share to Instagram (secondary) > Share as Reel (third) > WhatsApp / Twitter
+- **Cooldown**: Once per completed project only (sessionStorage). Shows 3s after ForceShareGate dismissal. Never before preview.
+- **Analytics**: `share_prompt_shown`, `share_link_copied`, `share_instagram_clicked`, `share_reel_clicked`, `share_completed`, `share_dismissed`
+- Testing: 16/16 (iteration_476)
+
 ---
 
 ## Email System Status
@@ -78,7 +90,7 @@ Build an AI Creator Suite with a compulsion-driven "Growth Engine" — a full-st
 ### P1 — Next Features
 - A/B Week 2: Winner of A vs B → test against Variant C ("Join thousands creating viral AI stories")
 - A/B Week 3: Lock winning headline, begin CTA button A/B testing
-- Character-driven auto-share prompts after creation
+- Personalized headline serving by channel (after segmentation data matures)
 
 ### P2 — Growth & Polish
 - Monthly creator milestone digest

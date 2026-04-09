@@ -109,7 +109,7 @@ export default function SharePromptModal({ jobId, title, characterName, slug, on
 
     // Also track via growth endpoint
     try {
-      fetch(`${API}/api/growth/track`, {
+      fetch(`${API}/api/growth/event`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
