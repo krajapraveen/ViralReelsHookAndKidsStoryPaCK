@@ -4,7 +4,7 @@ import {
   Play, Download, Share2, RefreshCw, AlertTriangle, Film, Loader2,
   ChevronDown, ChevronUp, Bell, BellOff, Check, Plus, X, Trash2,
   Edit, Eye, Info, CheckCircle, Circle, HelpCircle, Clock, ArrowRight,
-  Coins, Sparkles, Palette, BookOpen, Zap, Users, Flame
+  Coins, Sparkles, Palette, BookOpen, Zap, Users, Flame, Layers
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../utils/api';
@@ -728,6 +728,8 @@ export default function MySpacePage() {
   );
   const [remixStats, setRemixStats] = useState({});
   const [viralMyStats, setViralMyStats] = useState(null);
+  const [viralChain, setViralChain] = useState(null);
+  const [viralMilestones, setViralMilestones] = useState(null);
   const [searchParams] = useSearchParams();
   const highlightId = searchParams.get('projectId');
   const highlightRef = useRef(null);
@@ -754,6 +756,8 @@ export default function MySpacePage() {
     fetchMeta();
     // Fetch viral stats
     api.get('/api/viral/rewards/status').then(r => setViralMyStats(r.data)).catch(() => {});
+    api.get('/api/viral/chain-stats').then(r => { if (r.data?.has_chain) setViralChain(r.data.top_story); }).catch(() => {});
+    api.get('/api/viral/milestones').then(r => setViralMilestones(r.data)).catch(() => {});
   }, []);
 
   const fetchJobs = useCallback(async () => {
@@ -944,6 +948,79 @@ export default function MySpacePage() {
               Your stories generated <span className="font-bold text-white">{viralMyStats.total_remix_conversions}</span> viral remix{viralMyStats.total_remix_conversions !== 1 ? 'es' : ''} this week
               {viralMyStats.total_credits_earned > 0 && <span className="text-emerald-400 ml-1">(+{viralMyStats.total_credits_earned} bonus credits)</span>}
             </span>
+          </div>
+        )}
+
+        {/* VIRAL CHAIN TIMELINE — Top story with momentum */}
+        {viralChain && (
+          <div className="bg-gradient-to-br from-rose-500/[0.04] to-violet-500/[0.04] border border-white/[0.06] rounded-2xl p-4" data-testid="viral-chain-timeline">
+            <div className="flex items-center gap-2 mb-3">
+              <Flame className="w-4 h-4 text-rose-400" />
+              <h3 className="text-sm font-bold text-white">Your Top Viral Story</h3>
+              {viralChain.remixes_today > 0 && (
+                <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full animate-pulse" data-testid="chain-momentum-badge">
+                  +{viralChain.remixes_today} new remix{viralChain.remixes_today !== 1 ? 'es' : ''} today
+                </span>
+              )}
+              {viralChain.remixes_this_week > 0 && viralChain.remixes_today === 0 && (
+                <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">
+                  {viralChain.remixes_this_week} this week
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500/20 to-violet-500/20 flex items-center justify-center flex-shrink-0">
+                <Film className="w-5 h-5 text-rose-300" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-white truncate">{viralChain.title}</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">Your most viral creation</p>
+              </div>
+              {viralChain.slug && (
+                <button
+                  onClick={() => { navigate(`/v/${viralChain.slug}`); trackEvent('viral_chain_viewed', { job_id: viralChain.job_id }); }}
+                  className="text-xs text-violet-400 hover:text-violet-300 font-medium flex-shrink-0"
+                  data-testid="chain-view-btn"
+                >
+                  View
+                </button>
+              )}
+            </div>
+            {/* Chain stats — celebratory, not technical */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="bg-white/[0.03] rounded-lg px-3 py-2 text-center">
+                <p className="text-lg font-bold text-white">{viralChain.total_remixes}</p>
+                <p className="text-[10px] text-slate-500">remix{viralChain.total_remixes !== 1 ? 'es' : ''} inspired</p>
+              </div>
+              <div className="bg-white/[0.03] rounded-lg px-3 py-2 text-center">
+                <p className="text-lg font-bold text-white">{viralChain.unique_creators_inspired}</p>
+                <p className="text-[10px] text-slate-500">new creator{viralChain.unique_creators_inspired !== 1 ? 's' : ''}</p>
+              </div>
+              <div className="bg-white/[0.03] rounded-lg px-3 py-2 text-center">
+                <p className="text-lg font-bold text-white">{viralChain.chain_depth}</p>
+                <p className="text-[10px] text-slate-500">creator level{viralChain.chain_depth !== 1 ? 's' : ''}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* VIRAL MILESTONE BADGES */}
+        {viralMilestones?.earned?.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap" data-testid="viral-milestones">
+            {viralMilestones.earned.map(m => (
+              <div key={m.id} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/15 text-xs font-semibold text-amber-300" data-testid={`milestone-${m.id}`}>
+                {m.icon === 'sparkles' && <Sparkles className="w-3 h-3" />}
+                {m.icon === 'users' && <Users className="w-3 h-3" />}
+                {m.icon === 'layers' && <Layers className="w-3 h-3" />}
+                {m.icon === 'flame' && <Flame className="w-3 h-3" />}
+                {m.label}
+              </div>
+            ))}
+            {viralMilestones.upcoming?.length > 0 && (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.03] border border-white/[0.06] text-xs text-slate-500" data-testid="milestone-upcoming">
+                Next: {viralMilestones.upcoming[0].label} ({viralMilestones.upcoming[0].remaining} more)
+              </div>
+            )}
           </div>
         )}
 

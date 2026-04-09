@@ -100,11 +100,18 @@ Build an AI Creator Suite with a compulsion-driven "Growth Engine" — a full-st
 - **Grouped Creator Notifications**: When someone remixes a shared story, creator gets grouped daily notification (not spammy individual alerts).
 - Testing: 23/23 backend + all frontend passed (iteration_477)
 
+### Viral Flywheel Engine v1 — Phase B (Creator Emotional Loop) — DONE (Apr 9)
+- **Viral Chain Timeline UI**: Shows user's top viral story with momentum signals ("+X new remixes today" pulsing badge, "X this week"). Displays chain stats: remixes inspired, new creators, creator levels. Celebratory language, not technical. Only shows top story to avoid clutter.
+- **Emotional Creator Notifications**: Momentum-driven copy adapts by volume ("Your story inspired 3 creators this week — you're gaining momentum", "you're on fire!"). Grouped by day to avoid spam. Includes link to MySpace.
+- **Personalized Share Prompt Copy**: Uses real viral stats when available ("Your stories generated 12 remixes — share this one to grow faster"), falls back to "Stories shared early generate more remixes" for new users.
+- **"Share Again" CTA**: Appears on stories with existing viral traction to encourage repeat sharing for amplification.
+- **Viral Milestone Badges**: First Viral Remix, Inspired 5/10 Creators, Spread Across 3/5 Levels, 25 Viral Remixes. Auto-earned from live stats. Upcoming milestone shown with remaining count.
+- **End-to-end chain verified**: Simulated lineage chain → chain stats → milestones → all rendering correctly.
+- Testing: Backend 6/6 endpoints verified via curl, Frontend verified via Playwright screenshots
+
 ### P1 — Next Features
-- Viral Flywheel Engine v1 — Phase B: Creator Loop (referral chain visibility, personalized share copy)
 - Viral Flywheel Engine v1 — Phase C: Gamification (leaderboard polish, reward loop activation, OG card optimization)
 - A/B Week 2: Winner of A vs B → test against Variant C ("Join thousands creating viral AI stories")
-- A/B Week 3: Lock winning headline, begin CTA button A/B testing
 
 ### P2 — Growth & Polish
 - Monthly creator milestone digest

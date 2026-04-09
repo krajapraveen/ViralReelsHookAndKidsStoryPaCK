@@ -49,6 +49,17 @@ export default function SharePromptModal({ jobId, title, characterName, slug, on
   const shareUrl = slug ? `${window.location.origin}/v/${slug}` : '';
   const { icon: CtxIcon, iconColor, iconTextColor, title: ctxTitle, subtitle: ctxSubtitle } = getShareContext(context);
 
+  // Personalized viral-proof subtitle: use real numbers when available
+  let viralProof = ctxSubtitle;
+  if (context?.userViralStats?.total_remix_conversions > 0) {
+    viralProof = `Your stories generated ${context.userViralStats.total_remix_conversions} remixes — share this one to grow faster`;
+  } else if (!context?.isChallengeWinner && !context?.isTrending && !(context?.remixCount > 2)) {
+    viralProof = 'Stories shared early generate more remixes';
+  }
+
+  // "Share Again" CTA for stories with existing viral traction
+  const showShareAgain = (context?.remixCount || 0) > 0;
+
   const shareText = characterName
     ? `I just created "${title}" starring ${characterName} with AI in seconds! Continue the story:`
     : `I just created "${title}" with AI in seconds! See what happens next:`;
@@ -139,7 +150,7 @@ export default function SharePromptModal({ jobId, title, characterName, slug, on
             {ctxTitle}
           </h3>
           <p className="text-xs text-slate-400 mt-1" data-testid="share-prompt-subtitle">
-            {ctxSubtitle}
+            {viralProof}
           </p>
         </div>
 
@@ -197,6 +208,21 @@ export default function SharePromptModal({ jobId, title, characterName, slug, on
         <p className="text-center text-[10px] text-slate-600 mt-4">
           Every share helps {characterName || 'your story'} reach more creators
         </p>
+
+        {/* Share Again CTA for stories with existing viral traction */}
+        {showShareAgain && (
+          <button
+            onClick={() => {
+              copyLink();
+              trackEvent('share_again_clicked', { job_id: jobId });
+            }}
+            className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs text-amber-300 bg-amber-500/[0.06] border border-amber-500/15 hover:bg-amber-500/10 transition-colors"
+            data-testid="share-prompt-share-again"
+          >
+            <TrendingUp className="w-3.5 h-3.5" />
+            Share Again to Extend Its Reach
+          </button>
+        )}
       </div>
     </div>
   );

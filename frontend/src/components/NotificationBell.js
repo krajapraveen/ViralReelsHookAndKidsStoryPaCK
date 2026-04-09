@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, X, RefreshCcw, Zap, Star, Film, Trophy, Target, Users } from 'lucide-react';
+import { Bell, X, RefreshCcw, Zap, Star, Film, Trophy, Target, Users, Flame } from 'lucide-react';
 import api from '../utils/api';
 
 const ICON_MAP = {
@@ -12,6 +12,7 @@ const ICON_MAP = {
   share_reward: Zap,
   follow: Star,
   trending: Film,
+  viral_remix: Flame,
 };
 
 const COLOR_MAP = {
@@ -19,6 +20,7 @@ const COLOR_MAP = {
   story_trending: 'text-amber-400 bg-amber-500/10',
   daily_challenge_live: 'text-emerald-400 bg-emerald-500/10',
   ownership_milestone: 'text-yellow-400 bg-yellow-500/10',
+  viral_remix: 'text-rose-400 bg-rose-500/10',
 };
 
 export default function NotificationBell() {
@@ -133,6 +135,12 @@ export default function NotificationBell() {
                         {n.type === 'story_remixed' && n.meta?.remix_count > 1 && (
                           <span className="inline-flex items-center gap-1 text-[10px] text-pink-400 font-semibold mt-1">
                             <Users className="w-2.5 h-2.5" /> {n.meta.remix_count} people
+                          </span>
+                        )}
+                        {/* Viral remix momentum */}
+                        {n.type === 'viral_remix' && n.count > 1 && (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-rose-400 font-semibold mt-1" data-testid="viral-notification-count">
+                            <Flame className="w-2.5 h-2.5" /> {n.count} creator{n.count !== 1 ? 's' : ''} inspired
                           </span>
                         )}
                       </div>

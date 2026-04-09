@@ -414,44 +414,226 @@ async def viral_metrics():
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# 6. VIRAL CHAIN STATS (per-user top story chain + momentum)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/chain-stats")
+async def viral_chain_stats(user: dict = Depends(get_current_user)):
+    """Get the user's top viral story chain with momentum signals.
+    Returns the single strongest chain for focused display."""
+    user_id = user.get("id") or str(user.get("_id"))
+
+    # Find stories by this user that have been remixed (they appear as parent in lineage)
+    pipeline = [
+        {"$match": {"parent_user_id": user_id}},
+        {"$group": {
+            "_id": "$parent_job_id",
+            "parent_title": {"$first": "$parent_title"},
+            "parent_slug": {"$first": "$parent_slug"},
+            "remix_count": {"$sum": 1},
+            "unique_remixers": {"$addToSet": "$child_user_id"},
+            "latest_remix": {"$max": "$created_at"},
+        }},
+        {"$sort": {"remix_count": -1}},
+        {"$limit": 1},
+    ]
+
+    top_story = None
+    async for doc in db.remix_lineage.aggregate(pipeline):
+        # Calculate chain depth: how deep does this story's influence go
+        max_depth = 1
+        child_ids = [doc["_id"]]
+        checked = set()
+        for level in range(5):  # Max 5 levels deep
+            next_children = []
+            for cid in child_ids:
+                if cid in checked:
+                    continue
+                checked.add(cid)
+                async for child in db.remix_lineage.find(
+                    {"parent_job_id": cid},
+                    {"_id": 0, "child_job_id": 1}
+                ):
+                    next_children.append(child["child_job_id"])
+            if not next_children:
+                break
+            child_ids = next_children
+            max_depth = level + 2
+
+        # Momentum: count remixes in last 7 days
+        week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+        recent_remixes = await db.remix_lineage.count_documents({
+            "parent_job_id": doc["_id"],
+            "created_at": {"$gte": week_ago},
+        })
+
+        # Today's remixes
+        today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0).isoformat()
+        today_remixes = await db.remix_lineage.count_documents({
+            "parent_job_id": doc["_id"],
+            "created_at": {"$gte": today_start},
+        })
+
+        top_story = {
+            "job_id": doc["_id"],
+            "title": doc.get("parent_title", "Your Story"),
+            "slug": doc.get("parent_slug", ""),
+            "total_remixes": doc["remix_count"],
+            "unique_creators_inspired": len(doc.get("unique_remixers", [])),
+            "chain_depth": max_depth,
+            "latest_remix_at": doc.get("latest_remix"),
+            "remixes_this_week": recent_remixes,
+            "remixes_today": today_remixes,
+        }
+
+    if not top_story:
+        return {"success": True, "has_chain": False, "top_story": None}
+
+    return {"success": True, "has_chain": True, "top_story": top_story}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 7. VIRAL MILESTONES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+MILESTONE_DEFS = [
+    {"id": "first_viral_remix", "label": "First Viral Remix", "icon": "sparkles", "threshold_field": "total_remixes", "threshold": 1},
+    {"id": "inspired_5", "label": "Inspired 5 Creators", "icon": "users", "threshold_field": "unique_creators", "threshold": 5},
+    {"id": "inspired_10", "label": "Inspired 10 Creators", "icon": "users", "threshold_field": "unique_creators", "threshold": 10},
+    {"id": "depth_3", "label": "Spread Across 3 Levels", "icon": "layers", "threshold_field": "max_depth", "threshold": 3},
+    {"id": "depth_5", "label": "Spread Across 5 Levels", "icon": "layers", "threshold_field": "max_depth", "threshold": 5},
+    {"id": "viral_25", "label": "25 Viral Remixes", "icon": "flame", "threshold_field": "total_remixes", "threshold": 25},
+]
+
+@router.get("/milestones")
+async def viral_milestones(user: dict = Depends(get_current_user)):
+    """Get viral milestone badges for the user."""
+    user_id = user.get("id") or str(user.get("_id"))
+
+    # Aggregate user's viral stats
+    total_remixes = await db.remix_lineage.count_documents({"parent_user_id": user_id})
+    unique_creators = len(await db.remix_lineage.distinct("child_user_id", {"parent_user_id": user_id}))
+
+    # Calculate max depth across all stories
+    max_depth = 1
+    parent_jobs = await db.remix_lineage.distinct("parent_job_id", {"parent_user_id": user_id})
+    for pj in parent_jobs[:10]:  # Cap at 10 stories to avoid perf issues
+        depth = 1
+        children = [pj]
+        for level in range(5):
+            next_c = []
+            async for c in db.remix_lineage.find({"parent_job_id": {"$in": children}}, {"_id": 0, "child_job_id": 1}):
+                next_c.append(c["child_job_id"])
+            if not next_c:
+                break
+            children = next_c
+            depth = level + 2
+        max_depth = max(max_depth, depth)
+
+    stats = {
+        "total_remixes": total_remixes,
+        "unique_creators": unique_creators,
+        "max_depth": max_depth,
+    }
+
+    earned = []
+    upcoming = []
+    for m in MILESTONE_DEFS:
+        current_val = stats.get(m["threshold_field"], 0)
+        if current_val >= m["threshold"]:
+            earned.append({**m, "current": current_val})
+        else:
+            upcoming.append({**m, "current": current_val, "remaining": m["threshold"] - current_val})
+
+    # Award new milestones (track in DB)
+    for ms in earned:
+        existing = await db.viral_milestones.find_one(
+            {"user_id": user_id, "milestone_id": ms["id"]},
+            {"_id": 1}
+        )
+        if not existing:
+            await db.viral_milestones.insert_one({
+                "user_id": user_id,
+                "milestone_id": ms["id"],
+                "label": ms["label"],
+                "earned_at": datetime.now(timezone.utc).isoformat(),
+            })
+            await db.analytics_events.insert_one({
+                "event": "viral_milestone_awarded",
+                "data": {"user_id": user_id, "milestone": ms["id"]},
+                "timestamp": datetime.now(timezone.utc),
+            })
+
+    return {
+        "success": True,
+        "earned": earned,
+        "upcoming": upcoming[:2],  # Show next 2 milestones only
+        "stats": stats,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # INTERNAL HELPERS
 # ═══════════════════════════════════════════════════════════════════════════════
 
 async def _notify_creator_remix(creator_user_id: str, story_title: str, remixer_user_id: str):
-    """Create a grouped notification for the original creator about remix activity."""
+    """Create a grouped notification with emotional, momentum-driven copy."""
     now = datetime.now(timezone.utc)
     today_key = now.strftime("%Y-%m-%d")
 
+    # Count total remixes this week for momentum language
+    week_ago = (now - timedelta(days=7)).isoformat()
+    week_remixes = await db.remix_lineage.count_documents({
+        "parent_user_id": creator_user_id,
+        "created_at": {"$gte": week_ago},
+    })
+
     # Check for existing grouped notification today
     existing = await db.notifications.find_one(
-        {
-            "user_id": creator_user_id,
-            "type": "viral_remix",
-            "group_key": today_key,
-        },
+        {"user_id": creator_user_id, "type": "viral_remix", "group_key": today_key},
         {"_id": 1, "count": 1},
     )
 
     if existing:
-        # Increment existing group notification
+        count = existing.get("count", 1) + 1
+        # Emotional, momentum-driven title
+        if count >= 5:
+            title = f"Your stories inspired {count} creators today — you're on fire!"
+        elif count >= 2:
+            title = f"Your story inspired {count} creators this week — you're gaining momentum"
+        else:
+            title = f"Your story \"{story_title[:30]}\" just inspired another creator"
+
         await db.notifications.update_one(
             {"_id": existing["_id"]},
             {
                 "$inc": {"count": 1},
-                "$set": {"updated_at": now.isoformat(), "read": False},
+                "$set": {
+                    "title": title,
+                    "message": f"Your shared stories are spreading! {week_remixes} remixes this week.",
+                    "updated_at": now.isoformat(),
+                    "read": False,
+                },
                 "$push": {"remixer_ids": {"$each": [remixer_user_id], "$slice": -10}},
             },
         )
     else:
+        # First remix today — emotionally warm
+        title = f"Your story \"{story_title[:30]}\" just inspired a new creator"
+        message = "Every share spreads your creation to new audiences!"
+        if week_remixes > 1:
+            message = f"{week_remixes} creators inspired this week — keep sharing!"
+
         await db.notifications.insert_one({
             "user_id": creator_user_id,
             "type": "viral_remix",
             "group_key": today_key,
-            "title": f"Someone remixed your story \"{story_title[:40]}\"",
-            "message": "Your shared stories are inspiring new creators!",
+            "title": title,
+            "message": message,
             "count": 1,
             "remixer_ids": [remixer_user_id],
             "read": False,
             "created_at": now.isoformat(),
             "updated_at": now.isoformat(),
+            "link": "/app/my-space",
         })

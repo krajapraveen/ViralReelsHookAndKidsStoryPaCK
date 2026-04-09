@@ -1857,6 +1857,7 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
   const [showDirections, setShowDirections] = useState(false);
   const [customDirection, setCustomDirection] = useState('');
   const [showSharePrompt, setShowSharePrompt] = useState(false);
+  const [userViralStats, setUserViralStats] = useState(null);
   const [showForceShare, setShowForceShare] = useState(false);
   const [showAutoNext, setShowAutoNext] = useState(false);
   const navigate = useNavigate();
@@ -1879,6 +1880,10 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
     if (uiState === 'READY') {
       const token = localStorage.getItem('token');
       if (!token) return;
+      // Fetch viral stats for personalized share prompt
+      api.get('/api/viral/rewards/status')
+        .then(r => setUserViralStats(r.data))
+        .catch(() => {});
       (async () => {
         try {
           const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/retention/streak`, {
@@ -2040,6 +2045,7 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
             isChallengeWinner: job?.is_challenge_winner || false,
             isTrending: (job?.views || 0) > 20,
             remixCount: job?.remix_count || 0,
+            userViralStats: userViralStats,
           }}
         />
       )}
