@@ -47,6 +47,18 @@ Build an AI Creator Suite with a compulsion-driven "Growth Engine" — a full-st
 - **Improve Consistency CTA**: Premium enhancement button on story_engine completed cards. Shows only on eligible jobs (source=story_engine, consistency_retry_count < 1). Max 1 retry per job enforced. Success: "Your characters now appear more consistent across scenes". Analytics: `improve_consistency_clicked`, `improve_consistency_success`, `improve_consistency_failed`. Auto-hides after use or for ineligible jobs.
 - Testing: 14/14 (iteration_474)
 
+### A/B Hero Headline Optimization — DONE (Apr 9)
+- **Experiment: hero_headline (Week 1)** — A vs B only, Variant C deferred until first winner emerges
+  - **Variant A (Control)**: "Create stories kids will remember forever" (emotional)
+  - **Variant B (Challenger)**: "Create award-worthy AI stories in minutes" (prestige)
+- **Sticky assignment**: Deterministic MD5 hash of session_id + experiment_id. Same user always sees same variant.
+- **Traffic source tracking**: Auto-detected from referrer (instagram, organic, direct, referral, internal)
+- **Minimum threshold**: 500 sessions per variant AND 95% statistical confidence (z-test) required before winner declared
+- **Analytics events**: `ab_variant_assigned`, `impression`, `experience_click` (primary), `paywall_shown` (secondary)
+- **Admin dashboard**: Clean table showing Variant, Impressions, Clicks, CTR%, Paywall%, Confidence%, Winner badge
+- **Only headline text changes** — layout, fonts, CTA, colors are identical between variants
+- Testing: 17/17 (iteration_475)
+
 ---
 
 ## Email System Status
@@ -64,7 +76,8 @@ Build an AI Creator Suite with a compulsion-driven "Growth Engine" — a full-st
 - Verify Resend domain for live email delivery (user action)
 
 ### P1 — Next Features
-- A/B test hook text variations on public pages
+- A/B Week 2: Winner of A vs B → test against Variant C ("Join thousands creating viral AI stories")
+- A/B Week 3: Lock winning headline, begin CTA button A/B testing
 - Character-driven auto-share prompts after creation
 
 ### P2 — Growth & Polish
