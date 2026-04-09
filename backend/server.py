@@ -653,6 +653,9 @@ api_router.include_router(gallery_router)
 from routes.retention_hooks import router as retention_hooks_router
 api_router.include_router(retention_hooks_router)
 
+from routes.viral_flywheel import router as viral_flywheel_router
+api_router.include_router(viral_flywheel_router)
+
 api_router.include_router(media_access_router)
 
 

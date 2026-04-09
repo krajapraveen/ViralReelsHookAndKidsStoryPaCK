@@ -93,29 +93,43 @@ export default function Landing() {
   const hero = HERO_VARIANTS[heroVariant];
 
   useEffect(() => {
-    // 1. Request sticky assignment from backend
-    axios.post(`${API}/api/ab/assign`, {
-      session_id: sessionId,
-      experiment_id: 'hero_headline',
-    }).then(r => {
-      const vid = r.data?.variant_id;
-      if (vid && HERO_VARIANTS[vid]) {
-        setHeroVariant(vid);
-        localStorage.setItem('ab_hero_variant_id', vid);
-        // Track ab_variant_assigned event
-        axios.post(`${API}/api/public/ab-impression`, {
-          variant: vid,
-          action: 'ab_variant_assigned',
-          session_id: sessionId,
-          traffic_source: trafficSource,
-          experiment_id: 'hero_headline',
-        }).catch(() => {});
-      }
-    }).catch(() => {
-      // Backend unavailable — stick with cached or control
-    });
+    // 1. Try smart headline route first (uses source-specific winner if confident)
+    const source = trafficSource;
+    axios.get(`${API}/api/ab/smart-route?experiment_id=hero_headline&traffic_source=${source}`)
+      .then(r => {
+        const vid = r.data?.variant_id;
+        const reason = r.data?.reason;
+        if (vid && HERO_VARIANTS[vid] && reason === 'source_winner') {
+          // Use source-specific winner
+          setHeroVariant(vid);
+          localStorage.setItem('ab_hero_variant_id', vid);
+          axios.post(`${API}/api/public/ab-impression`, {
+            variant: vid, action: 'ab_variant_assigned', session_id: sessionId,
+            traffic_source: source, experiment_id: 'hero_headline',
+          }).catch(() => {});
+          return;
+        }
+        // 2. Fallback: use standard sticky assignment
+        return axios.post(`${API}/api/ab/assign`, {
+          session_id: sessionId, experiment_id: 'hero_headline',
+        });
+      })
+      .then(r => {
+        if (r?.data?.variant_id) {
+          const vid = r.data.variant_id;
+          if (HERO_VARIANTS[vid]) {
+            setHeroVariant(vid);
+            localStorage.setItem('ab_hero_variant_id', vid);
+            axios.post(`${API}/api/public/ab-impression`, {
+              variant: vid, action: 'ab_variant_assigned', session_id: sessionId,
+              traffic_source: source, experiment_id: 'hero_headline',
+            }).catch(() => {});
+          }
+        }
+      })
+      .catch(() => {});
 
-    // 2. Fetch public data
+    // 3. Fetch public data
     axios.get(`${API}/api/public/stats`).then(r => setStats(r.data)).catch(() => {});
     axios.get(`${API}/api/public/live-activity?limit=6`).then(r => setLiveFeed(r.data.items || [])).catch(() => {});
     axios.get(`${API}/api/public/alive`).then(r => setAliveSignals(r.data)).catch(() => {});
@@ -123,7 +137,7 @@ export default function Landing() {
       if (r.data?.found) setFeaturedStory(r.data);
     }).catch(() => {});
 
-    // 3. Track landing funnel event
+    // 4. Track landing funnel event
     trackFunnel('landing_view', { source_page: 'landing' });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

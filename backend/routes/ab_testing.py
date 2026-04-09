@@ -340,6 +340,70 @@ async def ab_segmentation(experiment_id: str = Query("hero_headline")):
     }
 
 
+# ─── GET /api/ab/smart-route ─────────────────────────────────────────────────
+
+@router.get("/smart-route")
+async def smart_headline_route(
+    experiment_id: str = Query("hero_headline"),
+    traffic_source: str = Query("direct"),
+):
+    """Smart Headline Router — returns the best variant for a given traffic source.
+    Falls back to control variant if confidence is insufficient."""
+    exp = await db.ab_experiments.find_one(
+        {"experiment_id": experiment_id, "active": True}, {"_id": 0}
+    )
+    if not exp:
+        return {"variant_id": None, "reason": "no_experiment"}
+
+    control_id = next((v["id"] for v in exp["variants"] if v.get("is_control")), exp["variants"][0]["id"])
+
+    # Check source-specific data
+    variant_ids = [v["id"] for v in exp["variants"]]
+    rows = []
+    for vid in variant_ids:
+        impressions = await db.ab_events.count_documents({
+            "experiment_id": experiment_id,
+            "traffic_source": traffic_source,
+            "variant": vid,
+            "action": "impression",
+        })
+        clicks = await db.ab_events.count_documents({
+            "experiment_id": experiment_id,
+            "traffic_source": traffic_source,
+            "variant": vid,
+            "action": "cta_click",
+        })
+        rows.append({"variant_id": vid, "sessions": impressions, "clicks": clicks})
+
+    sufficient = all(r["sessions"] >= MIN_SOURCE_SAMPLE for r in rows)
+
+    if not sufficient or len(rows) != 2:
+        return {
+            "variant_id": control_id,
+            "reason": "insufficient_data",
+            "source": traffic_source,
+            "data_available": sum(r["sessions"] for r in rows),
+        }
+
+    conf = _calc_confidence(rows)
+    if conf < 95:
+        return {
+            "variant_id": control_id,
+            "reason": "low_confidence",
+            "confidence": conf,
+            "source": traffic_source,
+        }
+
+    # Confident winner for this source
+    best = max(rows, key=lambda r: r["clicks"] / r["sessions"] if r["sessions"] > 0 else 0)
+    return {
+        "variant_id": best["variant_id"],
+        "reason": "source_winner",
+        "confidence": conf,
+        "source": traffic_source,
+    }
+
+
 # ─── SEED EXPERIMENTS ────────────────────────────────────────────────────────
 
 INITIAL_EXPERIMENTS = [

@@ -4,7 +4,7 @@ import {
   Play, Download, Share2, RefreshCw, AlertTriangle, Film, Loader2,
   ChevronDown, ChevronUp, Bell, BellOff, Check, Plus, X, Trash2,
   Edit, Eye, Info, CheckCircle, Circle, HelpCircle, Clock, ArrowRight,
-  Coins, Sparkles, Palette, BookOpen, Zap, Users
+  Coins, Sparkles, Palette, BookOpen, Zap, Users, Flame
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../utils/api';
@@ -727,6 +727,7 @@ export default function MySpacePage() {
     'Notification' in window && Notification.permission === 'granted'
   );
   const [remixStats, setRemixStats] = useState({});
+  const [viralMyStats, setViralMyStats] = useState(null);
   const [searchParams] = useSearchParams();
   const highlightId = searchParams.get('projectId');
   const highlightRef = useRef(null);
@@ -751,6 +752,8 @@ export default function MySpacePage() {
       } catch { /* silent */ }
     };
     fetchMeta();
+    // Fetch viral stats
+    api.get('/api/viral/rewards/status').then(r => setViralMyStats(r.data)).catch(() => {});
   }, []);
 
   const fetchJobs = useCallback(async () => {
@@ -932,6 +935,17 @@ export default function MySpacePage() {
             </button>
           </div>
         </div>
+
+        {/* VIRAL ATTRIBUTION BADGE */}
+        {viralMyStats?.total_remix_conversions > 0 && (
+          <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-violet-500/[0.04] border border-violet-500/10" data-testid="myspace-viral-badge">
+            <Flame className="w-4 h-4 text-violet-400 flex-shrink-0" />
+            <span className="text-sm font-medium text-violet-300">
+              Your stories generated <span className="font-bold text-white">{viralMyStats.total_remix_conversions}</span> viral remix{viralMyStats.total_remix_conversions !== 1 ? 'es' : ''} this week
+              {viralMyStats.total_credits_earned > 0 && <span className="text-emerald-400 ml-1">(+{viralMyStats.total_credits_earned} bonus credits)</span>}
+            </span>
+          </div>
+        )}
 
         {/* Session Streak */}
         {(() => {

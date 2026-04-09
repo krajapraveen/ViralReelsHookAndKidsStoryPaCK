@@ -47,6 +47,8 @@ export default function PublicCreation() {
   const [showOverlay, setShowOverlay] = useState(false);
   const [hookVariant, setHookVariant] = useState(null);
 
+  const [lineage, setLineage] = useState(null);
+
   useEffect(() => {
     fetchCreation();
   }, [slug]);
@@ -63,8 +65,29 @@ export default function PublicCreation() {
       // Track impression regardless
       trackConversion('story_hook', 'impression');
     })();
+
+    // Track viral attribution click
+    const session = sessionStorage.getItem('growth_session_id') || localStorage.getItem('ab_session_id') || '';
+    const ref = document.referrer || '';
+    let source = 'direct';
+    if (ref.includes('instagram.com')) source = 'instagram';
+    else if (ref.includes('google.') || ref.includes('bing.')) source = 'organic';
+    else if (ref && !ref.includes(window.location.hostname)) source = 'referral';
+    axios.post(`${API}/api/viral/track-click`, {
+      share_slug: slug,
+      session_id: session,
+      traffic_source: source,
+    }).catch(() => {});
+
+    // Fetch lineage (Inspired by)
+    if (creation?.job_id) {
+      axios.get(`${API}/api/viral/lineage/${creation.job_id}`)
+        .then(r => { if (r.data?.found) setLineage(r.data.lineage); })
+        .catch(() => {});
+    }
+
     return () => { cancelled = true; };
-  }, [creation]);
+  }, [creation]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const timer = setTimeout(() => setShowUrgency(true), 4000);
@@ -74,7 +97,12 @@ export default function PublicCreation() {
   const fetchCreation = async () => {
     try {
       const r = await axios.get(`${API}/api/public/creation/${slug}`);
-      setCreation(r.data.creation);
+      // Normalize creator_name from creator.name for attribution badge
+      const creationData = {
+        ...r.data.creation,
+        creator_name: r.data.creation?.creator?.name || r.data.creation?.creator_name || null,
+      };
+      setCreation(creationData);
       trackPageView({ source_page: `/v/${slug}`, source_slug: slug, origin: 'share_page', origin_slug: slug });
 
       const jobId = r.data.creation?.job_id;
@@ -161,6 +189,14 @@ export default function PublicCreation() {
     trackConversion('cta_copy', 'remix_click');
     trackConversion('story_hook', 'continue_click');
     axios.post(`${API}/api/public/creation/${slug}/remix`).catch(() => {});
+
+    // Track viral conversion
+    const viralSession = sessionStorage.getItem('growth_session_id') || localStorage.getItem('ab_session_id') || '';
+    axios.post(`${API}/api/viral/track-conversion`, {
+      share_slug: slug,
+      session_id: viralSession,
+      conversion_type: 'remix',
+    }).catch(() => {});
     try {
       fetch(`${API}/api/growth/event`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -342,6 +378,26 @@ export default function PublicCreation() {
           <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white mb-3" data-testid="creation-title">
             {creation.title}
           </h1>
+
+          {/* CREATOR ATTRIBUTION BADGE */}
+          {creation.creator_name && (
+            <div className="flex items-center gap-2 mb-3" data-testid="creator-attribution">
+              <div className="w-6 h-6 rounded-full bg-violet-500/20 flex items-center justify-center flex-shrink-0">
+                <User className="w-3 h-3 text-violet-400" />
+              </div>
+              <span className="text-xs text-slate-400">Created by <span className="text-violet-300 font-semibold">{creation.creator_name}</span></span>
+            </div>
+          )}
+
+          {/* INSPIRED BY — Remix Lineage Attribution */}
+          {lineage && lineage.parent_title && (
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/15 mb-3" data-testid="inspired-by-badge">
+              <Sparkles className="w-3 h-3 text-amber-400" />
+              <span className="text-xs text-amber-300">
+                Inspired by <button onClick={() => lineage.parent_slug && navigate(`/v/${lineage.parent_slug}`)} className="font-semibold text-amber-200 hover:text-white underline underline-offset-2 transition-colors">{lineage.parent_title}</button>
+              </span>
+            </div>
+          )}
 
           {/* SOCIAL PROOF STATS */}
           <div className="flex items-center gap-4 text-sm mb-4" data-testid="social-proof">

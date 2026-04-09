@@ -49,6 +49,14 @@ def generate_og_html(share_data: dict, base_url: str) -> str:
     type_name = share_data.get('type', 'creation')
     share_id = share_data.get('id', '')
     thumbnail = share_data.get('thumbnailUrl', f'{base_url}/og-default.png')
+    forks = share_data.get('forks', 0)
+    creator = share_data.get('userId', '')
+
+    # Enhanced description with remix count and creator attribution
+    if forks > 0:
+        og_desc = f"{description} — Remixed {forks} times! Continue the story on Visionary Suite"
+    else:
+        og_desc = f"{description} — Remix this video on Visionary Suite!"
     
     type_emojis = {
         'REEL': '🎬',
@@ -68,13 +76,13 @@ def generate_og_html(share_data: dict, base_url: str) -> str:
     
     <!-- Primary Meta Tags -->
     <meta name="title" content="{emoji} {title} - Visionary Suite">
-    <meta name="description" content="{description} — Remix this video on Visionary Suite!">
+    <meta name="description" content="{og_desc}">
     
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="video.other">
     <meta property="og:url" content="{base_url}/share/{share_id}">
     <meta property="og:title" content="{emoji} {title} - Visionary Suite">
-    <meta property="og:description" content="{description} — Remix this video on Visionary Suite!">
+    <meta property="og:description" content="{og_desc}">
     <meta property="og:image" content="{thumbnail}">
     <meta property="og:site_name" content="Visionary Suite">
     
@@ -82,7 +90,7 @@ def generate_og_html(share_data: dict, base_url: str) -> str:
     <meta property="twitter:card" content="summary_large_image">
     <meta property="twitter:url" content="{base_url}/share/{share_id}">
     <meta property="twitter:title" content="{emoji} {title} - Visionary Suite">
-    <meta property="twitter:description" content="{description} — Remix this video on Visionary Suite!">
+    <meta property="twitter:description" content="{og_desc}">
     <meta property="twitter:image" content="{thumbnail}">
     
     <!-- WhatsApp / LinkedIn / Telegram -->

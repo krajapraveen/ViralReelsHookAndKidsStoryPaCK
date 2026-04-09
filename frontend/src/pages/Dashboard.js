@@ -13,7 +13,7 @@ import {
   Film, BookOpen, Star, ArrowRight, Shield, User,
   Camera, Palette, Megaphone, Lightbulb, Image as ImageIcon,
   RefreshCw, Share2, Activity, Home, Heart, LogOut, CreditCard,
-  Eye, Trophy, Award,
+  Eye, Trophy, Award, TrendingUp,
 } from 'lucide-react';
 
 import HeroMedia from '../components/HeroMedia';
@@ -587,6 +587,51 @@ function DashboardSkeleton() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   PERSONALIZED HERO MESSAGE — 3 segments: challenge-heavy, remix-heavy, inactive
+   + Viral attribution badge showing weekly remix conversions
+   ═══════════════════════════════════════════════════════════════════ */
+function PersonalizedHero({ metrics, viralStats, navigate }) {
+  // Determine user behavior segment
+  const challengeCount = metrics?.challenge_participations || 0;
+  const remixConversions = viralStats?.total_remix_conversions || 0;
+  const creditsEarned = viralStats?.total_credits_earned || 0;
+
+  let message = null;
+
+  if (challengeCount > 3) {
+    message = { text: "Today's challenge awaits your next winning story", icon: Trophy, color: 'text-amber-400', bg: 'bg-amber-500/[0.04]', border: 'border-amber-500/10' };
+  } else if (remixConversions > 0) {
+    message = { text: "Your stories are getting remixed — create another hit", icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-500/[0.04]', border: 'border-emerald-500/10' };
+  }
+  // Don't show for active users with no special segment — avoid noise
+
+  const showViral = remixConversions > 0;
+
+  if (!message && !showViral) return null;
+
+  return (
+    <div className="px-4 sm:px-6 lg:px-10 py-1 space-y-2">
+      {message && (
+        <div className={`flex items-center gap-3 px-4 py-3 rounded-xl ${message.bg} border ${message.border}`} data-testid="personalized-hero-message">
+          <message.icon className={`w-4 h-4 ${message.color} flex-shrink-0`} />
+          <span className={`text-sm font-medium ${message.color}`}>{message.text}</span>
+        </div>
+      )}
+      {showViral && (
+        <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-violet-500/[0.04] border border-violet-500/10" data-testid="viral-attribution-badge">
+          <Flame className="w-4 h-4 text-violet-400 flex-shrink-0" />
+          <span className="text-sm font-medium text-violet-300">
+            Your stories generated <span className="font-bold text-white">{remixConversions}</span> viral remix{remixConversions !== 1 ? 'es' : ''}
+            {creditsEarned > 0 && <span className="text-emerald-400 ml-1">(+{creditsEarned} bonus credits earned)</span>}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
    FEATURED CHALLENGE WINNER — Prestige Hero Slot
    Must feel aspirational, not like a regular card.
    Graceful fallback when no winner exists.
@@ -763,6 +808,9 @@ export default function Dashboard() {
   const [dailyChallenge, setDailyChallenge] = useState(null);
   const [topStories, setTopStories] = useState([]);
   const [challengeWinner, setChallengeWinner] = useState(null);
+  const [personalHero, setPersonalHero] = useState(null);
+  const [viralStats, setViralStats] = useState(null);
+  const [viralLeaderboard, setViralLeaderboard] = useState([]);
   const isAdmin = isAdminUser();
   const isLoggedIn = !!localStorage.getItem('token');
 
@@ -807,6 +855,14 @@ export default function Dashboard() {
     // Fetch challenge winner
     axios.get(`${API}/api/retention/challenge/winner`).then(res => {
       if (res.data?.winner) setChallengeWinner(res.data.winner);
+    }).catch(() => {});
+    // Fetch viral reward status
+    axios.get(`${API}/api/viral/rewards/status`, auth()).then(res => {
+      setViralStats(res.data);
+    }).catch(() => {});
+    // Fetch viral leaderboard
+    axios.get(`${API}/api/viral/leaderboard?limit=5`).then(res => {
+      if (res.data?.leaderboard?.length) setViralLeaderboard(res.data.leaderboard);
     }).catch(() => {});
   }, []);
 
@@ -957,6 +1013,9 @@ export default function Dashboard() {
       {/* FEATURED CHALLENGE WINNER — Prestige Slot */}
       <FeaturedWinnerHero winner={challengeWinner} navigate={navigate} />
 
+      {/* PERSONALIZED HERO + VIRAL ATTRIBUTION */}
+      <PersonalizedHero metrics={metrics} viralStats={viralStats} navigate={navigate} />
+
       {/* 2. METRICS STRIP */}
       <MetricsStrip metrics={metrics} />
 
@@ -986,6 +1045,42 @@ export default function Dashboard() {
           </ScrollRow>
         );
       })}
+
+      {/* TOP VIRAL CREATORS LEADERBOARD */}
+      {viralLeaderboard.length > 0 && (
+        <div className="px-4 sm:px-6 lg:px-10 py-4" data-testid="viral-leaderboard">
+          <div className="bg-gradient-to-br from-violet-500/[0.04] to-rose-500/[0.04] border border-white/[0.06] rounded-2xl p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Share2 className="w-4 h-4 text-violet-400" />
+              <h3 className="text-sm font-bold text-white">Top Viral Creators This Week</h3>
+            </div>
+            <div className="space-y-2">
+              {viralLeaderboard.map((entry, i) => (
+                <div key={entry.user_id} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-white/[0.02]" data-testid={`viral-leader-${i}`}>
+                  <span className={`text-sm font-extrabold w-6 text-center ${i === 0 ? 'text-amber-400' : i === 1 ? 'text-slate-300' : i === 2 ? 'text-amber-600' : 'text-slate-500'}`}>
+                    {i + 1}
+                  </span>
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-rose-500 flex items-center justify-center flex-shrink-0">
+                    {entry.picture ? (
+                      <img src={entry.picture} alt="" className="w-full h-full rounded-full object-cover" />
+                    ) : (
+                      <User className="w-3.5 h-3.5 text-white" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs font-semibold text-white truncate block">{entry.name}</span>
+                    <span className="text-[10px] text-slate-500">{entry.referred_remixes} remixes inspired</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-bold text-violet-400">{entry.viral_score}</span>
+                    <span className="text-[9px] text-slate-600 block">score</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── INFINITE SCROLL: Extra rows loaded on demand ── */}
       {extraStories.length > 0 && (() => {
