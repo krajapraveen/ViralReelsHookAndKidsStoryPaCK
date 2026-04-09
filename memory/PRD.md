@@ -116,9 +116,19 @@ Build an AI Creator Suite with a compulsion-driven "Growth Engine" — a full-st
 - **Recommendation**: Phase C deferred until data matures. Focus on optimizing viral loop (share prompts, landing page, notification strength).
 - Testing: Backend verified via curl, Frontend verified via Playwright screenshot
 
+### Viral Flywheel Engine v1 — Phase C: Dark Launch Infrastructure — DONE (Apr 9)
+- **Leaderboard Engine**: Computes competitive rankings using weighted viral score (remixes * 0.5 + depth * 0.3 + signups * 0.2 + streak_bonus * 0.1). Assigns rank tiers (Bronze → Silver → Gold → Diamond). Daily rank snapshots stored for "You climbed X places this week" momentum.
+- **Reward Calculation Engine**: Silently accumulates pending rewards (rank-tier credits + streak-tier credits). All rewards include `earned_at` and `expires_at` (7 days post-activation). Pre-builds competition notification drafts.
+- **Streak Tracking Engine**: Enhanced 60-day streak lookback with tiers (3/7/14/30 day), freeze tokens (1 per 7 streak days), auto-freeze on missed days, best streak tracking.
+- **Achievement Framework**: 11 achievement badges across 3 categories (rank, streak, reward). All stored as `status: "hidden"` until Phase C activation.
+- **Feature Flag**: `GET /api/phase-c/status` — requires BOTH 4/5 readiness thresholds AND 1000+ viral referral events for activation. Currently: NOT_READY.
+- **Admin Dark Launch Monitor**: Aggregate-first dashboard (total ranked, pending rewards, active streaks, achievements, freeze tokens). Phase C Simulated Engagement Score. Optional drill-down per category.
+- **Security**: All admin/engine endpoints protected by `get_admin_user`. No Phase C data leaks to public endpoints.
+- **Hidden Analytics**: Events tracked: `hidden_rank_progress`, `hidden_reward_pending`, `hidden_streak_days`, `phase_c_activation_ready`.
+- Testing: 22/22 backend + all frontend passed (iteration_478)
+
 ### P1 — Next Features
 - Optimize viral loop: improve share prompt conversion, share link CTR, notification emotional strength, share landing remix conversion
-- Viral Flywheel Engine v1 — Phase C: Gamification (HOLD until readiness report shows GREENLIGHT)
 - A/B Week 2: Winner of A vs B → test against Variant C (when threshold reached)
 
 ### P2 — Growth & Polish
@@ -130,12 +140,15 @@ Build an AI Creator Suite with a compulsion-driven "Growth Engine" — a full-st
 ---
 
 ## Key Files
+- `/app/backend/routes/phase_c_dark_launch.py` — Phase C Dark Launch: engines, feature flag, admin monitor, drill-down
 - `/app/backend/services/retention_service.py` — Full retention service (email, notifications, challenges, digest)
 - `/app/backend/routes/retention_hooks.py` — Retention API routes (challenges, digest, email preview)
 - `/app/backend/routes/story_engine_routes.py` — Job APIs + view_mode + remix triggers
+- `/app/backend/routes/viral_flywheel.py` — Viral attribution, lineage, rewards, readiness report
 - `/app/frontend/src/components/NotificationBell.js` — Bell with retention types
 - `/app/frontend/src/components/RemixGallery.js` — Gallery with auto-play hover preview
 - `/app/frontend/src/components/GlobalUserBar.jsx` — Top nav with bell
 - `/app/frontend/src/pages/StoryVideoPipeline.js` — Studio + recovery + challenge
 - `/app/frontend/src/pages/MySpacePage.js` — Dashboard + ownership + challenge badges + Improve Consistency CTA
 - `/app/frontend/src/pages/Dashboard.js` — Challenge banner + Top Stories leaderboard + Featured Winner Hero Slot
+- `/app/frontend/src/pages/AdminDashboard.js` — Admin dashboard with Dark Launch Monitor tab
