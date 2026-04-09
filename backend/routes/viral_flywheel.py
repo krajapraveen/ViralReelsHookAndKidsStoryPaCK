@@ -414,6 +414,107 @@ async def viral_metrics():
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# 5b. PHASE C READINESS REPORT
+# ═══════════════════════════════════════════════════════════════════════════════
+
+READINESS_THRESHOLDS = {
+    "repeat_share_rate": {"threshold": 20, "label": "Repeat Share Rate", "unit": "%", "description": "Creators sharing same story more than once within 7 days"},
+    "chain_depth_rate": {"threshold": 15, "label": "Chain Depth >=2 Rate", "unit": "%", "description": "Viral chains reaching depth 2+"},
+    "return_to_inspect_rate": {"threshold": 30, "label": "Creator Return-to-Inspect", "unit": "%", "description": "Creators revisiting viral timeline within 72h"},
+    "click_to_remix_rate": {"threshold": 8, "label": "Click-to-Remix Conversion", "unit": "%", "description": "Shared visitors who actually remix"},
+    "milestone_engagement_rate": {"threshold": 20, "label": "Milestone Badge Engagement", "unit": "%", "description": "Users interacting with earned milestone badges"},
+}
+
+@router.get("/readiness-report")
+async def phase_c_readiness_report():
+    """Phase C Go/No-Go readiness report. Measures 5 behavioral thresholds."""
+
+    # 1. Repeat Share Rate: creators who shared same story >1 time within 7 days
+    week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+
+    # Count unique sharers in last 7 days
+    recent_sharers = await db.viral_referrals.distinct(
+        "share_source_user",
+        {"clicked_at": {"$gte": week_ago}, "share_source_user": {"$ne": ""}}
+    )
+    total_sharers = len(recent_sharers)
+
+    # Count sharers who shared same slug multiple times
+    repeat_pipeline = [
+        {"$match": {"clicked_at": {"$gte": week_ago}, "share_source_user": {"$ne": ""}}},
+        {"$group": {"_id": {"user": "$share_source_user", "slug": "$share_slug"}, "count": {"$sum": 1}}},
+        {"$match": {"count": {"$gte": 2}}},
+        {"$group": {"_id": "$_id.user"}},
+    ]
+    repeat_sharers = 0
+    async for _ in db.viral_referrals.aggregate(repeat_pipeline):
+        repeat_sharers += 1
+
+    repeat_share_rate = round(repeat_sharers / total_sharers * 100, 1) if total_sharers > 0 else 0
+
+    # 2. Chain Depth Rate: % of chains at depth >= 2
+    total_chains = await db.viral_referrals.count_documents({"clicked_at": {"$gte": week_ago}})
+    deep_chains = await db.viral_referrals.count_documents({
+        "clicked_at": {"$gte": week_ago},
+        "attribution_depth": {"$gte": 2},
+    })
+    chain_depth_rate = round(deep_chains / total_chains * 100, 1) if total_chains > 0 else 0
+
+    # 3. Return-to-Inspect Rate: creators who viewed chain stats within 72h
+    chain_views = await db.analytics_events.count_documents({
+        "event": "viral_chain_viewed",
+        "timestamp": {"$gte": datetime.now(timezone.utc) - timedelta(hours=72)},
+    })
+    creators_with_chains = len(await db.remix_lineage.distinct("parent_user_id"))
+    return_to_inspect = round(chain_views / creators_with_chains * 100, 1) if creators_with_chains > 0 else 0
+
+    # 4. Click-to-Remix Conversion Rate
+    total_clicks_all = await db.viral_referrals.count_documents({})
+    total_remix_conversions = await db.viral_referrals.count_documents({
+        "converted": True, "conversion_type": "remix"
+    })
+    click_to_remix = round(total_remix_conversions / total_clicks_all * 100, 1) if total_clicks_all > 0 else 0
+
+    # 5. Milestone Badge Engagement: users who have interacted with milestones
+    users_with_milestones = len(await db.viral_milestones.distinct("user_id"))
+    milestone_interactions = await db.analytics_events.count_documents({
+        "event": {"$in": ["viral_chain_viewed", "viral_milestone_awarded"]},
+    })
+    milestone_engagement = round(milestone_interactions / max(users_with_milestones, 1) * 100, 1) if users_with_milestones > 0 else 0
+
+    # Build report
+    metrics = [
+        {"id": "repeat_share_rate", "value": repeat_share_rate, **READINESS_THRESHOLDS["repeat_share_rate"]},
+        {"id": "chain_depth_rate", "value": chain_depth_rate, **READINESS_THRESHOLDS["chain_depth_rate"]},
+        {"id": "return_to_inspect_rate", "value": return_to_inspect, **READINESS_THRESHOLDS["return_to_inspect_rate"]},
+        {"id": "click_to_remix_rate", "value": click_to_remix, **READINESS_THRESHOLDS["click_to_remix_rate"]},
+        {"id": "milestone_engagement_rate", "value": milestone_engagement, **READINESS_THRESHOLDS["milestone_engagement_rate"]},
+    ]
+
+    for m in metrics:
+        m["passes"] = m["value"] >= m["threshold"]
+
+    passing = sum(1 for m in metrics if m["passes"])
+    verdict = "GREENLIGHT" if passing >= 4 else "NOT_READY"
+
+    return {
+        "success": True,
+        "verdict": verdict,
+        "passing_count": passing,
+        "required_passing": 4,
+        "metrics": metrics,
+        "recommendation": "Phase C is ready — proceed with competitive gamification" if verdict == "GREENLIGHT" else "Phase C not yet ready — optimize viral loop first (improve share prompts, landing page, notification strength)",
+        "data_window": "last 7 days",
+        "sample_sizes": {
+            "total_sharers": total_sharers,
+            "total_chains": total_chains,
+            "creators_with_chains": creators_with_chains,
+            "users_with_milestones": users_with_milestones,
+        },
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # 6. VIRAL CHAIN STATS (per-user top story chain + momentum)
 # ═══════════════════════════════════════════════════════════════════════════════
 

@@ -109,9 +109,17 @@ Build an AI Creator Suite with a compulsion-driven "Growth Engine" — a full-st
 - **End-to-end chain verified**: Simulated lineage chain → chain stats → milestones → all rendering correctly.
 - Testing: Backend 6/6 endpoints verified via curl, Frontend verified via Playwright screenshots
 
+### Viral Readiness Dashboard — DONE (Apr 9)
+- **Phase C Go/No-Go Report**: Data-driven readiness check measuring 5 behavioral thresholds: Repeat Share Rate (20%), Chain Depth >=2 (15%), Creator Return-to-Inspect (30%), Click-to-Remix Conversion (8%), Milestone Badge Engagement (20%).
+- **Verdict**: GREENLIGHT requires 4/5 thresholds passing. Current verdict: NOT_READY (1/4 passing — only milestone engagement passes).
+- **Admin Dashboard**: "Viral Readiness" tab with verdic header, Go/No-Go metrics table (Metric, Current, Threshold, Status), sample sizes.
+- **Recommendation**: Phase C deferred until data matures. Focus on optimizing viral loop (share prompts, landing page, notification strength).
+- Testing: Backend verified via curl, Frontend verified via Playwright screenshot
+
 ### P1 — Next Features
-- Viral Flywheel Engine v1 — Phase C: Gamification (leaderboard polish, reward loop activation, OG card optimization)
-- A/B Week 2: Winner of A vs B → test against Variant C ("Join thousands creating viral AI stories")
+- Optimize viral loop: improve share prompt conversion, share link CTR, notification emotional strength, share landing remix conversion
+- Viral Flywheel Engine v1 — Phase C: Gamification (HOLD until readiness report shows GREENLIGHT)
+- A/B Week 2: Winner of A vs B → test against Variant C (when threshold reached)
 
 ### P2 — Growth & Polish
 - Monthly creator milestone digest

@@ -7,7 +7,7 @@ import {
   Users, Eye, Activity, FileText, DollarSign, Star, RefreshCw,
   AlertTriangle, TrendingUp, Zap, Shield, Heart, BookOpen,
   Film, Clock, Server, Database, BarChart3,
-  CheckCircle, XCircle, MinusCircle, Radio, Gift, Target, Share2, Camera, Palette
+  CheckCircle, XCircle, MinusCircle, Radio, Gift, Target, Share2, Camera, Palette, Flame
 } from 'lucide-react';
 import SafetyPlayground from './SafetyPlayground';
 import GrowthDashboard from './GrowthDashboard';
@@ -378,6 +378,7 @@ export default function AdminDashboard() {
   const [conversion, setConversion] = useState({ data: null, state: 'loading', ts: null });
   const [abResults, setAbResults] = useState({ data: null, state: 'loading', ts: null });
   const [abSegmentation, setAbSegmentation] = useState({ data: null, state: 'loading', ts: null });
+  const [viralReadiness, setViralReadiness] = useState({ data: null, state: 'loading', ts: null });
   const [leaderboard, setLeaderboard] = useState({ data: null, state: 'loading', ts: null });
   const [kFactor, setKFactor] = useState({ data: null, state: 'loading', ts: null });
   const [shareRewards, setShareRewards] = useState({ data: null, state: 'loading', ts: null });
@@ -412,6 +413,7 @@ export default function AdminDashboard() {
     fetchSection('conversion', setConversion, '/api/admin/metrics/conversion');
     fetchSection('ab', setAbResults, '/api/ab/results');
     fetchSection('abSeg', setAbSegmentation, '/api/ab/segmentation?experiment_id=hero_headline');
+    fetchSection('viralReady', setViralReadiness, '/api/viral/readiness-report');
     fetchSection('leaderboard', setLeaderboard, '/api/admin/metrics/leaderboard');
     // K-factor endpoint doesn't return {success: true}, handle separately
     (async () => {
@@ -507,6 +509,7 @@ export default function AdminDashboard() {
     { id: 'hook_ab', label: 'Hook A/B', icon: Target },
     { id: 'ab_testing', label: 'A/B Tests', icon: Zap },
     { id: 'leaderboard', label: 'Leaderboard', icon: Star },
+    { id: 'viral_readiness', label: 'Viral Readiness', icon: Flame },
     { id: 'reliability', label: 'Reliability', icon: Server },
     { id: 'series', label: 'Story Intelligence', icon: BookOpen },
     { id: 'revenue', label: 'Revenue', icon: DollarSign },
@@ -1675,6 +1678,94 @@ export default function AdminDashboard() {
 
         {section === 'safety_playground' && (
           <SafetyPlayground />
+        )}
+
+        {/* ═══ VIRAL READINESS REPORT ═══ */}
+        {section === 'viral_readiness' && (
+          <WidgetState state={viralReadiness.state} lastUpdated={viralReadiness.ts}>
+            <div className="space-y-6" data-testid="viral-readiness-section">
+              {/* Verdict Header */}
+              <div className={`p-6 rounded-2xl border ${
+                viralReadiness.data?.verdict === 'GREENLIGHT'
+                  ? 'bg-emerald-500/[0.05] border-emerald-500/20'
+                  : 'bg-amber-500/[0.05] border-amber-500/20'
+              }`} data-testid="readiness-verdict">
+                <div className="flex items-center gap-3 mb-3">
+                  {viralReadiness.data?.verdict === 'GREENLIGHT' ? (
+                    <CheckCircle className="w-6 h-6 text-emerald-400" />
+                  ) : (
+                    <AlertTriangle className="w-6 h-6 text-amber-400" />
+                  )}
+                  <div>
+                    <h3 className="text-lg font-bold text-white">
+                      Phase C: {viralReadiness.data?.verdict === 'GREENLIGHT' ? 'GREENLIGHT' : 'NOT READY'}
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      {viralReadiness.data?.passing_count || 0}/{viralReadiness.data?.required_passing || 4} thresholds passed | {viralReadiness.data?.data_window || 'last 7 days'}
+                    </p>
+                  </div>
+                </div>
+                <p className="text-sm text-slate-300">{viralReadiness.data?.recommendation || ''}</p>
+              </div>
+
+              {/* Metrics Table */}
+              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6">
+                <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-cyan-400" /> Go/No-Go Metrics
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs" data-testid="readiness-metrics-table">
+                    <thead>
+                      <tr className="text-slate-500 border-b border-slate-700/50">
+                        <th className="pb-2 pr-4 font-medium">Metric</th>
+                        <th className="pb-2 pr-4 font-medium text-right">Current</th>
+                        <th className="pb-2 pr-4 font-medium text-right">Threshold</th>
+                        <th className="pb-2 font-medium text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(viralReadiness.data?.metrics || []).map(m => (
+                        <tr key={m.id} className={`border-b border-slate-700/20 ${m.passes ? 'bg-emerald-500/[0.03]' : ''}`}>
+                          <td className="py-3 pr-4">
+                            <p className="text-white font-medium">{m.label}</p>
+                            <p className="text-[10px] text-slate-600 mt-0.5">{m.description}</p>
+                          </td>
+                          <td className="py-3 pr-4 text-right tabular-nums">
+                            <span className={`font-bold ${m.passes ? 'text-emerald-400' : 'text-amber-400'}`}>
+                              {m.value}{m.unit}
+                            </span>
+                          </td>
+                          <td className="py-3 pr-4 text-right text-slate-400 tabular-nums">
+                            {m.threshold}{m.unit}
+                          </td>
+                          <td className="py-3 text-center">
+                            {m.passes ? (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                                <CheckCircle className="w-3 h-3" /> PASS
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">
+                                <MinusCircle className="w-3 h-3" /> BELOW
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {/* Sample sizes */}
+                {viralReadiness.data?.sample_sizes && (
+                  <div className="mt-4 flex gap-4 text-[10px] text-slate-600">
+                    <span>Sharers: {viralReadiness.data.sample_sizes.total_sharers}</span>
+                    <span>Chains: {viralReadiness.data.sample_sizes.total_chains}</span>
+                    <span>Chain Creators: {viralReadiness.data.sample_sizes.creators_with_chains}</span>
+                    <span>Milestone Users: {viralReadiness.data.sample_sizes.users_with_milestones}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </WidgetState>
         )}
 
         {section === 'growth_validation' && (
