@@ -656,6 +656,9 @@ api_router.include_router(retention_hooks_router)
 from routes.viral_flywheel import router as viral_flywheel_router
 api_router.include_router(viral_flywheel_router)
 
+from routes.phase_c_dark_launch import router as phase_c_router
+api_router.include_router(phase_c_router)
+
 api_router.include_router(media_access_router)
 
 

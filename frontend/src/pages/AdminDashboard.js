@@ -358,6 +358,202 @@ function FallbackValidationRunner({ validations }) {
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// DARK LAUNCH MONITOR SECTION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function DarkLaunchSection({ data, drillDown, onRunEngines, onDrillDown, onCloseDrillDown }) {
+  if (!data) return <div className="text-slate-500 text-sm">No data yet. Run engines first.</div>;
+
+  const act = data.activation || {};
+  const lb = data.leaderboard || {};
+  const rw = data.rewards || {};
+  const st = data.streaks || {};
+  const ach = data.achievements || {};
+  const notif = data.notifications || {};
+  const sim = data.simulated_engagement || {};
+
+  const tierColors = { diamond: 'text-cyan-300', gold: 'text-yellow-400', silver: 'text-slate-300', bronze: 'text-amber-600' };
+
+  return (
+    <div className="space-y-6" data-testid="dark-launch-section">
+      {/* Activation Status */}
+      <div className={`rounded-xl p-4 border ${act.enable_phase_c ? 'bg-emerald-900/30 border-emerald-500/40' : 'bg-slate-800/50 border-slate-700/50'}`} data-testid="dark-launch-activation">
+        <div className="flex items-center gap-3 mb-3">
+          <div className={`w-3 h-3 rounded-full ${act.enable_phase_c ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+          <span className="font-bold text-lg">{act.enable_phase_c ? 'GREENLIGHT — Ready to Activate' : 'DARK MODE — Accumulating Silently'}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3 text-xs">
+          <div className="bg-slate-900/50 rounded-lg p-2.5">
+            <span className="text-slate-500">Condition A: Thresholds</span>
+            <div className="flex items-center gap-2 mt-1">
+              {act.condition_a_met ? <CheckCircle className="w-3.5 h-3.5 text-emerald-400" /> : <XCircle className="w-3.5 h-3.5 text-red-400" />}
+              <span className="font-mono">{act.thresholds_passing}/{act.required_thresholds} passing</span>
+            </div>
+          </div>
+          <div className="bg-slate-900/50 rounded-lg p-2.5">
+            <span className="text-slate-500">Condition B: Sample Volume</span>
+            <div className="flex items-center gap-2 mt-1">
+              {act.condition_b_met ? <CheckCircle className="w-3.5 h-3.5 text-emerald-400" /> : <XCircle className="w-3.5 h-3.5 text-red-400" />}
+              <span className="font-mono">{act.total_viral_events?.toLocaleString() || 0} / {act.required_viral_events?.toLocaleString() || '1,000'}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Run All Engines Button */}
+      <div className="flex items-center gap-3">
+        <Button size="sm" onClick={onRunEngines} className="bg-indigo-600 hover:bg-indigo-500" data-testid="run-engines-btn">
+          <Zap className="w-3.5 h-3.5 mr-1.5" /> Run All Engines
+        </Button>
+        {data.last_engine_run && (
+          <span className="text-[10px] text-slate-500">Last run: {new Date(data.last_engine_run).toLocaleString()}</span>
+        )}
+      </div>
+
+      {/* Aggregate Metrics Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <AggCard
+          title="Leaderboard"
+          value={lb.total_ranked || 0}
+          sub="users ranked"
+          detail={Object.entries(lb.tier_distribution || {}).map(([k, v]) => (
+            <span key={k} className={tierColors[k] || 'text-slate-400'}>{k}: {v}</span>
+          ))}
+          onDrill={() => onDrillDown('leaderboard')}
+          testId="dark-lb-card"
+        />
+        <AggCard
+          title="Pending Rewards"
+          value={rw.total_pending || 0}
+          sub={`${rw.total_credits_pending || 0} credits queued`}
+          onDrill={() => onDrillDown('rewards')}
+          testId="dark-rewards-card"
+        />
+        <AggCard
+          title="Active Streaks"
+          value={st.total_active || 0}
+          sub={`${st.total_freeze_tokens || 0} freeze tokens`}
+          detail={Object.entries(st.tier_distribution || {}).filter(([,v]) => v > 0).map(([k, v]) => (
+            <span key={k} className="text-amber-400">{k.replace('streak_','')}-day: {v}</span>
+          ))}
+          onDrill={() => onDrillDown('streaks')}
+          testId="dark-streaks-card"
+        />
+        <AggCard
+          title="Achievements"
+          value={ach.total || 0}
+          sub={`${notif.total_drafts || 0} notification drafts`}
+          detail={Object.entries(ach.category_distribution || {}).filter(([,v]) => v > 0).map(([k, v]) => (
+            <span key={k} className="text-purple-400">{k}: {v}</span>
+          ))}
+          onDrill={() => onDrillDown('achievements')}
+          testId="dark-ach-card"
+        />
+      </div>
+
+      {/* Simulated Engagement Score */}
+      <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50" data-testid="simulated-engagement">
+        <h4 className="text-sm font-bold text-slate-300 mb-3">Phase C Simulated Engagement Score</h4>
+        <p className="text-[10px] text-slate-500 mb-3">How many users would qualify for visible gamification today</p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+          <div className="bg-slate-900/60 rounded-lg p-2.5 text-center">
+            <div className="text-lg font-bold text-cyan-400">{sim.users_eligible_for_leaderboard_display || 0}</div>
+            <div className="text-slate-500">Leaderboard Eligible</div>
+          </div>
+          <div className="bg-slate-900/60 rounded-lg p-2.5 text-center">
+            <div className="text-lg font-bold text-amber-400">{sim.users_eligible_for_reward_reveal || 0}</div>
+            <div className="text-slate-500">Reward Eligible</div>
+          </div>
+          <div className="bg-slate-900/60 rounded-lg p-2.5 text-center">
+            <div className="text-lg font-bold text-purple-400">{sim.users_with_streak_badges || 0}</div>
+            <div className="text-slate-500">Streak Badges</div>
+          </div>
+          <div className="bg-slate-900/60 rounded-lg p-2.5 text-center">
+            <div className="text-lg font-bold text-yellow-400">{sim.users_with_rank_badges || 0}</div>
+            <div className="text-slate-500">Rank Badges</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Drill-Down Panel */}
+      {drillDown.category && (
+        <div className="bg-slate-800/80 rounded-xl border border-indigo-500/30 p-4" data-testid="drill-down-panel">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-bold text-white capitalize">{drillDown.category} — User Detail</h4>
+            <Button size="sm" variant="ghost" onClick={onCloseDrillDown} className="text-slate-400 hover:text-white text-xs">Close</Button>
+          </div>
+          {drillDown.loading ? (
+            <div className="flex justify-center py-6"><RefreshCw className="w-4 h-4 text-slate-500 animate-spin" /></div>
+          ) : drillDown.data?.results?.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs" data-testid="drill-down-table">
+                <thead>
+                  <tr className="text-slate-500 border-b border-slate-700">
+                    {drillDown.category === 'leaderboard' && <><th className="pb-2 pr-3">#</th><th className="pb-2 pr-3">Creator</th><th className="pb-2 pr-3">Score</th><th className="pb-2 pr-3">Tier</th><th className="pb-2 pr-3">7d Change</th><th className="pb-2">Pending Rewards</th></>}
+                    {drillDown.category === 'streaks' && <><th className="pb-2 pr-3">Creator</th><th className="pb-2 pr-3">Streak Days</th><th className="pb-2 pr-3">Best</th><th className="pb-2 pr-3">Tier</th><th className="pb-2">Freezes</th></>}
+                    {drillDown.category === 'rewards' && <><th className="pb-2 pr-3">Creator</th><th className="pb-2 pr-3">Credits</th><th className="pb-2 pr-3">Count</th><th className="pb-2">Types</th></>}
+                    {drillDown.category === 'achievements' && <><th className="pb-2 pr-3">Creator</th><th className="pb-2 pr-3">Badges</th><th className="pb-2">Details</th></>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {drillDown.data.results.map((r, i) => (
+                    <tr key={r.user_id || i} className="border-b border-slate-800/50 hover:bg-slate-700/30">
+                      {drillDown.category === 'leaderboard' && <>
+                        <td className="py-2 pr-3 font-mono text-slate-400">{r.rank_position}</td>
+                        <td className="py-2 pr-3 text-white">{r.name}</td>
+                        <td className="py-2 pr-3 font-mono">{r.viral_score}</td>
+                        <td className={`py-2 pr-3 capitalize ${tierColors[r.rank_tier] || ''}`}>{r.rank_tier}</td>
+                        <td className={`py-2 pr-3 font-mono ${r.rank_change_7d > 0 ? 'text-emerald-400' : r.rank_change_7d < 0 ? 'text-red-400' : 'text-slate-500'}`}>
+                          {r.rank_change_7d > 0 ? `+${r.rank_change_7d}` : r.rank_change_7d || '—'}
+                        </td>
+                        <td className="py-2 text-amber-400">{r.pending_rewards || 0}</td>
+                      </>}
+                      {drillDown.category === 'streaks' && <>
+                        <td className="py-2 pr-3 text-white">{r.name}</td>
+                        <td className="py-2 pr-3 font-mono text-amber-400">{r.streak_days}d</td>
+                        <td className="py-2 pr-3 font-mono text-slate-400">{r.best_streak}d</td>
+                        <td className="py-2 pr-3 capitalize text-cyan-400">{r.current_tier?.replace('streak_','') || '—'}-day</td>
+                        <td className="py-2 text-emerald-400">{r.freeze_tokens_available || 0}</td>
+                      </>}
+                      {drillDown.category === 'rewards' && <>
+                        <td className="py-2 pr-3 text-white">{r.name}</td>
+                        <td className="py-2 pr-3 font-mono text-amber-400">{r.total_credits_pending}</td>
+                        <td className="py-2 pr-3">{r.reward_count}</td>
+                        <td className="py-2 text-slate-400">{(r.reward_types || []).join(', ')}</td>
+                      </>}
+                      {drillDown.category === 'achievements' && <>
+                        <td className="py-2 pr-3 text-white">{r.name}</td>
+                        <td className="py-2 pr-3 font-mono text-purple-400">{r.badge_count}</td>
+                        <td className="py-2 text-slate-400">{(r.badges || []).map(b => b.label).join(', ')}</td>
+                      </>}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500 py-4 text-center">No data yet — run engines first to populate.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AggCard({ title, value, sub, detail, onDrill, testId }) {
+  return (
+    <div className="bg-slate-800/50 rounded-xl p-3.5 border border-slate-700/50 hover:border-indigo-500/30 transition-colors cursor-pointer group" onClick={onDrill} data-testid={testId}>
+      <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">{title}</div>
+      <div className="text-2xl font-bold text-white">{value}</div>
+      <div className="text-[11px] text-slate-400 mt-0.5">{sub}</div>
+      {detail && <div className="flex flex-wrap gap-2 mt-2 text-[10px]">{detail}</div>}
+      <div className="text-[9px] text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity mt-2">Click to drill down</div>
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -384,6 +580,8 @@ export default function AdminDashboard() {
   const [shareRewards, setShareRewards] = useState({ data: null, state: 'loading', ts: null });
   const [hookAnalytics, setHookAnalytics] = useState({ data: null, state: 'loading', ts: null });
   const [comicHealth, setComicHealth] = useState({ data: null, state: 'loading', ts: null });
+  const [darkLaunch, setDarkLaunch] = useState({ data: null, state: 'loading', ts: null });
+  const [darkDrillDown, setDarkDrillDown] = useState({ data: null, loading: false, category: null });
 
   const fetchSection = useCallback(async (name, setter, url) => {
     try {
@@ -448,6 +646,8 @@ export default function AdminDashboard() {
         setComicHealth(prev => ({ ...prev, state: prev.data ? 'stale' : 'error' }));
       }
     })();
+    // Dark Launch Monitor
+    fetchSection('darkLaunch', setDarkLaunch, '/api/phase-c/admin/monitor');
   }, [days, fetchSection]);
 
   // WebSocket for live updates
@@ -517,6 +717,7 @@ export default function AdminDashboard() {
     { id: 'credits', label: 'Credits', icon: Zap },
     { id: 'conversion', label: 'Conversion', icon: TrendingUp },
     { id: 'comic_health', label: 'Comic Health', icon: Camera },
+    { id: 'dark_launch', label: 'Dark Launch', icon: Eye },
     { id: 'safety_playground', label: 'Safety Lab', icon: Shield },
   ];
 
@@ -559,12 +760,12 @@ export default function AdminDashboard() {
 
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Section Tabs */}
-        <div className="flex gap-1 mb-6 bg-slate-900/60 rounded-xl p-1 border border-slate-800">
+        <div className="flex gap-1 mb-6 bg-slate-900/60 rounded-xl p-1 border border-slate-800 overflow-x-auto scrollbar-thin">
           {sections.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               onClick={() => setSection(id)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
                 section === id
                   ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
                   : 'text-slate-500 hover:text-slate-300'
@@ -1770,6 +1971,31 @@ export default function AdminDashboard() {
 
         {section === 'growth_validation' && (
           <GrowthDashboard />
+        )}
+
+        {section === 'dark_launch' && (
+          <WidgetState state={darkLaunch.state} lastUpdated={darkLaunch.ts}>
+            <DarkLaunchSection
+              data={darkLaunch.data}
+              drillDown={darkDrillDown}
+              onRunEngines={async () => {
+                try {
+                  toast.info('Running all Phase C engines...');
+                  await api.post('/api/phase-c/engine/run-all');
+                  toast.success('All engines computed successfully');
+                  fetchSection('darkLaunch', setDarkLaunch, '/api/phase-c/admin/monitor');
+                } catch { toast.error('Engine run failed'); }
+              }}
+              onDrillDown={async (category) => {
+                setDarkDrillDown({ data: null, loading: true, category });
+                try {
+                  const res = await api.get(`/api/phase-c/admin/drill-down?category=${category}&limit=25`);
+                  setDarkDrillDown({ data: res.data, loading: false, category });
+                } catch { setDarkDrillDown({ data: null, loading: false, category: null }); toast.error('Drill-down failed'); }
+              }}
+              onCloseDrillDown={() => setDarkDrillDown({ data: null, loading: false, category: null })}
+            />
+          </WidgetState>
         )}
       </div>
     </div>
