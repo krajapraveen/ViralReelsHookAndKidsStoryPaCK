@@ -160,30 +160,18 @@ Testing: 15/15 backend + all frontend passed (iteration_479)
 - Testing: iteration_482 100%.
 
 ### P1.5 UX Failure Recovery Sweep — DONE (Apr 10)
-**Goal:** Eliminate all silent failure paths across the platform. Every user-facing API call that silently fails now provides error feedback, retry options, and proper loading state cleanup.
+- Eliminated 15 silent failure paths across 10 files. Added error states with retry buttons to Gallery, UserDashboard, ToneSwitcher, CharacterLibrary. Fixed 401 session-expiry redirect to preserve return path. Added toasts to Dashboard, MySpacePage, PhotoReactionGIF, InstantStoryExperience, StoryVideoPipeline.
+- Testing: iteration_483 — 8/8 (100%).
 
-**Issues Found & Fixed:**
-
-| # | Page/Flow | Failure Scenario | Fix Applied |
-|---|-----------|-----------------|-------------|
-| 1 | **Login.js** | 401 redirect `?return=` URL param ignored after login | Added `URLSearchParams` reading; prioritizes `?return=` > `localStorage` > `/app` |
-| 2 | **Gallery.js** | `loadGallery` — only `console.error`, no user feedback | Added `loadError` state, toast, retry button UI (`data-testid="gallery-retry-btn"`) |
-| 3 | **Gallery.js** | `loadUserFeed` — empty `catch {}` | Added `console.warn` (non-critical supplementary data) |
-| 4 | **Gallery.js** | `loadExplore` — empty `catch {}` | Added `toast.error('Failed to load explore content')` |
-| 5 | **StoryVideoPipeline.js** | `options` load — empty `catch(() => {})` | Added `toast.error` with meaningful message |
-| 6 | **StoryVideoPipeline.js** | `loadUserJobs` — `catch { /* ignore */ }` | Added `console.warn` (non-blocking, auto-reconnect context) |
-| 7 | **StoryVideoPipeline.js** | Share reward claim — empty `catch {}` | Added `console.warn` (non-blocking reward) |
-| 8 | **UserDashboardPage.js** | Dashboard load fail — toast only, no retry | Added `error` state + full-page error UI with retry button (`data-testid="dashboard-retry-btn"`) |
-| 9 | **ToneSwitcher.js** | Init data fail — toast only, no retry | Added `loadError` state + full-page error UI with retry button (`data-testid="tone-switcher-retry-btn"`) |
-| 10 | **CharacterLibrary.js** | Character list load — empty `catch(() => {})` | Added `loadError` state, toast, retry button UI (`data-testid="character-library-retry-btn"`) |
-| 11 | **Dashboard.js** | Feed load fail — `console.error` only | Added `toast.error` with refresh prompt |
-| 12 | **MySpacePage.js** | Jobs load fail — `console.error` only | Added `toast.error` when no cached data exists |
-| 13 | **PhotoReactionGIF.js** | Init data load — empty `catch {}` | Added `toast.error('Failed to load tool data')` |
-| 14 | **PhotoReactionGIF.js** | Generation poll — empty `catch {}` | Added `toast.error` + phase reset to 'upload' |
-| 15 | **InstantStoryExperience.jsx** | Continuation generation — empty `catch {}` | Added `toast.error` with retry prompt |
-
-**Files Changed:** Login.js, Gallery.js, StoryVideoPipeline.js, UserDashboardPage.js, ToneSwitcher.js, CharacterLibrary.js, Dashboard.js, MySpacePage.js, PhotoReactionGIF.js, InstantStoryExperience.jsx, App.js (AuthenticatedRedirect by testing agent)
-**Testing:** iteration_483 — 8/8 (100%). Login return-path redirect verified via Playwright (screenshot proof).
+### P1.7 Payment & Billing Edge-Case Hardening Sweep — DONE (Apr 10)
+- **Invoice/Refund terminal state fix**: Both endpoints now accept CREDIT_APPLIED and SUBSCRIPTION_ACTIVATED (not just PAID).
+- **Webhook admin auth**: 3 admin endpoints (/failed, /stats, /retry) now require `get_admin_user` — previously open to unauthenticated access.
+- **Stale order cleanup**: New `POST /api/cashfree/orders/cleanup-stale` endpoint auto-expires abandoned orders older than 1 hour.
+- **Verify consistency fix**: Failed-order update now uses `order_id` filter (was using `id` UUID) + logs to statusHistory.
+- **Billing.js hardened**: Loading state, error state with retry, auto-verify on return from Cashfree redirect (`?order_id=&gateway=cashfree`).
+- **Double-click protection**: Already existed (`if loading return` + button disabled) — verified intact.
+- **Verify idempotency**: Already existed (terminal_paid_states check + fresh_order re-check) — verified intact.
+- Testing: iteration_484 — 29/29 (100%).
 
 ### P1 — Next Features
 - Optimize viral loop: improve share prompt conversion, share link CTR, notification emotional strength, share landing remix conversion
