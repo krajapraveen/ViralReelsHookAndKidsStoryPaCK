@@ -3,6 +3,7 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useCredits } from '../contexts/CreditContext';
 import { useFeedback } from '../contexts/FeedbackContext';
 import axios from 'axios';
+import { toast } from 'sonner';
 import { trackLoop } from '../utils/growthTracker';
 import { setCdnBase } from '../utils/mediaUrl';
 import { sendFeedEvent, fetchMoreStories, updateScrollSpeed, getDynamicHookDelay, wasSkippedFast } from '../utils/feedTracker';
@@ -852,6 +853,7 @@ export default function Dashboard() {
       } catch (e) {
         console.error('[Dashboard] Feed load failed:', e.message);
         setFeed({ hero: null, rows: [], features: [], live_stats: {} });
+        toast.error('Failed to load your feed. Try refreshing the page.');
       }
       setLoading(false);
     };

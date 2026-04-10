@@ -112,7 +112,9 @@ export default function PhotoReactionGIF() {
       ]);
       setCredits(credRes.data.balance ?? credRes.data.credits ?? 0);
       setFirstFree(reactRes.data.first_free || false);
-    } catch {}
+    } catch {
+      toast.error('Failed to load tool data. Try refreshing.');
+    }
   };
 
   // ── Photo handlers ──
@@ -221,7 +223,10 @@ export default function PhotoReactionGIF() {
           }
         }
       }
-    } catch {}
+    } catch {
+      toast.error('Connection lost during generation. Try again.');
+      setPhase('upload');
+    }
   }, [notifyGenerationComplete, notifyGenerationFailed, refetchNotifications]);
 
   // ── Quick generate another reaction ──

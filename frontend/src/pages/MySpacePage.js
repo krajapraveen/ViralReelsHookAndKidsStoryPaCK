@@ -834,7 +834,12 @@ export default function MySpacePage() {
           if (statsRes.data?.stats) setRemixStats(statsRes.data.stats);
         } catch { /* silent */ }
       }
-    } catch (err) { console.error('Failed to fetch jobs:', err); } finally { setLoading(false); }
+    } catch (err) {
+      console.error('Failed to fetch jobs:', err);
+      if (jobs.length === 0) {
+        toast.error('Failed to load your projects. Pull down to retry.');
+      }
+    } finally { setLoading(false); }
   }, [autoDownload]);
 
   useEffect(() => { fetchJobs(); requestNotificationPermission(); }, [fetchJobs]);

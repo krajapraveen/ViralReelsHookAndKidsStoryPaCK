@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Sparkles, Play, Share2, Film, RefreshCw, Loader2, CheckCircle, ChevronDown, Zap, BookOpen } from 'lucide-react';
+import { toast } from 'sonner';
 import { trackFunnel } from '../utils/funnelTracker';
 import StoryPaywall from './StoryPaywall';
 
@@ -273,7 +274,9 @@ export default function InstantStoryExperience() {
         setContinuations(prev => [...prev, { text: data.story_text, partNumber: nextPartNum, story_id: data.story_id }]);
         try { trackFunnel('story_part_generated', { meta: { part_number: nextPartNum, story_id: data.story_id, entry_source: source } }); } catch {}
       }
-    } catch {}
+    } catch {
+      toast.error('Failed to generate the next part. Tap continue to try again.');
+    }
     setIsGeneratingPart(false);
   }, [latestText, activeStory?.title, source]);
 
