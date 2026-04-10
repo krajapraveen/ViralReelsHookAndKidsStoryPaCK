@@ -455,8 +455,11 @@ async def verify_cashfree_payment(request: Request, data: CashfreeVerifyRequest,
         else:
             # Update order status to failed
             await db.orders.update_one(
-                {"id": order["id"]},
-                {"$set": {"status": "FAILED", "failureReason": f"Order status: {order_status}"}}
+                {"order_id": data.order_id},
+                {
+                    "$set": {"status": "FAILED", "failureReason": f"Order status: {order_status}"},
+                    "$push": {"statusHistory": {"status": "FAILED", "at": datetime.now(timezone.utc).isoformat()}},
+                }
             )
             
             return {
@@ -800,7 +803,9 @@ async def create_cashfree_refund(
         if order["status"] == "REFUNDED":
             raise HTTPException(status_code=400, detail="Order already refunded")
         
-        if order["status"] != "PAID":
+        # Allow refund on any terminal "paid" state
+        refundable_states = ("PAID", "CREDIT_APPLIED", "SUBSCRIPTION_ACTIVATED")
+        if order["status"] not in refundable_states:
             raise HTTPException(status_code=400, detail=f"Cannot refund order with status: {order['status']}")
         
         # Calculate refund amount (convert from paise to rupees)
@@ -1114,6 +1119,49 @@ async def retry_credit_delivery(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+
+@router.post("/orders/cleanup-stale")
+@limiter.limit("2/minute")
+async def cleanup_stale_orders(request: Request, admin: dict = Depends(get_admin_user)):
+    """
+    Expire abandoned orders stuck in CREATED/INITIATED for >1 hour (Admin Only).
+    These represent users who started checkout but never completed payment.
+    """
+    try:
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        result = await db.orders.update_many(
+            {
+                "gateway": "cashfree",
+                "status": {"$in": ["CREATED", "INITIATED"]},
+                "createdAt": {"$lt": cutoff},
+            },
+            {
+                "$set": {
+                    "status": "EXPIRED",
+                    "expiredAt": datetime.now(timezone.utc).isoformat(),
+                    "expiredReason": "Abandoned checkout — auto-expired after 1 hour",
+                },
+                "$push": {
+                    "statusHistory": {
+                        "status": "EXPIRED",
+                        "at": datetime.now(timezone.utc).isoformat(),
+                        "reason": "auto_cleanup",
+                    }
+                },
+            },
+        )
+        expired_count = result.modified_count
+        logger.info(f"Stale order cleanup: expired {expired_count} abandoned orders")
+        return {
+            "success": True,
+            "expiredCount": expired_count,
+            "cutoff": cutoff,
+        }
+    except Exception as e:
+        logger.error(f"Stale order cleanup failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # =============================================================================
 # INVOICE GENERATION ENDPOINT
 # =============================================================================
@@ -1141,7 +1189,7 @@ async def generate_invoice(order_id: str, user: dict = Depends(get_current_user)
         if not order:
             raise HTTPException(status_code=404, detail="Order not found")
         
-        if order["status"] != "PAID":
+        if order["status"] not in ("PAID", "CREDIT_APPLIED", "SUBSCRIPTION_ACTIVATED"):
             raise HTTPException(status_code=400, detail="Invoice only available for completed payments")
         
         # Get user details

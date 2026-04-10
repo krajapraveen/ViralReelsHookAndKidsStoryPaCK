@@ -2,12 +2,11 @@
 Cashfree Webhook Edge Case Handler
 Comprehensive handling for all payment webhook scenarios
 """
-from fastapi import APIRouter, HTTPException, Request, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Request, BackgroundTasks, Depends
 from datetime import datetime, timezone, timedelta
 import uuid
 import json
 import hmac
-import hashlib
 import hashlib
 import base64
 import asyncio
@@ -16,7 +15,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from shared import db, logger, add_credits, deduct_credits
+from shared import db, logger, add_credits, deduct_credits, get_admin_user
 
 router = APIRouter(prefix="/cashfree-webhook", tags=["Cashfree Webhooks"])
 
@@ -541,7 +540,7 @@ async def retry_failed_webhook(event_id: str):
 
 
 @router.get("/failed")
-async def get_failed_webhooks(limit: int = 50):
+async def get_failed_webhooks(limit: int = 50, admin: dict = Depends(get_admin_user)):
     """Get list of failed webhooks for manual review (Admin only)"""
     failed = await db.webhook_events.find(
         {"status": {"$in": ["FAILED", "PERMANENTLY_FAILED"]}},
@@ -552,7 +551,7 @@ async def get_failed_webhooks(limit: int = 50):
 
 
 @router.post("/retry/{event_id}")
-async def manual_retry_webhook(event_id: str, background_tasks: BackgroundTasks):
+async def manual_retry_webhook(event_id: str, background_tasks: BackgroundTasks, admin: dict = Depends(get_admin_user)):
     """Manually retry a failed webhook (Admin only)"""
     event = await db.webhook_events.find_one({"eventId": event_id}, {"_id": 0})
     
@@ -577,8 +576,8 @@ async def manual_retry_webhook(event_id: str, background_tasks: BackgroundTasks)
 
 
 @router.get("/stats")
-async def get_webhook_stats():
-    """Get webhook processing statistics"""
+async def get_webhook_stats(admin: dict = Depends(get_admin_user)):
+    """Get webhook processing statistics (Admin only)"""
     now = datetime.now(timezone.utc)
     day_ago = now - timedelta(days=1)
     

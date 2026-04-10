@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Button } from '../components/ui/button';
-import { Coins, Sparkles, Check, Star, Zap, ArrowLeft } from 'lucide-react';
+import { Coins, Sparkles, Check, Star, Zap, ArrowLeft, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import api, { paymentAPI, creditAPI } from '../utils/api';
 import HelpGuide from '../components/HelpGuide';
@@ -12,19 +12,20 @@ export default function Billing() {
   const [products, setProducts] = useState([]);
   const [credits, setCredits] = useState(0);
   const [loading, setLoading] = useState({});
+  const [pageLoading, setPageLoading] = useState(true);
+  const [pageError, setPageError] = useState(false);
+  const [verifyingReturn, setVerifyingReturn] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
+    setPageLoading(true);
+    setPageError(false);
     try {
       const [productsRes, creditsRes] = await Promise.all([
         paymentAPI.getProducts(),
         creditAPI.getBalance()
       ]);
       
-      // Convert products object to array with id and type
       const productsData = productsRes?.data?.products || {};
       const productsArray = Object.entries(productsData).map(([id, product]) => ({
         id,
@@ -37,13 +38,44 @@ export default function Billing() {
       }));
       
       setProducts(productsArray);
-      // Fix: The API returns 'credits' not 'balance'
       setCredits(creditsRes?.data?.credits || creditsRes?.data?.balance || 0);
     } catch (error) {
       console.error('Billing fetch error:', error);
+      setPageError(true);
       toast.error('Failed to load billing data');
+    } finally {
+      setPageLoading(false);
     }
-  };
+  }, []);
+
+  // Auto-verify payment on return from Cashfree redirect (mobile/popup-blocked fallback)
+  useEffect(() => {
+    const orderId = searchParams.get('order_id');
+    const gateway = searchParams.get('gateway');
+    if (orderId && gateway === 'cashfree') {
+      setVerifyingReturn(true);
+      api.post('/api/cashfree/verify', { order_id: orderId })
+        .then(res => {
+          if (res.data.success) {
+            toast.success(`Payment successful! ${res.data.creditsAdded} credits added.`);
+            trackFunnel('payment_success', { source_page: 'billing_return', meta: { order_id: orderId } });
+          } else {
+            toast.info(res.data.message || 'Payment is being processed.');
+          }
+        })
+        .catch(() => {
+          toast.warning('Could not verify payment status. Your credits will appear shortly if payment was successful.');
+        })
+        .finally(() => {
+          setVerifyingReturn(false);
+          // Clean URL params
+          setSearchParams({}, { replace: true });
+          fetchData();
+        });
+    } else {
+      fetchData();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePurchase = async (productId) => {
     if (loading[productId]) return; // prevent double-click
@@ -208,6 +240,34 @@ export default function Billing() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 py-8">
+        {/* Return-from-payment verification */}
+        {verifyingReturn && (
+          <div className="flex items-center justify-center gap-3 py-12 mb-8 rounded-2xl border border-indigo-500/20 bg-indigo-500/[0.04]" data-testid="billing-verify-return">
+            <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
+            <span className="text-indigo-300 font-medium">Verifying your payment...</span>
+          </div>
+        )}
+
+        {/* Page loading */}
+        {pageLoading && !verifyingReturn && (
+          <div className="flex items-center justify-center py-24" data-testid="billing-loading">
+            <Loader2 className="w-8 h-8 animate-spin text-indigo-400" />
+          </div>
+        )}
+
+        {/* Page error */}
+        {pageError && !pageLoading && (
+          <div className="text-center py-16 rounded-2xl border border-red-500/20 bg-red-500/[0.04] mb-8" data-testid="billing-error">
+            <AlertCircle className="w-10 h-10 mx-auto mb-3 text-red-400" />
+            <p className="text-sm text-slate-300 mb-1">Failed to load billing data</p>
+            <p className="text-xs text-slate-500 mb-4">Check your connection and try again</p>
+            <Button onClick={fetchData} variant="outline" className="border-red-500/30 text-red-300 hover:bg-red-500/10" data-testid="billing-retry-btn">
+              <RefreshCw className="w-4 h-4 mr-2" /> Retry
+            </Button>
+          </div>
+        )}
+
+        {!pageLoading && !pageError && !verifyingReturn && (<>
         {/* Subscriptions Section */}
         <div className="mb-12">
           <h2 className="text-3xl font-bold mb-2 text-white">Subscription Plans</h2>
@@ -278,6 +338,7 @@ export default function Billing() {
             ))}
           </div>
         </div>
+        </>)}
       </div>
       
       {/* Help Guide */}

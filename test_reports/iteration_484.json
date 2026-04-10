@@ -1,0 +1,86 @@
+{
+  "summary": "P1.7 Payment & Billing Edge-Case Hardening Sweep - All 29 backend tests passed, frontend billing page verified. All payment hardening features implemented correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_p17_payment_hardening_iteration484.py",
+    "/app/test_reports/pytest/pytest_p17_payment_hardening_iteration484.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_p17_payment_hardening_iteration484.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "test_credentials": "test@visionary-suite.com / Test@2026#, admin@creatorstudio.ai / Cr3@t0rStud!o#2026",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "P1.7 Payment Hardening verified: (1) Billing page has loading/error/retry states with data-testid attributes, (2) Auto-verify on return with ?order_id=X&gateway=cashfree works, (3) Double-click protection: if(loading[productId]) return + button shows 'Processing...' and is disabled, (4) Duplicate pending order check in create-order endpoint, (5) Verify idempotency with terminal_paid_states check and fresh_order re-check, (6) Invoice accepts PAID/CREDIT_APPLIED/SUBSCRIPTION_ACTIVATED, (7) Refund accepts PAID/CREDIT_APPLIED/SUBSCRIPTION_ACTIVATED via refundable_states tuple, (8) Webhook admin endpoints /failed, /retry, /stats require get_admin_user, (9) Stale order cleanup endpoint works (admin only), (10) All payment error messaging in place",
+  "tests_executed": {
+    "backend_api_tests": {
+      "products_endpoint": "PASS - Returns 8 products",
+      "webhook_failed_requires_admin": "PASS - Returns 401/403 without auth",
+      "webhook_failed_works_with_admin": "PASS - Returns failed webhooks list",
+      "webhook_stats_requires_admin": "PASS - Returns 401/403 without auth",
+      "webhook_stats_works_with_admin": "PASS - Returns stats",
+      "webhook_retry_requires_admin": "PASS - Returns 401/403 without auth",
+      "stale_order_cleanup_requires_admin": "PASS - Returns 401/403 without auth",
+      "stale_order_cleanup_works_with_admin": "PASS - Expires stale orders",
+      "verify_returns_404_for_nonexistent": "PASS",
+      "refund_requires_admin": "PASS - Returns 401/403 with user auth",
+      "refund_returns_404_for_nonexistent": "PASS",
+      "invoice_requires_auth": "PASS - Returns 401/403 without auth",
+      "invoice_returns_404_for_nonexistent": "PASS",
+      "create_order_requires_auth": "PASS - Returns 401/403 without auth",
+      "create_order_rejects_invalid_product": "PASS - Returns 400",
+      "payment_history_requires_auth": "PASS - Returns 401/403 without auth",
+      "payment_history_works_with_auth": "PASS",
+      "pending_delivery_requires_admin": "PASS - Returns 401/403 with user auth",
+      "pending_delivery_works_with_admin": "PASS",
+      "monitoring_health_requires_admin": "PASS - Returns 401/403 with user auth",
+      "monitoring_health_works_with_admin": "PASS",
+      "credits_balance_requires_auth": "PASS - Returns 401/403 without auth",
+      "credits_balance_works_with_auth": "PASS"
+    },
+    "code_review_tests": {
+      "verify_has_idempotency_check": "PASS - terminal_paid_states and fresh_order re-check present",
+      "create_order_has_duplicate_check": "PASS - existing_pending check present",
+      "refund_accepts_credit_applied": "PASS - refundable_states includes CREDIT_APPLIED, SUBSCRIPTION_ACTIVATED",
+      "invoice_accepts_credit_applied": "PASS - Accepts PAID, CREDIT_APPLIED, SUBSCRIPTION_ACTIVATED",
+      "webhook_handler_has_admin_auth": "PASS - Uses Depends(get_admin_user)",
+      "stale_order_cleanup_exists": "PASS - Sets status to EXPIRED"
+    },
+    "frontend_ui_tests": {
+      "billing_page_loads": "PASS - Shows Subscription Plans and Credit Packs",
+      "products_display": "PASS - 8 buy buttons found",
+      "credits_display": "PASS - Credits shown in header",
+      "auto_verify_on_return": "PASS - Attempted verify with fake order, showed warning toast",
+      "data_testid_attributes": "PASS - billing-loading, billing-error, billing-retry-btn, billing-verify-return all present in code",
+      "double_click_protection": "PASS - if(loading[productId]) return + 'Processing...' text"
+    }
+  },
+  "features_verified": {
+    "billing_loading_state": "data-testid='billing-loading' present at line 253",
+    "billing_error_state": "data-testid='billing-error' present at line 260",
+    "billing_retry_button": "data-testid='billing-retry-btn' present at line 264",
+    "auto_verify_on_return": "data-testid='billing-verify-return' present at line 245, triggers on ?order_id=X&gateway=cashfree",
+    "double_click_protection": "Line 81: if (loading[productId]) return; Lines 306/335: shows 'Processing...'",
+    "duplicate_pending_order_check": "Lines 210-231 in cashfree_payments.py",
+    "verify_idempotency": "Lines 354-384 in cashfree_payments.py - terminal_paid_states check + fresh_order re-check",
+    "refund_accepts_all_paid_states": "Lines 800-809 in cashfree_payments.py - refundable_states tuple",
+    "invoice_accepts_all_paid_states": "Lines 1192-1193 in cashfree_payments.py",
+    "webhook_admin_auth": "Lines 543-604 in cashfree_webhook_handler.py - get_admin_user dependency",
+    "stale_order_cleanup": "Lines 1123-1162 in cashfree_payments.py"
+  }
+}
