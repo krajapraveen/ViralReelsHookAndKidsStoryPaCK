@@ -164,13 +164,14 @@ Testing: 15/15 backend + all frontend passed (iteration_479)
 - Testing: iteration_483 — 8/8 (100%).
 
 ### P1.7 Payment & Billing Edge-Case Hardening Sweep — DONE (Apr 10)
-- **Invoice/Refund terminal state fix**: Both endpoints now accept CREDIT_APPLIED and SUBSCRIPTION_ACTIVATED (not just PAID).
-- **Webhook admin auth**: 3 admin endpoints (/failed, /stats, /retry) now require `get_admin_user` — previously open to unauthenticated access.
-- **Stale order cleanup**: New `POST /api/cashfree/orders/cleanup-stale` endpoint auto-expires abandoned orders older than 1 hour.
-- **Verify consistency fix**: Failed-order update now uses `order_id` filter (was using `id` UUID) + logs to statusHistory.
-- **Billing.js hardened**: Loading state, error state with retry, auto-verify on return from Cashfree redirect (`?order_id=&gateway=cashfree`).
-- **Double-click protection**: Already existed (`if loading return` + button disabled) — verified intact.
-- **Verify idempotency**: Already existed (terminal_paid_states check + fresh_order re-check) — verified intact.
+- **9 issues found and fixed** across 4 files.
+- Invoice/Refund now accept all terminal paid states (CREDIT_APPLIED, SUBSCRIPTION_ACTIVATED).
+- 3 webhook admin endpoints secured with `get_admin_user`.
+- Stale order cleanup endpoint added (expires abandoned checkouts >1h).
+- Verify failed-order update uses consistent filter + statusHistory audit trail.
+- Billing.js: loading/error/retry states + auto-verify on Cashfree redirect return.
+- Pricing inconsistency fixed: removed stale hardcoded PRODUCTS from `payment_recovery_service.py`, now imports from `config/pricing.py`.
+- Duplicate hashlib import removed from webhook handler.
 - Testing: iteration_484 — 29/29 (100%).
 
 ### P1 — Next Features

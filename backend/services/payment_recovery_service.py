@@ -46,13 +46,8 @@ AUTO_REFUND_ENABLED = os.environ.get("AUTO_REFUND_ENABLED", "true").lower() == "
 AUTO_REFUND_DELAY_MINUTES = int(os.environ.get("AUTO_REFUND_DELAY_MINUTES", "30"))
 MAX_RECONCILIATION_ATTEMPTS = int(os.environ.get("MAX_RECONCILIATION_ATTEMPTS", "3"))
 
-# Product definitions (must match cashfree_payments.py)
-PRODUCTS = {
-    "starter": {"name": "Starter Pack", "credits": 100, "price": 499},
-    "creator": {"name": "Creator Pack", "credits": 300, "price": 999},
-    "pro": {"name": "Pro Pack", "credits": 1000, "price": 2499},
-    "enterprise": {"name": "Enterprise Pack", "credits": 5000, "price": 9999},
-}
+# Product catalog — imported from single source of truth
+from config.pricing import ALL_PRODUCTS, get_product
 
 
 # ============================================
@@ -159,9 +154,9 @@ class Payment:
         data["state"] = PaymentState(data.get("state", "created"))
         if data.get("previous_state"):
             data["previous_state"] = PaymentState(data["previous_state"])
-        for field in ["delivered_at", "last_reconciliation", "refunded_at", "created_at", "updated_at"]:
-            if data.get(field) and isinstance(data[field], str):
-                data[field] = datetime.fromisoformat(data[field].replace("Z", "+00:00"))
+        for dt_field in ["delivered_at", "last_reconciliation", "refunded_at", "created_at", "updated_at"]:
+            if data.get(dt_field) and isinstance(data[dt_field], str):
+                data[dt_field] = datetime.fromisoformat(data[dt_field].replace("Z", "+00:00"))
         return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
 
 
