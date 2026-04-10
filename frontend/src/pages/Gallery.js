@@ -423,7 +423,12 @@ function ImmersiveViewer({ seedItem, allItems, onClose, onRemix }) {
 
         {/* Right side actions */}
         <div className={`absolute right-3 ${hasVideo ? 'bottom-40 sm:bottom-48' : 'bottom-6'} flex flex-col items-center gap-4 z-30`}>
-          <button className="flex flex-col items-center gap-0.5 text-white/80 hover:text-white transition-colors" onClick={() => {}}>
+          <button className="flex flex-col items-center gap-0.5 text-white/80 hover:text-white transition-colors" onClick={() => {
+            const token = localStorage.getItem('token');
+            if (token && item?.item_id) {
+              fetch(`${API_URL}/api/gallery/view`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ item_id: item.item_id, type: 'like' }) }).catch(() => {});
+            }
+          }} data-testid="immersive-like-btn">
             <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center"><Heart className="w-5 h-5" /></div>
             <span className="text-[10px]">{fmtNum(item.likes_count)}</span>
           </button>
@@ -431,7 +436,16 @@ function ImmersiveViewer({ seedItem, allItems, onClose, onRemix }) {
             <div className="w-10 h-10 rounded-full bg-pink-500/20 backdrop-blur-sm flex items-center justify-center"><RefreshCcw className="w-5 h-5 text-pink-300" /></div>
             <span className="text-[10px]">{fmtNum(item.remixes_count)}</span>
           </button>
-          <button className="flex flex-col items-center gap-0.5 text-white/80 hover:text-white transition-colors" onClick={() => {}}>
+          <button className="flex flex-col items-center gap-0.5 text-white/80 hover:text-white transition-colors" onClick={() => {
+            const shareUrl = item.slug ? `${window.location.origin}/v/${item.slug}` : window.location.href;
+            navigator.clipboard.writeText(shareUrl).then(() => {
+              const el = document.createElement('div');
+              el.textContent = 'Link copied!';
+              el.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:8px 16px;border-radius:8px;z-index:9999;font-size:13px;';
+              document.body.appendChild(el);
+              setTimeout(() => el.remove(), 2000);
+            });
+          }} data-testid="immersive-share-btn">
             <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center"><Share2 className="w-5 h-5" /></div>
             <span className="text-[10px]">Share</span>
           </button>

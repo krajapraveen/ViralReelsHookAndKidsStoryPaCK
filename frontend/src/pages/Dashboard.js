@@ -153,10 +153,10 @@ function HeroSection({ stories, navigate }) {
             <h1 className="max-w-3xl text-white font-extrabold tracking-tight text-2xl sm:text-4xl lg:text-5xl leading-tight drop-shadow-[0_2px_12px_rgba(0,0,0,0.45)]" data-testid="hero-title">
               {current.title || 'Untitled Story'}
             </h1>
-            <p className="mt-3 max-w-2xl text-white/85 text-sm sm:text-base lg:text-lg leading-relaxed" data-testid="hero-hook">
+            <p className="mt-3 max-w-2xl text-white/85 text-sm sm:text-base lg:text-lg leading-relaxed pointer-events-none" data-testid="hero-hook">
               "{getHook(current, activeIdx)}"
             </p>
-            <div className="mt-5 flex flex-wrap items-center gap-3">
+            <div className="mt-5 flex flex-wrap items-center gap-3 relative z-20">
               <button onClick={() => {
                 if (!current.job_id || current.is_seed) {
                   navigate('/app/story-video-studio', {
@@ -210,7 +210,7 @@ function HeroSection({ stories, navigate }) {
 
       {/* Dots */}
       {heroStories.length > 1 && (
-        <div className="absolute bottom-3 sm:bottom-5 right-5 sm:right-8 flex items-center gap-1.5 z-10" data-testid="hero-dots">
+        <div className="absolute bottom-3 sm:bottom-5 right-5 sm:right-8 flex items-center gap-1.5 z-[5]" data-testid="hero-dots">
           {heroStories.map((_, i) => (
             <button key={i} onClick={() => goTo(i)}
               className={`h-[3px] rounded-full transition-all duration-500 ${i === activeIdx ? 'w-6 sm:w-8 bg-white' : 'w-2.5 sm:w-3 bg-white/25 hover:bg-white/40'}`}

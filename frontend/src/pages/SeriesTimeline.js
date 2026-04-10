@@ -300,7 +300,7 @@ export default function SeriesTimeline() {
                                 <Play className="w-3.5 h-3.5" /> Continue <ArrowRight className="w-3 h-3" />
                               </button>
                             ) : isCompleted ? (
-                              <button className="h-9 px-4 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs text-slate-400 flex items-center gap-1.5 hover:text-white transition-colors" data-testid={`watch-ep-${idx}`}>
+                              <button onClick={(e) => { e.stopPropagation(); handleResumeEpisode(ep); }} className="h-9 px-4 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs text-slate-400 flex items-center gap-1.5 hover:text-white transition-colors" data-testid={`watch-ep-${idx}`}>
                                 <Play className="w-3 h-3" /> Watch
                               </button>
                             ) : null}
