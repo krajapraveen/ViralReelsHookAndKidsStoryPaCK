@@ -77,7 +77,11 @@ api.interceptors.response.use(
       if (!isOpenAccess && !isAuthEndpoint) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        window.location.href = '/login';
+        const returnPath = window.location.pathname + window.location.search;
+        const loginUrl = returnPath && returnPath !== '/' && returnPath !== '/login'
+          ? `/login?return=${encodeURIComponent(returnPath)}`
+          : '/login';
+        window.location.href = loginUrl;
       }
     }
     return Promise.reject(error);
