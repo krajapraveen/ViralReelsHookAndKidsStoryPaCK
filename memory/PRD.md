@@ -127,6 +127,11 @@ Build an AI Creator Suite with a compulsion-driven "Growth Engine" — a full-st
 - **Hidden Analytics**: Events tracked: `hidden_rank_progress`, `hidden_reward_pending`, `hidden_streak_days`, `phase_c_activation_ready`.
 - Testing: 22/22 backend + all frontend passed (iteration_478)
 
+### P0 Dashboard Hero Story-Context Bug Fix — DONE (Apr 10)
+**Root cause:** Dashboard.js HeroSection "Continue Story" navigated to `/experience` (a fresh story generation page with hardcoded DEMO_STORIES), not the actual project. "Remix" sent zero story context.
+**Fix:** Continue Story → `/app/story-video-studio?projectId={job_id}`. Remix → studio with `remixFrom: {title, job_id}`. Seed cards → fresh session.
+**Verification:** 3-story integrity test (Painter of Stars, Crystal Cave, Whispering Woods) — all buttons use correct story context. Deep-link refresh persistence confirmed. Full 30-button audit passed. Testing: iteration_481 100%.
+
 ### Viral Optimization Sprint — DONE (Apr 9)
 **Goal:** Push readiness metrics toward GREENLIGHT through behavioral tuning, not feature expansion.
 
