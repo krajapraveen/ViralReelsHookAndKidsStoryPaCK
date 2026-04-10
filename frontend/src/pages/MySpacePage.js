@@ -9,6 +9,7 @@ import {
 import { toast } from 'sonner';
 import api from '../utils/api';
 import { trackEvent } from '../utils/analytics';
+import { trackFunnel } from '../utils/funnelTracker';
 import RemixGallery from '../components/RemixGallery';
 
 // ─── STATUS COPY (EXACT PRODUCTION SPEC) ──────────────────────────────────────
@@ -843,6 +844,16 @@ export default function MySpacePage() {
   }, [autoDownload]);
 
   useEffect(() => { fetchJobs(); requestNotificationPermission(); }, [fetchJobs]);
+
+  // Track return-to-inspect when user arrives from Dashboard traction banner
+  useEffect(() => {
+    const referrer = document.referrer;
+    const fromDashboard = referrer.includes('/app') && !referrer.includes('/my-space');
+    if (fromDashboard) {
+      trackFunnel('return_to_inspect', { source_page: 'my_space', meta: { trigger: 'page_visit', referrer_path: referrer } });
+    }
+  }, []);
+
 
   useEffect(() => {
     const hasInProgress = jobs.some(j => !['COMPLETED', 'FAILED', 'ARCHIVED', 'ORPHANED', 'PARTIAL'].includes(j.status));

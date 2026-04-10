@@ -16,6 +16,7 @@ import { trackLoop } from '../utils/growthTracker';
 import { safeMediaUrl } from '../utils/safeMediaUrl';
 import { getVariant, trackConversion } from '../lib/abTesting';
 import ViralMomentumBadge from '../components/ViralMomentumBadge';
+import { trackFunnel } from '../utils/funnelTracker';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -105,6 +106,18 @@ export default function PublicCreation() {
       };
       setCreation(creationData);
       trackPageView({ source_page: `/v/${slug}`, source_slug: slug, origin: 'share_page', origin_slug: slug });
+
+      // Track return-to-inspect if logged-in user is the creator revisiting their public page
+      const token = localStorage.getItem('token');
+      const creatorId = r.data.creation?.user_id || r.data.creation?.creator?.id;
+      if (token && creatorId) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          if (payload.sub === creatorId) {
+            trackFunnel('return_to_inspect', { source_page: 'public_creation', meta: { trigger: 'creator_revisit', slug, job_id: r.data.creation?.job_id } });
+          }
+        } catch {}
+      }
 
       const jobId = r.data.creation?.job_id;
       if (jobId) {

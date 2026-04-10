@@ -235,6 +235,7 @@ async def get_share_data(share_id: str, request: Request):
         "shareCaption": share.get("shareCaption"),
         "parentShareId": share.get("parentShareId"),
         "generationId": gen_id,
+        "userId": share.get("userId"),
     }
 
 

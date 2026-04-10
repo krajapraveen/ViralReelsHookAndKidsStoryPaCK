@@ -47,6 +47,9 @@ FUNNEL_STEPS = [
     "payment_started",
     "payment_abandoned",
     "payment_success",
+    # Viral loop steps
+    "return_to_inspect",
+    "share_revisit",
 ]
 
 

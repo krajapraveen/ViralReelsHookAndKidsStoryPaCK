@@ -5,6 +5,7 @@ import { useFeedback } from '../contexts/FeedbackContext';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { trackLoop } from '../utils/growthTracker';
+import { trackFunnel } from '../utils/funnelTracker';
 import { setCdnBase } from '../utils/mediaUrl';
 import { sendFeedEvent, fetchMoreStories, updateScrollSpeed, getDynamicHookDelay, wasSkippedFast } from '../utils/feedTracker';
 import { startSession, endSession, trackAction } from '../utils/sessionTracker';
@@ -1005,7 +1006,12 @@ export default function Dashboard() {
                 )}
               </p>
             </div>
-            <Link to="/app/my-space" className="text-[10px] text-violet-400 hover:text-violet-300 whitespace-nowrap font-medium" data-testid="traction-inspect-link">
+            <Link
+              to="/app/my-space"
+              className="text-[10px] text-violet-400 hover:text-violet-300 whitespace-nowrap font-medium"
+              data-testid="traction-inspect-link"
+              onClick={() => trackFunnel('return_to_inspect', { source_page: 'dashboard', meta: { trigger: 'traction_banner', remixes: viralStats.total_remix_conversions, credits_earned: viralStats.total_credits_earned } })}
+            >
               View Details <ArrowRight className="w-3 h-3 inline" />
             </Link>
           </div>

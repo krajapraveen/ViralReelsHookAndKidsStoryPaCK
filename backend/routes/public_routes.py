@@ -258,6 +258,7 @@ async def get_public_creation(slug: str):
             "is_trending": is_trending,
             "is_alive": is_alive,
             "source": source,
+            "user_id": job.get("user_id"),
         }
     }
 

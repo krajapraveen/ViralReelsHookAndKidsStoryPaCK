@@ -9,6 +9,7 @@ import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import api from '../utils/api';
 import ViralMomentumBadge from '../components/ViralMomentumBadge';
+import { trackFunnel } from '../utils/funnelTracker';
 
 function timeAgo(dateStr) {
   if (!dateStr) return '';
@@ -104,6 +105,16 @@ export default function SharePage() {
           if (!trackedView.current) {
             trackedView.current = true;
             trackEvent('share_viewed', { share_id: shareId });
+            // Track return-to-inspect if logged-in user is revisiting their own shared story
+            const token = localStorage.getItem('token');
+            if (token && res.data.userId) {
+              try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                if (payload.sub === res.data.userId) {
+                  trackFunnel('return_to_inspect', { source_page: 'share_page', meta: { trigger: 'creator_revisit', share_id: shareId, story_id: res.data.generationId } });
+                }
+              } catch {}
+            }
           }
         } else {
           setError('Share link not found');
@@ -278,6 +289,14 @@ export default function SharePage() {
               {data.title || 'This AI video will surprise you'}
             </h1>
             <p className="text-sm text-slate-400 mb-4 fade-up-d1">Made in seconds using AI</p>
+
+            {/* Chain depth indicator — show when this is a remix */}
+            {data.parentShareId && (
+              <div className="text-[11px] text-violet-300/70 mb-4 flex items-center gap-1.5 fade-up-d1" data-testid="chain-depth-indicator">
+                <GitBranch className="w-3 h-3" />
+                <span>This is a remix — continue the chain and make it yours</span>
+              </div>
+            )}
 
             {/* Social proof bar + Momentum */}
             <div className="flex flex-wrap items-center gap-3 mb-6 fade-up-d1" data-testid="social-proof-bar">
