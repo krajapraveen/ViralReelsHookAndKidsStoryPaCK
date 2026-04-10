@@ -180,6 +180,16 @@ Testing: 15/15 backend + all frontend passed (iteration_479)
 **Files Changed:** viral_flywheel.py, ViralMomentumBadge.jsx (new), SharePage.jsx, PublicCreation.js, StoryVideoPipeline.js, Dashboard.js, ShareModal.js
 - Testing: iteration_485 — 100% (40 tests).
 
+### GREENLIGHT Recovery Sprint — DONE (Apr 10)
+**Goal:** Actively remediate the 4 failed GREENLIGHT metrics (Repeat Share, Chain Depth, Return-to-Inspect, Badge Engagement) instead of waiting passively.
+**GREENLIGHT Gate Result:** 1/5 HOLD — Viral volume passed (1,075 events ≥ 1,000) but behavioral depth immature.
+**Changes:**
+- **Priority 1 (Return-to-Inspect Instrumentation):** Added `return_to_inspect` and `share_revisit` to FUNNEL_STEPS whitelist. Instrumented 4 tracking points: Dashboard traction banner click, MySpacePage mount from dashboard, SharePage creator revisit, PublicCreation creator revisit. Each fires with source_page, trigger type, and story context.
+- **Priority 2 (Chain Depth Enablement):** Added chain depth indicator on SharePage for remix stories ("This is a remix — continue the chain"). Added `userId` to share API and `user_id` to public creation API for creator detection.
+- **Priority 3-4 (Groundwork):** Repeat share and badge acceleration depend on organic traffic now flowing through the optimized funnel. Instrumentation is in place to measure improvement.
+**Files Changed:** funnel_tracking.py, share.py, public_routes.py, Dashboard.js, MySpacePage.js, SharePage.jsx, PublicCreation.js
+- Testing: iteration_486 — 100%.
+
 ### P1 — Next Features
 - Optimize viral loop: improve share prompt conversion, share link CTR, notification emotional strength, share landing remix conversion
 - A/B Week 2: Winner of A vs B → test against Variant C (when threshold reached)
