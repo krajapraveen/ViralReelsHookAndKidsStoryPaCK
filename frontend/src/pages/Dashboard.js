@@ -989,6 +989,29 @@ export default function Dashboard() {
         <HeroSection stories={safeHeroPool} navigate={navigate} />
       </div>
 
+      {/* TRACTION BANNER — return-to-inspect trigger */}
+      {viralStats && (viralStats.total_remix_conversions > 0 || viralStats.total_credits_earned > 0) && (
+        <div className="px-4 sm:px-6 lg:px-10 py-2" data-testid="traction-banner">
+          <div className="rounded-xl border border-violet-500/20 bg-violet-500/[0.05] px-4 py-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <TrendingUp className="w-4 h-4 text-violet-400 flex-shrink-0" />
+              <p className="text-xs text-slate-300 truncate">
+                <span className="text-violet-300 font-semibold">Your stories are gaining traction</span>
+                {viralStats.total_remix_conversions > 0 && (
+                  <span className="text-slate-400"> — {viralStats.total_remix_conversions} {viralStats.total_remix_conversions === 1 ? 'remix' : 'remixes'} so far</span>
+                )}
+                {viralStats.total_credits_earned > 0 && (
+                  <span className="text-emerald-400"> (+{viralStats.total_credits_earned} credits earned)</span>
+                )}
+              </p>
+            </div>
+            <Link to="/app/my-space" className="text-[10px] text-violet-400 hover:text-violet-300 whitespace-nowrap font-medium" data-testid="traction-inspect-link">
+              View Details <ArrowRight className="w-3 h-3 inline" />
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* DAILY CHALLENGE BANNER */}
       {dailyChallenge && (
         <div className="px-4 sm:px-6 lg:px-10 py-3" data-testid="daily-challenge-banner">

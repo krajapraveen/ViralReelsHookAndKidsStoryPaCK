@@ -15,6 +15,7 @@ import { trackPageView, trackRemixClick, trackShareClick } from '../utils/growth
 import { trackLoop } from '../utils/growthTracker';
 import { safeMediaUrl } from '../utils/safeMediaUrl';
 import { getVariant, trackConversion } from '../lib/abTesting';
+import ViralMomentumBadge from '../components/ViralMomentumBadge';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -649,6 +650,12 @@ export default function PublicCreation() {
 
               {/* ═══ SOCIAL PROOF ═══ */}
               <div className="bg-white/[0.02] border border-white/[0.04] rounded-xl p-4" data-testid="momentum-section">
+                {/* Viral Momentum Meter */}
+                {creation.job_id && (
+                  <div className="mb-3" data-testid="public-page-momentum">
+                    <ViralMomentumBadge jobId={creation.job_id} variant="compact" />
+                  </div>
+                )}
                 <p className="text-xs text-slate-400 mb-2 font-semibold">
                   {contCount > 0 ? `${contCount} people already continued this — join them` : 'Be the first to continue this story'}
                 </p>
@@ -667,7 +674,9 @@ export default function PublicCreation() {
               {/* ═══ REMIX VARIANTS ═══ */}
               <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-3" data-testid="remix-variants">
                 <span className="text-[10px] font-semibold text-cyan-400 uppercase tracking-wider mb-1 block">Create Your Version</span>
-                <p className="text-[10px] text-slate-500 mb-2">Inspired stories spread faster — make this one yours</p>
+                <p className="text-[10px] text-slate-500 mb-2">
+                  {contCount > 2 ? 'Can your version top the chain? Make it yours' : 'Inspired stories spread faster — make this one yours'}
+                </p>
                 <div className="grid grid-cols-2 gap-2">
                   {[
                     { key: 'comic-storybook', label: 'Comic Book', color: 'text-amber-400 bg-amber-500/10 border-amber-500/15' },

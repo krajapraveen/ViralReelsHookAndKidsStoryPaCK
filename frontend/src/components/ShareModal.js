@@ -214,6 +214,8 @@ function _generateHook(title, preview, characters) {
     'What happens next is up to you.',
     'This story just reached its turning point…',
     preview?.length > 100 ? 'The story was just getting interesting…' : null,
+    'Nobody has finished this yet. Can you?',
+    charName ? `${charName}'s fate is unwritten. You decide.` : null,
   ].filter(Boolean);
 
   return hooks[Math.floor(Math.random() * hooks.length)] || 'What happens next?';
@@ -224,6 +226,8 @@ function _generateCaption(title, hook) {
     `I started this story… can you finish it?\n\n"${hook}"`,
     `This story isn't finished yet. Continue it:\n\n"${title || 'Untitled'}"`,
     `What happens next? I need someone to continue this:\n\n"${hook}"`,
+    `I made this in under a minute. Can you top it?\n\n"${title || 'Untitled'}"`,
+    `Nobody's finished this yet — be the first:\n\n"${hook}"`,
   ];
   return captions[Math.floor(Math.random() * captions.length)];
 }

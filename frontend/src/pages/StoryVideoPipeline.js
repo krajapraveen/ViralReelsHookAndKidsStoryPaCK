@@ -22,6 +22,7 @@ import ContextualUpgrade from '../components/ContextualUpgrade';
 import RemixBanner from '../components/RemixBanner';
 import SharePromptModal from '../components/SharePromptModal';
 import { ForceShareGate, ShareRewardBar } from '../components/ForceShareGate';
+import ViralMomentumBadge from '../components/ViralMomentumBadge';
 import { LiveViewerBadge } from '../components/AnimatedSocialProof';
 import EntitledDownloadButton from '../components/EntitledDownloadButton';
 import { useMediaEntitlement } from '../contexts/MediaEntitlementContext';
@@ -2212,6 +2213,13 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
               characterName={characterName}
               cliffhanger={cliffhanger}
             />
+          )}
+
+          {/* Viral Momentum Meter — shows when story has traction */}
+          {isActionable && jobId && (
+            <div data-testid="postgen-momentum">
+              <ViralMomentumBadge jobId={jobId} variant="card" showBadges={true} />
+            </div>
           )}
 
           {/* Download — entitlement-gated, no raw URLs */}

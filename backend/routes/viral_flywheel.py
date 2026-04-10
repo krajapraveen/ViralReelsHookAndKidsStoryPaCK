@@ -665,6 +665,88 @@ async def viral_momentum_meter(user: dict = Depends(get_current_user)):
     return {"success": True, "stories": stories}
 
 
+@router.get("/story-momentum/{job_id}")
+async def get_story_momentum(job_id: str):
+    """Public endpoint — returns momentum data for a single story.
+    Used on SharePage, PublicCreation, and post-generation screens."""
+    now = datetime.now(timezone.utc)
+    day_ago = (now - timedelta(hours=24)).isoformat()
+    week_ago = (now - timedelta(days=7)).isoformat()
+
+    total = await db.remix_lineage.count_documents({"parent_job_id": job_id})
+    remixes_24h = await db.remix_lineage.count_documents(
+        {"parent_job_id": job_id, "created_at": {"$gte": day_ago}}
+    )
+    remixes_7d = await db.remix_lineage.count_documents(
+        {"parent_job_id": job_id, "created_at": {"$gte": week_ago}}
+    )
+
+    # Count unique shares
+    shares = await db.share_rewards.count_documents({"job_id": job_id})
+
+    # Count views from share page
+    views = 0
+    share_doc = await db.shares.find_one({"generationId": job_id}, {"_id": 0, "views": 1})
+    if share_doc:
+        views = share_doc.get("views", 0)
+
+    # Chain depth: how many generations deep is the longest chain
+    chain_depth = 0
+    cursor_id = job_id
+    for _ in range(10):
+        child = await db.remix_lineage.find_one(
+            {"parent_job_id": cursor_id}, {"_id": 0, "child_job_id": 1}
+        )
+        if not child:
+            break
+        chain_depth += 1
+        cursor_id = child["child_job_id"]
+
+    # Determine momentum level with enhanced labels
+    if remixes_24h >= 5:
+        level, label = "viral_surge", "Viral Surge"
+    elif remixes_24h >= 3:
+        level, label = "spreading_widely", "Spreading Widely"
+    elif remixes_24h >= 1 or remixes_7d >= 5:
+        level, label = "trending", "Trending Now"
+    elif remixes_7d >= 1 or shares >= 3:
+        level, label = "rising_fast", "Rising Fast"
+    elif shares >= 1 or views >= 10:
+        level, label = "warming_up", "Warming Up"
+    else:
+        level, label = "new", "New"
+
+    # Milestone badges
+    badges = []
+    if total >= 1:
+        badges.append({"id": "first_remix", "label": "First Remix", "tier": "bronze"})
+    if total >= 5:
+        badges.append({"id": "remix_magnet", "label": "Remix Magnet", "tier": "silver"})
+    if total >= 25:
+        badges.append({"id": "viral_creator", "label": "Viral Creator", "tier": "gold"})
+    if chain_depth >= 2:
+        badges.append({"id": "chain_starter", "label": "Chain Starter", "tier": "bronze"})
+    if chain_depth >= 5:
+        badges.append({"id": "chain_master", "label": "Chain Master", "tier": "gold"})
+    if shares >= 5:
+        badges.append({"id": "super_sharer", "label": "Super Sharer", "tier": "silver"})
+
+    return {
+        "success": True,
+        "job_id": job_id,
+        "momentum_level": level,
+        "momentum_label": label,
+        "total_remixes": total,
+        "remixes_24h": remixes_24h,
+        "remixes_7d": remixes_7d,
+        "chain_depth": chain_depth,
+        "total_shares": shares,
+        "total_views": views,
+        "badges": badges,
+    }
+
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 6c. RESHARE + VIRAL PROGRESS NUDGE SYSTEM
 # ═══════════════════════════════════════════════════════════════════════════════

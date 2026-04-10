@@ -3,11 +3,12 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   Play, ArrowRight, Copy, Check, Loader2, AlertCircle,
   MessageCircle, Eye, GitBranch, Clock,
-  Sparkles, Share2, Zap, Wand2, Video, TrendingUp
+  Sparkles, Share2, Zap, Wand2, Video, TrendingUp, RefreshCw
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import ViralMomentumBadge from '../components/ViralMomentumBadge';
 
 function timeAgo(dateStr) {
   if (!dateStr) return '';
@@ -278,7 +279,7 @@ export default function SharePage() {
             </h1>
             <p className="text-sm text-slate-400 mb-4 fade-up-d1">Made in seconds using AI</p>
 
-            {/* Social proof bar */}
+            {/* Social proof bar + Momentum */}
             <div className="flex flex-wrap items-center gap-3 mb-6 fade-up-d1" data-testid="social-proof-bar">
               <div className="flex items-center gap-1.5 text-xs text-slate-400">
                 <Eye className="w-3 h-3" /> {viewCount} views
@@ -296,6 +297,13 @@ export default function SharePage() {
                 </div>
               )}
             </div>
+
+            {/* Viral Momentum Meter */}
+            {data.generationId && (
+              <div className="mb-6 fade-up-d1" data-testid="share-page-momentum">
+                <ViralMomentumBadge jobId={data.generationId} variant="card" showBadges={true} />
+              </div>
+            )}
 
             {/* ═══ PRIMARY CTA BLOCK ═══ */}
             <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-6 mb-6 fade-up-d2" data-testid="cta-block">
@@ -326,7 +334,7 @@ export default function SharePage() {
                   {remixing ? (
                     <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Remixing...</>
                   ) : (
-                    <><Wand2 className="w-4 h-4 mr-2" /> Remix This Video</>
+                    <><Wand2 className="w-4 h-4 mr-2" /> {forkCount > 0 ? 'Top This Remix' : 'Put Your Spin On It'}</>
                   )}
                 </Button>
               </div>
@@ -356,16 +364,24 @@ export default function SharePage() {
           </div>
         </section>
 
-        {/* ═══ SHARE TOOLS ═══ */}
+        {/* ═══ SHARE TOOLS + RESHARE PROMPT ═══ */}
         <section className="px-4 py-6 border-y border-white/[0.04]" data-testid="share-tools">
-          <div className="max-w-3xl mx-auto flex items-center justify-center gap-3">
-            <Button onClick={handleWhatsApp} variant="outline" className="border-white/10 text-white hover:bg-emerald-500/10 hover:border-emerald-500/30 hover:text-emerald-300" data-testid="share-whatsapp-btn">
-              <MessageCircle className="w-4 h-4 mr-2" /> Message
-            </Button>
-            <Button onClick={handleCopy} variant="outline" className="border-white/10 text-white hover:bg-white/[0.06]" data-testid="share-copy-btn">
-              {copied ? <Check className="w-4 h-4 mr-2 text-emerald-400" /> : <Copy className="w-4 h-4 mr-2" />}
-              {copied ? 'Copied!' : 'Copy Link'}
-            </Button>
+          <div className="max-w-3xl mx-auto">
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <Button onClick={handleWhatsApp} variant="outline" className="border-white/10 text-white hover:bg-emerald-500/10 hover:border-emerald-500/30 hover:text-emerald-300" data-testid="share-whatsapp-btn">
+                <MessageCircle className="w-4 h-4 mr-2" /> Message
+              </Button>
+              <Button onClick={handleCopy} variant="outline" className="border-white/10 text-white hover:bg-white/[0.06]" data-testid="share-copy-btn">
+                {copied ? <Check className="w-4 h-4 mr-2 text-emerald-400" /> : <Copy className="w-4 h-4 mr-2" />}
+                {copied ? 'Copied!' : 'Copy Link'}
+              </Button>
+            </div>
+            {forkCount > 0 && (
+              <p className="text-center text-[11px] text-slate-500 flex items-center justify-center gap-1" data-testid="reshare-prompt">
+                <RefreshCw className="w-3 h-3 text-violet-400" />
+                Share again to keep this chain growing — {forkCount} {forkCount === 1 ? 'remix' : 'remixes'} and counting
+              </p>
+            )}
           </div>
         </section>
 
@@ -376,12 +392,16 @@ export default function SharePage() {
         <section className="px-4 py-16" data-testid="bottom-cta">
           <div className="max-w-xl mx-auto text-center">
             <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3 fade-up-d4">
-              Don't just watch — create your own
+              {forkCount > 2 ? 'Can your version go further?' : "Don't just watch — create your own"}
             </h2>
             <p className="text-slate-400 mb-3">
-              Type a story idea. Get a full video in under a minute. It's that simple.
+              {forkCount > 2
+                ? `${forkCount} creators already remixed this. Add your version to the chain.`
+                : 'Type a story idea. Get a full video in under a minute. It\'s that simple.'}
             </p>
-            <p className="text-xs text-slate-500 mb-8">People are creating videos like this every day</p>
+            <p className="text-xs text-slate-500 mb-8">
+              {forkCount > 0 ? 'Every remix extends the chain — be the next link' : 'People are creating videos like this every day'}
+            </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
               <Button
                 onClick={handleCreateOwn}
@@ -397,7 +417,7 @@ export default function SharePage() {
                 className="h-12 px-6 rounded-xl border-violet-500/30 text-violet-300 hover:bg-violet-500/10 hover:border-violet-500/50"
                 data-testid="bottom-remix-btn"
               >
-                <Wand2 className="w-4 h-4 mr-2" /> Remix This Video
+                <Wand2 className="w-4 h-4 mr-2" /> {forkCount > 0 ? 'Top This Remix' : 'Remix This Video'}
               </Button>
             </div>
             {forkCount > 0 && (
