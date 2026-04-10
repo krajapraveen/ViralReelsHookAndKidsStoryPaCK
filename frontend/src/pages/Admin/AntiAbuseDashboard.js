@@ -183,7 +183,7 @@ const AntiAbuseDashboard = () => {
           </div>
           <div className="flex-1">
             <h3 className="font-bold text-amber-800">NEW: Email Verification Required</h3>
-            <p className="text-sm text-amber-700">Users must verify email within 24 hours to unlock credits. No credits given until verified.</p>
+            <p className="text-sm text-amber-700">Users must verify email within 24 hours. Verification required before account activation.</p>
           </div>
           <Badge className="bg-amber-500 text-white">ACTIVE</Badge>
         </div>

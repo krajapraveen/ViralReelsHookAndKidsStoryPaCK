@@ -398,7 +398,7 @@ async def reset_user_verification(
         "old_credits": old_credits,
         "new_credits": 0,
         "pending_credits": 20,
-        "action": "User must now verify email to unlock 20 credits"
+        "action": "User must now verify email to activate account"
     }
 
 

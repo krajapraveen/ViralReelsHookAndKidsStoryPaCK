@@ -86,18 +86,18 @@ async def send_verification_email_for_reset(email: str, token: str, name: str):
                 <div style="background: #1e293b; padding: 30px; border-radius: 12px;">
                     <h2 style="color: #f1f5f9; margin-top: 0;">Hi {name}!</h2>
                     <p style="color: #94a3b8; font-size: 16px; line-height: 1.6;">
-                        Your account requires email verification to unlock your <strong style="color: #fbbf24;">50 free credits</strong>.
+                        Your account requires email verification to get started.
                     </p>
                     <p style="color: #94a3b8; font-size: 16px; line-height: 1.6;">
                         Please click the button below to verify your email address and start creating amazing content!
                     </p>
                     <div style="text-align: center; margin: 30px 0;">
                         <a href="{verify_url}" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">
-                            Verify Email & Unlock Credits
+                            Verify My Email
                         </a>
                     </div>
                     <p style="color: #64748b; font-size: 14px;">
-                        This link will expire in 24 hours. After verification, your 50 free credits will be available immediately!
+                        This link will expire in 24 hours.
                     </p>
                 </div>
                 <p style="color: #475569; font-size: 12px; text-align: center; margin-top: 30px;">
@@ -126,7 +126,7 @@ async def reset_user_verification(
     """
     Reset a user's email verification status and credits.
     This is used to fix legacy accounts that were created before the email verification feature.
-    The user will need to verify their email again to unlock credits.
+    The user will need to verify their email again.
     """
     try:
         # Find user

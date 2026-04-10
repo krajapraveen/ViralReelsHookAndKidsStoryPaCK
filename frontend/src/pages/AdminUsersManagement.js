@@ -619,7 +619,7 @@ export default function AdminUsersManagement() {
                   <ul className="text-amber-200/80 text-xs mt-1 space-y-1 list-disc ml-4">
                     <li>Set credits to <span className="font-bold">0</span></li>
                     <li>Set pending credits to <span className="font-bold">20</span></li>
-                    <li>Require email verification to unlock credits</li>
+                    <li>Require email verification</li>
                     <li>Send a new verification email</li>
                   </ul>
                 </div>
