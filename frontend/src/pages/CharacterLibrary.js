@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import { Button } from '../components/ui/button';
-import { ArrowLeft, Plus, Loader2, User, BookOpen, Search } from 'lucide-react';
+import { ArrowLeft, Plus, Loader2, User, BookOpen, Search, AlertCircle, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
 
 const ROLE_FILTERS = ['all', 'hero', 'villain', 'sidekick', 'narrator', 'mentor', 'trickster'];
 
@@ -10,6 +11,7 @@ export default function CharacterLibrary() {
   const navigate = useNavigate();
   const [characters, setCharacters] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [sortBy, setSortBy] = useState('updated_at');
@@ -25,8 +27,14 @@ export default function CharacterLibrary() {
       : '/api/characters/my-characters';
 
     api.get(url)
-      .then(res => setCharacters(res.data.characters || []))
-      .catch(() => {})
+      .then(res => {
+        setCharacters(res.data.characters || []);
+        setLoadError(false);
+      })
+      .catch(() => {
+        setLoadError(true);
+        toast.error('Failed to load characters');
+      })
       .finally(() => setLoading(false));
   };
 
@@ -42,6 +50,21 @@ export default function CharacterLibrary() {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
+      </div>
+    );
+  }
+
+  if (loadError && characters.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center" data-testid="character-library-error">
+        <div className="text-center space-y-4">
+          <AlertCircle className="w-12 h-12 text-red-400 mx-auto" />
+          <h2 className="text-lg font-bold text-white">Failed to load characters</h2>
+          <p className="text-sm text-slate-400">Check your connection and try again</p>
+          <Button onClick={() => { setLoading(true); fetchCharacters(); }} className="bg-indigo-600 hover:bg-indigo-500" data-testid="character-library-retry-btn">
+            <RefreshCw className="w-4 h-4 mr-2" /> Retry
+          </Button>
+        </div>
       </div>
     );
   }

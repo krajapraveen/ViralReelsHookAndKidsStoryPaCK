@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import {
   Play, Sparkles, Eye, RefreshCcw, ChevronRight, ChevronLeft, ChevronUp, ChevronDown,
-  Flame, Heart, Film, Clock, Search, X, ArrowRight, Star, Zap,
+  Flame, Heart, Film, Clock, Search, X, ArrowRight, Star, Zap, AlertCircle,
   Briefcase, GraduationCap, Camera, Clapperboard, Volume2, VolumeX, Share2, Folder,
 } from 'lucide-react';
 import axios from 'axios';
@@ -505,6 +505,7 @@ export default function Gallery() {
   const [searchQuery, setSearchQuery] = useState('');
   const [immersiveItem, setImmersiveItem] = useState(null);
   const [userFeed, setUserFeed] = useState(null);
+  const [loadError, setLoadError] = useState(false);
   const navigate = useNavigate();
 
   const isLoggedIn = !!localStorage.getItem('token');
@@ -519,6 +520,7 @@ export default function Gallery() {
 
   const loadGallery = async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const [f, r, e] = await Promise.all([
         fetch(`${API_URL}/api/gallery/featured`).then(r => r.json()),
@@ -528,7 +530,11 @@ export default function Gallery() {
       setFeatured(f.featured || []);
       setRails(r.rails || []);
       setExploreItems(e.items || []);
-    } catch (err) { console.error('Gallery load:', err); }
+    } catch (err) {
+      console.error('Gallery load:', err);
+      setLoadError(true);
+      toast.error('Failed to load gallery. Check your connection and retry.');
+    }
     finally { setLoading(false); }
   };
 
@@ -538,7 +544,10 @@ export default function Gallery() {
       const res = await fetch(`${API_URL}/api/gallery/user-feed`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       setUserFeed(data);
-    } catch {}
+    } catch {
+      // Non-critical: personal feed failure shouldn't block gallery
+      console.warn('User feed failed to load');
+    }
   };
 
   const loadExplore = async () => {
@@ -547,7 +556,9 @@ export default function Gallery() {
       if (activeFilter !== 'all' && activeFilter !== 'trending') params.set('category', activeFilter);
       const data = await fetch(`${API_URL}/api/gallery/explore?${params}`).then(r => r.json());
       setExploreItems(data.items || []);
-    } catch {}
+    } catch {
+      toast.error('Failed to load explore content');
+    }
   };
 
   const handleRemix = (item) => {
@@ -601,6 +612,18 @@ export default function Gallery() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12">
         {/* HERO */}
         {loading ? <HeroSkeleton /> : <FeaturedHero items={featured} onPreview={handlePreview} onRemix={handleRemix} />}
+
+        {/* ERROR STATE — gallery load failed */}
+        {loadError && !loading && (
+          <div className="text-center py-12 mb-8 rounded-2xl border border-red-500/20 bg-red-500/[0.04]" data-testid="gallery-load-error">
+            <AlertCircle className="w-10 h-10 mx-auto mb-3 text-red-400" />
+            <p className="text-sm text-slate-300 mb-1">Could not load gallery content</p>
+            <p className="text-xs text-slate-500 mb-4">This could be a network issue — try again</p>
+            <Button onClick={loadGallery} variant="outline" className="border-red-500/30 text-red-300 hover:bg-red-500/10" data-testid="gallery-retry-btn">
+              <RefreshCcw className="w-4 h-4 mr-2" /> Retry
+            </Button>
+          </div>
+        )}
 
         {/* ──────── USER SECTIONS (logged-in) ──────── */}
         {isLoggedIn && userFeed && (

@@ -36,6 +36,7 @@ const TONE_COLORS = {
 
 export default function ToneSwitcher() {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [wallet, setWallet] = useState({ availableCredits: 0 });
@@ -59,6 +60,7 @@ export default function ToneSwitcher() {
   }, []);
 
   const fetchInitialData = async () => {
+    setLoadError(false);
     try {
       const [walletRes, pricingRes, tonesRes] = await Promise.all([
         walletAPI.getWallet(),
@@ -71,7 +73,8 @@ export default function ToneSwitcher() {
       setTones(tonesRes.data.tones || {});
     } catch (error) {
       console.error('Failed to load data:', error);
-      toast.error('Failed to load data');
+      setLoadError(true);
+      toast.error('Failed to load Tone Switcher data');
     } finally {
       setLoading(false);
     }
@@ -186,6 +189,21 @@ export default function ToneSwitcher() {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-cyan-500" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 flex items-center justify-center" data-testid="tone-switcher-error">
+        <div className="text-center space-y-4">
+          <Wand2 className="w-12 h-12 text-red-400 mx-auto" />
+          <h2 className="text-lg font-bold text-white">Failed to load Tone Switcher</h2>
+          <p className="text-sm text-slate-400">Check your connection and try again</p>
+          <Button onClick={() => { setLoading(true); fetchInitialData(); }} className="bg-cyan-600 hover:bg-cyan-500" data-testid="tone-switcher-retry-btn">
+            <RefreshCw className="w-4 h-4 mr-2" /> Retry
+          </Button>
+        </div>
       </div>
     );
   }

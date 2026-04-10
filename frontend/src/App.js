@@ -187,6 +187,21 @@ function ProtectedRoute({ auth, children }) {
   return children;
 }
 
+// Component to handle redirect after authentication, preserving ?return= param
+function AuthenticatedRedirect() {
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const returnParam = searchParams.get('return');
+  const returnUrl = returnParam || localStorage.getItem('remix_return_url') || '/app';
+  
+  // Clean up localStorage
+  if (returnParam || localStorage.getItem('remix_return_url')) {
+    localStorage.removeItem('remix_return_url');
+  }
+  
+  return <Navigate to={returnUrl} replace />;
+}
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -256,8 +271,8 @@ function App() {
         <Route path="/reviews" element={<Reviews />} />
         <Route path="/blog" element={<Blog />} />
         <Route path="/blog/:slug" element={<Blog />} />
-        <Route path="/login" element={isAuthenticated ? <Navigate to="/app" replace /> : <Login setAuth={setIsAuthenticated} />} />
-        <Route path="/signup" element={isAuthenticated ? <Navigate to="/app" replace /> : <Signup setAuth={setIsAuthenticated} />} />
+        <Route path="/login" element={isAuthenticated ? <AuthenticatedRedirect /> : <Login setAuth={setIsAuthenticated} />} />
+        <Route path="/signup" element={isAuthenticated ? <AuthenticatedRedirect /> : <Signup setAuth={setIsAuthenticated} />} />
         <Route path="/auth/callback" element={<AuthCallback setAuth={setIsAuthenticated} />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/reset-password" element={<ResetPassword />} />

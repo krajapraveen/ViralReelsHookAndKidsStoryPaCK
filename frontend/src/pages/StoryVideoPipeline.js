@@ -449,7 +449,9 @@ function StoryVideoPipelineInner() {
 
   // ─── INIT ─────────────────────────────────────────────────────────
   useEffect(() => {
-    api.get('/api/story-engine/options').then(r => setOptions(r.data)).catch(() => {});
+    api.get('/api/story-engine/options').then(r => setOptions(r.data)).catch(() => {
+      toast.error('Failed to load studio options. Some settings may be unavailable.');
+    });
     loadUserJobs();
     checkUpsell();
     checkRateLimit();
@@ -613,7 +615,9 @@ function StoryVideoPipelineInner() {
           }
         }
       }
-    } catch { /* ignore */ }
+    } catch {
+      console.warn('Failed to load user jobs');
+    }
   };
 
   const checkUpsell = async () => {
@@ -2504,7 +2508,10 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
                         const data = await res.json();
                         if (data.rewarded) toast.success('+5 credits earned for sharing!');
                       }
-                    } catch {}
+                    } catch {
+                      // Share reward claim failed — non-blocking
+                      console.warn('Share reward claim failed');
+                    }
                   }}
                   disabled={!shareReady && !downloadReady}
                   className={`py-2.5 rounded-xl text-xs font-bold text-white transition-all disabled:opacity-40 ${s.color}`}

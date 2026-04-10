@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
 import api, { authAPI } from '../utils/api';
@@ -29,6 +29,7 @@ export default function Login({ setAuth }) {
   const forgotPasswordLinkRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { executeRecaptcha } = useRecaptcha();
 
   // Preload app shell so /app renders faster after auth
@@ -159,7 +160,9 @@ export default function Login({ setAuth }) {
       }
       setAuth(true);
       toast.success('Login successful!');
-      const returnUrl = localStorage.getItem('remix_return_url');
+      // Priority: 1) URL ?return= param (from 401 redirect), 2) localStorage remix_return_url, 3) /app
+      const returnParam = searchParams.get('return');
+      const returnUrl = returnParam || localStorage.getItem('remix_return_url');
       if (returnUrl) {
         localStorage.removeItem('remix_return_url');
         navigate(returnUrl, { replace: true });
@@ -274,7 +277,9 @@ export default function Login({ setAuth }) {
         linkSessionToUser(user.id);
       }
       setAuth(true);
-      const returnUrl = localStorage.getItem('remix_return_url');
+      // Priority: 1) URL ?return= param (from 401 redirect), 2) localStorage remix_return_url, 3) /app
+      const returnParam = searchParams.get('return');
+      const returnUrl = returnParam || localStorage.getItem('remix_return_url');
       if (returnUrl) {
         localStorage.removeItem('remix_return_url');
         window.location.href = returnUrl;
