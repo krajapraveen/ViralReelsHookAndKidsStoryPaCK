@@ -124,12 +124,6 @@ function HeroSection({ stories, navigate }) {
 
   const goTo = (idx) => { clearInterval(timerRef.current); setActiveIdx(idx); startTimer(); };
 
-  const prefillObj = {
-    title: current.title || '', prompt: current.hook_text || current.story_prompt || '',
-    hook_text: current.hook_text || '', animation_style: current.animation_style || '',
-    parent_video_id: current.job_id || null, source_surface: 'hero',
-  };
-
   return (
     <section className="relative w-full h-[58vh] sm:h-[64vh] lg:h-[72vh] overflow-hidden rounded-none bg-[#0B0B0F]"
       onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} data-testid="hero-section">
@@ -163,15 +157,33 @@ function HeroSection({ stories, navigate }) {
               "{getHook(current, activeIdx)}"
             </p>
             <div className="mt-5 flex flex-wrap items-center gap-3">
-              <button onClick={() => { trackLoop('click', { story_id: current.job_id, story_title: current.title, source_surface: 'hero' });
-                if (current.job_id && current.hook_variant_id) { axios.post(`${API}/api/engagement/hook-event`, { job_id: current.job_id, hook_variant_id: current.hook_variant_id, event_type: 'continue' }).catch(() => {}); }
-                navigate('/experience?source=dashboard&title=' + encodeURIComponent(current.title || '') + '&snippet=' + encodeURIComponent((prefillObj?.story_text || current.story_text || '').slice(0, 300))); }}
+              <button onClick={() => {
+                if (!current.job_id || current.is_seed) {
+                  navigate('/app/story-video-studio', {
+                    state: { prefill: { title: current.title || '', prompt: current.hook_text || '', animation_style: current.animation_style || '' }, freshSession: true },
+                  });
+                  return;
+                }
+                trackLoop('click', { story_id: current.job_id, story_title: current.title, source_surface: 'hero' });
+                if (current.hook_variant_id) { axios.post(`${API}/api/engagement/hook-event`, { job_id: current.job_id, hook_variant_id: current.hook_variant_id, event_type: 'continue' }).catch(() => {}); }
+                navigate(`/app/story-video-studio?projectId=${current.job_id}`);
+              }}
                 className="inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm sm:text-base font-bold text-white bg-gradient-to-r from-[#6C5CE7] to-[#00C2FF] shadow-[0_0_24px_rgba(0,194,255,0.28)] hover:scale-[1.02] transition-transform duration-200"
                 data-testid="hero-play-btn"
                 data-guide="continue-story">
                 <Play className="w-4 h-4 fill-white mr-2" /> Continue Story
               </button>
-              <button onClick={() => navigate('/experience?source=dashboard')}
+              <button onClick={() => {
+                if (!current.job_id || current.is_seed) { navigate('/app/story-video-studio', { state: { freshSession: true } }); return; }
+                navigate('/app/story-video-studio', {
+                  state: {
+                    prompt: current.story_text || current.hook_text || '',
+                    remixFrom: { title: current.title, job_id: current.job_id },
+                    source_surface: 'hero_remix',
+                    isRemix: true,
+                  },
+                });
+              }}
                 className="inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm sm:text-base font-semibold text-white bg-white/10 backdrop-blur-md border border-white/15 hover:bg-white/15 transition-colors duration-200"
                 data-testid="hero-create-btn">
                 <Plus className="w-4 h-4 mr-2" /> Remix
