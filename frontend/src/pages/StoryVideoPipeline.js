@@ -12,7 +12,7 @@ import {
   Play, Download, RefreshCw, AlertCircle, Clock, Coins,
   Video, Upload, BookOpen, Sparkles, RotateCcw, XCircle, Eye, Package,
   Share2, Link2, Copy, ExternalLink, RefreshCcw as Remix, ShieldAlert,
-  Shield, Check, X, Zap, ChevronDown, ArrowRight
+  Shield, Check, X, Zap, ChevronDown, ArrowRight, GitBranch
 } from 'lucide-react';
 import UpsellModal from '../components/UpsellModal';
 import CreationActionsBar from '../components/CreationActionsBar';
@@ -23,6 +23,7 @@ import RemixBanner from '../components/RemixBanner';
 import SharePromptModal from '../components/SharePromptModal';
 import { ForceShareGate, ShareRewardBar } from '../components/ForceShareGate';
 import ViralMomentumBadge from '../components/ViralMomentumBadge';
+import ContinuationModal from '../components/ContinuationModal';
 import { LiveViewerBadge } from '../components/AnimatedSocialProof';
 import EntitledDownloadButton from '../components/EntitledDownloadButton';
 import { useMediaEntitlement } from '../contexts/MediaEntitlementContext';
@@ -1865,6 +1866,7 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
   const [userViralStats, setUserViralStats] = useState(null);
   const [showForceShare, setShowForceShare] = useState(false);
   const [showAutoNext, setShowAutoNext] = useState(false);
+  const [continuationMode, setContinuationMode] = useState(null); // 'episode' | 'branch' | null
   const navigate = useNavigate();
   const { canDownload, upgradeRequired } = useMediaEntitlement();
   const { uiState, previewReady, downloadReady, shareReady, posterUrl, downloadUrl, shareUrl, storyPackUrl, failReason, stageDetail, jobTitle } = postGen;
@@ -2314,7 +2316,7 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
       {/* ── ENGAGEMENT LOOP ACTIONS (only when generation succeeded) ────── */}
       {isActionable && (
         <>
-          {/* ═══ AUTO-NEXT TRIGGER — Session Chaining ═══ */}
+          {/* ═══ AUTO-NEXT TRIGGER — Session Chaining (Episode vs Branch) ═══ */}
           {showAutoNext && (
             <div className="relative overflow-hidden rounded-2xl border border-violet-500/30 bg-gradient-to-r from-violet-600/[0.08] to-rose-600/[0.08] p-5" style={{ animation: 'slideIn 0.4s ease-out' }} data-testid="auto-next-trigger">
               <div className="text-center mb-4">
@@ -2323,22 +2325,20 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
               </div>
               <div className="flex gap-3">
                 <button
-                  onClick={() => handleContinue(CONTINUE_DIRECTIONS[0])}
-                  className="flex-1 h-12 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white text-sm font-bold flex items-center justify-center gap-2 hover:opacity-90 shadow-lg shadow-violet-500/20"
+                  onClick={() => setContinuationMode('episode')}
+                  className="flex-1 h-12 rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 text-white text-sm font-bold flex items-center justify-center gap-2 hover:opacity-90 shadow-lg shadow-violet-500/20"
                   style={{ animation: 'cta-glow 2s ease-in-out infinite' }}
-                  data-testid="auto-next-continue-btn"
+                  data-testid="auto-next-episode-btn"
                 >
-                  <Play className="w-5 h-5" /> Continue Next Episode <ArrowRight className="w-4 h-4" />
+                  <Play className="w-5 h-5" /> Next Episode <ArrowRight className="w-4 h-4" />
                 </button>
-                {shareReady && (
-                  <button
-                    onClick={() => handleShare('copy')}
-                    className="h-12 px-5 rounded-xl border border-white/[0.1] bg-white/[0.03] text-sm text-slate-300 font-semibold flex items-center gap-2 hover:text-white hover:border-white/20 transition-all"
-                    data-testid="auto-next-share-btn"
-                  >
-                    <Share2 className="w-4 h-4" /> Share
-                  </button>
-                )}
+                <button
+                  onClick={() => setContinuationMode('branch')}
+                  className="flex-1 h-12 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-300 text-sm font-bold flex items-center justify-center gap-2 hover:bg-rose-500/20 transition-all"
+                  data-testid="auto-next-branch-btn"
+                >
+                  <GitBranch className="w-5 h-5" /> Fork Story
+                </button>
               </div>
               <style>{`
                 @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -2365,24 +2365,40 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
             </div>
           )}
 
-          {/* ═══ PRIMARY: Continue Story (BIGGEST BUTTON, FIRST POSITION) ═══ */}
-          <button
-            onClick={() => handleContinue(CONTINUE_DIRECTIONS[0])}
-            className="w-full group relative overflow-hidden rounded-2xl p-6 text-left transition-all hover:scale-[1.01] active:scale-[0.99]"
-            data-testid="primary-continue-btn"
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-violet-600 to-rose-600 opacity-90 group-hover:opacity-100 transition-opacity" />
-            <div className="relative z-10 flex items-center gap-4">
-              <div className="w-14 h-14 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0">
-                <Play className="w-7 h-7 text-white" />
+          {/* ═══ PRIMARY: Episode vs Branch (TWO DISTINCT PATHS) ═══ */}
+          <div className="grid grid-cols-2 gap-3" data-testid="multiplayer-continue-actions">
+            {/* Continue Next Episode */}
+            <button
+              onClick={() => setContinuationMode('episode')}
+              className="group relative overflow-hidden rounded-2xl p-5 text-left transition-all hover:scale-[1.01] active:scale-[0.99]"
+              data-testid="primary-episode-btn"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-violet-600 to-blue-600 opacity-90 group-hover:opacity-100 transition-opacity" />
+              <div className="relative z-10">
+                <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center mb-3">
+                  <Play className="w-6 h-6 text-white" />
+                </div>
+                <span className="text-base font-black text-white block mb-1">Next Episode</span>
+                <span className="text-xs text-white/60">Continue the timeline — same world, next chapter</span>
               </div>
-              <div className="flex-1">
-                <span className="text-xl font-black text-white block mb-1">Continue Story</span>
-                <span className="text-sm text-white/70">Pick up right where it left off — higher stakes await</span>
+            </button>
+
+            {/* Fork / Branch */}
+            <button
+              onClick={() => setContinuationMode('branch')}
+              className="group relative overflow-hidden rounded-2xl p-5 text-left transition-all hover:scale-[1.01] active:scale-[0.99]"
+              data-testid="primary-branch-btn"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-rose-600 to-orange-600 opacity-90 group-hover:opacity-100 transition-opacity" />
+              <div className="relative z-10">
+                <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center mb-3">
+                  <GitBranch className="w-6 h-6 text-white" />
+                </div>
+                <span className="text-base font-black text-white block mb-1">Fork Story</span>
+                <span className="text-xs text-white/60">Create a rival version — compete for #1 spot</span>
               </div>
-              <ArrowRight className="w-6 h-6 text-white/40 group-hover:text-white group-hover:translate-x-1 transition-all" />
-            </div>
-          </button>
+            </button>
+          </div>
 
           {/* ═══ SECONDARY: Add Twist / Make Funny / Next Episode ═══ */}
           <div className="grid grid-cols-3 gap-3" data-testid="secondary-actions">
@@ -2637,6 +2653,28 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
           </Button>
         </>
       )}
+
+      {/* ═══ Continuation Modal — Episode vs Branch ═══ */}
+      <ContinuationModal
+        isOpen={!!continuationMode}
+        onClose={() => setContinuationMode(null)}
+        mode={continuationMode || 'episode'}
+        parentJob={{
+          job_id: jobId || job?.job_id,
+          title: displayTitle,
+          story_text: storyText || job?.story_text || '',
+          animation_style: currentStyle,
+          age_group: job?.age_group,
+          voice_preset: job?.voice_preset,
+          quality_mode: job?.quality_mode,
+          episode_number: job?.episode_number,
+        }}
+        onJobCreated={(data) => {
+          if (data?.job_id) {
+            navigate(`/app/story-video-pipeline?projectId=${data.job_id}`);
+          }
+        }}
+      />
     </div>
   );
 }
