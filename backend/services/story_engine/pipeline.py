@@ -93,10 +93,18 @@ async def create_job(
     chain_id = story_chain_id or job_id
 
     episode_number = 1
+    parent_chain_depth = 0
     if parent_job_id:
-        parent = await db.story_engine_jobs.find_one({"job_id": parent_job_id}, {"_id": 0, "episode_number": 1})
+        parent = await db.story_engine_jobs.find_one(
+            {"job_id": parent_job_id},
+            {"_id": 0, "episode_number": 1, "chain_depth": 1, "root_story_id": 1, "story_chain_id": 1}
+        )
         if parent:
             episode_number = parent.get("episode_number", 0) + 1
+            parent_chain_depth = (parent.get("chain_depth") or 0) + 1
+            # Inherit root_story_id from parent if not provided via story_chain_id
+            if not story_chain_id:
+                chain_id = parent.get("root_story_id") or parent.get("story_chain_id") or parent_job_id
 
     job_doc = {
         "job_id": job_id,
@@ -146,6 +154,14 @@ async def create_job(
         "updated_at": now,
         "completed_at": None,
         "error_message": None,
+        # Story Multiplayer Engine graph fields
+        "root_story_id": chain_id,
+        "chain_depth": parent_chain_depth,
+        "continuation_type": "original" if not parent_job_id else "episode",
+        "total_children": 0,
+        "total_views": 0,
+        "total_shares": 0,
+        "battle_score": 0.0,
     }
 
     await db.story_engine_jobs.insert_one({k: v for k, v in job_doc.items() if k != "_id"})

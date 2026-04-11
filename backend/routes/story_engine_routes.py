@@ -116,7 +116,7 @@ def _resolve_allowed_actions(job: dict) -> dict:
     # COMPLETED or READY — no recovery actions needed
     if state in (JobState.READY.value, "COMPLETED"):
         return {
-            "allowed_actions": ["watch", "download", "share", "remix", "continue"],
+            "allowed_actions": ["watch", "download", "share", "remix", "continue_episode", "continue_branch"],
             "resume_supported": False,
             "recovery_state": "NONE",
             "next_best_action": "watch",
@@ -961,6 +961,15 @@ async def get_status(job_id: str, current_user: dict = Depends(get_optional_user
             "challenge_id": job.get("challenge_id"),
             "challenge_joined_at": job.get("challenge_joined_at"),
             "series_id": job.get("series_id"),
+            # Multiplayer Engine fields
+            "root_story_id": job.get("root_story_id"),
+            "chain_depth": job.get("chain_depth", 0),
+            "continuation_type": job.get("continuation_type", "original"),
+            "total_children": job.get("total_children", 0),
+            "total_views": job.get("total_views", 0),
+            "total_shares": job.get("total_shares", 0),
+            "battle_score": job.get("battle_score", 0.0),
+            "parent_job_id": job.get("parent_job_id"),
             # Engine-specific fields
             "engine_state": state,
             "used_ken_burns_fallback": job.get("used_ken_burns_fallback", False),

@@ -659,6 +659,9 @@ api_router.include_router(viral_flywheel_router)
 from routes.phase_c_dark_launch import router as phase_c_router
 api_router.include_router(phase_c_router)
 
+from routes.story_multiplayer import router as story_multiplayer_router
+api_router.include_router(story_multiplayer_router)
+
 api_router.include_router(media_access_router)
 
 
@@ -921,6 +924,13 @@ async def startup():
         logger.info("Database indexes created")
     except Exception as e:
         logger.warning(f"Index creation warning: {e}")
+
+    # Story Multiplayer Engine indexes
+    try:
+        from routes.story_multiplayer import create_multiplayer_indexes
+        await create_multiplayer_indexes()
+    except Exception as e:
+        logger.warning(f"Multiplayer index creation warning: {e}")
     
     # Seed A/B experiments (idempotent)
     try:
