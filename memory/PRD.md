@@ -1,13 +1,13 @@
 # Visionary Suite - Product Requirements Document
 
 ## Original Problem Statement
-Build an AI Creator Suite with a compulsion-driven "Growth Engine" — a full-stack application featuring AI video generation, social sharing loops, and monetization via credits and payments. The platform must create irresistible user journeys with a multi-day retention engine that pulls creators back through notifications, email, challenges, and social proof.
+Build an AI Creator Suite with a compulsion-driven "Growth Engine" — a full-stack application featuring AI video generation, social sharing loops, and monetization via credits and payments.
 
 ## Architecture
 - **Frontend**: React (CRA) + TailwindCSS + Shadcn/UI
 - **Backend**: FastAPI + MongoDB + Redis
-- **Integrations**: OpenAI (GPT-4o-mini, GPT Image 1, Sora 2, TTS), Gemini, Cloudflare R2, Cashfree, Google Auth, Resend (email)
-- **Key URL**: https://trust-engine-5.preview.emergentagent.com
+- **Integrations**: OpenAI, Gemini, Cloudflare R2, Cashfree, Google Auth, Resend
+- **URL**: https://trust-engine-5.preview.emergentagent.com
 
 ## Credentials
 - Test: test@visionary-suite.com / Test@2026#
@@ -18,70 +18,77 @@ Build an AI Creator Suite with a compulsion-driven "Growth Engine" — a full-st
 ## What's Been Implemented
 
 ### Core Platform — DONE
-- P0 Growth Loop, P1 Monetization, MySpace UX, Pipeline Resilience, Remix Gallery, Addiction Layer, Trust Fixes
+- P0 Growth Loop, Monetization, MySpace UX, Pipeline Resilience, Remix Gallery, Addiction Layer, Trust Fixes
 
-### Retention, Digest, Prestige, A/B, Viral Flywheel Phases A/B/C — ALL DONE (Apr 9-10)
+### Retention/Digest/Prestige/A/B/Viral Flywheel — ALL DONE (Apr 9-10)
 
 ### Story Multiplayer Engine — DONE (Apr 11)
-**Phase 1 — Data Model**: Graph fields on story_engine_jobs (root_story_id, chain_depth, continuation_type, battle_score). Ranking formula: (continues*5 + shares*3 + views*1) * depth_multiplier * recency_boost + anti-gaming. Testing: 29/29.
-
-**Phase 2 — Episode vs Branch UI**: Replaced "Continue Story" with "Next Episode" + "Fork Story" dual CTAs. ContinuationModal.jsx. Testing: 100%.
-
-**Phase 3 — StoryChain + Battle Screen**: StoryBattlePage (leaderboard, ranks, "Create Better Version"). StoryChainTimeline (timeline + branches). Testing: 100%.
-
-**Phase 4 — Notifications + Feed**: rank_drop, version_outperformed, story_branched notifications with deep-links. Trending feed. Testing: 100%.
+- Phase 1: Graph data model (root_story_id, chain_depth, continuation_type, battle_score). Ranking: (continues*5+shares*3+views*1)*depth*recency with anti-gaming. 7 new API endpoints.
+- Phase 2: "Next Episode" + "Fork Story" dual CTA replacing generic "Continue". ContinuationModal.jsx.
+- Phase 3: StoryBattlePage (leaderboard, ranks, "Create Better Version"). StoryChainTimeline (competition-first).
+- Phase 4: rank_drop, version_outperformed, story_branched notifications with deep-links. Trending feed.
 
 ### Daily Story War — DONE (Apr 11)
-**Phase A — Backend Engine**: `daily_wars` collection with strict states (scheduled→active→ended→winner_declared). War-local scoring (war_views, war_shares, war_continues — NOT lifetime metrics). Branch-only entries from daily root. Deterministic tie-break (war_score > continues > shares > earlier entered_at). Winner eligibility (20+ views AND 1+ engagement). War-specific overtake notifications (30min throttle). Endpoints: /api/war/current, /api/war/enter, /api/war/history, /api/war/yesterday, /api/war/increment-metric, /api/war/admin/seed, /api/war/admin/end. Testing: 28/28.
-
-**Phase B — Frontend**: DailyWarPage at /app/war (war header, 24h countdown, Enter the War CTA, live-updating leaderboard with gap-to-#1, winner declaration, yesterday-rank re-entry). WarBanner on homepage with LIVE badge + countdown. NotificationBell handles war_overtake/war_won/war_ended. Testing: 100%.
+- Phase A: `daily_wars` collection, strict states (scheduled→active→ended→winner_declared), war-local scoring, branch-only entries, deterministic tie-breaks, winner eligibility, overtake notifications.
+- Phase B: DailyWarPage (/app/war), 24h countdown, Enter the War CTA, live-updating leaderboard, yesterday-rank re-entry. WarBanner on homepage.
 
 ### StoryChain Competition-First Redesign — DONE (Apr 11)
-**Phase C**: Redesigned StoryChainTimeline to lead with competition. Above-the-fold: Player rank card (win/loss) + Winner Spotlight (#1 Version with metrics + "Beat This Version"). Below-the-fold: episode timeline + branches. Two modes: Player (rank + action) vs Viewer (social proof + Compete). "Beat This Version" opens pre-filled ContinuationModal. ContinuationModal isWar prop routes to /api/war/enter for war entries. Testing: 100%.
+- Winner spotlight above-the-fold, Player vs Viewer modes, timeline below fold. "Beat This Version" opens pre-filled ContinuationModal.
+
+### Consumption vs Creation UX Fix — DONE (Apr 11)
+- **Problem**: "Continue watching" cards routed to editor/remix (creation), breaking user intent.
+- **Fix**: Built StoryViewerPage.jsx at /app/story-viewer/:jobId — consumption-first page with video player, story text, episode navigation, and secondary creation CTAs.
+- Dashboard card routing: CONTINUE → /app/story-viewer (consumption), TRENDING/NEW → /app/story-video-studio (creation).
+- Public viewer API: GET /api/stories/viewer/{story_id} — no ownership check.
+- CTA text: CONTINUE → "Continue watching", others → "Create your version".
+- Testing: iteration_492 — 8/8 backend + 100% frontend + no regressions.
 
 ---
 
 ## Key Files
 
+### Story Viewer (Consumption)
+- `/app/frontend/src/pages/StoryViewerPage.jsx` — Consumption-first viewer
+- `/app/backend/routes/story_multiplayer.py` — GET /api/stories/viewer/{id}
+
 ### Daily Story War
-- `/app/backend/routes/daily_war.py` — War engine, lifecycle, scoring, notifications
-- `/app/frontend/src/pages/DailyWarPage.jsx` — War experience page
-- `/app/frontend/src/components/WarBanner.jsx` — Homepage war banner
+- `/app/backend/routes/daily_war.py` — War engine, lifecycle, scoring
+- `/app/frontend/src/pages/DailyWarPage.jsx` — War experience
+- `/app/frontend/src/components/WarBanner.jsx` — Homepage banner
 
-### Story Multiplayer Engine
-- `/app/backend/routes/story_multiplayer.py` — Core multiplayer routes, ranking, battle, feed
-- `/app/frontend/src/components/ContinuationModal.jsx` — Episode/Branch/War confirmation modal
-- `/app/frontend/src/pages/StoryBattlePage.jsx` — Competitive battle leaderboard
-- `/app/frontend/src/pages/StoryChainTimeline.jsx` — Competition-first chain visualizer
+### Story Multiplayer
+- `/app/backend/routes/story_multiplayer.py` — Multiplayer routes, ranking, battle, feed
+- `/app/frontend/src/components/ContinuationModal.jsx` — Episode/Branch/War modal
+- `/app/frontend/src/pages/StoryBattlePage.jsx` — Battle leaderboard
+- `/app/frontend/src/pages/StoryChainTimeline.jsx` — Competition-first chain viz
 
-### Core Platform
-- `/app/backend/routes/story_engine_routes.py` — Story engine with multiplayer fields in status
-- `/app/backend/services/story_engine/pipeline.py` — Pipeline with graph fields on create
-- `/app/frontend/src/pages/StoryVideoPipeline.js` — Post-gen with Episode/Branch flows
-- `/app/frontend/src/components/NotificationBell.js` — All notification types including war
+### Core
+- `/app/frontend/src/pages/Dashboard.js` — Card routing fix, WarBanner
+- `/app/frontend/src/pages/StoryVideoPipeline.js` — Post-gen Episode/Branch flows
+- `/app/frontend/src/components/NotificationBell.js` — All notification types
 
 ---
 
 ## Prioritized Backlog
 
-### P0 — Immediate
+### P0
 - Verify Resend domain for live email delivery (user action)
 
-### P1 — Next
-- Activate Phase C Gamification (pending GREENLIGHT threshold)
-- Auto-seed daily wars (cron/scheduler instead of admin manual)
+### P1
+- Auto-seed daily wars via scheduler
+- Activate Phase C Gamification (pending GREENLIGHT)
 - Optimize viral loop conversion rates
 
-### P2 — Growth & Polish
-- A/B Week 2: test Variant C
+### P2
+- A/B Week 2 (Variant C)
 - Public story chain leaderboard
-- Monthly creator milestone digest
+- Monthly creator digest
 - Admin WebSocket upgrade
 
 ---
 
 ## Demo Data
 - Battle chain: `battle-demo-root` (3 episodes + 3 branches)
-- Active war: "The Starship Paradox" (seeded, 24h timer)
-- Past war: "The Lost Temple of Echoes" (winner declared)
-- URLs: `/app/war`, `/app/story-battle/battle-demo-root`, `/app/story-chain-timeline/battle-demo-root`
+- Active war: "The Starship Paradox"
+- Past war: "The Lost Temple of Echoes"
+- URLs: /app/war, /app/story-battle/battle-demo-root, /app/story-chain-timeline/battle-demo-root, /app/story-viewer/battle-demo-root
