@@ -132,7 +132,7 @@ async def create_job(
         "credits_refunded": 0,
         "stage_results": [],
         "is_seed_content": False,
-        "public": False,
+        "visibility": "public",  # public | unlisted | private
         "slug": None,
         "hooks": [],
         "hook_text": None,
@@ -162,6 +162,12 @@ async def create_job(
         "total_views": 0,
         "total_shares": 0,
         "battle_score": 0.0,
+        # Attribution
+        "derivative_label": None,  # "continued_from" | "remixed_from" | "styled_from" | "converted_from"
+        "source_story_id": parent_job_id,
+        "source_story_title": None,
+        "source_creator_id": None,
+        "source_creator_name": None,
     }
 
     await db.story_engine_jobs.insert_one({k: v for k, v in job_doc.items() if k != "_id"})

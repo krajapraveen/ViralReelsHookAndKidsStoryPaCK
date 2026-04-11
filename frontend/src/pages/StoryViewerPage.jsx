@@ -205,11 +205,31 @@ export default function StoryViewerPage() {
           <div data-testid="story-meta">
             <h2 className="text-2xl font-black text-white mb-2">{title}</h2>
             <div className="flex items-center gap-3 text-xs text-white/40">
+              {job.creator_name && <span className="text-white/60">by {job.creator_name}</span>}
               {job.animation_style && <span className="capitalize">{job.animation_style.replace(/_/g, ' ')}</span>}
               {job.total_views > 0 && <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {job.total_views} views</span>}
               {(job.battle_score || 0) > 0 && <span className="text-amber-400 font-semibold">{job.battle_score?.toFixed(1)} pts</span>}
             </div>
           </div>
+
+          {/* Attribution — derivative lineage */}
+          {job.derivative_label && job.source_story_title && (
+            <div className="flex items-center gap-2 text-xs bg-violet-500/5 border border-violet-500/10 rounded-lg px-3 py-2"
+              data-testid="attribution-badge">
+              <GitBranch className="w-3.5 h-3.5 text-violet-400" />
+              <span className="text-violet-300">
+                {job.derivative_label === 'continued_from' && 'Continued from'}
+                {job.derivative_label === 'remixed_from' && 'Remixed from'}
+                {job.derivative_label === 'styled_from' && 'Styled from'}
+                {job.derivative_label === 'converted_from' && 'Converted from'}
+                {' '}
+                <span className="font-semibold text-violet-200">"{job.source_story_title}"</span>
+                {job.source_creator_name && (
+                  <span className="text-white/40"> by {job.source_creator_name}</span>
+                )}
+              </span>
+            </div>
+          )}
 
           {/* Story Text — Readable format */}
           {storyText && (

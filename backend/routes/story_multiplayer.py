@@ -199,7 +199,7 @@ async def continue_episode(
         {"job_id": request.parent_job_id},
         {"_id": 0, "job_id": 1, "root_story_id": 1, "story_chain_id": 1,
          "chain_depth": 1, "title": 1, "user_id": 1, "state": 1,
-         "animation_style": 1, "episode_number": 1}
+         "animation_style": 1, "episode_number": 1, "visibility": 1}
     )
     if not parent:
         raise HTTPException(status_code=404, detail="Parent story not found")
@@ -207,9 +207,13 @@ async def continue_episode(
     if parent.get("state") not in ("READY", "PARTIAL_READY", "COMPLETED"):
         raise HTTPException(status_code=400, detail="Parent story must be completed before continuing")
 
+    # Cross-user visibility: allow if public or if user owns it
+    parent_vis = parent.get("visibility", "public")
+    if parent_vis == "private" and parent.get("user_id") != user_id:
+        raise HTTPException(status_code=403, detail="This story is private and cannot be continued")
+
     # Import create_job and run the pipeline
     from services.story_engine.pipeline import create_job, run_pipeline
-    from fastapi import BackgroundTasks
 
     result = await create_job(
         user_id=user_id,
@@ -234,13 +238,25 @@ async def continue_episode(
     # Set multiplayer graph fields — EPISODE type
     graph_info = await ensure_multiplayer_fields(job_id, request.parent_job_id, "episode")
 
-    # Store additional metadata
+    # Store additional metadata + attribution
+    parent_creator_name = "Anonymous"
+    if parent.get("user_id"):
+        pu = await db.users.find_one({"id": parent["user_id"]}, {"_id": 0, "name": 1, "email": 1})
+        if pu:
+            parent_creator_name = pu.get("name") or pu.get("email", "").split("@")[0]
+
     await db.story_engine_jobs.update_one(
         {"job_id": job_id},
         {"$set": {
             "animation_style": request.animation_style,
             "voice_preset": request.voice_preset,
             "quality_mode": request.quality_mode,
+            "derivative_label": "continued_from",
+            "source_story_id": request.parent_job_id,
+            "source_story_title": parent.get("title"),
+            "source_creator_id": parent.get("user_id"),
+            "source_creator_name": parent_creator_name,
+            "visibility": "public",
         }}
     )
 
@@ -275,13 +291,18 @@ async def continue_branch(
     parent = await db.story_engine_jobs.find_one(
         {"job_id": request.parent_job_id},
         {"_id": 0, "job_id": 1, "root_story_id": 1, "story_chain_id": 1,
-         "chain_depth": 1, "title": 1, "user_id": 1, "state": 1}
+         "chain_depth": 1, "title": 1, "user_id": 1, "state": 1, "visibility": 1}
     )
     if not parent:
         raise HTTPException(status_code=404, detail="Parent story not found")
 
     if parent.get("state") not in ("READY", "PARTIAL_READY", "COMPLETED"):
         raise HTTPException(status_code=400, detail="Parent story must be completed before branching")
+
+    # Cross-user visibility: allow if public or if user owns it
+    parent_vis = parent.get("visibility", "public")
+    if parent_vis == "private" and parent.get("user_id") != user_id:
+        raise HTTPException(status_code=403, detail="This story is private and cannot be branched")
 
     from services.story_engine.pipeline import create_job, run_pipeline
 
@@ -314,8 +335,23 @@ async def continue_branch(
             "animation_style": request.animation_style,
             "voice_preset": request.voice_preset,
             "quality_mode": request.quality_mode,
+            "derivative_label": "remixed_from",
+            "source_story_id": request.parent_job_id,
+            "source_story_title": parent.get("title"),
+            "source_creator_id": parent.get("user_id"),
+            "source_creator_name": None,  # populated below
+            "visibility": "public",
         }}
     )
+
+    # Populate source creator name
+    if parent.get("user_id"):
+        pu = await db.users.find_one({"id": parent["user_id"]}, {"_id": 0, "name": 1, "email": 1})
+        if pu:
+            await db.story_engine_jobs.update_one(
+                {"job_id": job_id},
+                {"$set": {"source_creator_name": pu.get("name") or pu.get("email", "").split("@")[0]}}
+            )
 
     # Run pipeline in background
     import asyncio
@@ -661,6 +697,29 @@ async def get_story_for_viewer(story_id: str, current_user: dict = Depends(get_o
     if job.get("state") not in ("READY", "PARTIAL_READY", "COMPLETED"):
         raise HTTPException(status_code=400, detail="Story is not ready for viewing")
 
+    # Visibility check: private stories only visible to owner
+    visibility = job.get("visibility", "public")
+    user_id = None
+    if current_user:
+        user_id = current_user.get("id") or str(current_user.get("_id"))
+
+    if visibility == "private" and job.get("user_id") != user_id:
+        raise HTTPException(status_code=403, detail="This story is private")
+
+    # Track view in user's watch history (for cross-user "Continue Watching")
+    if user_id:
+        await db.watch_history.update_one(
+            {"user_id": user_id, "job_id": story_id},
+            {"$set": {
+                "user_id": user_id,
+                "job_id": story_id,
+                "title": job.get("title"),
+                "last_viewed_at": datetime.now(timezone.utc).isoformat(),
+                "creator_id": job.get("user_id"),
+            }},
+            upsert=True,
+        )
+
     # Build scene progress
     scene_progress = []
     for sr in job.get("stage_results", []):
@@ -706,6 +765,13 @@ async def get_story_for_viewer(story_id: str, current_user: dict = Depends(get_o
             "battle_score": job.get("battle_score", 0.0),
             "creator_name": creator_name,
             "created_at": job.get("created_at"),
+            "visibility": job.get("visibility", "public"),
+            # Attribution
+            "derivative_label": job.get("derivative_label"),
+            "source_story_id": job.get("source_story_id"),
+            "source_story_title": job.get("source_story_title"),
+            "source_creator_id": job.get("source_creator_id"),
+            "source_creator_name": job.get("source_creator_name"),
         },
     }
 
@@ -738,6 +804,48 @@ async def backfill_multiplayer_fields(current_user: dict = Depends(get_current_u
         updated += 1
 
     return {"success": True, "updated": updated, "total_found": len(jobs_without)}
+
+
+class SetVisibilityRequest(BaseModel):
+    job_id: str
+    visibility: str = Field(..., pattern="^(public|unlisted|private)$")
+
+
+@router.post("/set-visibility")
+async def set_story_visibility(request: SetVisibilityRequest, current_user: dict = Depends(get_current_user)):
+    """Set visibility for a story. Only the owner can change visibility."""
+    user_id = current_user.get("id") or str(current_user.get("_id"))
+    job = await db.story_engine_jobs.find_one(
+        {"job_id": request.job_id},
+        {"_id": 0, "user_id": 1}
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Story not found")
+    if job.get("user_id") != user_id and current_user.get("role", "").upper() != "ADMIN":
+        raise HTTPException(status_code=403, detail="Only the owner can change visibility")
+
+    await db.story_engine_jobs.update_one(
+        {"job_id": request.job_id},
+        {"$set": {"visibility": request.visibility}}
+    )
+    return {"success": True, "job_id": request.job_id, "visibility": request.visibility}
+
+
+@router.post("/backfill-visibility")
+async def backfill_visibility(current_user: dict = Depends(get_current_user)):
+    """Admin: Set all completed stories without visibility to public."""
+    if current_user.get("role", "").upper() != "ADMIN":
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    result = await db.story_engine_jobs.update_many(
+        {
+            "state": {"$in": ["READY", "PARTIAL_READY", "COMPLETED"]},
+            "visibility": {"$exists": False},
+        },
+        {"$set": {"visibility": "public"}}
+    )
+
+    return {"success": True, "updated": result.modified_count}
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -891,13 +999,13 @@ async def get_trending_stories(
     current_user: dict = Depends(get_optional_user),
 ):
     """
-    Trending stories feed — prioritized by battle_score.
-    Stories with deep chains and high continuation rates surface first.
+    Trending stories feed — public stories from ALL users, ranked by battle_score.
     """
     stories = await db.story_engine_jobs.find(
         {
             "state": {"$in": ["READY", "PARTIAL_READY", "COMPLETED"]},
             "battle_score": {"$gt": 0},
+            "visibility": {"$in": ["public", None]},  # Include legacy stories without visibility field
         },
         {
             "_id": 0,
@@ -906,6 +1014,7 @@ async def get_trending_stories(
             "total_children": 1, "total_views": 1, "total_shares": 1,
             "battle_score": 1, "thumbnail_url": 1, "created_at": 1,
             "animation_style": 1, "root_story_id": 1,
+            "derivative_label": 1, "source_story_title": 1, "source_creator_name": 1,
         }
     ).sort("battle_score", -1).limit(limit).to_list(limit)
 
@@ -929,6 +1038,132 @@ async def get_trending_stories(
     }
 
 
+@router.get("/feed/discover")
+async def discover_stories(
+    limit: int = Query(default=20, le=50),
+    offset: int = Query(default=0, ge=0),
+    sort_by: str = Query(default="latest", pattern="^(latest|trending|most_continued)$"),
+    current_user: dict = Depends(get_optional_user),
+):
+    """
+    Public discovery feed — ALL public stories from ALL users.
+    Paginated, filterable. This is the core cross-user discovery endpoint.
+    """
+    sort_key = {
+        "latest": [("created_at", -1)],
+        "trending": [("battle_score", -1)],
+        "most_continued": [("total_children", -1)],
+    }.get(sort_by, [("created_at", -1)])
+
+    stories = await db.story_engine_jobs.find(
+        {
+            "state": {"$in": ["READY", "PARTIAL_READY", "COMPLETED"]},
+            "visibility": {"$in": ["public", None]},
+            "is_seed_content": {"$ne": True},
+        },
+        {
+            "_id": 0,
+            "job_id": 1, "title": 1, "user_id": 1, "state": 1,
+            "continuation_type": 1, "chain_depth": 1,
+            "total_children": 1, "total_views": 1, "total_shares": 1,
+            "battle_score": 1, "thumbnail_url": 1, "output_url": 1,
+            "created_at": 1, "animation_style": 1, "root_story_id": 1,
+            "derivative_label": 1, "source_story_title": 1, "source_creator_name": 1,
+            "story_text": 1,
+        }
+    ).sort(sort_key).skip(offset).limit(limit).to_list(limit)
+
+    user_ids = list({s.get("user_id") for s in stories if s.get("user_id")})
+    user_map = {}
+    if user_ids:
+        users = await db.users.find(
+            {"id": {"$in": user_ids}},
+            {"_id": 0, "id": 1, "name": 1, "email": 1}
+        ).to_list(100)
+        user_map = {u["id"]: u.get("name") or u.get("email", "").split("@")[0] for u in users}
+
+    for s in stories:
+        s["creator_name"] = user_map.get(s.get("user_id"), "Anonymous")
+        # Trim story_text for feed display
+        if s.get("story_text") and len(s["story_text"]) > 200:
+            s["story_text"] = s["story_text"][:200] + "..."
+
+    total = await db.story_engine_jobs.count_documents({
+        "state": {"$in": ["READY", "PARTIAL_READY", "COMPLETED"]},
+        "visibility": {"$in": ["public", None]},
+        "is_seed_content": {"$ne": True},
+    })
+
+    return {
+        "success": True,
+        "stories": stories,
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "has_more": offset + limit < total,
+    }
+
+
+@router.get("/feed/continue-watching")
+async def continue_watching_feed(
+    limit: int = Query(default=20, le=50),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Continue Watching — stories this user has previously viewed (own + others' public).
+    Based on watch_history collection.
+    """
+    user_id = current_user.get("id") or str(current_user.get("_id"))
+
+    # Get recent watch history
+    history = await db.watch_history.find(
+        {"user_id": user_id},
+        {"_id": 0, "job_id": 1}
+    ).sort("last_viewed_at", -1).limit(limit).to_list(limit)
+
+    if not history:
+        return {"success": True, "stories": [], "total": 0}
+
+    job_ids = [h["job_id"] for h in history]
+
+    stories = await db.story_engine_jobs.find(
+        {
+            "job_id": {"$in": job_ids},
+            "state": {"$in": ["READY", "PARTIAL_READY", "COMPLETED"]},
+        },
+        {
+            "_id": 0,
+            "job_id": 1, "title": 1, "user_id": 1, "state": 1,
+            "total_views": 1, "thumbnail_url": 1, "output_url": 1,
+            "created_at": 1, "animation_style": 1, "root_story_id": 1,
+            "continuation_type": 1, "chain_depth": 1,
+            "derivative_label": 1, "source_story_title": 1,
+        }
+    ).to_list(limit)
+
+    # Preserve watch history order
+    story_map = {s["job_id"]: s for s in stories}
+    ordered = [story_map[jid] for jid in job_ids if jid in story_map]
+
+    user_ids = list({s.get("user_id") for s in ordered if s.get("user_id")})
+    user_map = {}
+    if user_ids:
+        users = await db.users.find(
+            {"id": {"$in": user_ids}},
+            {"_id": 0, "id": 1, "name": 1, "email": 1}
+        ).to_list(100)
+        user_map = {u["id"]: u.get("name") or u.get("email", "").split("@")[0] for u in users}
+
+    for s in ordered:
+        s["creator_name"] = user_map.get(s.get("user_id"), "Anonymous")
+
+    return {
+        "success": True,
+        "stories": ordered,
+        "total": len(ordered),
+    }
+
+
 # ═══════════════════════════════════════════════════════════════
 # INDEXES — Create DB indexes for performance
 # ═══════════════════════════════════════════════════════════════
@@ -941,8 +1176,13 @@ async def create_multiplayer_indexes():
         await collection.create_index("parent_job_id")
         await collection.create_index("continuation_type")
         await collection.create_index("battle_score")
+        await collection.create_index("visibility")
         await collection.create_index([("root_story_id", 1), ("continuation_type", 1)])
         await collection.create_index([("parent_job_id", 1), ("continuation_type", 1), ("battle_score", -1)])
+        await collection.create_index([("visibility", 1), ("state", 1), ("created_at", -1)])
+        await collection.create_index([("visibility", 1), ("state", 1), ("battle_score", -1)])
+        await db.watch_history.create_index([("user_id", 1), ("last_viewed_at", -1)])
+        await db.watch_history.create_index([("user_id", 1), ("job_id", 1)], unique=True)
         logger.info("[MULTIPLAYER] Indexes created successfully")
     except Exception as e:
         logger.warning(f"[MULTIPLAYER] Index creation failed: {e}")

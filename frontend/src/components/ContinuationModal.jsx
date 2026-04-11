@@ -17,10 +17,22 @@ export default function ContinuationModal({
   parentJob,
   onJobCreated,
   isWar = false, // if true, uses /api/war/enter instead
+  preset = null, // { title, instruction } — pre-fills the form
 }) {
   const [title, setTitle] = useState('');
   const [storyText, setStoryText] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Reset form when preset changes
+  React.useEffect(() => {
+    if (preset) {
+      setTitle(preset.title || '');
+      setStoryText(preset.instruction || '');
+    } else {
+      setTitle('');
+      setStoryText('');
+    }
+  }, [preset]);
 
   if (!isOpen || !parentJob) return null;
 

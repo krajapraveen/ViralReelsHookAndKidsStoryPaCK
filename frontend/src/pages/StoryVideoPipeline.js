@@ -115,7 +115,7 @@ const HARD_TIMEOUT_MS = 15 * 60 * 1000;  // 15 min → background + notify
 const STALE_THRESHOLD_MS = 90 * 1000;
 
 // ─── COMPETITIVE COMPARISON COMPONENT ──────────────────────────────────────
-function CompetitiveComparison({ posterUrl, displayTitle, navigate, storyText, currentStyle, jobId, job }) {
+function CompetitiveComparison({ posterUrl, displayTitle, navigate, storyText, currentStyle, jobId, job, onBeat, onImprove }) {
   const [topItem, setTopItem] = useState(null);
 
   useEffect(() => {
@@ -131,36 +131,27 @@ function CompetitiveComparison({ posterUrl, displayTitle, navigate, storyText, c
   if (!topItem || !posterUrl) return null;
 
   const handleBeat = () => {
-    try {
-      api.post(`/api/gallery/${topItem.item_id}/remix`).catch(() => {});
-    } catch { /* fire-and-forget */ }
-    navigate('/app/story-video-studio', {
-      state: {
-        prompt: storyText || '',
-        remixFrom: {
-          title: topItem.title,
-          item_id: topItem.item_id,
-          remixes_count: (topItem.remixes_count || 0) + 1,
-          source: 'remix_gallery',
-        },
-        source_tool: 'competitive-comparison',
-        isRemix: true,
-      },
-    });
-    toast.success("You're remixing a trending story");
+    try { api.post('/api/funnel/track', { event: 'try_to_beat_clicked', data: { job_id: jobId, target: topItem.item_id } }); } catch {}
+    if (onBeat) {
+      onBeat(topItem);
+    } else {
+      navigate('/app/story-video-studio', {
+        state: { prompt: storyText || '', remixFrom: { title: topItem.title, item_id: topItem.item_id }, isRemix: true },
+      });
+    }
   };
 
   const handleImprove = () => {
-    localStorage.setItem('remix_video', JSON.stringify({
-      parent_video_id: jobId,
-      title: `Improved: ${displayTitle}`,
-      story_text: storyText || job?.story_text || '',
-      animation_style: currentStyle,
-      age_group: job?.age_group,
-      voice_preset: job?.voice_preset,
-    }));
-    navigate('/app/story-video-studio?remix=improve');
-    toast.success('Creating improved version!');
+    try { api.post('/api/funnel/track', { event: 'improve_yours_clicked', data: { job_id: jobId } }); } catch {}
+    if (onImprove) {
+      onImprove();
+    } else {
+      localStorage.setItem('remix_video', JSON.stringify({
+        parent_video_id: jobId, title: `Improved: ${displayTitle}`,
+        story_text: storyText || job?.story_text || '', animation_style: currentStyle,
+      }));
+      navigate('/app/story-video-studio?remix=improve');
+    }
   };
 
   return (
@@ -1867,6 +1858,7 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
   const [showForceShare, setShowForceShare] = useState(false);
   const [showAutoNext, setShowAutoNext] = useState(false);
   const [continuationMode, setContinuationMode] = useState(null); // 'episode' | 'branch' | null
+  const [continuationPreset, setContinuationPreset] = useState(null); // {title, instruction, label}
   const navigate = useNavigate();
   const { canDownload, upgradeRequired } = useMediaEntitlement();
   const { uiState, previewReady, downloadReady, shareReady, posterUrl, downloadUrl, shareUrl, storyPackUrl, failReason, stageDetail, jobTitle } = postGen;
@@ -1948,7 +1940,20 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
     const urls = {
       twitter: `https://twitter.com/intent/tweet?text=${text}&url=${url}`,
       whatsapp: `https://wa.me/?text=${text}%20${url}`,
+      copy: null,
     };
+    // Analytics
+    try { api.post('/api/funnel/track', { event: 'share_clicked', data: { platform, job_id: jobId || job?.job_id } }); } catch {}
+
+    if (platform === 'copy') {
+      navigator.clipboard?.writeText(shareUrl || window.location.href).then(() => {
+        setCopied(true);
+        toast.success('Link copied!');
+        try { api.post('/api/funnel/track', { event: 'copied_link', data: { job_id: jobId || job?.job_id } }); } catch {}
+        setTimeout(() => setCopied(false), 2000);
+      });
+      return;
+    }
     if (urls[platform]) window.open(urls[platform], '_blank', 'width=600,height=400');
   };
 
@@ -1984,6 +1989,16 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
     }));
     navigate(`/app/story-video-studio?remix=style`);
     toast.success('Remixing with new style...');
+  };
+
+  // Preset continuation openers — each opens ContinuationModal with pre-filled context
+  const openPresetContinuation = (mode, preset) => {
+    setContinuationPreset(preset);
+    setContinuationMode(mode);
+    // Fire analytics
+    if (preset?.analyticsEvent) {
+      try { api.post('/api/funnel/track', { event: preset.analyticsEvent, data: { job_id: jobId || job?.job_id } }); } catch {}
+    }
   };
 
   const isActionable = uiState === 'READY' || uiState === 'PARTIAL_READY';
@@ -2403,7 +2418,11 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
           {/* ═══ SECONDARY: Add Twist / Make Funny / Next Episode ═══ */}
           <div className="grid grid-cols-3 gap-3" data-testid="secondary-actions">
             <button
-              onClick={() => handleContinue(CONTINUE_DIRECTIONS[1])}
+              onClick={() => openPresetContinuation('branch', {
+                title: `${displayTitle} — Twist`,
+                instruction: 'Add an unexpected plot twist — a shocking reveal that changes everything while preserving the main characters and world.',
+                analyticsEvent: 'add_twist_clicked',
+              })}
               className="p-4 rounded-xl border border-amber-500/20 bg-amber-500/[0.04] hover:bg-amber-500/[0.08] transition-all text-center group"
               data-testid="add-twist-btn"
             >
@@ -2412,20 +2431,11 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
               <span className="text-[10px] text-slate-500">Unexpected reveal</span>
             </button>
             <button
-              onClick={() => {
-                const baseStory = storyText || job?.story_text || '';
-                const funnyPrompt = `[Funny Version of "${displayTitle}"]\n\nOriginal story:\n${baseStory.slice(0, 500)}...\n\nDirection: Convert this into a hilariously funny version while keeping core events. Add comedic timing, funny dialogue, and absurd situations.`;
-                localStorage.setItem('remix_video', JSON.stringify({
-                  parent_video_id: jobId || job?.job_id,
-                  title: `Funny: ${displayTitle}`,
-                  story_text: funnyPrompt,
-                  animation_style: currentStyle,
-                  age_group: job?.age_group,
-                  voice_preset: job?.voice_preset,
-                }));
-                navigate('/app/story-video-studio?remix=funny');
-                toast.success('Creating funny version!');
-              }}
+              onClick={() => openPresetContinuation('branch', {
+                title: `${displayTitle} — Funny Version`,
+                instruction: 'Convert this story into a hilarious comedy version. Add funny dialogue, comedic timing, and absurd situations while keeping the core events.',
+                analyticsEvent: 'make_funny_clicked',
+              })}
               className="p-4 rounded-xl border border-pink-500/20 bg-pink-500/[0.04] hover:bg-pink-500/[0.08] transition-all text-center group"
               data-testid="make-funny-btn"
             >
@@ -2434,7 +2444,11 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
               <span className="text-[10px] text-slate-500">Comedy version</span>
             </button>
             <button
-              onClick={() => handleContinue(CONTINUE_DIRECTIONS[3])}
+              onClick={() => openPresetContinuation('episode', {
+                title: `${displayTitle} — Episode ${(job?.episode_number || 1) + 1}`,
+                instruction: 'Continue this storyline forward. Preserve all characters, world, and continuity. What happens next?',
+                analyticsEvent: 'next_episode_clicked',
+              })}
               className="p-4 rounded-xl border border-purple-500/20 bg-purple-500/[0.04] hover:bg-purple-500/[0.08] transition-all text-center group"
               data-testid="next-episode-btn"
             >
@@ -2453,6 +2467,16 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
             currentStyle={currentStyle}
             jobId={jobId || job?.job_id}
             job={job}
+            onBeat={() => openPresetContinuation('branch', {
+              title: `Beat: ${displayTitle}`,
+              instruction: 'Create a stronger, more compelling version of this story. Outdo the original with better plot, deeper characters, and more engaging writing.',
+              analyticsEvent: 'try_to_beat_clicked',
+            })}
+            onImprove={() => openPresetContinuation('branch', {
+              title: `Improved: ${displayTitle}`,
+              instruction: 'Refine and improve your current version. Better pacing, stronger dialogue, more vivid descriptions. Keep the core story but make everything sharper.',
+              analyticsEvent: 'improve_yours_clicked',
+            })}
           />
 
           {/* ═══ INSTANT REMIX VARIANTS — One-click generation ═══ */}
@@ -2462,26 +2486,18 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
             </h3>
             <div className="grid grid-cols-4 gap-2" data-testid="instant-remix-buttons">
               {[
-                { label: 'More dramatic', tone: 'dramatic', color: 'border-red-500/20 bg-red-500/[0.04] hover:bg-red-500/[0.08]', iconColor: 'text-red-400' },
-                { label: 'Shorter', tone: 'short', color: 'border-blue-500/20 bg-blue-500/[0.04] hover:bg-blue-500/[0.08]', iconColor: 'text-blue-400' },
-                { label: 'Faster-paced', tone: 'fast', color: 'border-amber-500/20 bg-amber-500/[0.04] hover:bg-amber-500/[0.08]', iconColor: 'text-amber-400' },
-                { label: 'More emotional', tone: 'emotional', color: 'border-pink-500/20 bg-pink-500/[0.04] hover:bg-pink-500/[0.08]', iconColor: 'text-pink-400' },
+                { label: 'More dramatic', tone: 'dramatic', instruction: 'Rewrite with higher stakes, intense emotions, and dramatic tension. Make every scene feel urgent and gripping.', color: 'border-red-500/20 bg-red-500/[0.04] hover:bg-red-500/[0.08]', iconColor: 'text-red-400' },
+                { label: 'Shorter', tone: 'short', instruction: 'Create a condensed, punchy version. Cut to the essential scenes only. Maximum impact, minimum length.', color: 'border-blue-500/20 bg-blue-500/[0.04] hover:bg-blue-500/[0.08]', iconColor: 'text-blue-400' },
+                { label: 'Faster-paced', tone: 'fast', instruction: 'Increase the pacing dramatically. Quick scene changes, rapid dialogue, constant forward momentum.', color: 'border-amber-500/20 bg-amber-500/[0.04] hover:bg-amber-500/[0.08]', iconColor: 'text-amber-400' },
+                { label: 'More emotional', tone: 'emotional', instruction: 'Amplify the emotional depth. Make the audience feel deeply connected to the characters. Add poignant moments.', color: 'border-pink-500/20 bg-pink-500/[0.04] hover:bg-pink-500/[0.08]', iconColor: 'text-pink-400' },
               ].map(v => (
                 <button
                   key={v.tone}
-                  onClick={() => {
-                    const baseStory = storyText || job?.story_text || '';
-                    localStorage.setItem('remix_video', JSON.stringify({
-                      parent_video_id: jobId || job?.job_id,
-                      title: `${v.label}: ${displayTitle}`,
-                      story_text: `[${v.label} version of "${displayTitle}"]\n\nOriginal:\n${baseStory.slice(0, 400)}\n\nDirection: Make this ${v.tone}.`,
-                      animation_style: currentStyle,
-                      age_group: job?.age_group,
-                      voice_preset: job?.voice_preset,
-                    }));
-                    navigate(`/app/story-video-studio?remix=${v.tone}`);
-                    toast.success(`Creating ${v.label.toLowerCase()} version!`);
-                  }}
+                  onClick={() => openPresetContinuation('branch', {
+                    title: `${v.label}: ${displayTitle}`,
+                    instruction: v.instruction,
+                    analyticsEvent: 'variation_clicked',
+                  })}
                   className={`p-3 rounded-xl border transition-all text-center group ${v.color}`}
                   data-testid={`instant-remix-${v.tone}`}
                 >
@@ -2516,7 +2532,17 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
                   key={s.platform}
                   onClick={async () => {
                     if (s.platform === 'copy') {
-                      handleCopyLink();
+                      handleShare('copy');
+                    } else if (s.platform === 'instagram') {
+                      // Use native share API for Story/Instagram (mobile)
+                      if (navigator.share) {
+                        try {
+                          await navigator.share({ title: displayTitle, text: `Check out "${displayTitle}"`, url: shareUrl || window.location.href });
+                        } catch {}
+                      } else {
+                        handleShare('copy'); // Fallback to copy link
+                        toast.info('Link copied — paste it into your Story');
+                      }
                     } else {
                       handleShare(s.platform);
                     }
@@ -2657,8 +2683,9 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
       {/* ═══ Continuation Modal — Episode vs Branch ═══ */}
       <ContinuationModal
         isOpen={!!continuationMode}
-        onClose={() => setContinuationMode(null)}
+        onClose={() => { setContinuationMode(null); setContinuationPreset(null); }}
         mode={continuationMode || 'episode'}
+        preset={continuationPreset}
         parentJob={{
           job_id: jobId || job?.job_id,
           title: displayTitle,
