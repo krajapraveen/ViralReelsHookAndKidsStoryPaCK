@@ -3,7 +3,6 @@
 ## Architecture
 - **Frontend**: React (CRA) + TailwindCSS + Shadcn/UI
 - **Backend**: FastAPI + MongoDB + Redis
-- **Integrations**: OpenAI, Gemini, Cloudflare R2, Cashfree, Google Auth, Resend
 - **URL**: https://trust-engine-5.preview.emergentagent.com
 
 ## Credentials
@@ -12,84 +11,61 @@
 
 ---
 
-## Completed Work
+## Completed Work (Apr 11)
 
-### Story Multiplayer Engine — DONE (Apr 11)
-- Graph data model, Episode vs Branch UI, StoryBattlePage, StoryChainTimeline, notifications, trending feed
+### Story Multiplayer Engine (Phases 1-4)
+- Graph data model, Episode vs Branch UI, StoryBattlePage, StoryChainTimeline (competition-first), notifications, trending feed
 
-### Daily Story War — DONE (Apr 11)
-- daily_wars collection, strict states, war-local scoring, branch-only, tie-breaks, winner declaration
+### Daily Story War
+- daily_wars collection, strict states, war-local scoring, branch-only, tie-breaks, winner declaration, DailyWarPage, WarBanner
 
-### StoryChain Competition-First Redesign — DONE (Apr 11)
-- Winner spotlight above-fold, Player vs Viewer modes, "Beat This Version" → pre-filled ContinuationModal
-
-### Consumption vs Creation UX Fix — DONE (Apr 11)
+### Consumption vs Creation UX Fix
 - StoryViewerPage, Dashboard card routing split (CONTINUE→viewer, TRENDING→studio)
 
-### Phase 1 — Story Visibility + Cross-User Access + Attribution — DONE (Apr 11)
-- **Visibility model**: `public | unlisted | private` on every story. Default: `public`. Drafts: `private`.
-- **Cross-user access**: Any logged-in user can view, continue, remix, fork any public story. Private blocked for non-owners.
-- **Attribution**: `derivative_label` (continued_from, remixed_from, styled_from, converted_from), `source_story_title`, `source_creator_name` on all derivatives. Visible in StoryViewerPage as badge.
-- **Discover feed**: `GET /api/stories/feed/discover` — ALL public stories from ALL users, paginated, sortable (latest/trending/most_continued)
-- **Continue Watching feed**: `GET /api/stories/feed/continue-watching` — cross-user watch history (stories user has viewed, regardless of creator)
-- **Watch history tracking**: Viewer endpoint auto-tracks in `watch_history` collection
-- **Visibility management**: `POST /api/stories/set-visibility` (owner only), `POST /api/stories/backfill-visibility` (admin)
-- Testing: iteration_493 — 29/29 (100%)
+### Phase 1 — Story Visibility + Cross-User Access + Attribution
+- Visibility model: `public | unlisted | private`. Cross-user access enforced. Attribution on all derivatives.
+- Discover feed, Continue Watching feed (cross-user), watch history tracking.
 
-### Phase 2A — Core Action Integrity — DONE (Apr 11)
-- **Rewired all dead buttons** to use ContinuationModal with preset instructions (not dead studio navigation):
-  - Add Twist → branch mode, "Add unexpected plot twist" instruction
-  - Make Funny → branch mode, "Convert to comedy version" instruction
-  - Next Episode → episode mode, "Continue storyline forward" instruction
-  - Try to beat this → branch mode, "Create stronger competing version" instruction
-  - Improve yours → branch mode, "Refine and improve your version" instruction
-  - More dramatic / Shorter / Faster-paced / More emotional → branch mode with tone-specific instructions
-- **Share buttons**: Copy Link fires `copied_link` analytics, all share buttons fire `share_clicked`. Instagram/Story uses native `navigator.share` API with clipboard fallback.
-- **Analytics**: Every action fires tracking event via `/api/funnel/track`
-- Testing: iteration_493 — included in Phase 1 test, 100%
+### Phase 2A — Core Action Integrity
+- Rewired Add Twist, Make Funny, Next Episode, Try to beat, Improve yours, variation chips to ContinuationModal with preset instructions + analytics.
+
+### Phase 2B — Loop-Based UX + CompetitionPulse
+- **CompetitionPulse component**: Live rank + gap-to-#1 + re-engagement CTAs. Polls every 20s.
+  - Winner state: "YOU ARE #1" celebration + View Battle/View Chain
+  - Competitor state: rank number, gap (pts + continues), #1 leader preview, "Try Again" + "Beat #1"
+  - Rank change alerts: "You moved up" (emerald) / "You dropped" (rose) with animation
+- Style remix cards (Anime, 3D, Watercolor, Comic Book, Claymation) → ContinuationModal with style instructions
+- Accordion continuation options → ContinuationModal with presets
+- Create Entirely New Story → fires analytics
+- CreationActionsBar (Quick Variations, Convert Creation) → functional via trackAndNavigate system
 
 ---
 
 ## Key Files
-
-### Visibility + Attribution
-- `/app/backend/routes/story_multiplayer.py` — visibility enforcement, discover/continue-watching feeds, set-visibility, viewer with attribution
-- `/app/backend/services/story_engine/pipeline.py` — visibility='public' default, attribution fields
-
-### Action Integrity
-- `/app/frontend/src/pages/StoryVideoPipeline.js` — rewired Add Twist, Make Funny, Next Episode, variation chips, battle buttons
-- `/app/frontend/src/components/ContinuationModal.jsx` — preset prop for pre-filled title+instruction
-- `/app/frontend/src/pages/StoryViewerPage.jsx` — attribution badge, creator_name display
-
-### Daily War + Battle
-- `/app/backend/routes/daily_war.py`, `/app/frontend/src/pages/DailyWarPage.jsx`, `/app/frontend/src/components/WarBanner.jsx`
-- `/app/frontend/src/pages/StoryBattlePage.jsx`, `/app/frontend/src/pages/StoryChainTimeline.jsx`
+- `/app/frontend/src/components/CompetitionPulse.jsx` — Live compulsion loop
+- `/app/frontend/src/components/ContinuationModal.jsx` — Episode/Branch/War modal with preset support
+- `/app/frontend/src/pages/StoryVideoPipeline.js` — All actions wired, CompetitionPulse integrated
+- `/app/frontend/src/pages/StoryViewerPage.jsx` — Consumption with attribution
+- `/app/frontend/src/pages/DailyWarPage.jsx` — War experience
+- `/app/frontend/src/pages/StoryBattlePage.jsx` — Battle leaderboard
+- `/app/frontend/src/pages/StoryChainTimeline.jsx` — Competition-first chain
+- `/app/backend/routes/story_multiplayer.py` — Visibility, feeds, battle, attribution
+- `/app/backend/routes/daily_war.py` — War lifecycle
 
 ---
 
 ## Prioritized Backlog
 
-### P0 — Phase 2B (Secondary Action Matrix)
-- Style remix cards (Anime, 3D Animation, Watercolor, Comic Book, Claymation)
-- Quick Variations (Funny, Dramatic, Anime Style, Short Version, Regenerate)
-- Second-row actions (Change Style, Create Part 2, Different Animation Style, Funny/Kids Version, Remix Prompt)
-- Convert Creation (Short Reel Version, Turn Into Comic)
-
-### P1 — Phase 3 (Feed + Discovery Cleanup)
-- Homepage sections: Continue Watching, Trending Now, Daily Story War, Recommended, Your Creations
+### P0 — Phase 3 (Feed + Discovery Cleanup)
+- Homepage sections: Continue Watching (user history + cross-user), Trending Now (all public), Daily Story War, Recommended, Your Creations
 - Card creator attribution visible
 - Clear CTA separation on cards
 
-### P2 — Maintenance
+### P1
 - Auto-seed daily wars via scheduler
 - Activate Phase C Gamification
+- Follow Creator system (after engagement loops proven)
 - Verify Resend domain
-- A/B Week 2
 
----
-
-## Demo Data
-- Battle chain: `battle-demo-root` (3 episodes + 3 branches)
-- Past war: "The Lost Temple of Echoes" (winner declared)
-- Active war: "The Starship Paradox" (24h timer)
-- URLs: /app/war, /app/story-battle/battle-demo-root, /app/story-chain-timeline/battle-demo-root, /app/story-viewer/battle-demo-root
+### P2
+- A/B Week 2, public chain leaderboard, monthly digest
