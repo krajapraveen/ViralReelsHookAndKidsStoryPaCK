@@ -21,6 +21,7 @@ import {
 import HeroMedia from '../components/HeroMedia';
 import StoryCardMedia from '../components/StoryCardMedia';
 import MediaPreloader from '../components/MediaPreloader';
+import WarBanner from '../components/WarBanner';
 
 import heroFallback from '../assets/fallbacks/hero-fallback.jpg';
 import cardFallback from '../assets/fallbacks/card-fallback.jpg';
@@ -1055,6 +1056,11 @@ export default function Dashboard() {
 
       {/* FEATURED CHALLENGE WINNER — Prestige Slot */}
       <FeaturedWinnerHero winner={challengeWinner} navigate={navigate} />
+
+      {/* DAILY STORY WAR BANNER */}
+      <div className="px-4 sm:px-6 lg:px-10 py-2">
+        <WarBanner />
+      </div>
 
       {/* PERSONALIZED HERO + VIRAL ATTRIBUTION */}
       <PersonalizedHero metrics={metrics} viralStats={viralStats} navigate={navigate} />

@@ -662,6 +662,9 @@ api_router.include_router(phase_c_router)
 from routes.story_multiplayer import router as story_multiplayer_router
 api_router.include_router(story_multiplayer_router)
 
+from routes.daily_war import router as daily_war_router
+api_router.include_router(daily_war_router)
+
 api_router.include_router(media_access_router)
 
 
@@ -931,6 +934,13 @@ async def startup():
         await create_multiplayer_indexes()
     except Exception as e:
         logger.warning(f"Multiplayer index creation warning: {e}")
+
+    # Daily Story War indexes
+    try:
+        from routes.daily_war import create_war_indexes
+        await create_war_indexes()
+    except Exception as e:
+        logger.warning(f"War index creation warning: {e}")
     
     # Seed A/B experiments (idempotent)
     try:

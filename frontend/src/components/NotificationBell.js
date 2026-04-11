@@ -16,6 +16,9 @@ const ICON_MAP = {
   rank_drop: Trophy,
   version_outperformed: Zap,
   story_branched: RefreshCcw,
+  war_overtake: Flame,
+  war_won: Trophy,
+  war_ended: Target,
 };
 
 const COLOR_MAP = {
@@ -27,6 +30,9 @@ const COLOR_MAP = {
   rank_drop: 'text-rose-400 bg-rose-500/10',
   version_outperformed: 'text-amber-400 bg-amber-500/10',
   story_branched: 'text-violet-400 bg-violet-500/10',
+  war_overtake: 'text-rose-400 bg-rose-500/10',
+  war_won: 'text-amber-400 bg-amber-500/10',
+  war_ended: 'text-slate-400 bg-slate-500/10',
 };
 
 export default function NotificationBell() {
