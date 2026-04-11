@@ -151,6 +151,7 @@ import StoryChainView from './pages/StoryChainView';
 import StoryChainTimeline from './pages/StoryChainTimeline';
 import StoryBattlePage from './pages/StoryBattlePage';
 import DailyWarPage from './pages/DailyWarPage';
+import StoryViewerPage from './pages/StoryViewerPage';
 import MyStories from './pages/MyStories';
 // ADMIN GROWTH DASHBOARD
 import GrowthDashboard from './pages/Admin/GrowthDashboard';
@@ -401,6 +402,7 @@ function App() {
       <Route path="/app/story-chain-timeline/:storyId" element={isAuthenticated ? <StoryChainTimeline /> : <Navigate to="/login" />} />
       <Route path="/app/story-battle/:storyId" element={isAuthenticated ? <StoryBattlePage /> : <Navigate to="/login" />} />
       <Route path="/app/war" element={isAuthenticated ? <DailyWarPage /> : <Navigate to="/login" />} />
+      <Route path="/app/story-viewer/:jobId" element={isAuthenticated ? <StoryViewerPage /> : <Navigate to="/login" />} />
       <Route path="/app/my-stories" element={isAuthenticated ? <MyStories /> : <Navigate to="/login" />} />
       <Route path="/app/gif-maker" element={isAuthenticated ? <PhotoReactionGIF /> : <Navigate to="/login" />} />
       <Route path="/app/reaction-gif" element={isAuthenticated ? <PhotoReactionGIF /> : <Navigate to="/login" />} />

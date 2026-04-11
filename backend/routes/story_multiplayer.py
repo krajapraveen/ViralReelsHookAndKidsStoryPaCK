@@ -642,6 +642,75 @@ async def increment_metric(request: IncrementMetricRequest):
 
 
 # ═══════════════════════════════════════════════════════════════
+# STORY VIEWER — Public read access for consumption
+# ═══════════════════════════════════════════════════════════════
+
+@router.get("/viewer/{story_id}")
+async def get_story_for_viewer(story_id: str, current_user: dict = Depends(get_optional_user)):
+    """
+    Public story viewer data — returns story content for consumption.
+    No ownership check. Used by the Story Viewer Page.
+    """
+    job = await db.story_engine_jobs.find_one(
+        {"job_id": story_id},
+        {"_id": 0}
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    if job.get("state") not in ("READY", "PARTIAL_READY", "COMPLETED"):
+        raise HTTPException(status_code=400, detail="Story is not ready for viewing")
+
+    # Build scene progress
+    scene_progress = []
+    for sr in job.get("stage_results", []):
+        if sr.get("stage") == "keyframes" and sr.get("output"):
+            for scene in sr["output"].get("scenes", []):
+                if scene.get("url"):
+                    scene_progress.append({
+                        "title": scene.get("title", ""),
+                        "image_url": scene["url"],
+                    })
+
+    # Get creator name
+    creator_name = "Anonymous"
+    if job.get("user_id"):
+        user = await db.users.find_one(
+            {"id": job["user_id"]},
+            {"_id": 0, "name": 1, "email": 1}
+        )
+        if user:
+            creator_name = user.get("name") or user.get("email", "").split("@")[0]
+
+    return {
+        "success": True,
+        "job": {
+            "job_id": job.get("job_id"),
+            "title": job.get("title"),
+            "story_text": job.get("story_text", ""),
+            "state": job.get("state"),
+            "output_url": job.get("output_url"),
+            "thumbnail_url": job.get("thumbnail_url"),
+            "animation_style": job.get("animation_style"),
+            "episode_number": job.get("episode_number"),
+            "scene_progress": scene_progress,
+            # Multiplayer fields
+            "root_story_id": job.get("root_story_id"),
+            "story_chain_id": job.get("story_chain_id"),
+            "parent_job_id": job.get("parent_job_id"),
+            "chain_depth": job.get("chain_depth", 0),
+            "continuation_type": job.get("continuation_type", "original"),
+            "total_children": job.get("total_children", 0),
+            "total_views": job.get("total_views", 0),
+            "total_shares": job.get("total_shares", 0),
+            "battle_score": job.get("battle_score", 0.0),
+            "creator_name": creator_name,
+            "created_at": job.get("created_at"),
+        },
+    }
+
+
+# ═══════════════════════════════════════════════════════════════
 # BACKFILL — Migrate existing jobs to have multiplayer fields
 # ═══════════════════════════════════════════════════════════════
 

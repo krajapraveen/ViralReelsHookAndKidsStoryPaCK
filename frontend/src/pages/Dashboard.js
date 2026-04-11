@@ -300,17 +300,25 @@ function StoryCard({ story, idx, navigate, priority = false }) {
     if (story.job_id && story.hook_variant_id) {
       axios.post(`${API}/api/engagement/hook-event`, { job_id: story.job_id, hook_variant_id: story.hook_variant_id, event_type: 'continue' }).catch(() => {});
     }
-    navigate('/app/story-video-studio', {
-      state: {
-        prefill: {
-          title: story.title || '', prompt: story.hook_text || story.story_prompt || '',
-          hook_text: story.hook_text || '', animation_style: story.animation_style || '',
-          parent_video_id: story.is_seed ? null : story.job_id,
-          source_surface: story.badge === 'TRENDING' ? 'trending' : story.badge === 'FRESH' ? 'fresh' : story.badge === 'CONTINUE' ? 'continue' : 'dashboard',
+
+    // CONSUMPTION vs CREATION routing split
+    if (badge === 'CONTINUE' && story.job_id && !story.is_seed) {
+      // "Continue watching" → Story Viewer (consumption mode)
+      navigate(`/app/story-viewer/${story.job_id}`);
+    } else {
+      // Trending/New/Fresh → Studio (creation mode)
+      navigate('/app/story-video-studio', {
+        state: {
+          prefill: {
+            title: story.title || '', prompt: story.hook_text || story.story_prompt || '',
+            hook_text: story.hook_text || '', animation_style: story.animation_style || '',
+            parent_video_id: story.is_seed ? null : story.job_id,
+            source_surface: story.badge === 'TRENDING' ? 'trending' : story.badge === 'FRESH' ? 'fresh' : 'dashboard',
+          },
+          freshSession: true,
         },
-        freshSession: true,
-      },
-    });
+      });
+    }
   };
 
   return (
@@ -351,7 +359,7 @@ function StoryCard({ story, idx, navigate, priority = false }) {
         <p className="mt-1 text-white/80 text-[12px] sm:text-sm leading-snug line-clamp-2">"{hook}"</p>
         <div className="mt-3 inline-flex items-center text-white text-xs sm:text-sm font-semibold">
           <Play className="w-2.5 h-2.5 lg:w-3 lg:h-3 fill-current mr-1" />
-          {badge === 'CONTINUE' ? 'Continue watching' : 'Continue'}
+          {badge === 'CONTINUE' ? 'Continue watching' : 'Create your version'}
           <ArrowRight className="w-2.5 h-2.5 lg:w-3 lg:h-3 ml-1" />
         </div>
       </div>
