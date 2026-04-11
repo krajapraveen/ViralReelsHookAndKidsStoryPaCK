@@ -17,7 +17,7 @@ New fields on story_engine_jobs:
 import os
 import sys
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel, Field
@@ -627,6 +627,17 @@ async def increment_metric(request: IncrementMetricRequest):
     # Refresh battle score
     new_score = await refresh_battle_score(request.job_id)
 
+    # Check for rank changes and send notifications
+    try:
+        job = await db.story_engine_jobs.find_one(
+            {"job_id": request.job_id},
+            {"_id": 0, "parent_job_id": 1}
+        )
+        if job and job.get("parent_job_id"):
+            await check_and_send_rank_notifications(request.job_id, job["parent_job_id"])
+    except Exception as e:
+        logger.warning(f"[BATTLE-NOTIFY] Failed to check rank notifications: {e}")
+
     return {"success": True, "job_id": request.job_id, "metric": request.metric, "battle_score": new_score}
 
 
@@ -658,6 +669,195 @@ async def backfill_multiplayer_fields(current_user: dict = Depends(get_current_u
         updated += 1
 
     return {"success": True, "updated": updated, "total_found": len(jobs_without)}
+
+
+# ═══════════════════════════════════════════════════════════════
+# NOTIFICATION ENGINE — High-Stakes Ego-Driven Triggers
+# ═══════════════════════════════════════════════════════════════
+
+async def check_and_send_rank_notifications(job_id: str, parent_job_id: str):
+    """
+    After a score refresh, check if any rank changes occurred and notify affected users.
+    Triggers: rank_drop (you lost #1), version_outperformed (competitor passed you).
+    Deep-links to Story Battle screen.
+    """
+    if not parent_job_id:
+        return
+
+    # Get all branches from this parent, sorted by score
+    contenders = await db.story_engine_jobs.find(
+        {
+            "parent_job_id": parent_job_id,
+            "continuation_type": "branch",
+            "state": {"$in": ["READY", "PARTIAL_READY", "COMPLETED"]},
+        },
+        {"_id": 0, "job_id": 1, "user_id": 1, "title": 1, "battle_score": 1}
+    ).sort("battle_score", -1).to_list(50)
+
+    # Also include parent
+    parent = await db.story_engine_jobs.find_one(
+        {"job_id": parent_job_id},
+        {"_id": 0, "job_id": 1, "user_id": 1, "title": 1, "battle_score": 1}
+    )
+    if parent:
+        all_contenders = [parent] + contenders
+    else:
+        all_contenders = contenders
+
+    all_contenders.sort(key=lambda x: x.get("battle_score", 0), reverse=True)
+
+    if len(all_contenders) < 2:
+        return
+
+    # The new #1
+    current_leader = all_contenders[0]
+    current_leader_id = current_leader.get("user_id")
+
+    # Check previous leader (stored in a simple cache on the parent)
+    prev_leader_id = None
+    if parent:
+        prev_leader_id = parent.get("_prev_battle_leader")
+
+    # If leader changed, notify the old leader
+    if prev_leader_id and prev_leader_id != current_leader_id:
+        now = datetime.now(timezone.utc).isoformat()
+        new_leader_title = current_leader.get("title", "A competing version")
+
+        # Throttle: max 1 rank_drop notification per user per 6 hours
+        recent = await db.notifications.find_one({
+            "user_id": prev_leader_id,
+            "type": "rank_drop",
+            "data.parent_job_id": parent_job_id,
+            "created_at": {"$gte": (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat()},
+        })
+        if not recent:
+            await db.notifications.insert_one({
+                "user_id": prev_leader_id,
+                "type": "rank_drop",
+                "title": "You just lost #1 spot on your story",
+                "message": f"\"{new_leader_title}\" overtook you. Take it back now.",
+                "data": {
+                    "parent_job_id": parent_job_id,
+                    "new_leader_job_id": current_leader.get("job_id"),
+                    "deep_link": f"/app/story-battle/{parent_job_id}",
+                },
+                "read": False,
+                "created_at": now,
+            })
+            logger.info(f"[BATTLE-NOTIFY] rank_drop sent to {prev_leader_id[:12]} for battle {parent_job_id[:12]}")
+
+    # Update stored leader
+    if parent:
+        await db.story_engine_jobs.update_one(
+            {"job_id": parent_job_id},
+            {"$set": {"_prev_battle_leader": current_leader_id}}
+        )
+
+    # Notify all non-leaders that a new version outperformed them (once per branch)
+    triggering_job = await db.story_engine_jobs.find_one(
+        {"job_id": job_id},
+        {"_id": 0, "user_id": 1, "title": 1}
+    )
+    if triggering_job:
+        triggering_user = triggering_job.get("user_id")
+        for c in all_contenders[1:]:  # Skip #1
+            cuid = c.get("user_id")
+            if cuid and cuid != triggering_user:
+                # Check recent notification to prevent spam
+                recent_outperform = await db.notifications.find_one({
+                    "user_id": cuid,
+                    "type": "version_outperformed",
+                    "data.parent_job_id": parent_job_id,
+                    "created_at": {"$gte": (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()},
+                })
+                if not recent_outperform:
+                    now = datetime.now(timezone.utc).isoformat()
+                    await db.notifications.insert_one({
+                        "user_id": cuid,
+                        "type": "version_outperformed",
+                        "title": "Your story version is falling behind",
+                        "message": "Other versions are gaining more traction. Create a better version to compete.",
+                        "data": {
+                            "parent_job_id": parent_job_id,
+                            "deep_link": f"/app/story-battle/{parent_job_id}",
+                        },
+                        "read": False,
+                        "created_at": now,
+                    })
+
+
+@router.get("/notifications/battle")
+async def get_battle_notifications(
+    current_user: dict = Depends(get_current_user),
+    limit: int = Query(default=20, le=50),
+):
+    """Get battle-related notifications for the current user."""
+    user_id = current_user.get("id") or str(current_user.get("_id"))
+
+    notifications = await db.notifications.find(
+        {
+            "user_id": user_id,
+            "type": {"$in": ["rank_drop", "version_outperformed", "story_branched", "new_branch_created"]},
+        },
+        {"_id": 0}
+    ).sort("created_at", -1).limit(limit).to_list(limit)
+
+    unread = sum(1 for n in notifications if not n.get("read"))
+
+    return {
+        "success": True,
+        "notifications": notifications,
+        "total": len(notifications),
+        "unread": unread,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════
+# FEED PRIORITIZATION — Chain depth + continuation rate
+# ═══════════════════════════════════════════════════════════════
+
+@router.get("/feed/trending")
+async def get_trending_stories(
+    limit: int = Query(default=20, le=50),
+    current_user: dict = Depends(get_optional_user),
+):
+    """
+    Trending stories feed — prioritized by battle_score.
+    Stories with deep chains and high continuation rates surface first.
+    """
+    stories = await db.story_engine_jobs.find(
+        {
+            "state": {"$in": ["READY", "PARTIAL_READY", "COMPLETED"]},
+            "battle_score": {"$gt": 0},
+        },
+        {
+            "_id": 0,
+            "job_id": 1, "title": 1, "user_id": 1, "state": 1,
+            "continuation_type": 1, "chain_depth": 1,
+            "total_children": 1, "total_views": 1, "total_shares": 1,
+            "battle_score": 1, "thumbnail_url": 1, "created_at": 1,
+            "animation_style": 1, "root_story_id": 1,
+        }
+    ).sort("battle_score", -1).limit(limit).to_list(limit)
+
+    # Enrich with creator names
+    user_ids = list({s.get("user_id") for s in stories if s.get("user_id")})
+    user_map = {}
+    if user_ids:
+        users = await db.users.find(
+            {"id": {"$in": user_ids}},
+            {"_id": 0, "id": 1, "name": 1, "email": 1}
+        ).to_list(100)
+        user_map = {u["id"]: u.get("name") or u.get("email", "").split("@")[0] for u in users}
+
+    for s in stories:
+        s["creator_name"] = user_map.get(s.get("user_id"), "Anonymous")
+
+    return {
+        "success": True,
+        "stories": stories,
+        "total": len(stories),
+    }
 
 
 # ═══════════════════════════════════════════════════════════════

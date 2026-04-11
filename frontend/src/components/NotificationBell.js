@@ -13,6 +13,9 @@ const ICON_MAP = {
   follow: Star,
   trending: Film,
   viral_remix: Flame,
+  rank_drop: Trophy,
+  version_outperformed: Zap,
+  story_branched: RefreshCcw,
 };
 
 const COLOR_MAP = {
@@ -21,6 +24,9 @@ const COLOR_MAP = {
   daily_challenge_live: 'text-emerald-400 bg-emerald-500/10',
   ownership_milestone: 'text-yellow-400 bg-yellow-500/10',
   viral_remix: 'text-rose-400 bg-rose-500/10',
+  rank_drop: 'text-rose-400 bg-rose-500/10',
+  version_outperformed: 'text-amber-400 bg-amber-500/10',
+  story_branched: 'text-violet-400 bg-violet-500/10',
 };
 
 export default function NotificationBell() {
@@ -63,9 +69,10 @@ export default function NotificationBell() {
   };
 
   const handleClick = (n) => {
-    if (n.link) {
+    const link = n.link || n.data?.deep_link;
+    if (link) {
       setOpen(false);
-      navigate(n.link);
+      navigate(link);
     }
   };
 
@@ -116,7 +123,7 @@ export default function NotificationBell() {
               notifications.map((n, i) => {
                 const NIcon = ICON_MAP[n.type] || Bell;
                 const colorCls = COLOR_MAP[n.type] || (!n.read ? 'text-violet-400 bg-violet-500/10' : 'text-slate-500 bg-white/[0.04]');
-                const hasLink = !!n.link;
+                const hasLink = !!(n.link || n.data?.deep_link);
                 return (
                   <div
                     key={n._id || i}
