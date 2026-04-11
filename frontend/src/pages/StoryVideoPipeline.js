@@ -24,6 +24,7 @@ import SharePromptModal from '../components/SharePromptModal';
 import { ForceShareGate, ShareRewardBar } from '../components/ForceShareGate';
 import ViralMomentumBadge from '../components/ViralMomentumBadge';
 import ContinuationModal from '../components/ContinuationModal';
+import CompetitionPulse from '../components/CompetitionPulse';
 import { LiveViewerBadge } from '../components/AnimatedSocialProof';
 import EntitledDownloadButton from '../components/EntitledDownloadButton';
 import { useMediaEntitlement } from '../contexts/MediaEntitlementContext';
@@ -2415,6 +2416,22 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
             </button>
           </div>
 
+          {/* ═══ COMPETITION PULSE — Live rank + gap + re-engagement ═══ */}
+          <CompetitionPulse
+            jobId={jobId || job?.job_id}
+            rootStoryId={job?.root_story_id || job?.story_chain_id}
+            onTryAgain={() => openPresetContinuation('branch', {
+              title: `${displayTitle} — New Version`,
+              instruction: 'Create a better version. Outperform the current top story with stronger writing, better plot, and more engaging characters.',
+              analyticsEvent: 'pulse_try_again_clicked',
+            })}
+            onBeatTop={() => openPresetContinuation('branch', {
+              title: `Beat: ${displayTitle}`,
+              instruction: 'Create the ultimate version. This needs to be dramatically better than #1. Go all out.',
+              analyticsEvent: 'pulse_beat_top_clicked',
+            })}
+          />
+
           {/* ═══ SECONDARY: Add Twist / Make Funny / Next Episode ═══ */}
           <div className="grid grid-cols-3 gap-3" data-testid="secondary-actions">
             <button
@@ -2612,10 +2629,22 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
                     key={d.id}
                     onClick={() => {
                       if (d.id === 'custom') {
-                        if (customDirection.trim()) handleContinue(d);
+                        if (!customDirection.trim()) return;
+                        openPresetContinuation('branch', {
+                          title: `${displayTitle} — Custom`,
+                          instruction: customDirection,
+                          analyticsEvent: 'custom_direction_clicked',
+                        });
                         return;
                       }
-                      handleContinue(d);
+                      openPresetContinuation(
+                        d.id === 'next_episode' ? 'episode' : 'branch',
+                        {
+                          title: `${displayTitle} — ${d.label}`,
+                          instruction: d.modifier || d.desc,
+                          analyticsEvent: `direction_${d.id}_clicked`,
+                        }
+                      );
                     }}
                     disabled={d.id === 'custom' && !customDirection.trim()}
                     className={`w-full text-left flex items-center gap-3 p-3 rounded-lg border transition-all disabled:opacity-40 ${d.color}`}
@@ -2651,7 +2680,12 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
               {ANIM_STYLES.filter(s => s.id !== currentStyle).map(s => (
                 <button
                   key={s.id}
-                  onClick={() => handleStyleRemix(s.id)}
+                  onClick={() => openPresetContinuation('branch', {
+                    title: `${displayTitle} — ${s.name} Style`,
+                    instruction: `Recreate this exact story in ${s.name} visual style. Keep the same plot, characters, and dialogue but reimagine all visuals in ${s.name} aesthetic.`,
+                    analyticsEvent: 'style_remix_clicked',
+                    targetStyle: s.id,
+                  })}
                   className="rounded-lg overflow-hidden group hover:ring-2 hover:ring-pink-500 transition-all"
                   data-testid={`remix-style-${s.id}`}
                 >
@@ -2674,7 +2708,10 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
           />
 
           {/* New Video */}
-          <Button onClick={onNew} variant="ghost" className="w-full text-slate-500 hover:text-white" data-testid="new-video-btn">
+          <Button onClick={() => {
+            try { api.post('/api/funnel/track', { event: 'create_new_story_clicked', data: { from_job: jobId || job?.job_id } }); } catch {}
+            onNew();
+          }} variant="ghost" className="w-full text-slate-500 hover:text-white" data-testid="new-video-btn">
             <Sparkles className="w-4 h-4 mr-2" /> Create Entirely New Story
           </Button>
         </>
