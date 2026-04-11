@@ -16,6 +16,7 @@ export default function ContinuationModal({
   mode = 'episode', // 'episode' | 'branch'
   parentJob,
   onJobCreated,
+  isWar = false, // if true, uses /api/war/enter instead
 }) {
   const [title, setTitle] = useState('');
   const [storyText, setStoryText] = useState('');
@@ -46,16 +47,32 @@ export default function ContinuationModal({
 
     setSubmitting(true);
     try {
-      const endpoint = isEpisode ? '/api/stories/continue-episode' : '/api/stories/continue-branch';
-      const res = await api.post(endpoint, {
-        parent_job_id: parentJob.job_id,
-        title: finalTitle,
-        story_text: finalStory,
-        animation_style: parentJob.animation_style || 'cartoon_2d',
-        age_group: parentJob.age_group || 'kids_5_8',
-        voice_preset: parentJob.voice_preset || 'narrator_warm',
-        quality_mode: parentJob.quality_mode || 'balanced',
-      });
+      let endpoint;
+      let payload;
+
+      if (isWar) {
+        endpoint = '/api/war/enter';
+        payload = {
+          title: finalTitle,
+          story_text: finalStory,
+          animation_style: parentJob.animation_style || 'cartoon_2d',
+          voice_preset: parentJob.voice_preset || 'narrator_warm',
+          quality_mode: parentJob.quality_mode || 'balanced',
+        };
+      } else {
+        endpoint = isEpisode ? '/api/stories/continue-episode' : '/api/stories/continue-branch';
+        payload = {
+          parent_job_id: parentJob.job_id,
+          title: finalTitle,
+          story_text: finalStory,
+          animation_style: parentJob.animation_style || 'cartoon_2d',
+          age_group: parentJob.age_group || 'kids_5_8',
+          voice_preset: parentJob.voice_preset || 'narrator_warm',
+          quality_mode: parentJob.quality_mode || 'balanced',
+        };
+      }
+
+      const res = await api.post(endpoint, payload);
 
       if (res.data?.success) {
         toast.success(isEpisode

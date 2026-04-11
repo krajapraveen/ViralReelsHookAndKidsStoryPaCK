@@ -263,6 +263,7 @@ export default function DailyWarPage() {
         isOpen={showContinuation}
         onClose={() => setShowContinuation(false)}
         mode="branch"
+        isWar={true}
         parentJob={{
           job_id: war.root_story_id,
           title: war.root_title || 'Story War',
