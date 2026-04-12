@@ -200,3 +200,144 @@ async def get_preview_url(
         "expires_in": 120,
         **access,
     }
+
+
+
+# ═══════════════════════════════════════════════════════════════
+# DATA INTEGRITY — Repair false-completed jobs
+# ═══════════════════════════════════════════════════════════════
+
+@router.post("/admin/repair-false-completed")
+async def repair_false_completed(current_user: dict = Depends(get_current_user)):
+    """
+    Reclassify completed jobs that have no durable output_url.
+    War roots and seed jobs are excluded (they're expected to have no video).
+    Jobs with only local paths (ephemeral) are marked as expired.
+    """
+    role = (current_user.get("role") or "").upper()
+    if role not in ("ADMIN", "SUPERADMIN"):
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Find all false-completed: READY/PARTIAL_READY without durable output_url
+    false_completed = await db.story_engine_jobs.find(
+        {
+            "state": {"$in": ["READY", "PARTIAL_READY"]},
+            "$or": [{"output_url": {"$exists": False}}, {"output_url": None}],
+            "is_war_root": {"$ne": True},
+        },
+        {"_id": 0, "job_id": 1, "title": 1, "state": 1, "preview_url": 1}
+    ).to_list(500)
+
+    repaired = 0
+    reclassified = 0
+
+    for job in false_completed:
+        job_id = job["job_id"]
+
+        # Check for any recoverable asset (preview_url on R2)
+        preview = job.get("preview_url")
+        if preview and preview.startswith("http"):
+            # Promote preview to output_url
+            await db.story_engine_jobs.update_one(
+                {"job_id": job_id},
+                {"$set": {
+                    "output_url": preview,
+                    "output_url_source": "recovered_from_preview",
+                    "repaired_at": now,
+                }}
+            )
+            repaired += 1
+        else:
+            # No recoverable asset — reclassify
+            await db.story_engine_jobs.update_one(
+                {"job_id": job_id},
+                {"$set": {
+                    "state": "FAILED_PERSISTENCE",
+                    "persistence_error": "No durable output_url at completion. Assets may have been on ephemeral storage.",
+                    "reclassified_at": now,
+                    "original_state": job["state"],
+                }}
+            )
+            reclassified += 1
+
+    # Also handle local-path-only output_urls (file no longer exists)
+    import os as _os
+    local_jobs = await db.story_engine_jobs.find(
+        {
+            "state": {"$in": ["READY", "PARTIAL_READY"]},
+            "output_url": {"$regex": "^/api/generated"},
+        },
+        {"_id": 0, "job_id": 1, "output_url": 1}
+    ).to_list(100)
+
+    expired = 0
+    for job in local_jobs:
+        local_path = _os.path.join(
+            _os.path.dirname(_os.path.dirname(__file__)),
+            job["output_url"].replace("/api/generated/", "generated/")
+        )
+        if not _os.path.isfile(local_path):
+            await db.story_engine_jobs.update_one(
+                {"job_id": job["job_id"]},
+                {"$set": {
+                    "state": "EXPIRED",
+                    "persistence_error": "Local file no longer exists on ephemeral storage.",
+                    "reclassified_at": now,
+                    "original_state": "READY",
+                    "expired_output_url": job["output_url"],
+                    "output_url": None,
+                }}
+            )
+            expired += 1
+
+    return {
+        "success": True,
+        "repaired": repaired,
+        "reclassified_to_failed": reclassified,
+        "expired_local": expired,
+        "total_processed": len(false_completed) + len(local_jobs),
+    }
+
+
+@router.get("/admin/integrity-check")
+async def integrity_check(current_user: dict = Depends(get_current_user)):
+    """Monitor: Count completed jobs without durable output_url. Should be 0."""
+    role = (current_user.get("role") or "").upper()
+    if role not in ("ADMIN", "SUPERADMIN"):
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    completed_total = await db.story_engine_jobs.count_documents(
+        {"state": {"$in": ["READY", "PARTIAL_READY", "COMPLETED"]}}
+    )
+    with_r2_url = await db.story_engine_jobs.count_documents(
+        {"state": {"$in": ["READY", "PARTIAL_READY", "COMPLETED"]}, "output_url": {"$regex": "^http"}}
+    )
+    with_local_url = await db.story_engine_jobs.count_documents(
+        {"state": {"$in": ["READY", "PARTIAL_READY", "COMPLETED"]}, "output_url": {"$regex": "^/api/generated"}}
+    )
+    without_url = await db.story_engine_jobs.count_documents(
+        {"state": {"$in": ["READY", "PARTIAL_READY", "COMPLETED"]},
+         "$or": [{"output_url": {"$exists": False}}, {"output_url": None}],
+         "is_war_root": {"$ne": True}}
+    )
+    failed_persistence = await db.story_engine_jobs.count_documents(
+        {"state": "FAILED_PERSISTENCE"}
+    )
+    expired = await db.story_engine_jobs.count_documents(
+        {"state": "EXPIRED"}
+    )
+
+    healthy = without_url == 0 and with_local_url == 0
+    return {
+        "success": True,
+        "healthy": healthy,
+        "completed_total": completed_total,
+        "with_r2_url": with_r2_url,
+        "with_local_url_only": with_local_url,
+        "without_url_non_seed": without_url,
+        "failed_persistence": failed_persistence,
+        "expired": expired,
+        "alert": "completed_without_output_url > 0" if not healthy else None,
+    }

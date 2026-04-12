@@ -15,26 +15,49 @@
 
 ---
 
-## P0 CRITICAL: Export Pipeline Fix — DONE (Apr 12)
+## P0 CRITICAL: Data Integrity — Completed Means Persisted — DONE (Apr 12)
 
-### Root Causes & Fixes:
-1. **Empty preview page**: `StoryPreview.js` imported `ProtectedImage` (default) instead of `ProtectedContentContainer` (named). Fixed import.
-2. **"Download not available"**: `download-token` only checked `output_url`. Now checks `output_url` → `preview_url` → `fallback_video_url` chain. Returns structured errors: 202 (processing), 410 (expired/failed), 404 (not_ready).
-3. **Admin sees "Remove Watermark"**: Added `isAdmin` check to `ProtectedContent.js`. Admins see no watermark/credit friction.
-4. **Local files gone**: Added filesystem validation before returning local URLs. Returns 410 "expired from temporary storage" for missing local files.
-5. **Error handling**: `EntitledDownloadButton` + `DownloadWithExpiry` now handle 202/410 with `.catch()` guards on `.json()` parsing.
+### Rule: A job is NEVER marked completed without a durable output_url.
 
-### Production Validation:
-- R2-hosted download: 3.1MB valid MP4 delivered ✅
-- Local expired file: 410 "expired" returned ✅ 
-- Admin bypass: No watermark button ✅
-- Free user: 403 blocked ✅
-- Testing: iteration_503 — 8/8 (100%)
+### What was wrong:
+- 22/27 "completed" jobs had NO output_url (videos on ephemeral storage)
+- `should_mark_ready()` allowed up to 2 errors including missing output_url → PARTIAL_READY
+- Users saw "Download" button on jobs with no downloadable file
+- "Download not available" → trust-breaking UX
 
-### Key Finding: 
-22/27 completed jobs have NO `output_url` (local files expired). Only 5 R2-hosted jobs have valid downloadable videos. The pipeline generates videos but local storage is ephemeral.
+### Fixes Applied:
+1. **`should_mark_ready()`**: Missing output_url is now a HARD FAILURE. Job cannot reach READY or PARTIAL_READY without durable URL.
+2. **Backfill repair**: `POST /api/media/admin/repair-false-completed` reclassified 20 false-completed → `FAILED_PERSISTENCE`, 1 expired local file → `EXPIRED`
+3. **Integrity monitoring**: `GET /api/media/admin/integrity-check` reports `healthy: true/false` based on zero completed-without-output rule
+4. **Download-token validation**: Checks `output_url` → `preview_url` → `fallback_video_url`. Validates local files exist on disk. Returns structured errors: 202 (processing), 410 (expired/failed), 404 (not_ready).
+5. **UI truthfulness**: StoryPreview shows "This video is no longer available" + "Regenerate Video" button for undownloadable jobs. No dead-end buttons.
+
+### After Repair:
+| Metric | Before | After |
+|--------|--------|-------|
+| healthy | false | **true** |
+| completed_total | 27 (lying) | **6** (truthful) |
+| with_r2_url | 4 | 4 |
+| without_url | 20 | **0** |
+| failed_persistence | 0 | 20 (honest) |
+
+### Pipeline States:
+```
+rendering → uploading → READY (with durable R2 output_url)
+                      → PARTIAL_READY (non-critical issues, but output exists)
+                      → FAILED (critical failures)
+                      → FAILED_PERSISTENCE (completed processing but no durable storage)
+                      → EXPIRED (local file no longer exists)
+```
 
 ---
+
+## P0: Export Pipeline Fix — DONE (Apr 12)
+- StoryPreview import fix (ProtectedContentContainer)
+- Admin watermark bypass
+- Structured download errors
+- File existence validation
+- Testing: iteration_503 — 8/8 (100%)
 
 ## Consumption-First Viral Loop — DONE (Apr 12)
 - Phase 0: 12 baseline tracking events
@@ -49,19 +72,18 @@
 ---
 
 ## Key Files
-- `/app/frontend/src/pages/StoryPreview.js` — Export/preview page (fixed import)
-- `/app/frontend/src/components/EntitledDownloadButton.js` — Download with entitlement
-- `/app/frontend/src/components/ProtectedContent.js` — Watermark with admin bypass
-- `/app/backend/routes/media_routes.py` — Download token with file validation
-- `/app/backend/services/entitlement.py` — Entitlement resolver
+- `/app/backend/services/story_engine/continuity.py` — `should_mark_ready()` with output_url hard rule
+- `/app/backend/routes/media_routes.py` — Download token + repair + integrity check
+- `/app/frontend/src/pages/StoryPreview.js` — Honest download state UI
+- `/app/frontend/src/components/EntitledDownloadButton.js` — Structured error handling
+- `/app/frontend/src/components/ProtectedContent.js` — Admin watermark bypass
 
 ---
 
 ## Backlog
 
-### P0 (Next: Analytics Engine)
+### P0 (Next)
 - Conversion Analytics Dashboard
-- CTA variant performance tracking
 
 ### P1
 - Secondary Action Matrix, Follow Creator, Phase C Gamification

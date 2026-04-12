@@ -6,7 +6,7 @@ import BrowserVideoExport from '../components/BrowserVideoExport';
 import {
   ArrowLeft, Download, Play, Pause, Image, Mic, FileText,
   Film, Package, Eye, AlertCircle, ChevronRight, ChevronLeft,
-  Volume2, VolumeX, Loader2, CheckCircle, ExternalLink, ArrowRight, Zap, Lock
+  Volume2, VolumeX, Loader2, CheckCircle, ExternalLink, ArrowRight, Zap, Lock, RefreshCw
 } from 'lucide-react';
 import { SafeImage } from '../components/SafeImage';
 import { trackLoop } from '../utils/growthTracker';
@@ -524,13 +524,35 @@ export default function StoryPreview() {
               {(preview.final_video_url || preview.fallback_video_url || preview.story_pack_url) ? (
                 <EntitledDownloadButton
                   assetId={jobId}
-                  label="Download Assets"
+                  label="Download Video"
                   upgradeLabel="Upgrade to Download"
                   className="w-full"
                   data-testid="preview-download-btn"
                 />
+              ) : preview.status === 'PROCESSING' ? (
+                <div className="flex items-center gap-2 text-sm text-blue-400" data-testid="download-processing">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Video is still processing...</span>
+                </div>
               ) : (
-                <p className="text-slate-500 text-xs">No downloadable assets yet.</p>
+                <div className="space-y-2" data-testid="download-not-available">
+                  <p className="text-slate-500 text-xs">This video is no longer available for download.</p>
+                  <p className="text-slate-600 text-[11px]">The file may have expired from temporary storage. You can regenerate it.</p>
+                  <button
+                    onClick={() => {
+                      navigate('/app/story-video-studio', {
+                        state: {
+                          prefill: { title: preview.title, prompt: preview.story_text },
+                          freshSession: true,
+                        },
+                      });
+                    }}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-violet-600/20 border border-violet-500/30 rounded-lg text-violet-300 text-xs font-medium hover:bg-violet-600/30 transition-colors"
+                    data-testid="regenerate-btn"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" /> Regenerate Video
+                  </button>
+                </div>
               )}
             </div>
           </div>

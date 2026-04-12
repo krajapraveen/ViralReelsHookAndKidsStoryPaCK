@@ -120,11 +120,19 @@ def should_mark_ready(validation: ValidationResult) -> str:
     """
     Determine the appropriate final state based on validation.
     Returns: READY, PARTIAL_READY, or FAILED
+
+    RULE: A job is never READY or PARTIAL_READY without a durable output_url.
+    Missing output_url = FAILED, period. A user cannot download something that doesn't exist.
     """
+    # Hard rule: output_url is mandatory for any success state
+    has_output_url_error = any("output_url" in e for e in validation.errors)
+    if has_output_url_error:
+        return "FAILED"
+
     if validation.passed and not validation.errors:
         return "READY"
     elif validation.errors and len(validation.errors) <= 2:
-        # Some non-critical issues — partial ready
+        # Some non-critical issues — partial ready (but output exists)
         return "PARTIAL_READY"
     else:
         return "FAILED"
