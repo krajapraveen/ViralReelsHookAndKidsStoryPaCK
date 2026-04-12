@@ -660,23 +660,7 @@ async def _finalize_job(job_id: str) -> Dict:
     try:
         user_id = job.get("user_id")
         if user_id:
-            queued_job = await db.story_engine_jobs.find_one(
-                {"user_id": user_id, "state": "QUEUED"},
-                {"_id": 0, "job_id": 1},
-                sort=[("created_at", 1)],  # FIFO
-            )
-            if queued_job:
-                qjid = queued_job["job_id"]
-                needs_queue = await should_queue_job(db, user_id)
-                if not needs_queue:
-                    # Slot freed — promote queued job to INIT and run
-                    await db.story_engine_jobs.update_one(
-                        {"job_id": qjid, "state": "QUEUED"},
-                        {"$set": {"state": JobState.INIT.value, "promoted_from_queue_at": datetime.now(timezone.utc).isoformat()}}
-                    )
-                    import asyncio
-                    asyncio.create_task(run_pipeline(qjid))
-                    logger.info(f"[PIPELINE] Promoted queued job {qjid[:8]} for user {user_id[:12]}")
+            await _drain_queue_for_user(user_id)
     except Exception as e:
         logger.warning(f"[PIPELINE] Queue drain failed: {e}")
 
@@ -1325,7 +1309,8 @@ async def _refund_credits(job_id: str) -> None:
 
 
 async def _fail_job_terminal(job_id: str, error_code: ErrorCode, error_msg: str) -> None:
-    """Force a job into terminal FAILED state, refund, and notify."""
+    """Force a job into terminal FAILED state, refund, notify, and drain queue."""
+    job = await db.story_engine_jobs.find_one({"job_id": job_id}, {"_id": 0, "user_id": 1})
     await db.story_engine_jobs.update_one(
         {"job_id": job_id},
         {"$set": {
@@ -1337,6 +1322,40 @@ async def _fail_job_terminal(job_id: str, error_code: ErrorCode, error_msg: str)
     )
     await _refund_credits(job_id)
     await _send_completion_notification(job_id, JobState.FAILED)
+
+    # ═══ QUEUE DRAIN on failure — slot freed, promote next queued job ═══
+    try:
+        user_id = job.get("user_id") if job else None
+        if user_id:
+            await _drain_queue_for_user(user_id)
+    except Exception as e:
+        logger.warning(f"[PIPELINE] Queue drain after failure failed: {e}")
+
+
+async def _drain_queue_for_user(user_id: str):
+    """Promote the oldest QUEUED job for this user if a slot is now free."""
+    needs_queue = await should_queue_job(db, user_id)
+    if needs_queue:
+        return  # Still no free slots
+
+    queued_job = await db.story_engine_jobs.find_one(
+        {"user_id": user_id, "state": "QUEUED"},
+        {"_id": 0, "job_id": 1},
+        sort=[("created_at", 1)],  # FIFO
+    )
+    if queued_job:
+        qjid = queued_job["job_id"]
+        result = await db.story_engine_jobs.update_one(
+            {"job_id": qjid, "state": "QUEUED"},
+            {"$set": {
+                "state": JobState.INIT.value,
+                "promoted_from_queue_at": datetime.now(timezone.utc).isoformat(),
+            }}
+        )
+        if result.modified_count > 0:
+            import asyncio
+            asyncio.create_task(run_pipeline(qjid))
+            logger.info(f"[PIPELINE] Promoted queued job {qjid[:8]} for user {user_id[:12]}")
 
 
 async def _send_completion_notification(job_id: str, final_state: JobState) -> None:
@@ -1403,14 +1422,28 @@ async def get_job_status(job_id: str) -> Optional[Dict]:
     # Can this job be retried?
     can_retry = state in PER_STAGE_FAILURE_STATES
 
+    # Queue position (if queued)
+    queue_position = None
+    if state.value == "QUEUED":
+        user_id = job.get("user_id")
+        if user_id:
+            # Count how many QUEUED jobs are ahead (older created_at)
+            ahead = await db.story_engine_jobs.count_documents({
+                "user_id": user_id,
+                "state": "QUEUED",
+                "created_at": {"$lt": job.get("created_at", "")},
+            })
+            queue_position = ahead + 1  # 1-indexed
+
     return {
         "job_id": job["job_id"],
         "state": state.value,
         "progress_percent": get_progress(state),
-        "current_stage": label,
+        "current_stage": "Queued for rendering" if state.value == "QUEUED" else label,
         "heartbeat_detail": heartbeat_detail,
         "retry_info": retry_info,
         "can_retry": can_retry,
+        "queue_position": queue_position,
         "title": job.get("title"),
         "episode_number": job.get("episode_number"),
         "stage_results": job.get("stage_results", []),

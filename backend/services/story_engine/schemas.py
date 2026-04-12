@@ -38,6 +38,7 @@ class ErrorCode(str, Enum):
 
 class JobState(str, Enum):
     INIT = "INIT"
+    QUEUED = "QUEUED"
     PLANNING = "PLANNING"
     BUILDING_CHARACTER_CONTEXT = "BUILDING_CHARACTER_CONTEXT"
     PLANNING_SCENE_MOTION = "PLANNING_SCENE_MOTION"
@@ -53,6 +54,9 @@ class JobState(str, Enum):
     FAILED_IMAGES = "FAILED_IMAGES"
     FAILED_TTS = "FAILED_TTS"
     FAILED_RENDER = "FAILED_RENDER"
+    # Lifecycle states
+    FAILED_PERSISTENCE = "FAILED_PERSISTENCE"
+    EXPIRED = "EXPIRED"
     # Generic/legacy terminal failure
     FAILED = "FAILED"
 
@@ -62,6 +66,7 @@ TERMINAL_STATES = {
     JobState.READY, JobState.PARTIAL_READY, JobState.FAILED,
     JobState.FAILED_PLANNING, JobState.FAILED_IMAGES,
     JobState.FAILED_TTS, JobState.FAILED_RENDER,
+    JobState.FAILED_PERSISTENCE, JobState.EXPIRED,
 }
 
 SUCCESS_STATES = {JobState.READY, JobState.PARTIAL_READY}

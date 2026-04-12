@@ -350,7 +350,12 @@ export default function ProgressiveGeneration({
         const ri = job.retry_info;
         const engineState = job.engine_state || '';
         let statusMsg = job.current_step || message;
-        if (ri?.current_attempt > 1 && !['COMPLETED','PARTIAL','FAILED'].includes(job.status)) {
+
+        // Queue position display
+        if (job.status === 'QUEUED' || engineState === 'QUEUED') {
+          const pos = job.queue_position;
+          statusMsg = pos ? `Queued for rendering — position #${pos}` : 'Queued for rendering';
+        } else if (ri?.current_attempt > 1 && !['COMPLETED','PARTIAL','FAILED'].includes(job.status)) {
           const failedStates = ['FAILED_PLANNING','FAILED_IMAGES','FAILED_TTS','FAILED_RENDER'];
           if (failedStates.includes(engineState)) {
             statusMsg = `Recovering — ${job.current_step}`;

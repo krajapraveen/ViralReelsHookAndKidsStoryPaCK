@@ -20,6 +20,8 @@ VALID_TRANSITIONS: Dict[JobState, list] = {
         JobState.GENERATING_SCENE_CLIPS, JobState.GENERATING_AUDIO,
         JobState.ASSEMBLING_VIDEO, JobState.FAILED,
     ],
+    # QUEUED → INIT when promoted from queue
+    JobState.QUEUED: [JobState.INIT, JobState.FAILED],
     JobState.PLANNING: [JobState.BUILDING_CHARACTER_CONTEXT, JobState.FAILED_PLANNING, JobState.FAILED],
     JobState.BUILDING_CHARACTER_CONTEXT: [JobState.PLANNING_SCENE_MOTION, JobState.FAILED_PLANNING, JobState.FAILED],
     JobState.PLANNING_SCENE_MOTION: [JobState.GENERATING_KEYFRAMES, JobState.FAILED_PLANNING, JobState.FAILED],
@@ -101,6 +103,7 @@ HEARTBEAT_THRESHOLDS: Dict[str, int] = {
 # Progress percentage per state
 STATE_PROGRESS: Dict[JobState, int] = {
     JobState.INIT: 0,
+    JobState.QUEUED: 0,
     JobState.PLANNING: 8,
     JobState.BUILDING_CHARACTER_CONTEXT: 15,
     JobState.PLANNING_SCENE_MOTION: 22,
@@ -116,11 +119,14 @@ STATE_PROGRESS: Dict[JobState, int] = {
     JobState.FAILED_IMAGES: 0,
     JobState.FAILED_TTS: 0,
     JobState.FAILED_RENDER: 0,
+    JobState.FAILED_PERSISTENCE: 0,
+    JobState.EXPIRED: 0,
 }
 
 # Human-readable stage labels — honest, not generic
 STATE_LABELS: Dict[JobState, str] = {
     JobState.INIT: "Initializing",
+    JobState.QUEUED: "Queued for rendering",
     JobState.PLANNING: "Generating scenes",
     JobState.BUILDING_CHARACTER_CONTEXT: "Building character continuity",
     JobState.PLANNING_SCENE_MOTION: "Planning scene motion",
@@ -136,6 +142,8 @@ STATE_LABELS: Dict[JobState, str] = {
     JobState.FAILED_IMAGES: "Failed at image/video generation",
     JobState.FAILED_TTS: "Failed at audio generation",
     JobState.FAILED_RENDER: "Failed at video rendering",
+    JobState.FAILED_PERSISTENCE: "Video not saved — please regenerate",
+    JobState.EXPIRED: "Video expired — please regenerate",
 }
 
 
