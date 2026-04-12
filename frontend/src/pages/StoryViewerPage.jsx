@@ -306,6 +306,36 @@ export default function StoryViewerPage() {
             </div>
           </div>
 
+          {/* ═══ BATTLE STATUS BANNER — for branch entries ═══ */}
+          {continuationType === 'branch' && (
+            <div className="bg-rose-500/[0.06] border border-rose-500/15 rounded-xl p-4" data-testid="battle-status-banner">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <Swords className="w-5 h-5 text-rose-400 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-bold text-white">Your version is LIVE</p>
+                    <p className="text-xs text-white/40">
+                      {siblings.length > 1
+                        ? `Competing with ${siblings.length - 1} other${siblings.length > 2 ? 's' : ''}`
+                        : 'Waiting for challengers'
+                      }
+                    </p>
+                  </div>
+                </div>
+                {(job.root_story_id || job.story_chain_id) && (
+                  <button
+                    onClick={() => navigate(`/app/story-battle/${job.root_story_id || job.story_chain_id}`)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-medium hover:bg-rose-500/20 transition-colors flex-shrink-0"
+                    data-testid="viewer-leaderboard-btn"
+                  >
+                    Leaderboard
+                  </button>
+                )}
+              </div>
+              <p className="text-[10px] text-white/20 mt-2">Share to climb ranks. Views, shares, and continuations determine the winner.</p>
+            </div>
+          )}
+
           {/* ═══ ENGAGEMENT ROW ═══ */}
           <div className="flex items-center gap-3 border-y border-white/5 py-3" data-testid="engagement-row">
             <button

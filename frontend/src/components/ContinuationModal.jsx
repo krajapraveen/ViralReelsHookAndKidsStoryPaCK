@@ -87,9 +87,24 @@ export default function ContinuationModal({
       const res = await api.post(endpoint, payload);
 
       if (res.data?.success) {
-        toast.success(isEpisode
-          ? 'Episode generation started!'
-          : 'Branch created! Time to compete for #1.');
+        // Track branch/episode creation
+        try {
+          api.post('/api/funnel/track', {
+            event: 'cta_clicked',
+            data: {
+              type: isEpisode ? 'continue_episode' : 'launch_branch',
+              parent_job_id: parentJob.job_id,
+              new_job_id: res.data.job_id,
+              source: isWar ? 'war_entry' : 'continuation_modal',
+            },
+          }).catch(() => {});
+        } catch {}
+
+        if (!isEpisode) {
+          toast.success('You\'ve entered the battle! Your version is generating...');
+        } else {
+          toast.success('Episode generation started!');
+        }
         onJobCreated?.(res.data);
         onClose();
       }
@@ -227,7 +242,7 @@ export default function ContinuationModal({
             data-testid="submit-continuation-btn"
           >
             {submitting ? (
-              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Creating...</>
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {isEpisode ? 'Creating...' : 'Entering battle...'}</>
             ) : (
               <>{isEpisode ? 'Start Episode' : 'Launch Branch'} <ArrowRight className="w-4 h-4 ml-2" /></>
             )}

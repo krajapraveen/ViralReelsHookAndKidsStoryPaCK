@@ -12,7 +12,7 @@ import {
   Play, Download, RefreshCw, AlertCircle, Clock, Coins,
   Video, Upload, BookOpen, Sparkles, RotateCcw, XCircle, Eye, Package,
   Share2, Link2, Copy, ExternalLink, RefreshCcw as Remix, ShieldAlert,
-  Shield, Check, X, Zap, ChevronDown, ArrowRight, GitBranch
+  Shield, Check, X, Zap, ChevronDown, ArrowRight, GitBranch, Swords, BarChart2
 } from 'lucide-react';
 import UpsellModal from '../components/UpsellModal';
 import CreationActionsBar from '../components/CreationActionsBar';
@@ -1878,6 +1878,14 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
   // Reward celebration: check for streak/episode rewards when video completes
   useEffect(() => {
     if (uiState === 'READY') {
+      // Auto-redirect branches to Watch Page after 3s (battle should feel live)
+      if (job?.continuation_type === 'branch' && jobId) {
+        const timer = setTimeout(() => {
+          navigate(`/app/story-viewer/${jobId}`, { replace: true });
+        }, 3000);
+        return () => clearTimeout(timer);
+      }
+
       const token = localStorage.getItem('token');
       if (!token) return;
       // Fetch viral stats for personalized share prompt
@@ -2096,6 +2104,46 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
         </div>
       )}
 
+      {/* ═══ BATTLE ENTRY BANNER — shown when this job is a competing branch ═══ */}
+      {job?.continuation_type === 'branch' && (
+        <div className="rounded-xl border border-rose-500/20 bg-gradient-to-r from-rose-500/[0.06] to-amber-500/[0.03] px-5 py-4 animate-in fade-in slide-in-from-top-2 duration-500" data-testid="battle-entry-banner">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/20 flex items-center justify-center flex-shrink-0">
+                <Swords className="w-5 h-5 text-rose-400" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-white">You've entered the battle!</p>
+                <p className="text-xs text-white/40">
+                  {uiState === 'GENERATING' || uiState === 'VALIDATING'
+                    ? 'Your version is generating... Once ready, it goes live.'
+                    : 'Your version is LIVE and competing.'
+                  }
+                  {job?.source_story_title && (
+                    <span className="text-white/30"> Competing with "{job.source_story_title}"</span>
+                  )}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 flex-shrink-0">
+              {job?.root_story_id && (
+                <Link
+                  to={`/app/story-battle/${job.root_story_id}`}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/[0.06] border border-white/10 text-white/70 text-xs font-medium hover:bg-white/10 transition-colors"
+                  data-testid="view-leaderboard-btn"
+                >
+                  <BarChart2 className="w-3.5 h-3.5" /> Leaderboard
+                </Link>
+              )}
+            </div>
+          </div>
+          {/* MySpace subtle note */}
+          <p className="text-[10px] text-white/20 mt-2 flex items-center gap-1">
+            <CheckCircle className="w-3 h-3" /> Saved to MySpace
+          </p>
+        </div>
+      )}
+
       <div className="grid lg:grid-cols-5 gap-6">
         {/* LEFT: Preview Area */}
         <div className="lg:col-span-3">
@@ -2121,17 +2169,44 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
           ) : downloadReady && downloadUrl ? (
             /* Video exists but no preview image — show action prompt instead of empty box */
             <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-8 text-center" data-testid="video-ready-no-preview">
-              <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
-              <h3 className="text-xl font-bold text-white mb-2">Your video is ready!</h3>
-              <p className="text-slate-400 text-sm mb-6">{canDownload ? 'Click below to download your creation.' : 'Upgrade your plan to download this creation.'}</p>
-              <div className="flex gap-3 justify-center">
-                <EntitledDownloadButton
-                  assetId={jobId}
-                  label="Download Video"
-                  upgradeLabel="Upgrade to Download"
-                  data-testid="download-video-inline-btn"
-                />
-              </div>
+              {job?.continuation_type === 'branch' ? (
+                <>
+                  <Swords className="w-12 h-12 text-rose-400 mx-auto mb-4" />
+                  <h3 className="text-xl font-bold text-white mb-2">Your version is LIVE!</h3>
+                  <p className="text-slate-400 text-sm mb-2">Competing now. Redirecting to your story...</p>
+                  <p className="text-xs text-white/30 mb-4">Views, shares, and continuations determine rank</p>
+                  <div className="flex gap-3 justify-center">
+                    <Button
+                      onClick={() => navigate(`/app/story-viewer/${jobId}`)}
+                      className="bg-rose-600 hover:bg-rose-700"
+                      data-testid="watch-your-version-btn"
+                    >
+                      <Play className="w-4 h-4 mr-2 fill-white" /> Watch Your Version
+                    </Button>
+                    {job?.root_story_id && (
+                      <Link to={`/app/story-battle/${job.root_story_id}`}>
+                        <Button variant="outline" className="border-white/10 text-white/60" data-testid="view-battle-btn">
+                          <BarChart2 className="w-4 h-4 mr-2" /> View Leaderboard
+                        </Button>
+                      </Link>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
+                  <h3 className="text-xl font-bold text-white mb-2">Your video is ready!</h3>
+                  <p className="text-slate-400 text-sm mb-6">{canDownload ? 'Click below to download your creation.' : 'Upgrade your plan to download this creation.'}</p>
+                  <div className="flex gap-3 justify-center">
+                    <EntitledDownloadButton
+                      assetId={jobId}
+                      label="Download Video"
+                      upgradeLabel="Upgrade to Download"
+                      data-testid="download-video-inline-btn"
+                    />
+                  </div>
+                </>
+              )}
             </div>
           ) : uiState === 'FAILED' ? (
             /* Generation failed — soft recovery UX */
