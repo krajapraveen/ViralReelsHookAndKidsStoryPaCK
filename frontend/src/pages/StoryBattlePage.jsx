@@ -9,6 +9,7 @@ import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import api from '../utils/api';
 import ContinuationModal from '../components/ContinuationModal';
+import StreakBadge from '../components/StreakBadge';
 
 /**
  * StoryBattlePage — The destination for competitive notifications.
@@ -76,6 +77,9 @@ export default function StoryBattlePage() {
       </div>
 
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+        {/* Streak Badge */}
+        <StreakBadge compact />
+
         {/* Current #1 Highlight */}
         {topContender && (
           <div className="relative overflow-hidden rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/[0.06] to-orange-500/[0.04] p-6"

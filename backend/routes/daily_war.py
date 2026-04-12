@@ -472,6 +472,13 @@ async def enter_war(
     # Run pipeline
     asyncio.create_task(run_pipeline(job_id))
 
+    # Record streak participation
+    try:
+        from routes.streaks import record_participation
+        await record_participation(user_id, "war_entry", job_id)
+    except Exception:
+        pass
+
     return {
         "success": True,
         "job_id": job_id,

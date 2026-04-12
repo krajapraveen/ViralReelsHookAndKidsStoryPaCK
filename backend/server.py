@@ -668,6 +668,9 @@ api_router.include_router(daily_war_router)
 from routes.push_notifications import router as push_router
 api_router.include_router(push_router)
 
+from routes.streaks import router as streaks_router
+api_router.include_router(streaks_router)
+
 api_router.include_router(media_access_router)
 
 
@@ -951,6 +954,13 @@ async def startup():
         await create_push_indexes()
     except Exception as e:
         logger.warning(f"Push index creation warning: {e}")
+
+    # Streak indexes
+    try:
+        from routes.streaks import create_streak_indexes
+        await create_streak_indexes()
+    except Exception as e:
+        logger.warning(f"Streak index creation warning: {e}")
     
     # Seed A/B experiments (idempotent)
     try:

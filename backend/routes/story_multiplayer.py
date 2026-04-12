@@ -285,6 +285,13 @@ async def continue_episode(
     import asyncio
     asyncio.create_task(run_pipeline(job_id))
 
+    # Record streak participation
+    try:
+        from routes.streaks import record_participation
+        await record_participation(user_id, "episode", job_id)
+    except Exception:
+        pass
+
     return {
         "success": True,
         "job_id": job_id,
@@ -377,6 +384,13 @@ async def continue_branch(
     # Run pipeline in background
     import asyncio
     asyncio.create_task(run_pipeline(job_id))
+
+    # Record streak participation
+    try:
+        from routes.streaks import record_participation
+        await record_participation(user_id, "branch", job_id)
+    except Exception:
+        pass
 
     # Notify original author that someone branched their story
     try:
@@ -835,6 +849,13 @@ async def instant_rerun(
             "data": {"source_job_id": request.source_job_id, "new_job_id": job_id, "rerun_number": rerun_count + 1},
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
+    except Exception:
+        pass
+
+    # Record streak participation
+    try:
+        from routes.streaks import record_participation
+        await record_participation(user_id, f"rerun_{request.mode}", job_id)
     except Exception:
         pass
 

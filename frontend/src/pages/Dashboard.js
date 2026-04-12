@@ -26,6 +26,7 @@ import PersonalAlertStrip from '../components/PersonalAlertStrip';
 import TrendingPublicFeed from '../components/TrendingPublicFeed';
 import YourCreationsStrip from '../components/YourCreationsStrip';
 import HottestBattle from '../components/HottestBattle';
+import StreakBadge from '../components/StreakBadge';
 
 import heroFallback from '../assets/fallbacks/hero-fallback.jpg';
 import cardFallback from '../assets/fallbacks/card-fallback.jpg';
@@ -1000,6 +1001,11 @@ export default function Dashboard() {
 
       {/* ═══ 0. PERSONAL ALERT STRIP — THE RETURN TRIGGER (TOP) ═══ */}
       <PersonalAlertStrip />
+
+      {/* ═══ 0.3 STREAK BADGE — IDENTITY LAYER ═══ */}
+      <div className="px-4 sm:px-6 lg:px-10 py-1">
+        <StreakBadge />
+      </div>
 
       {/* ═══ 0.5 HOTTEST BATTLE — SPECTATOR MODE (ACQUISITION) ═══ */}
       <HottestBattle />
