@@ -11,79 +11,80 @@
 
 ---
 
-## Complete Behavior System (Apr 11-12)
-
-### Engine: Story Multiplayer + Daily War + Cross-User Visibility + Attribution
-### Actions: Episode/Branch flows, ContinuationModal with presets, all buttons wired
-### Session Loop: CompetitionPulse + Instant Re-run Engine (zero-friction)
-### Return: PersonalAlertStrip + Push Notifications (loss-aversion)
-### Acquisition: HottestBattle Spectator Mode (live battle -> "Jump In")
-### Feed: Alert Strip -> Streak -> HottestBattle -> Hero -> War -> Continue Watching -> Trending -> Discover -> Your Creations
-
-### Streak System — DONE (Apr 12)
-- **Competition-based**: increments on battle/war/continuation participation (NOT login)
-- **28h window** before reset (24h + 4h grace)
-- **Boost**: +2%/day on battle_score, capped at 10% (5 days)
-- **Milestones**: Rising(3), Legendary(5), Unstoppable(7), Mythic(14), Immortal(30)
-- **Wired into**: continue-episode, continue-branch, instant-rerun, war-enter, quick-shot
-- **Notifications**: milestone reached + streak-at-risk (push + in-app)
-- **Frontend**: StreakBadge (full on homepage, compact on battle page)
-- **Analytics**: streak_started, streak_incremented, streak_broken
-
-### Entry Conversion Engine — DONE (Apr 12)
-- **Quick Shot**: POST /api/stories/quick-shot — 1-tap zero-input entry into battle
-  - Auto-generates competitive branch from root with random twist
-  - Returns job_id, streak_started, current_streak
-  - Records analytics (quick_shot_entry event)
-- **Personalized CTA**: hottest-battle returns gap_continues_to_first, user_is_new, user_already_in_battle
-  - "View Your Battle" (already in), "You can beat #1" (close race), "Try your first battle" (new user)
-- **Spectator Pressure Timer**: After 6s of viewing, shows "Battle is heating up — Don't miss your chance"
-  - IntersectionObserver-gated (only counts visible time)
-  - Dismissible, fires quick-shot on "Jump In Now"
-- **First-Win Boost**: Invisible 15% lift for users with 0-1 prior branch entries
-  - In compute_battle_score via is_first_win_eligible param
-  - refresh_battle_score checks prior_count against story_engine_jobs
-- **Entry Streak Hook**: After first quick-shot, toast "Streak Started! Come back tomorrow"
-- **Tracking**: spectator_impression, spectator_pressure_shown, spectator_quick_shot, spectator_to_player_conversion
-- Testing: iteration_501 — 18/18 backend + all frontend verified (100%)
+## Core Philosophy: WATCH > MAKE YOUR VERSION > CREATE
+Every surface enforces this hierarchy. No direct creation from homepage.
 
 ---
 
-## System Integrity (Apr 12) — DONE
-- Streak boost soft-capped at 10% (fairness rule)
-- Auto-seed daily wars (never empty)
-- FAILED_RENDER jobs excluded from rate limiter
+## Consumption-First Viral Loop — DONE (Apr 12)
+
+### Phase 0: Baseline Tracking
+- Added funnel events: story_viewed, story_card_clicked, watch_started, watch_completed_50, watch_completed_100, cta_clicked, remix_clicked, create_clicked, scroll_depth_50
+- Spectator events: spectator_impression, spectator_pressure_shown, spectator_quick_shot, spectator_to_player_conversion
+- All events tracked via POST /api/funnel/track
+
+### Phase 1: CTA Restructure
+- **Hero**: Watch Now (primary gradient) > Make Your Version (secondary outline) > Create Later (tertiary text)
+- **All Cards**: Click → /app/story-viewer/{jobId} (Watch Page). NOT creation studio.
+- **Card CTA Labels**: "Watch Now" (trending/fresh/new), "Continue watching" (continue), "Watch Story" (unfinished)
+- **"Create your version" ELIMINATED** from entire homepage
+- **Floating Create CTA**: Appears bottom-right only after 50% scroll depth or 1+ video watched
+- Testing: iteration_502 — 19/19 (100%)
+
+### Phase 2: Watch Page Upgrade
+- **Next Episode**: Big primary CTA (violet gradient, full-width)
+- **Make Your Version**: Secondary CTA (rose accent, with "Put your own spin" subtext)
+- **Engagement Row**: Like, Save, Share buttons (with state tracking)
+- **Remix Chain**: "People also remixed this into:" horizontal scroll cards
+- **Auto-Play Next**: 3-second countdown overlay after video ends, with Cancel button
+- **Video Tracking**: watch_completed_50 at 50% progress, watch_completed_100 at end
+- **Attribution**: Shows "Quick shot from" alongside existing derivative labels
+
+---
+
+## Entry Conversion Engine — DONE (Apr 12)
+- Quick Shot (1-tap zero-input battle entry)
+- Personalized CTA (gap-to-#1, user state)
+- Spectator Pressure Timer (6s urgency prompt)
+- First-Win Boost (invisible 15% lift for new users)
+- Entry Streak Hook ("Streak Started!" toast)
+- Testing: iteration_501 — 18/18 (100%)
+
+## System Integrity — DONE (Apr 12)
+- Streak boost soft-capped at 10%
+- Auto-seed daily wars
+- FAILED_RENDER excluded from rate limiter
 
 ---
 
 ## Key Files
-- `/app/backend/routes/streaks.py` — Streak logic, participation recording, milestones
-- `/app/frontend/src/components/StreakBadge.jsx` — Full + compact streak display
-- `/app/frontend/src/components/HottestBattle.jsx` — Entry Conversion Engine (spectator -> player)
-- `/app/frontend/src/components/CompetitionPulse.jsx` — Session loop with instant re-run
-- `/app/frontend/src/components/PersonalAlertStrip.jsx` — Return trigger
-- `/app/backend/routes/story_multiplayer.py` — Core multiplayer + feeds + instant-rerun + quick-shot
-- `/app/backend/routes/daily_war.py` — War lifecycle + auto-seed
+- `/app/frontend/src/pages/Dashboard.js` — Consumption-first homepage (Watch > Remix > Create)
+- `/app/frontend/src/pages/StoryViewerPage.jsx` — Watch page with engagement, auto-play, remix chain
+- `/app/frontend/src/components/HottestBattle.jsx` — Entry Conversion Engine
+- `/app/backend/routes/story_multiplayer.py` — Core multiplayer + quick-shot + feeds
+- `/app/backend/routes/funnel_tracking.py` — Full funnel tracking with consumption events
+- `/app/backend/routes/daily_war.py` — War lifecycle
+- `/app/backend/routes/streaks.py` — Streak system
 - `/app/backend/routes/push_notifications.py` — Push engine
 
 ---
 
 ## Backlog
 
-### P0 (Completed)
-- ~~Auto-seed daily wars via scheduler~~ DONE
-- ~~Clean stuck FAILED_RENDER jobs~~ DONE
-- ~~Apply streak_boost to battle_score~~ DONE
-- ~~Entry Conversion Engine~~ DONE
+### P0 (Next: Analytics Engine)
+- Conversion Analytics Dashboard (admin): Spectator->Player %, best CTA, avg session time, retention
+- CTA variant performance tracking
+- Quick Shot quality validation
+- Pressure timer bounce validation
+- First-win boost retention impact
 
 ### P1
-- Secondary Action Matrix (Anime, Kids, Comic — deferred to avoid clutter)
-- Follow Creator (network layer — deferred until competition density proven)
-- Phase C Gamification activation (dark-launched, gated behind GREENLIGHT)
-- Schedule check_streak_at_risk via periodic task
+- Secondary Action Matrix (Anime, Kids, Comic)
+- Follow Creator (network layer)
+- Phase C Gamification activation
 
 ### P2
-- Resend domain verification (blocked on user DNS action)
-- Personalized headline serving by channel
+- Resend domain verification (blocked on user DNS)
+- Personalized headline serving
 - Admin WebSocket upgrade
-- Public chain leaderboard
+- Hover autoplay preview on cards (micro-interaction)
