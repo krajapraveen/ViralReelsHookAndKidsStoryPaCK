@@ -50,7 +50,6 @@ def generate_og_html(share_data: dict, base_url: str) -> str:
     share_id = share_data.get('id', '')
     thumbnail = share_data.get('thumbnailUrl', f'{base_url}/og-default.png')
     forks = share_data.get('forks', 0)
-    creator = share_data.get('userId', '')
 
     # Enhanced description with remix count and creator attribution
     if forks > 0:
