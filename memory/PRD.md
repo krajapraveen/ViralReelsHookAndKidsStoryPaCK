@@ -15,24 +15,31 @@
 
 ---
 
-## P0 Bug Fix: "Unfinished Worlds" Story Not Found — DONE (Apr 12)
+## P0: SLOTS_BUSY → Queue System — DONE (Apr 12)
 
-### Root Cause:
-Feed API (`engagement.py`) queries `pipeline_jobs` for Unfinished Worlds cards, but Viewer API (`story_multiplayer.py`) only queries `story_engine_jobs`. Classic **feed/detail contract mismatch** — cards were clickable but not loadable.
+### Before: "All rendering slots are busy" → dead-end error toast → user leaves
+### After: Job QUEUED → auto-renders when slot frees → never blocks user intent
 
-### Fixes:
-1. **Viewer endpoint** now checks both `story_engine_jobs` AND `pipeline_jobs` (fallback). Handles different field names (`state` vs `status`).
-2. **Engagement feed** tags `pipeline_jobs` items with `source: "pipeline"` for downstream routing.
-3. **Graceful fallback UI** — instead of toast + redirect, shows "Story not available" page with "Browse Stories" and "Go Back" buttons.
+**Implementation:**
+- `check_rate_limits()` no longer blocks for concurrent slots. Returns None to allow creation.
+- `should_queue_job()` detects when active jobs >= MAX_CONCURRENT_JOBS (2)
+- `create_job()` sets state=QUEUED when slots busy. Credits still deducted, job still created.
+- `_finalize_job()` auto-drains queue: when a job completes, promotes oldest QUEUED → INIT + runs pipeline (FIFO)
+- All callers (quick-shot, continue-branch, continue-episode, instant-rerun) check `result.queued` before `run_pipeline()`
+- Frontend shows "Queued for rendering" toast (not error)
+- `detect_abuse()` uses RATE_LIMIT prefix, never SLOTS_BUSY
 
-### Rule enforced: **clickable = loadable**
+### States: QUEUED → INIT (promoted) → pipeline stages → READY
+### Testing: iteration_505 — 15/15 (100%)
 
 ---
 
-## P0: Post-Launch-Branch Flow — DONE (Apr 12)
-- "Entering battle..." loading, Battle Entry Banner on pipeline, auto-redirect to Watch Page
-- Testing: iteration_504 — 12/12 (100%)
+## P0: Unfinished Worlds Fix — DONE (Apr 12)
+- Viewer endpoint checks pipeline_jobs as fallback
+- Graceful "Story not available" page for invalid IDs
+- Rule: clickable = loadable
 
+## P0: Post-Launch-Branch Flow — DONE (Apr 12)
 ## Data Integrity — DONE (Apr 12)
 ## Export Pipeline — DONE (Apr 12)
 ## Consumption-First Loop — DONE (Apr 12)
@@ -46,7 +53,7 @@ Feed API (`engagement.py`) queries `pipeline_jobs` for Unfinished Worlds cards, 
 - Conversion Analytics Dashboard
 
 ### P1
-- Auto-Recovery for FAILED_PERSISTENCE, Secondary Action Matrix, Follow Creator
+- Auto-Recovery FAILED_PERSISTENCE, Secondary Action Matrix, Follow Creator
 
 ### P2
 - Resend domain, personalized headlines, hover autoplay
