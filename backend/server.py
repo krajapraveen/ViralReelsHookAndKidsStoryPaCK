@@ -665,6 +665,9 @@ api_router.include_router(story_multiplayer_router)
 from routes.daily_war import router as daily_war_router
 api_router.include_router(daily_war_router)
 
+from routes.push_notifications import router as push_router
+api_router.include_router(push_router)
+
 api_router.include_router(media_access_router)
 
 
@@ -941,6 +944,13 @@ async def startup():
         await create_war_indexes()
     except Exception as e:
         logger.warning(f"War index creation warning: {e}")
+
+    # Push notification indexes
+    try:
+        from routes.push_notifications import create_push_indexes
+        await create_push_indexes()
+    except Exception as e:
+        logger.warning(f"Push index creation warning: {e}")
     
     # Seed A/B experiments (idempotent)
     try:

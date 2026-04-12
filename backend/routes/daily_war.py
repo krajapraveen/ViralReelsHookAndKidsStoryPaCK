@@ -768,6 +768,13 @@ async def check_war_overtake(war_id: str, triggering_job_id: str, triggering_use
                     "created_at": now,
                 })
 
+                # Fire push notification
+                try:
+                    from routes.push_notifications import trigger_war_overtake_push
+                    await trigger_war_overtake_push(e["user_id"], rank, time_left_str.strip())
+                except Exception:
+                    pass
+
 
 # ═══════════════════════════════════════════════════════════════
 # INDEXES

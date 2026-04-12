@@ -923,6 +923,14 @@ async def check_and_send_rank_notifications(job_id: str, parent_job_id: str):
             })
             logger.info(f"[BATTLE-NOTIFY] rank_drop sent to {prev_leader_id[:12]} for battle {parent_job_id[:12]}")
 
+            # Fire push notification
+            try:
+                from routes.push_notifications import trigger_rank_drop_push
+                parent_title = parent.get("title", "your story") if parent else "your story"
+                await trigger_rank_drop_push(prev_leader_id, parent_title, parent_job_id, 0)
+            except Exception as push_err:
+                logger.warning(f"[PUSH] rank_drop push failed: {push_err}")
+
     # Update stored leader
     if parent:
         await db.story_engine_jobs.update_one(
@@ -961,6 +969,23 @@ async def check_and_send_rank_notifications(job_id: str, parent_job_id: str):
                         "read": False,
                         "created_at": now,
                     })
+
+    # Near-win push: check if #2 contender is within gap ≤ 2 continues of #1
+    if len(all_contenders) >= 2:
+        top = all_contenders[0]
+        runner_up = all_contenders[1]
+        top_continues = top.get("total_children", 0)
+        runner_continues = runner_up.get("total_children", 0)
+        gap = top_continues - runner_continues
+        if 0 < gap <= 2:
+            try:
+                from routes.push_notifications import trigger_near_win_push
+                parent_title = parent.get("title", "") if parent else ""
+                await trigger_near_win_push(
+                    runner_up.get("user_id"), parent_title, parent_job_id, gap
+                )
+            except Exception:
+                pass
 
 
 @router.get("/notifications/battle")

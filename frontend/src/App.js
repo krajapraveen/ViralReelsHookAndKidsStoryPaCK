@@ -146,6 +146,8 @@ import CookieConsent from './components/CookieConsent';
 import ExplorePage from './pages/ExplorePage';
 import PublicCreation from './pages/PublicCreation';
 import CreatorProfile from './pages/CreatorProfile';
+import PushPrompt from './components/PushPrompt';
+
 // STORY CHAIN
 import StoryChainView from './pages/StoryChainView';
 import StoryChainTimeline from './pages/StoryChainTimeline';
@@ -464,6 +466,8 @@ function App() {
       {/* Cookie Consent Banner - GDPR/CCPA Compliance */}
       <CookieConsent />
     </ContentProtectionWrapper>
+    {/* Push Notification Prompt — shows for authenticated users */}
+    {isAuthenticated && <PushPrompt />}
     </ProductGuideProvider>
     </FeedbackProvider>
     </TourProvider>
