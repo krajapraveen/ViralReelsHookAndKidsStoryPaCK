@@ -126,6 +126,59 @@ async def conversion_dashboard(
     unique_users_result = await db.funnel_events.aggregate(unique_users_pipeline).to_list(1)
     unique_users = unique_users_result[0]["total"] if unique_users_result else 0
 
+    # ═══ 5.5. QUICK SHOT RETENTION — are they returning or junk? ═══
+    # Find users who did quick shot, then check if they had ANY subsequent activity
+    qs_user_pipeline = [
+        {"$match": {"event": "quick_shot_entry", "created_at": {"$gte": since}}},
+        {"$group": {"_id": "$data.user_id"}},
+    ]
+    qs_users = set()
+    async for doc in db.analytics_events.aggregate(qs_user_pipeline):
+        if doc["_id"]:
+            qs_users.add(doc["_id"])
+
+    # Also get from story_engine_jobs
+    qs_jobs = await db.story_engine_jobs.find(
+        {"quick_shot": True, "created_at": {"$gte": since}},
+        {"_id": 0, "user_id": 1}
+    ).to_list(100)
+    for j in qs_jobs:
+        if j.get("user_id"):
+            qs_users.add(j["user_id"])
+
+    qs_returning = 0
+    qs_second_action = 0
+    for uid in qs_users:
+        # Did they create another job AFTER their first quick shot?
+        subsequent = await db.story_engine_jobs.count_documents({
+            "user_id": uid,
+            "quick_shot": {"$ne": True},  # non-quick-shot action
+            "created_at": {"$gte": since},
+        })
+        if subsequent > 0:
+            qs_second_action += 1
+        # Did they have any funnel activity after?
+        funnel_activity = await db.funnel_events.count_documents({
+            "user_id": uid,
+            "step": {"$in": ["story_card_clicked", "watch_started", "cta_clicked"]},
+            "timestamp": {"$gte": since},
+        })
+        if funnel_activity > 0:
+            qs_returning += 1
+
+    qs_total = len(qs_users)
+    quick_shot_retention = {
+        "total_quick_shot_users": qs_total,
+        "returning_users": qs_returning,
+        "second_action_users": qs_second_action,
+        "retention_pct": round((qs_returning / max(qs_total, 1)) * 100, 2),
+        "second_action_pct": round((qs_second_action / max(qs_total, 1)) * 100, 2),
+        "verdict": "strong" if qs_total > 0 and (qs_returning / max(qs_total, 1)) > 0.4
+                   else "weak" if qs_total > 0 and (qs_returning / max(qs_total, 1)) < 0.2
+                   else "insufficient_data" if qs_total < 3
+                   else "average",
+    }
+
     # ═══ 6. COMPUTED METRICS (exact formulas) ═══
     impressions = funnel_counts.get("spectator_impression", 0) or funnel_counts.get("story_viewed", 0) or 1
     card_clicks = funnel_counts.get("story_card_clicked", 0)
@@ -219,4 +272,5 @@ async def conversion_dashboard(
             "unique_sessions": session_count,
             "unique_users": unique_users,
         },
+        "quick_shot_retention": quick_shot_retention,
     }

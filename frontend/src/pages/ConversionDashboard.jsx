@@ -233,6 +233,56 @@ export default function ConversionDashboard() {
           </div>
         </section>
 
+        {/* ═══ QUICK SHOT RETENTION — is it real growth or junk? ═══ */}
+        {data.quick_shot_retention && (
+          <section data-testid="qs-retention">
+            <h2 className="text-xs font-bold text-white/30 uppercase tracking-wider mb-4">
+              Quick Shot Retention
+              <span className={`ml-2 px-2 py-0.5 rounded text-[10px] font-bold ${
+                data.quick_shot_retention.verdict === 'strong' ? 'bg-emerald-500/20 text-emerald-400' :
+                data.quick_shot_retention.verdict === 'weak' ? 'bg-rose-500/20 text-rose-400' :
+                data.quick_shot_retention.verdict === 'insufficient_data' ? 'bg-white/10 text-white/30' :
+                'bg-amber-500/20 text-amber-400'
+              }`}>
+                {data.quick_shot_retention.verdict === 'strong' ? 'STRONG — double down' :
+                 data.quick_shot_retention.verdict === 'weak' ? 'WEAK — restrict or kill' :
+                 data.quick_shot_retention.verdict === 'insufficient_data' ? 'NEEDS MORE DATA' :
+                 'AVERAGE — monitor'}
+              </span>
+            </h2>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <MetricCard
+                label="QS Users"
+                value={data.quick_shot_retention.total_quick_shot_users}
+                color="white"
+                icon={<Zap className="w-4 h-4" />}
+                testId="metric-qs-users"
+              />
+              <MetricCard
+                label="Returning"
+                value={`${data.quick_shot_retention.retention_pct}%`}
+                color={data.quick_shot_retention.retention_pct > 40 ? 'emerald' : data.quick_shot_retention.retention_pct > 20 ? 'amber' : 'rose'}
+                icon={<TrendingUp className="w-4 h-4" />}
+                testId="metric-qs-returning"
+              />
+              <MetricCard
+                label="Second Action"
+                value={`${data.quick_shot_retention.second_action_pct}%`}
+                color={data.quick_shot_retention.second_action_pct > 30 ? 'emerald' : 'amber'}
+                icon={<BarChart2 className="w-4 h-4" />}
+                testId="metric-qs-second-action"
+              />
+              <MetricCard
+                label="Verdict"
+                value={data.quick_shot_retention.verdict}
+                color={data.quick_shot_retention.verdict === 'strong' ? 'emerald' : data.quick_shot_retention.verdict === 'weak' ? 'rose' : 'white'}
+                icon={<Eye className="w-4 h-4" />}
+                testId="metric-qs-verdict"
+              />
+            </div>
+          </section>
+        )}
+
         {/* ═══ CTA BREAKDOWN TABLE ═══ */}
         {Object.keys(cta_breakdown).length > 0 && (
           <section data-testid="cta-breakdown">

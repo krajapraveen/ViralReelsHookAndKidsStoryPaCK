@@ -11,47 +11,63 @@
 
 ---
 
-## Core Philosophy: WATCH > MAKE YOUR VERSION > CREATE
+## Core Philosophy: WATCH > ENTER BATTLE > CREATE
 
 ---
 
-## Conversion Analytics Dashboard — DONE + INTEGRITY FIX (Apr 12)
+## Data-Driven Optimization (Apr 12)
 
-### Funnel Integrity Fix:
-- **Problem**: 27 entries shown from only 3 clicks — data lie
-- **Root cause**: Quick Shots bypass card clicks entirely; demo/seed data inflated entry count
-- **Fix**: Funnel now shows TWO paths separately:
-  1. Card path: impression → click → watch → create_cta_clicked
-  2. Quick Shot path: quick_shot_fired (bypasses card click)
-- Attribution warnings flag unattributed entries (pre-tracking data)
-- Formula transparency: every metric shows exact formula on click
+### Move 1: Funnel integrity fix
+- Two honest paths: Card path vs Quick Shot path (separated)
+- Attribution warnings flag unattributed pre-tracking entries
+- 19 unattributed entries correctly identified as demo/seed data
 
-### Social Proof on Cards:
-- View count + competition count added to story cards
-- Engagement feed now includes total_views and total_children in response
+### Move 2: "Make Your Version" → "Enter Battle" (0 clicks → action)
+- Changed everywhere: Dashboard hero, StoryViewer header, StoryViewer body CTA
+- "Make Your Version" = work (ignored). "Enter Battle" = action + ego (compelling)
+- Body CTA: "Compete with your own version of this story"
+- Tracking uses type='enter_battle' for proper attribution
 
-### Key Data Insights:
-- 86% drop impression→click = BIGGEST LEAK (card hooks not compelling enough)
-- Quick Shot = strongest converter (bypasses click friction entirely)
-- 0 Make Your Version clicks = secondary CTA not converting at all
-- 19 unattributed entries = pre-tracking demo data (correctly flagged)
+### Move 3: Quick Shot retention tracking
+- Dashboard shows: total QS users, returning %, second action %, verdict
+- Decision rule: >40% retention = strong (double down), <20% = weak (kill)
+- Current data: 50% returning, 100% second action, verdict = "strong"
+
+### Move 4: Social proof on cards
+- View counts + "X competing" labels on story cards
+- Engagement feed returns total_views and total_children
+
+### Move 5: Stronger hook bank
+- Replaced generic hooks with curiosity-gap hooks
+- "She opened the door... and saw herself inside."
+- "This message appeared at 2:13 AM — then his phone died."
+
+---
+
+## Analytics Dashboard — /app/admin/conversion
+- Core: Spectator→Player %, Watch rates, CTA CTRs
+- Queue: rate, complete rate, health
+- Quick Shot Retention: with automated verdict
+- Funnel: with drop-off %, attribution warnings
+- Breakdowns: CTA variant, source section, session stats
+- Period filters: 24h, 7d, 30d
 
 ---
 
 ## All Completed Systems (Apr 12)
-- Queue System (hardened, FIFO, drain on success+failure)
-- Unfinished Worlds fix, Post-Launch-Branch flow
-- Data Integrity, Export Pipeline
-- Consumption-First Viral Loop, Entry Conversion Engine
+- Queue System, Data Integrity, Export Pipeline
+- Consumption-First Loop, Entry Conversion Engine
+- Post-Launch-Branch, Unfinished Worlds fix
 - System Integrity
 
 ---
 
 ## Backlog
 
-### P0 (Next — based on data)
-- Attack click rate: auto-play preview, curiosity hooks, urgency labels
-- Validate Quick Shot retention (are they returning?)
+### P0 (Data-driven, after 48h)
+- Attack 86% impression→click drop: auto-play preview on visible
+- Urgency labels: "Ends in 3h", "7 people just joined"
+- Remove weak content from feed (low views + low completion)
 
 ### P1
 - Auto-Recovery FAILED_PERSISTENCE

@@ -230,13 +230,13 @@ export default function StoryViewerPage() {
             <Button
               size="sm"
               onClick={() => {
-                trackFunnel('cta_clicked', { meta: { type: 'make_your_version', source: 'viewer_header', story_id: resolvedJobId } });
+                trackFunnel('cta_clicked', { meta: { type: 'enter_battle', source: 'viewer_header', story_id: resolvedJobId } });
                 setContinuationMode('branch');
               }}
               className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold"
               data-testid="viewer-remix-btn"
             >
-              <RefreshCw className="w-3.5 h-3.5 mr-1" /> Make Your Version
+              <Swords className="w-3.5 h-3.5 mr-1" /> Enter Battle
             </Button>
           </div>
         </div>
@@ -475,7 +475,7 @@ export default function StoryViewerPage() {
             </button>
           )}
 
-          {/* ═══ MAKE YOUR VERSION — SECONDARY CTA ═══ */}
+          {/* ═══ ENTER BATTLE — SECONDARY CTA (after content, post emotional hook) ═══ */}
           <button
             onClick={() => {
               trackFunnel('remix_clicked', { meta: { story_id: resolvedJobId, source: 'viewer_body' } });
@@ -486,10 +486,10 @@ export default function StoryViewerPage() {
           >
             <div className="absolute inset-0 bg-rose-600/20 border border-rose-500/20 rounded-xl group-hover:bg-rose-600/30 transition-colors" />
             <div className="relative z-10 flex items-center gap-3">
-              <RefreshCw className="w-5 h-5 text-rose-400" />
+              <Swords className="w-5 h-5 text-rose-400" />
               <div className="flex-1">
-                <span className="text-sm font-bold text-rose-300 block">Make Your Version</span>
-                <span className="text-xs text-white/40">Put your own spin on this story</span>
+                <span className="text-sm font-bold text-rose-300 block">Enter Battle</span>
+                <span className="text-xs text-white/40">Compete with your own version of this story</span>
               </div>
               <ChevronRight className="w-5 h-5 text-rose-300/40" />
             </div>

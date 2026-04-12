@@ -15,7 +15,7 @@ import {
   Film, BookOpen, Star, ArrowRight, Shield, User,
   Camera, Palette, Megaphone, Lightbulb, Image as ImageIcon,
   RefreshCw, Share2, Activity, Home, Heart, LogOut, CreditCard,
-  Eye, Trophy, Award, TrendingUp, Users,
+  Eye, Trophy, Award, TrendingUp, Users, Swords,
 } from 'lucide-react';
 
 import HeroMedia from '../components/HeroMedia';
@@ -47,14 +47,16 @@ function isAdminUser() {
 }
 
 const HOOK_BANK = [
-  "The door wasn't supposed to exist...",
-  "He heard his name... from inside the wall.",
-  "She waited... but no one came.",
-  "The last message read: 'Don't look behind you.'",
+  "She opened the door... and saw herself inside.",
+  "This message appeared at 2:13 AM — then his phone died.",
+  "He pressed play... and the video showed tomorrow.",
   "The mirror showed someone else staring back.",
   "They said the forest was empty. They were wrong.",
   "The clock struck thirteen.",
   "She recognized the voice... but he'd been dead for years.",
+  "The letter was written in her handwriting. She never wrote it.",
+  "He woke up in a room with no doors. The walls were breathing.",
+  "The last photo on her phone was taken 3 days from now.",
 ];
 
 const SEED_CARDS = [
@@ -184,7 +186,7 @@ function HeroSection({ stories, navigate }) {
               </button>
               <button onClick={() => {
                 if (!current.job_id || current.is_seed) { navigate('/app/story-video-studio', { state: { freshSession: true } }); return; }
-                trackFunnel('cta_clicked', { meta: { type: 'make_your_version', source: 'hero', story_id: current.job_id } });
+                trackFunnel('cta_clicked', { meta: { type: 'enter_battle', source: 'hero', story_id: current.job_id } });
                 navigate('/app/story-video-studio', {
                   state: {
                     prompt: current.story_text || current.hook_text || '',
@@ -196,7 +198,7 @@ function HeroSection({ stories, navigate }) {
               }}
                 className="inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm sm:text-base font-semibold text-white bg-white/10 backdrop-blur-md border border-white/15 hover:bg-white/15 transition-colors duration-200"
                 data-testid="hero-remix-btn">
-                <RefreshCw className="w-4 h-4 mr-2" /> Make Your Version
+                <Swords className="w-4 h-4 mr-2" /> Enter Battle
               </button>
               <button onClick={() => {
                 trackFunnel('cta_clicked', { meta: { type: 'create_later', source: 'hero' } });
