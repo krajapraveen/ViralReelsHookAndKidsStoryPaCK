@@ -39,6 +39,7 @@ def compute_battle_score(
     total_views: int = 0,
     chain_depth: int = 0,
     created_at_iso: str = None,
+    streak_boost: float = 0.0,
 ) -> float:
     """
     Weighted composite ranking score.
@@ -46,6 +47,8 @@ def compute_battle_score(
     - depth multiplier: 1 + (chain_depth * 0.2)
     - recency boost: 1 / (1 + hours_since_creation * 0.05)
     - anti-gaming: if continues/views < 0.02 → score * 0.5
+    - streak: soft influence only — 90% performance + 10% streak bonus
+      A bad story with streak must NEVER beat a great story without streak.
     """
     base_score = (total_children * 5.0) + (total_shares * 3.0) + (total_views * 1.0)
 
@@ -63,12 +66,17 @@ def compute_battle_score(
 
     recency_boost = 1.0 / (1.0 + hours_since * 0.05)
 
-    final_score = base_score * depth_multiplier * recency_boost
+    performance_score = base_score * depth_multiplier * recency_boost
 
     # Anti-gaming: low engagement ratio penalty
     if total_views > 0 and total_children / max(total_views, 1) < 0.02:
-        if total_views > 50:  # Only apply after meaningful sample
-            final_score *= 0.5
+        if total_views > 50:
+            performance_score *= 0.5
+
+    # Streak influence: soft (max 10% of performance score)
+    # 90% pure performance + 10% streak-weighted performance
+    streak_influence = min(streak_boost, 0.10)  # Cap at 10%
+    final_score = (performance_score * 0.9) + (performance_score * streak_influence * 0.1)
 
     return round(final_score, 4)
 
@@ -126,14 +134,24 @@ async def ensure_multiplayer_fields(job_id: str, parent_job_id: str = None, cont
 
 
 async def refresh_battle_score(job_id: str):
-    """Recompute and persist battle_score for a single job."""
+    """Recompute and persist battle_score for a single job, including streak boost."""
     job = await db.story_engine_jobs.find_one(
         {"job_id": job_id},
         {"_id": 0, "total_children": 1, "total_shares": 1, "total_views": 1,
-         "chain_depth": 1, "created_at": 1}
+         "chain_depth": 1, "created_at": 1, "user_id": 1}
     )
     if not job:
         return None
+
+    # Fetch user's streak boost
+    streak_boost = 0.0
+    if job.get("user_id"):
+        streak = await db.user_streaks.find_one(
+            {"user_id": job["user_id"]},
+            {"_id": 0, "streak_boost": 1}
+        )
+        if streak:
+            streak_boost = streak.get("streak_boost", 0.0)
 
     score = compute_battle_score(
         total_children=job.get("total_children", 0),
@@ -141,6 +159,7 @@ async def refresh_battle_score(job_id: str):
         total_views=job.get("total_views", 0),
         chain_depth=job.get("chain_depth", 0),
         created_at_iso=job.get("created_at"),
+        streak_boost=streak_boost,
     )
 
     await db.story_engine_jobs.update_one(

@@ -50,10 +50,15 @@ async def check_rate_limits(db, user_id: str) -> Optional[str]:
     """
     now = datetime.now(timezone.utc)
 
-    # Concurrent jobs
+    # Concurrent jobs — exclude all terminal states (ready + all failure variants)
+    terminal_states = [
+        "READY", "PARTIAL_READY", "FAILED", "COMPLETED",
+        "FAILED_PLANNING", "FAILED_IMAGES", "FAILED_TTS", "FAILED_RENDER",
+        "FAILED_CHARACTER", "FAILED_MOTION", "FAILED_CLIPS", "FAILED_VALIDATION",
+    ]
     active_count = await db.story_engine_jobs.count_documents({
         "user_id": user_id,
-        "state": {"$nin": ["READY", "PARTIAL_READY", "FAILED"]},
+        "state": {"$nin": terminal_states},
     })
     if active_count >= MAX_CONCURRENT_JOBS:
         return f"SLOTS_BUSY:All rendering slots are busy ({active_count}/{MAX_CONCURRENT_JOBS}). Your current video is still being created — please wait for it to finish, then you can start a new one."

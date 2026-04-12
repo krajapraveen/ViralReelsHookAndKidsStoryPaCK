@@ -245,7 +245,7 @@ async def declare_winner(war_id: str):
 # ═══════════════════════════════════════════════════════════════
 
 async def check_war_lifecycle():
-    """Called periodically to advance war states based on time."""
+    """Called periodically to advance war states based on time. Also auto-seeds new wars."""
     now = datetime.now(timezone.utc)
     now_iso = now.isoformat()
 
@@ -266,6 +266,83 @@ async def check_war_lifecycle():
         success = await transition_war(w["war_id"], "active", "ended")
         if success:
             await declare_winner(w["war_id"])
+
+    # Auto-seed: if no active or scheduled war, create one
+    existing = await db.daily_wars.find_one(
+        {"state": {"$in": ["scheduled", "active"]}},
+        {"_id": 0, "war_id": 1}
+    )
+    if not existing:
+        await auto_seed_war()
+
+
+# ═══════════════════════════════════════════════════════════════
+# AUTO-SEED — War prompt templates with category rotation
+# ═══════════════════════════════════════════════════════════════
+
+_WAR_PROMPTS = [
+    {"category": "sci-fi", "title": "The Last Signal", "story_text": "Deep space station Meridian receives a signal from a civilization that went extinct 10,000 years ago. But the signal contains coordinates — to Earth. Commander Yara must decide: respond and reveal humanity's location, or stay silent and lose the greatest discovery in history. The crew is divided. What does Commander Yara do?"},
+    {"category": "fantasy", "title": "The Broken Crown", "story_text": "When the kingdom's crown shatters into seven pieces, each shard grants its holder a different power. Princess Kael finds the shard of truth — she can see through any lie. But the shard of shadows has fallen into enemy hands. She has three days before the coronation. If the crown isn't whole, the kingdom falls to chaos. What does Princess Kael do first?"},
+    {"category": "horror", "title": "Floor 13", "story_text": "The new apartment building has no 13th floor — officially. But tenant Maya discovers that pressing floors 12 and 14 simultaneously in the elevator takes her somewhere else entirely. A floor that exists between moments, where previous tenants still wander. She finds a note: 'Don't let the door close behind you.' The elevator doors are closing. What does Maya do?"},
+    {"category": "romance", "title": "The Last Letter", "story_text": "Cleaning out her grandmother's attic, Lily finds a stack of unsent love letters addressed to a man named James — written over 40 years. The last letter contains a confession that changes everything Lily thought she knew about her family. And a return address that still exists. Does Lily send the letter? Does she visit? What does she discover?"},
+    {"category": "mystery", "title": "The Vanishing Witness", "story_text": "Detective Park has one witness to the city's biggest case — but the witness keeps disappearing from protective custody. Not escaping. Literally vanishing. Security cameras show empty rooms where a person stood seconds before. On the third disappearance, a note is left behind: 'Stop looking for me. Start looking at what I saw.' What did the witness see?"},
+    {"category": "adventure", "title": "The Map That Moves", "story_text": "Explorer Kai buys an old map at a flea market. That night, the map changes — new paths appear, old ones vanish. It's showing a real location that shifts daily. Following it leads to a door in a mountainside that wasn't there yesterday. Inside is a chamber with two passages and an inscription: 'One leads to what you want. One leads to what you need.' Which does Kai choose?"},
+    {"category": "thriller", "title": "The 48-Hour Rule", "story_text": "Agent Cole discovers that every person who accessed File X-7 has died within exactly 48 hours. She just opened it. The file contains a single photograph — of her own apartment, taken from inside, dated tomorrow. The clock is ticking. She has 48 hours to find out who's watching and why. What does Agent Cole do in the first hour?"},
+]
+
+
+async def auto_seed_war():
+    """Auto-seed a new Daily Story War with rotating categories."""
+    import random
+
+    # Pick a prompt that hasn't been used recently
+    recent_wars = await db.daily_wars.find(
+        {},
+        {"_id": 0, "root_title": 1}
+    ).sort("created_at", -1).limit(7).to_list(7)
+    recent_titles = {w.get("root_title") for w in recent_wars}
+
+    available = [p for p in _WAR_PROMPTS if p["title"] not in recent_titles]
+    if not available:
+        available = _WAR_PROMPTS  # Reset rotation
+
+    prompt = random.choice(available)
+
+    war_id = f"war-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{uuid.uuid4().hex[:6]}"
+    now = datetime.now(timezone.utc)
+    start_time = now
+    end_time = now + timedelta(hours=WAR_DURATION_HOURS)
+
+    root_job_id = f"war-root-{uuid.uuid4().hex[:8]}"
+
+    # Create root story
+    await db.story_engine_jobs.insert_one({
+        "job_id": root_job_id, "user_id": "system",
+        "state": "READY", "title": prompt["title"],
+        "story_text": prompt["story_text"],
+        "animation_style": "cartoon_2d",
+        "created_at": now.isoformat(),
+        "story_chain_id": root_job_id, "parent_job_id": None,
+        "root_story_id": root_job_id, "chain_depth": 0,
+        "continuation_type": "original",
+        "total_children": 0, "total_views": 0, "total_shares": 0,
+        "battle_score": 0.0, "is_war_root": True, "war_id": war_id,
+        "visibility": "public",
+    })
+
+    # Create war
+    await db.daily_wars.insert_one({
+        "war_id": war_id, "root_story_id": root_job_id,
+        "root_title": prompt["title"], "root_story_text": prompt["story_text"],
+        "state": "active", "start_time": start_time.isoformat(),
+        "end_time": end_time.isoformat(), "total_entries": 0,
+        "winner_job_id": None, "winner_user_id": None, "winner_title": None,
+        "category": prompt["category"],
+        "created_at": now.isoformat(), "updated_at": now.isoformat(),
+    })
+
+    logger.info(f"[WAR] Auto-seeded war {war_id}: '{prompt['title']}' ({prompt['category']})")
+    return war_id
 
 
 # ═══════════════════════════════════════════════════════════════
