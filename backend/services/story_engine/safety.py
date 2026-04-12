@@ -47,6 +47,7 @@ MAX_JOBS_PER_DAY = 50
 async def check_rate_limits(db, user_id: str) -> Optional[str]:
     """
     Check user rate limits. Returns error message or None if within limits.
+    Concurrent slot limit now returns a QUEUE signal instead of hard block.
     """
     now = datetime.now(timezone.utc)
 
@@ -55,38 +56,58 @@ async def check_rate_limits(db, user_id: str) -> Optional[str]:
         "READY", "PARTIAL_READY", "FAILED", "COMPLETED",
         "FAILED_PLANNING", "FAILED_IMAGES", "FAILED_TTS", "FAILED_RENDER",
         "FAILED_CHARACTER", "FAILED_MOTION", "FAILED_CLIPS", "FAILED_VALIDATION",
+        "FAILED_PERSISTENCE", "EXPIRED", "QUEUED",
     ]
     active_count = await db.story_engine_jobs.count_documents({
         "user_id": user_id,
         "state": {"$nin": terminal_states},
     })
+    # QUEUE instead of reject — never block a user who wants to compete
+    # Return None to allow job creation; pipeline will handle queuing
     if active_count >= MAX_CONCURRENT_JOBS:
-        return f"SLOTS_BUSY:All rendering slots are busy ({active_count}/{MAX_CONCURRENT_JOBS}). Your current video is still being created — please wait for it to finish, then you can start a new one."
+        # Signal to pipeline that job should be queued, not run immediately
+        return None  # Allow creation; queuing handled in create_job
 
-    # Hourly limit
+    # Hourly limit (hard limit — actual abuse prevention)
     one_hour_ago = (now - timedelta(hours=1)).isoformat()
     hourly_count = await db.story_engine_jobs.count_documents({
         "user_id": user_id,
         "created_at": {"$gte": one_hour_ago},
     })
     if hourly_count >= MAX_JOBS_PER_HOUR:
-        return f"SLOTS_BUSY:You've created {hourly_count} videos in the last hour. To ensure quality for everyone, please wait a few minutes before starting another."
+        return f"RATE_LIMIT:You've created {hourly_count} videos in the last hour. Please wait a few minutes before starting another."
 
-    # Daily limit
+    # Daily limit (hard limit)
     day_start = now.replace(hour=0, minute=0, second=0).isoformat()
     daily_count = await db.story_engine_jobs.count_documents({
         "user_id": user_id,
         "created_at": {"$gte": day_start},
     })
     if daily_count >= MAX_JOBS_PER_DAY:
-        return f"SLOTS_BUSY:You've reached today's generation limit ({daily_count}/{MAX_JOBS_PER_DAY}). Your limit resets at midnight — come back tomorrow to create more!"
+        return f"RATE_LIMIT:You've reached today's generation limit ({daily_count}/{MAX_JOBS_PER_DAY}). Come back tomorrow!"
 
     return None
+
+
+async def should_queue_job(db, user_id: str) -> bool:
+    """Check if a new job should be queued (slots busy) vs run immediately."""
+    terminal_states = [
+        "READY", "PARTIAL_READY", "FAILED", "COMPLETED",
+        "FAILED_PLANNING", "FAILED_IMAGES", "FAILED_TTS", "FAILED_RENDER",
+        "FAILED_CHARACTER", "FAILED_MOTION", "FAILED_CLIPS", "FAILED_VALIDATION",
+        "FAILED_PERSISTENCE", "EXPIRED", "QUEUED",
+    ]
+    active_count = await db.story_engine_jobs.count_documents({
+        "user_id": user_id,
+        "state": {"$nin": terminal_states},
+    })
+    return active_count >= MAX_CONCURRENT_JOBS
 
 
 async def detect_abuse(db, user_id: str) -> Optional[str]:
     """
     Detect potential abuse patterns.
+    Returns RATE_LIMIT errors (not SLOTS_BUSY) for abuse prevention.
     """
     now = datetime.now(timezone.utc)
     ten_min_ago = (now - timedelta(minutes=10)).isoformat()
@@ -97,7 +118,7 @@ async def detect_abuse(db, user_id: str) -> Optional[str]:
         "created_at": {"$gte": ten_min_ago},
     })
     if recent >= 5:
-        return "SLOTS_BUSY:You've submitted several videos in quick succession. Please wait a few minutes before starting another to ensure the best quality."
+        return "RATE_LIMIT:You've submitted several videos in quick succession. Please wait a few minutes before starting another to ensure the best quality."
 
     # Repeated failures (possible probing)
     one_hour_ago = (now - timedelta(hours=1)).isoformat()
@@ -107,6 +128,6 @@ async def detect_abuse(db, user_id: str) -> Optional[str]:
         "created_at": {"$gte": one_hour_ago},
     })
     if failed >= 8:
-        return "SLOTS_BUSY:We noticed several failed attempts. Our team is looking into it — please try again in a little while."
+        return "RATE_LIMIT:We noticed several failed attempts. Our team is looking into it — please try again in a little while."
 
     return None

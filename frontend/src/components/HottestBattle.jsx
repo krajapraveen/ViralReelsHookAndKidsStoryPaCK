@@ -143,6 +143,10 @@ export default function HottestBattle() {
           toast.success(`${res.data.current_streak}-day streak! Version generating...`, {
             duration: 3000,
           });
+        } else if (res.data.queued) {
+          toast.success('You\'re in! Queued for rendering — we\'ll start as soon as a slot opens.', {
+            duration: 4000,
+          });
         } else {
           toast.success('Quick Shot fired! Your version is generating...', {
             duration: 3000,

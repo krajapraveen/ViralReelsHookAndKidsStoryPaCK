@@ -323,9 +323,10 @@ async def continue_episode(
         }}
     )
 
-    # Run pipeline in background
+    # Run pipeline in background (skip if queued)
     import asyncio
-    asyncio.create_task(run_pipeline(job_id))
+    if not result.get("queued"):
+        asyncio.create_task(run_pipeline(job_id))
 
     # Record streak participation
     try:
@@ -423,9 +424,11 @@ async def continue_branch(
                 {"$set": {"source_creator_name": pu.get("name") or pu.get("email", "").split("@")[0]}}
             )
 
-    # Run pipeline in background
+    # Run pipeline in background (skip if queued)
     import asyncio
-    asyncio.create_task(run_pipeline(job_id))
+    is_queued = result.get("queued", False)
+    if not is_queued:
+        asyncio.create_task(run_pipeline(job_id))
 
     # Record streak participation
     try:
@@ -879,9 +882,11 @@ async def instant_rerun(
         upsert=True,
     )
 
-    # Run pipeline
+    # Run pipeline (skip if queued)
     import asyncio
-    asyncio.create_task(run_pipeline(job_id))
+    is_queued = result.get("queued", False)
+    if not is_queued:
+        asyncio.create_task(run_pipeline(job_id))
 
     # Track analytics
     try:
@@ -1006,9 +1011,11 @@ async def quick_shot(
         }}
     )
 
-    # Run pipeline
+    # Run pipeline (skip if queued)
     import asyncio
-    asyncio.create_task(run_pipeline(job_id))
+    is_queued = result.get("queued", False)
+    if not is_queued:
+        asyncio.create_task(run_pipeline(job_id))
 
     # Track conversion analytics
     now = datetime.now(timezone.utc).isoformat()
@@ -1040,9 +1047,10 @@ async def quick_shot(
         "root_story_id": graph_info["root_story_id"],
         "chain_depth": graph_info["chain_depth"],
         "credits_charged": result.get("credits_deducted", 0),
+        "queued": is_queued,
         "streak_started": streak_result.get("current_streak", 0) == 1 if streak_result else False,
         "current_streak": streak_result.get("current_streak", 0) if streak_result else 0,
-        "message": "Quick Shot fired! Your version is generating...",
+        "message": "Quick Shot queued! We'll start rendering as soon as a slot opens." if is_queued else "Quick Shot fired! Your version is generating...",
     }
 
 

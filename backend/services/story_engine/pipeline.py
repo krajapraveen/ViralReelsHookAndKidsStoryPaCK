@@ -20,7 +20,7 @@ from .state_machine import (
 )
 from .cost_guard import pre_flight_check, enforce_runtime_budget, BudgetExceededError
 from .continuity import validate_pipeline_outputs, should_mark_ready
-from .safety import check_content_safety, check_rate_limits, detect_abuse, rewrite_content_safely
+from .safety import check_content_safety, check_rate_limits, detect_abuse, rewrite_content_safely, should_queue_job
 
 from .adapters import planning_llm, video_gen, tts, ffmpeg_assembly
 
@@ -193,10 +193,22 @@ async def create_job(
 
     logger.info(f"[PIPELINE] Job {job_id[:8]} created for user {user_id[:12]}, deducted {credits_deducted} credits (guest={skip_credits})")
 
+    # Check if job should be queued (slots busy) or run immediately
+    queued = False
+    if not skip_credits:
+        queued = await should_queue_job(db, user_id)
+        if queued:
+            await db.story_engine_jobs.update_one(
+                {"job_id": job_id},
+                {"$set": {"state": "QUEUED", "queued_at": datetime.now(timezone.utc).isoformat()}}
+            )
+            logger.info(f"[PIPELINE] Job {job_id[:8]} QUEUED — render slots busy for user {user_id[:12]}")
+
     return {
         "success": True,
         "job_id": job_id,
-        "state": JobState.INIT.value,
+        "state": "QUEUED" if queued else JobState.INIT.value,
+        "queued": queued,
         "credits_deducted": credits_deducted,
         "cost_estimate": cost.model_dump(),
     }
@@ -643,6 +655,31 @@ async def _finalize_job(job_id: str) -> Dict:
     await _send_completion_notification(job_id, target)
 
     logger.info(f"[PIPELINE] Job {job_id[:8]} finalized: {final_state}")
+
+    # ═══ QUEUE DRAIN: If this user has queued jobs, start the next one ═══
+    try:
+        user_id = job.get("user_id")
+        if user_id:
+            queued_job = await db.story_engine_jobs.find_one(
+                {"user_id": user_id, "state": "QUEUED"},
+                {"_id": 0, "job_id": 1},
+                sort=[("created_at", 1)],  # FIFO
+            )
+            if queued_job:
+                qjid = queued_job["job_id"]
+                needs_queue = await should_queue_job(db, user_id)
+                if not needs_queue:
+                    # Slot freed — promote queued job to INIT and run
+                    await db.story_engine_jobs.update_one(
+                        {"job_id": qjid, "state": "QUEUED"},
+                        {"$set": {"state": JobState.INIT.value, "promoted_from_queue_at": datetime.now(timezone.utc).isoformat()}}
+                    )
+                    import asyncio
+                    asyncio.create_task(run_pipeline(qjid))
+                    logger.info(f"[PIPELINE] Promoted queued job {qjid[:8]} for user {user_id[:12]}")
+    except Exception as e:
+        logger.warning(f"[PIPELINE] Queue drain failed: {e}")
+
     return {"success": target in SUCCESS_STATES, "terminal": True, "state": final_state}
 
 
