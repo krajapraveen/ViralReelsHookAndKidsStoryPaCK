@@ -1,16 +1,21 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Swords, Crown, TrendingUp, ChevronUp, ChevronDown, Zap,
-  ArrowRight, Flame, Eye, GitBranch
+  ArrowRight, Flame, Eye, Loader2
 } from 'lucide-react';
 import { Button } from './ui/button';
+import { toast } from 'sonner';
 import api from '../utils/api';
 
 /**
- * HottestBattle — Spectator mode on homepage.
- * Shows the most active battle with live-updating leaderboard.
- * Converts spectators into participants: "You can beat this → Jump Into Battle"
+ * HottestBattle — Entry Conversion Engine.
+ *
+ * Converts spectators → players via:
+ * 1. Quick Shot (1-tap, zero-input entry)
+ * 2. Personalized CTA ("You can beat #1 — only X continues ahead")
+ * 3. Spectator Pressure Timer (urgency prompt after 6s)
+ * 4. Entry Streak Hook (post-first-action confirmation)
  * Polls every 12s for live feel.
  */
 export default function HottestBattle() {
@@ -19,6 +24,13 @@ export default function HottestBattle() {
   const [prevContenders, setPrevContenders] = useState({});
   const [movements, setMovements] = useState({});
   const [viewTime, setViewTime] = useState(0);
+  const [quickShotLoading, setQuickShotLoading] = useState(false);
+  const [showPressure, setShowPressure] = useState(false);
+  const [pressureDismissed, setPressureDismissed] = useState(false);
+  const [streakJustStarted, setStreakJustStarted] = useState(false);
+  const componentRef = useRef(null);
+  const isVisible = useRef(false);
+  const entryTracked = useRef(false);
 
   const fetchBattle = useCallback(async () => {
     try {
@@ -54,19 +66,148 @@ export default function HottestBattle() {
     return () => clearInterval(iv);
   }, [fetchBattle]);
 
-  // Track view time for conversion prompt
+  // Track view time ONLY when component is visible in viewport
   useEffect(() => {
-    const iv = setInterval(() => setViewTime(t => t + 1), 1000);
+    const el = componentRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([entry]) => {
+      isVisible.current = entry.isIntersecting;
+      // Track first impression
+      if (entry.isIntersecting && !entryTracked.current) {
+        entryTracked.current = true;
+        try {
+          api.post('/api/funnel/track', {
+            event: 'spectator_impression',
+            data: { root_id: battle?.root_story_id },
+          });
+        } catch {}
+      }
+    }, { threshold: 0.3 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [battle?.root_story_id]);
+
+  useEffect(() => {
+    const iv = setInterval(() => {
+      if (isVisible.current) {
+        setViewTime(t => t + 1);
+      }
+    }, 1000);
     return () => clearInterval(iv);
   }, []);
 
+  // Pressure trigger: show after 6s of viewing
+  useEffect(() => {
+    if (viewTime >= 6 && !pressureDismissed && !showPressure) {
+      setShowPressure(true);
+      // Track pressure shown
+      try {
+        api.post('/api/funnel/track', {
+          event: 'spectator_pressure_shown',
+          data: {
+            root_id: battle?.root_story_id,
+            view_time: viewTime,
+          },
+        });
+      } catch {}
+    }
+  }, [viewTime, pressureDismissed, showPressure, battle?.root_story_id]);
+
+  // Quick Shot handler — 1-tap, zero input
+  const handleQuickShot = async () => {
+    if (quickShotLoading || !battle?.root_story_id) return;
+    setQuickShotLoading(true);
+
+    try {
+      // Track conversion
+      api.post('/api/funnel/track', {
+        event: 'spectator_quick_shot',
+        data: {
+          root_id: battle.root_story_id,
+          time_to_action: viewTime,
+        },
+      }).catch(() => {});
+
+      const res = await api.post('/api/stories/quick-shot', {
+        root_story_id: battle.root_story_id,
+      });
+
+      if (res.data?.success) {
+        // Check for streak hook
+        if (res.data.streak_started) {
+          setStreakJustStarted(true);
+          toast.success('Streak Started! Come back tomorrow to keep it alive.', {
+            duration: 5000,
+          });
+        } else if (res.data.current_streak > 1) {
+          toast.success(`${res.data.current_streak}-day streak! Version generating...`, {
+            duration: 3000,
+          });
+        } else {
+          toast.success('Quick Shot fired! Your version is generating...', {
+            duration: 3000,
+          });
+        }
+
+        // Navigate to pipeline
+        if (res.data.job_id) {
+          navigate(`/app/story-video-pipeline?projectId=${res.data.job_id}`);
+        }
+      }
+    } catch (err) {
+      const detail = err.response?.data?.detail || 'Quick Shot failed. Try again.';
+      toast.error(detail);
+    } finally {
+      setQuickShotLoading(false);
+    }
+  };
+
+  // Jump into battle (existing flow)
+  const handleJumpIn = () => {
+    // Track conversion
+    try {
+      api.post('/api/funnel/track', {
+        event: 'spectator_to_player_conversion',
+        data: {
+          root_id: battle.root_story_id,
+          time_to_action: viewTime,
+          entry_type: 'jump_in',
+        },
+      });
+    } catch {}
+    navigate(`/app/story-battle/${battle.root_story_id}`);
+  };
+
   if (!battle) return null;
 
-  const { root_story_id, root_title, contenders, branch_count, near_win, gap_to_first } = battle;
-  const showConversionPrompt = viewTime >= 5; // After 5 seconds of viewing
+  const {
+    root_story_id, root_title, contenders, branch_count,
+    near_win, gap_to_first, gap_continues_to_first,
+    user_is_new, user_entry_count, user_already_in_battle,
+  } = battle;
+
+  // Build personalized CTA text
+  let ctaText = 'Jump Into Battle';
+  let ctaSubtext = null;
+
+  if (user_already_in_battle) {
+    ctaText = 'View Your Battle';
+    ctaSubtext = null;
+  } else if (gap_continues_to_first !== undefined && gap_continues_to_first <= 3 && contenders?.length >= 2) {
+    ctaText = 'You can beat #1';
+    ctaSubtext = gap_continues_to_first > 0
+      ? `Only ${gap_continues_to_first} continue${gap_continues_to_first > 1 ? 's' : ''} ahead`
+      : 'It\'s a dead heat';
+  } else if (user_is_new) {
+    ctaText = 'Try your first battle';
+    ctaSubtext = 'New creators get a head start';
+  } else if (near_win) {
+    ctaText = 'Race is wide open';
+    ctaSubtext = `Gap to #1: only ${gap_to_first} pts`;
+  }
 
   return (
-    <div className="px-4 sm:px-6 lg:px-10 py-2" data-testid="hottest-battle">
+    <div ref={componentRef} className="px-4 sm:px-6 lg:px-10 py-2" data-testid="hottest-battle">
       <div className="rounded-2xl border border-rose-500/20 bg-gradient-to-br from-rose-500/[0.06] to-amber-500/[0.03] overflow-hidden">
 
         {/* Header */}
@@ -148,28 +289,98 @@ export default function HottestBattle() {
           </div>
         )}
 
-        {/* Conversion CTA — "You can beat this" */}
-        <div className={`px-5 pb-5 transition-all ${showConversionPrompt ? 'opacity-100' : 'opacity-70'}`}
-          data-testid="spectator-cta">
+        {/* ═══ SPECTATOR PRESSURE TIMER ═══ */}
+        {showPressure && !pressureDismissed && (
+          <div
+            className="mx-5 mb-3 bg-rose-500/10 border border-rose-500/30 rounded-lg p-3 animate-in fade-in slide-in-from-bottom-2 duration-300"
+            data-testid="spectator-pressure"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <Flame className="w-4 h-4 text-rose-400 flex-shrink-0 animate-pulse" />
+                <div>
+                  <p className="text-xs font-bold text-rose-300">Battle is heating up</p>
+                  <p className="text-[10px] text-white/40">Don't miss your chance</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setPressureDismissed(true);
+                  handleQuickShot();
+                }}
+                className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs font-bold hover:bg-rose-500/30 transition-colors"
+                data-testid="pressure-jump-in-btn"
+              >
+                Jump In Now
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ CONVERSION CTAs ═══ */}
+        <div className="px-5 pb-5 space-y-2" data-testid="spectator-cta">
+
+          {/* Quick Shot — 1-tap, zero friction, converts lazy spectators */}
           <button
-            onClick={() => {
-              // Track conversion
-              try { api.post('/api/funnel/track', { event: 'spectator_to_player_conversion', data: { root_id: root_story_id } }); } catch {}
-              navigate(`/app/story-battle/${root_story_id}`);
-            }}
-            className="w-full group relative overflow-hidden rounded-xl p-3.5 transition-all hover:scale-[1.01] active:scale-[0.99]"
+            onClick={handleQuickShot}
+            disabled={quickShotLoading}
+            className="w-full group relative overflow-hidden rounded-xl p-3 transition-all hover:scale-[1.01] active:scale-[0.99]"
+            data-testid="quick-shot-btn"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-amber-600 to-rose-600 opacity-90 group-hover:opacity-100 transition-opacity" />
+            <div className="relative z-10 flex items-center justify-center gap-2">
+              {quickShotLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 text-white animate-spin" />
+                  <span className="text-sm font-black text-white">Generating...</span>
+                </>
+              ) : (
+                <>
+                  <Zap className="w-4 h-4 text-white" />
+                  <span className="text-sm font-black text-white">Quick Shot — 1 Tap Entry</span>
+                </>
+              )}
+            </div>
+            <p className="relative z-10 text-[10px] text-white/60 text-center mt-0.5">
+              No prompt needed. Instant competitive version.
+            </p>
+          </button>
+
+          {/* Personalized Jump Into Battle */}
+          <button
+            onClick={handleJumpIn}
+            className="w-full group relative overflow-hidden rounded-xl p-3 transition-all hover:scale-[1.01] active:scale-[0.99]"
             data-testid="jump-into-battle-btn"
           >
-            <div className="absolute inset-0 bg-gradient-to-r from-rose-600 to-amber-600 opacity-90 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute inset-0 bg-white/[0.06] group-hover:bg-white/[0.1] transition-colors border border-white/10 rounded-xl" />
             <div className="relative z-10 flex items-center justify-center gap-2">
-              <Swords className="w-4 h-4 text-white" />
-              <span className="text-sm font-black text-white">
-                {showConversionPrompt ? 'You can beat this — Jump In' : 'Jump Into Battle'}
-              </span>
-              <ArrowRight className="w-4 h-4 text-white/50 group-hover:text-white transition-colors" />
+              <Swords className="w-4 h-4 text-white/70" />
+              <span className="text-sm font-bold text-white/90">{ctaText}</span>
+              <ArrowRight className="w-4 h-4 text-white/40 group-hover:text-white/70 transition-colors" />
             </div>
+            {ctaSubtext && (
+              <p className="relative z-10 text-[10px] text-white/40 text-center mt-0.5" data-testid="cta-subtext">
+                {ctaSubtext}
+              </p>
+            )}
           </button>
         </div>
+
+        {/* ═══ STREAK STARTED HOOK ═══ */}
+        {streakJustStarted && (
+          <div
+            className="mx-5 mb-5 bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 animate-in fade-in slide-in-from-bottom-2 duration-500"
+            data-testid="streak-started-hook"
+          >
+            <div className="flex items-center gap-2">
+              <Flame className="w-4 h-4 text-orange-400" />
+              <div>
+                <p className="text-xs font-bold text-orange-400">Streak Started!</p>
+                <p className="text-[10px] text-white/40">Come back tomorrow to keep it alive</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

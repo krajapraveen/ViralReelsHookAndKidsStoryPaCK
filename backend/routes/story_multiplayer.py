@@ -40,6 +40,7 @@ def compute_battle_score(
     chain_depth: int = 0,
     created_at_iso: str = None,
     streak_boost: float = 0.0,
+    is_first_win_eligible: bool = False,
 ) -> float:
     """
     Weighted composite ranking score.
@@ -49,6 +50,8 @@ def compute_battle_score(
     - anti-gaming: if continues/views < 0.02 → score * 0.5
     - streak: soft influence only — 90% performance + 10% streak bonus
       A bad story with streak must NEVER beat a great story without streak.
+    - first-win boost: invisible 15% lift for new users (0-1 prior entries)
+      Ensures early success is possible without gaming the system.
     """
     base_score = (total_children * 5.0) + (total_shares * 3.0) + (total_views * 1.0)
 
@@ -72,6 +75,11 @@ def compute_battle_score(
     if total_views > 0 and total_children / max(total_views, 1) < 0.02:
         if total_views > 50:
             performance_score *= 0.5
+
+    # First-Win Boost: invisible 15% lift for new users
+    # Makes early success possible so new users don't bounce
+    if is_first_win_eligible:
+        performance_score *= 1.15
 
     # Streak influence: soft (max 10% of performance score)
     # 90% pure performance + 10% streak-weighted performance
@@ -134,7 +142,7 @@ async def ensure_multiplayer_fields(job_id: str, parent_job_id: str = None, cont
 
 
 async def refresh_battle_score(job_id: str):
-    """Recompute and persist battle_score for a single job, including streak boost."""
+    """Recompute and persist battle_score for a single job, including streak boost and first-win."""
     job = await db.story_engine_jobs.find_one(
         {"job_id": job_id},
         {"_id": 0, "total_children": 1, "total_shares": 1, "total_views": 1,
@@ -145,6 +153,7 @@ async def refresh_battle_score(job_id: str):
 
     # Fetch user's streak boost
     streak_boost = 0.0
+    is_first_win_eligible = False
     if job.get("user_id"):
         streak = await db.user_streaks.find_one(
             {"user_id": job["user_id"]},
@@ -153,6 +162,15 @@ async def refresh_battle_score(job_id: str):
         if streak:
             streak_boost = streak.get("streak_boost", 0.0)
 
+        # First-Win Boost: check if user has very few entries (0-1 completed)
+        prior_count = await db.story_engine_jobs.count_documents({
+            "user_id": job["user_id"],
+            "job_id": {"$ne": job_id},
+            "continuation_type": "branch",
+            "state": {"$in": ["READY", "PARTIAL_READY", "COMPLETED"]},
+        })
+        is_first_win_eligible = prior_count <= 1
+
     score = compute_battle_score(
         total_children=job.get("total_children", 0),
         total_shares=job.get("total_shares", 0),
@@ -160,6 +178,7 @@ async def refresh_battle_score(job_id: str):
         chain_depth=job.get("chain_depth", 0),
         created_at_iso=job.get("created_at"),
         streak_boost=streak_boost,
+        is_first_win_eligible=is_first_win_eligible,
     )
 
     await db.story_engine_jobs.update_one(
@@ -201,6 +220,10 @@ class IncrementMetricRequest(BaseModel):
 class InstantRerunRequest(BaseModel):
     source_job_id: str = Field(..., description="Job to create a variation from")
     mode: str = Field(default="try_again", pattern="^(try_again|beat_top)$")
+
+
+class QuickShotRequest(BaseModel):
+    root_story_id: str = Field(..., description="Root story of the battle to enter")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -892,6 +915,138 @@ async def instant_rerun(
 
 
 # ═══════════════════════════════════════════════════════════════
+# QUICK SHOT — 1-tap zero-input entry for lazy spectators
+# ═══════════════════════════════════════════════════════════════
+
+_QUICK_SHOT_TWISTS = [
+    "Rewrite this story with a completely unexpected villain reveal.",
+    "Rewrite this story but set it 100 years in the future.",
+    "Rewrite this with a darkly comedic tone and witty dialogue.",
+    "Rewrite making the protagonist morally ambiguous with hidden motives.",
+    "Rewrite with a mind-bending twist ending nobody sees coming.",
+    "Rewrite this story from the antagonist's sympathetic perspective.",
+    "Rewrite with an urgent countdown that ratchets tension every scene.",
+    "Rewrite this story with a shocking betrayal by the closest ally.",
+]
+
+
+@router.post("/quick-shot")
+async def quick_shot(
+    request: QuickShotRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Quick Shot — 1-tap entry into a battle. Zero thinking, zero input.
+    Auto-generates a competitive branch from the root story with a random twist.
+    Converts passive spectators into active players.
+    """
+    import random
+    user_id = current_user.get("id") or str(current_user.get("_id"))
+
+    # Find the root story
+    root = await db.story_engine_jobs.find_one(
+        {"job_id": request.root_story_id},
+        {"_id": 0, "job_id": 1, "title": 1, "story_text": 1, "animation_style": 1,
+         "root_story_id": 1, "user_id": 1, "state": 1}
+    )
+    if not root:
+        raise HTTPException(status_code=404, detail="Battle root not found")
+
+    base_text = root.get("story_text", "")
+    if not base_text or len(base_text) < 20:
+        raise HTTPException(status_code=400, detail="Root story has no text to remix")
+
+    # Pick a random twist
+    twist = random.choice(_QUICK_SHOT_TWISTS)
+    variation_text = f"{base_text}\n\n[QUICK SHOT REWRITE: {twist}]"
+    new_title = f"{root.get('title', 'Story')} — Quick Shot"
+
+    from services.story_engine.pipeline import create_job, run_pipeline
+
+    result = await create_job(
+        user_id=user_id,
+        story_text=variation_text,
+        title=new_title,
+        style_id=root.get("animation_style", "cartoon_2d"),
+        language="en",
+        age_group="all_ages",
+        parent_job_id=request.root_story_id,
+        story_chain_id=request.root_story_id,
+    )
+
+    if not result.get("success"):
+        error = result.get("error", "Generation failed")
+        if error == "insufficient_credits":
+            cc = result.get("credit_check", {})
+            raise HTTPException(status_code=402, detail=f"Insufficient credits. Required: {cc.get('required', 0)}")
+        raise HTTPException(status_code=400, detail=error)
+
+    job_id = result["job_id"]
+
+    # Set multiplayer fields — always a branch
+    graph_info = await ensure_multiplayer_fields(job_id, request.root_story_id, "branch")
+
+    # Attribution
+    root_creator_name = "Anonymous"
+    if root.get("user_id"):
+        pu = await db.users.find_one({"id": root["user_id"]}, {"_id": 0, "name": 1, "email": 1})
+        if pu:
+            root_creator_name = pu.get("name") or pu.get("email", "").split("@")[0]
+
+    await db.story_engine_jobs.update_one(
+        {"job_id": job_id},
+        {"$set": {
+            "derivative_label": "quick_shot_from",
+            "source_story_id": request.root_story_id,
+            "source_story_title": root.get("title"),
+            "source_creator_id": root.get("user_id"),
+            "source_creator_name": root_creator_name,
+            "visibility": "public",
+            "quick_shot": True,
+        }}
+    )
+
+    # Run pipeline
+    import asyncio
+    asyncio.create_task(run_pipeline(job_id))
+
+    # Track conversion analytics
+    now = datetime.now(timezone.utc).isoformat()
+    try:
+        await db.analytics_events.insert_one({
+            "event": "quick_shot_entry",
+            "user_id": user_id,
+            "data": {
+                "root_story_id": request.root_story_id,
+                "new_job_id": job_id,
+                "source": "spectator_conversion",
+            },
+            "created_at": now,
+        })
+    except Exception:
+        pass
+
+    # Record streak participation — this triggers the "Streak Started" hook
+    streak_result = None
+    try:
+        from routes.streaks import record_participation
+        streak_result = await record_participation(user_id, "quick_shot", job_id)
+    except Exception:
+        pass
+
+    return {
+        "success": True,
+        "job_id": job_id,
+        "root_story_id": graph_info["root_story_id"],
+        "chain_depth": graph_info["chain_depth"],
+        "credits_charged": result.get("credits_deducted", 0),
+        "streak_started": streak_result.get("current_streak", 0) == 1 if streak_result else False,
+        "current_streak": streak_result.get("current_streak", 0) if streak_result else 0,
+        "message": "Quick Shot fired! Your version is generating...",
+    }
+
+
+# ═══════════════════════════════════════════════════════════════
 # STORY VIEWER — Public read access for consumption
 # ═══════════════════════════════════════════════════════════════
 
@@ -1273,14 +1428,39 @@ async def get_hottest_battle(current_user: dict = Depends(get_optional_user)):
     # Check near-win (gap between #1 and #2)
     near_win = False
     gap_to_first = 0
+    gap_continues_to_first = 0
     if len(contenders) >= 2:
         top_score = contenders[0].get("battle_score", 0)
         second_score = contenders[1].get("battle_score", 0)
         gap_to_first = round(top_score - second_score)
+        top_continues = contenders[0].get("total_children", 0)
+        second_continues = contenders[1].get("total_children", 0)
+        gap_continues_to_first = top_continues - second_continues
         near_win = gap_to_first <= 5  # Close race
 
     # Root creator
     root_creator = user_map.get(root.get("user_id"), "Anonymous")
+
+    # Personalized conversion data for logged-in users
+    user_entry_count = 0
+    user_is_new = True
+    user_already_in_battle = False
+    if current_user:
+        uid = current_user.get("id") or str(current_user.get("_id"))
+        # How many total branches has this user made? (for first-win messaging)
+        user_entry_count = await db.story_engine_jobs.count_documents({
+            "user_id": uid,
+            "continuation_type": "branch",
+            "state": {"$in": ["READY", "PARTIAL_READY", "COMPLETED"]},
+        })
+        user_is_new = user_entry_count <= 1
+        # Is user already in THIS battle?
+        user_already_in_battle = await db.story_engine_jobs.count_documents({
+            "user_id": uid,
+            "root_story_id": root_id,
+            "continuation_type": "branch",
+            "state": {"$in": ["READY", "PARTIAL_READY", "COMPLETED"]},
+        }) > 0
 
     return {
         "success": True,
@@ -1294,6 +1474,11 @@ async def get_hottest_battle(current_user: dict = Depends(get_optional_user)):
             "contenders": contenders[:3],
             "near_win": near_win,
             "gap_to_first": gap_to_first,
+            "gap_continues_to_first": gap_continues_to_first,
+            # Conversion personalization
+            "user_entry_count": user_entry_count,
+            "user_is_new": user_is_new,
+            "user_already_in_battle": user_already_in_battle,
         },
     }
 
