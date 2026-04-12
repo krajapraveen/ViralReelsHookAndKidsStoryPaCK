@@ -15,55 +15,47 @@
 
 ---
 
-## Conversion Analytics Dashboard — DONE (Apr 12)
+## Conversion Analytics Dashboard — DONE + INTEGRITY FIX (Apr 12)
 
-### Route: /app/admin/conversion (admin only)
-### Backend: GET /api/analytics/conversion-dashboard?period=24h|7d|30d
+### Funnel Integrity Fix:
+- **Problem**: 27 entries shown from only 3 clicks — data lie
+- **Root cause**: Quick Shots bypass card clicks entirely; demo/seed data inflated entry count
+- **Fix**: Funnel now shows TWO paths separately:
+  1. Card path: impression → click → watch → create_cta_clicked
+  2. Quick Shot path: quick_shot_fired (bypasses card click)
+- Attribution warnings flag unattributed entries (pre-tracking data)
+- Formula transparency: every metric shows exact formula on click
 
-**Metrics (all from real events/state transitions):**
-- Spectator → Player % (formula: spectator_conversions + quick_shots / impressions * 100)
-- Watch Start Rate (watch_started / story_card_clicked * 100)
-- Watch 50% / 100% Completion
-- Stories per Session
-- Make Your Version CTR, Quick Shot CTR, Next Episode CTR
-- Queue Rate (QUEUED / total_created * 100)
-- Queue → Complete Rate
+### Social Proof on Cards:
+- View count + competition count added to story cards
+- Engagement feed now includes total_views and total_children in response
 
-**Funnel (with drop-off %):**
-impression → card_click → watch_start → watch_50 → watch_100 → create_click → entry_created → queued → completed
-
-**Breakdowns:**
-- CTA variant clicks (watch_now, make_your_version, quick_shot, next_episode, etc.)
-- Source section clicks (TRENDING, CONTINUE, FRESH, UNFINISHED)
-- Session stats (unique sessions, unique users)
-
-**Files:**
-- `/app/backend/routes/analytics_dashboard.py` — Backend analytics endpoint
-- `/app/frontend/src/pages/ConversionDashboard.jsx` — Admin dashboard UI
+### Key Data Insights:
+- 86% drop impression→click = BIGGEST LEAK (card hooks not compelling enough)
+- Quick Shot = strongest converter (bypasses click friction entirely)
+- 0 Make Your Version clicks = secondary CTA not converting at all
+- 19 unattributed entries = pre-tracking demo data (correctly flagged)
 
 ---
 
-## Completed Systems (All Apr 12)
-- Queue System (hardened): QUEUED state, FIFO, drain on success+failure, no double billing
-- Unfinished Worlds fix (viewer checks pipeline_jobs)
-- Post-Launch-Branch flow (battle entry experience)
-- Data Integrity (completed = persisted)
-- Export Pipeline fix
-- Consumption-First Viral Loop
-- Entry Conversion Engine
-- System Integrity (streaks, wars, rate limiter)
+## All Completed Systems (Apr 12)
+- Queue System (hardened, FIFO, drain on success+failure)
+- Unfinished Worlds fix, Post-Launch-Branch flow
+- Data Integrity, Export Pipeline
+- Consumption-First Viral Loop, Entry Conversion Engine
+- System Integrity
 
 ---
 
 ## Backlog
 
+### P0 (Next — based on data)
+- Attack click rate: auto-play preview, curiosity hooks, urgency labels
+- Validate Quick Shot retention (are they returning?)
+
 ### P1
 - Auto-Recovery FAILED_PERSISTENCE
-- Secondary Action Matrix (Anime, Kids, Comic)
-- Follow Creator / Network Graph
+- Secondary Action Matrix, Follow Creator
 
 ### P2
-- Resend domain verification
-- Personalized headlines by channel
-- Hover autoplay previews
-- Admin WebSocket upgrade
+- Resend domain, personalized headlines, hover autoplay

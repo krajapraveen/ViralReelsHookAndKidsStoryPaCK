@@ -363,6 +363,8 @@ def _shape_item(job: dict, badge: str = "NEW") -> dict:
         "created_at": job.get("created_at", ""),
         "character_summary": _extract_char_summary(job),
         "source": job.get("_source", "story_engine"),  # track collection origin
+        "total_views": job.get("total_views", 0) or job.get("view_count", 0) or 0,
+        "total_children": job.get("total_children", 0) or job.get("remix_count", 0) or 0,
         # Hook A/B internals (used by ranking, stripped before response)
         "_hooks": hooks,
         "_hook_locked": hook_locked,

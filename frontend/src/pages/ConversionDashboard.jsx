@@ -186,6 +186,16 @@ export default function ConversionDashboard() {
         {/* ═══ FUNNEL ═══ */}
         <section data-testid="funnel-section">
           <h2 className="text-xs font-bold text-white/30 uppercase tracking-wider mb-4">Conversion Funnel</h2>
+
+          {/* Attribution warnings */}
+          {data.attribution_warnings?.length > 0 && (
+            <div className="mb-3 bg-amber-500/5 border border-amber-500/15 rounded-lg p-3" data-testid="attribution-warnings">
+              {data.attribution_warnings.map((w, i) => (
+                <p key={i} className="text-[10px] text-amber-400/80">{w}</p>
+              ))}
+            </div>
+          )}
+
           <div className="bg-white/[0.02] border border-white/5 rounded-xl overflow-hidden">
             {funnel.map((step, i) => {
               const maxCount = Math.max(...funnel.map(s => s.count), 1);

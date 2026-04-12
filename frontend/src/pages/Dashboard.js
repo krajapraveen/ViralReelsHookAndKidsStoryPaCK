@@ -15,7 +15,7 @@ import {
   Film, BookOpen, Star, ArrowRight, Shield, User,
   Camera, Palette, Megaphone, Lightbulb, Image as ImageIcon,
   RefreshCw, Share2, Activity, Home, Heart, LogOut, CreditCard,
-  Eye, Trophy, Award, TrendingUp,
+  Eye, Trophy, Award, TrendingUp, Users,
 } from 'lucide-react';
 
 import HeroMedia from '../components/HeroMedia';
@@ -377,7 +377,16 @@ function StoryCard({ story, idx, navigate, priority = false }) {
       <div className="absolute inset-x-0 bottom-0 z-[3] p-3 sm:p-4">
         <h3 className="text-white text-sm sm:text-base font-bold leading-snug line-clamp-2 drop-shadow-[0_2px_10px_rgba(0,0,0,0.45)]">{story.title || 'Untitled'}</h3>
         <p className="mt-1 text-white/80 text-[12px] sm:text-sm leading-snug line-clamp-2">"{hook}"</p>
-        <div className="mt-3 inline-flex items-center text-white text-xs sm:text-sm font-semibold">
+        {/* Social proof — views + competition */}
+        <div className="mt-1.5 flex items-center gap-2 text-[10px] text-white/40">
+          {(story.total_views || 0) > 0 && (
+            <span className="flex items-center gap-0.5"><Eye className="w-2.5 h-2.5" />{story.total_views > 1000 ? `${(story.total_views / 1000).toFixed(1)}K` : story.total_views}</span>
+          )}
+          {(story.total_children || 0) > 0 && (
+            <span className="flex items-center gap-0.5"><Users className="w-2.5 h-2.5" />{story.total_children} competing</span>
+          )}
+        </div>
+        <div className="mt-2 inline-flex items-center text-white text-xs sm:text-sm font-semibold">
           <Play className="w-2.5 h-2.5 lg:w-3 lg:h-3 fill-current mr-1" />
           {ctaLabel}
           <ArrowRight className="w-2.5 h-2.5 lg:w-3 lg:h-3 ml-1" />

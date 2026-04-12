@@ -161,18 +161,41 @@ async def conversion_dashboard(
         "queue_to_complete_formula": "queued_then_completed / total_queued * 100",
     }
 
-    # ═══ 7. FUNNEL (ordered) ═══
+    # ═══ 7. FUNNEL (ordered, with attribution) ═══
+    # The funnel must be HONEST. Each step only counts events that came from the previous step.
+    # Separate paths: Card Click path vs Quick Shot path vs Direct Battle Entry
+
+    # Card-based path: impression → card_click → watch → create
+    card_path_creates = cta_breakdown.get("make_your_version", 0) + cta_breakdown.get("launch_branch", 0)
+
+    # Quick Shot path: spectator_impression → quick_shot (bypasses card click)
+    qs_impressions = funnel_counts.get("spectator_impression", 0)
+
+    # Total entries (for reference)
+    total_entries = branch_entries + quick_shot_entries
+
     funnel = [
-        {"step": "story_impression", "count": impressions, "source": "funnel_events.spectator_impression or story_viewed"},
-        {"step": "story_card_clicked", "count": card_clicks, "source": "funnel_events.story_card_clicked"},
-        {"step": "watch_started", "count": watch_starts, "source": "funnel_events.watch_started"},
-        {"step": "watch_completed_50", "count": watch_50, "source": "funnel_events.watch_completed_50"},
-        {"step": "watch_completed_100", "count": watch_100, "source": "funnel_events.watch_completed_100"},
-        {"step": "make_your_version_clicked", "count": cta_breakdown.get("make_your_version", 0) + cta_breakdown.get("launch_branch", 0), "source": "funnel_events.cta_clicked type=make_your_version|launch_branch"},
-        {"step": "entry_created", "count": branch_entries + quick_shot_entries, "source": "story_engine_jobs.continuation_type=branch + analytics_events.quick_shot_entry"},
-        {"step": "queued", "count": total_queued, "source": "story_engine_jobs.state=QUEUED"},
-        {"step": "completed", "count": total_completed, "source": "story_engine_jobs.state in [READY, PARTIAL_READY]"},
+        {"step": "story_impression", "count": impressions, "source": "funnel_events: spectator_impression + story_viewed"},
+        {"step": "story_card_clicked", "count": card_clicks, "source": "funnel_events: story_card_clicked"},
+        {"step": "watch_started", "count": watch_starts, "source": "funnel_events: watch_started"},
+        {"step": "watch_completed_50", "count": watch_50, "source": "funnel_events: watch_completed_50"},
+        {"step": "watch_completed_100", "count": watch_100, "source": "funnel_events: watch_completed_100"},
+        {"step": "create_cta_clicked", "count": card_path_creates, "source": "funnel_events: cta_clicked type=make_your_version|launch_branch"},
+        {"step": "quick_shot_fired", "count": quick_shot_entries, "source": "analytics_events: quick_shot_entry (bypasses card click)"},
+        {"step": "total_entries_created", "count": total_entries, "source": "story_engine_jobs: continuation_type=branch + quick_shots"},
+        {"step": "queued", "count": total_queued, "source": "story_engine_jobs: state=QUEUED"},
+        {"step": "completed", "count": total_completed, "source": "story_engine_jobs: state in [READY, PARTIAL_READY]"},
     ]
+
+    # Attribution integrity check
+    attribution_warnings = []
+    if total_entries > (card_path_creates + quick_shot_entries) * 1.5:
+        attribution_warnings.append(
+            f"Entry count ({total_entries}) significantly exceeds attributed sources "
+            f"(card_creates={card_path_creates}, quick_shots={quick_shot_entries}). "
+            f"Unattributed entries: {total_entries - card_path_creates - quick_shot_entries} "
+            f"(likely from demo/seed data or pre-tracking entries)"
+        )
 
     return {
         "success": True,
@@ -180,6 +203,7 @@ async def conversion_dashboard(
         "since": since,
         "metrics": metrics,
         "funnel": funnel,
+        "attribution_warnings": attribution_warnings,
         "cta_breakdown": cta_breakdown,
         "source_section_breakdown": source_breakdown,
         "job_stats": {
