@@ -11,60 +11,72 @@
 
 ---
 
-## Completed Work (Apr 11)
+## Completed Work
 
-### Story Multiplayer Engine (Phases 1-4)
-- Graph data model, Episode vs Branch UI, StoryBattlePage, StoryChainTimeline (competition-first), notifications, trending feed
+### Story Multiplayer Engine (Phases 1-4) — DONE
+### Daily Story War — DONE
+### Consumption vs Creation UX Fix — DONE
+### Phase 1 — Visibility + Cross-User Access + Attribution — DONE
+### Phase 2A — Core Action Integrity — DONE
+### Phase 2B — Loop-Based UX + CompetitionPulse — DONE
+### Phase 3 — Feed as Return Engine — DONE (Apr 12)
 
-### Daily Story War
-- daily_wars collection, strict states, war-local scoring, branch-only, tie-breaks, winner declaration, DailyWarPage, WarBanner
+**PersonalAlertStrip** — THE return trigger at top of homepage:
+- Priority-ranked alerts: war_overtake(12), rank_drop(10), war_losing(9), outperformed(8), war_won(6), trending_opportunity(3)
+- Shows rank changes ("You dropped to #2"), war position ("You're #3, 6h left"), exploding stories ("X is exploding — can you beat it?")
+- Each alert has action CTA: "Take Back Rank", "Fight Back", "Compete", "Enter War"
+- Max 2 alerts shown, highest urgency first
 
-### Consumption vs Creation UX Fix
-- StoryViewerPage, Dashboard card routing split (CONTINUE→viewer, TRENDING→studio)
+**TrendingPublicFeed** — Public stories from ALL users:
+- Grid of 4 trending cards with thumbnails, creator names, engagement metrics
+- HOT badge for high-engagement stories (3+ continues or 50+ battle_score)
+- Attribution for derivatives ("Continued from", "Remixed from")
 
-### Phase 1 — Story Visibility + Cross-User Access + Attribution
-- Visibility model: `public | unlisted | private`. Cross-user access enforced. Attribution on all derivatives.
-- Discover feed, Continue Watching feed (cross-user), watch history tracking.
+**YourCreationsStrip** — User's stories with competitive position:
+- Shows rank + engagement metrics for each story
 
-### Phase 2A — Core Action Integrity
-- Rewired Add Twist, Make Funny, Next Episode, Try to beat, Improve yours, variation chips to ContinuationModal with preset instructions + analytics.
+**Homepage Section Order**:
+1. PersonalAlertStrip (return trigger)
+2. Hero
+3. Daily Story War banner
+4. Continue Watching (cross-user)
+5. Trending Now (all public)
+6. Fresh Stories
+7. TrendingPublicFeed (discover)
+8. Your Creations
+9. Leaderboard
 
-### Phase 2B — Loop-Based UX + CompetitionPulse
-- **CompetitionPulse component**: Live rank + gap-to-#1 + re-engagement CTAs. Polls every 20s.
-  - Winner state: "YOU ARE #1" celebration + View Battle/View Chain
-  - Competitor state: rank number, gap (pts + continues), #1 leader preview, "Try Again" + "Beat #1"
-  - Rank change alerts: "You moved up" (emerald) / "You dropped" (rose) with animation
-- Style remix cards (Anime, 3D, Watercolor, Comic Book, Claymation) → ContinuationModal with style instructions
-- Accordion continuation options → ContinuationModal with presets
-- Create Entirely New Story → fires analytics
-- CreationActionsBar (Quick Variations, Convert Creation) → functional via trackAndNavigate system
+Testing: iteration_495 — 25/25 backend + all frontend (100%)
 
 ---
 
 ## Key Files
-- `/app/frontend/src/components/CompetitionPulse.jsx` — Live compulsion loop
-- `/app/frontend/src/components/ContinuationModal.jsx` — Episode/Branch/War modal with preset support
-- `/app/frontend/src/pages/StoryVideoPipeline.js` — All actions wired, CompetitionPulse integrated
+- `/app/frontend/src/components/PersonalAlertStrip.jsx` — Return trigger
+- `/app/frontend/src/components/TrendingPublicFeed.jsx` — Public stories grid
+- `/app/frontend/src/components/YourCreationsStrip.jsx` — User stories with rank
+- `/app/frontend/src/components/CompetitionPulse.jsx` — Session compulsion loop
+- `/app/frontend/src/components/ContinuationModal.jsx` — Episode/Branch/War modal
+- `/app/frontend/src/components/WarBanner.jsx` — Homepage war banner
+- `/app/frontend/src/pages/Dashboard.js` — Integrated all feed sections
+- `/app/frontend/src/pages/StoryVideoPipeline.js` — All actions wired
 - `/app/frontend/src/pages/StoryViewerPage.jsx` — Consumption with attribution
 - `/app/frontend/src/pages/DailyWarPage.jsx` — War experience
 - `/app/frontend/src/pages/StoryBattlePage.jsx` — Battle leaderboard
 - `/app/frontend/src/pages/StoryChainTimeline.jsx` — Competition-first chain
-- `/app/backend/routes/story_multiplayer.py` — Visibility, feeds, battle, attribution
+- `/app/backend/routes/story_multiplayer.py` — All multiplayer endpoints
 - `/app/backend/routes/daily_war.py` — War lifecycle
 
 ---
 
 ## Prioritized Backlog
 
-### P0 — Phase 3 (Feed + Discovery Cleanup)
-- Homepage sections: Continue Watching (user history + cross-user), Trending Now (all public), Daily Story War, Recommended, Your Creations
-- Card creator attribution visible
-- Clear CTA separation on cards
+### P0
+- Streak tracking (after feed proves return behavior)
+- Follow Creator system (after engagement loops proven)
 
 ### P1
 - Auto-seed daily wars via scheduler
 - Activate Phase C Gamification
-- Follow Creator system (after engagement loops proven)
 - Verify Resend domain
 
 ### P2
