@@ -1162,6 +1162,102 @@ async def check_and_send_rank_notifications(job_id: str, parent_job_id: str):
                 pass
 
 
+@router.get("/hottest-battle")
+async def get_hottest_battle(current_user: dict = Depends(get_optional_user)):
+    """
+    Find the hottest active battle — the story root with the most branches + highest total activity.
+    Used for the Spectator Mode on the homepage.
+    """
+    # Find story roots with the most branches (most competitive)
+    pipeline_agg = [
+        {"$match": {
+            "continuation_type": "branch",
+            "state": {"$in": ["READY", "PARTIAL_READY", "COMPLETED"]},
+            "visibility": {"$in": ["public", None]},
+        }},
+        {"$group": {
+            "_id": "$root_story_id",
+            "branch_count": {"$sum": 1},
+            "total_score": {"$sum": "$battle_score"},
+            "total_views": {"$sum": "$total_views"},
+            "latest_created": {"$max": "$created_at"},
+        }},
+        {"$sort": {"branch_count": -1, "total_score": -1}},
+        {"$limit": 1},
+    ]
+
+    results = await db.story_engine_jobs.aggregate(pipeline_agg).to_list(1)
+    if not results:
+        return {"success": True, "battle": None}
+
+    hottest = results[0]
+    root_id = hottest["_id"]
+
+    # Get the root story
+    root = await db.story_engine_jobs.find_one(
+        {"job_id": root_id},
+        {"_id": 0, "job_id": 1, "title": 1, "user_id": 1, "thumbnail_url": 1, "story_text": 1}
+    )
+    if not root:
+        return {"success": True, "battle": None}
+
+    # Get top 3 contenders
+    contenders = await db.story_engine_jobs.find(
+        {
+            "$or": [
+                {"job_id": root_id},
+                {"root_story_id": root_id, "continuation_type": "branch",
+                 "state": {"$in": ["READY", "PARTIAL_READY", "COMPLETED"]}},
+            ],
+        },
+        {
+            "_id": 0, "job_id": 1, "title": 1, "user_id": 1,
+            "battle_score": 1, "total_children": 1, "total_views": 1, "total_shares": 1,
+        }
+    ).sort("battle_score", -1).limit(5).to_list(5)
+
+    # Enrich with names
+    user_ids = list({c.get("user_id") for c in contenders if c.get("user_id")})
+    user_map = {}
+    if user_ids:
+        users = await db.users.find(
+            {"id": {"$in": user_ids}},
+            {"_id": 0, "id": 1, "name": 1, "email": 1}
+        ).to_list(50)
+        user_map = {u["id"]: u.get("name") or u.get("email", "").split("@")[0] for u in users}
+
+    for i, c in enumerate(contenders):
+        c["creator_name"] = user_map.get(c.get("user_id"), "Anonymous")
+        c["rank"] = i + 1
+
+    # Check near-win (gap between #1 and #2)
+    near_win = False
+    gap_to_first = 0
+    if len(contenders) >= 2:
+        top_score = contenders[0].get("battle_score", 0)
+        second_score = contenders[1].get("battle_score", 0)
+        gap_to_first = round(top_score - second_score)
+        near_win = gap_to_first <= 5  # Close race
+
+    # Root creator
+    root_creator = user_map.get(root.get("user_id"), "Anonymous")
+
+    return {
+        "success": True,
+        "battle": {
+            "root_story_id": root_id,
+            "root_title": root.get("title"),
+            "root_creator": root_creator,
+            "root_thumbnail": root.get("thumbnail_url"),
+            "branch_count": hottest["branch_count"],
+            "total_views": hottest["total_views"],
+            "contenders": contenders[:3],
+            "near_win": near_win,
+            "gap_to_first": gap_to_first,
+        },
+    }
+
+
 @router.get("/notifications/battle")
 async def get_battle_notifications(
     current_user: dict = Depends(get_current_user),

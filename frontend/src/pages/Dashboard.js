@@ -25,6 +25,7 @@ import WarBanner from '../components/WarBanner';
 import PersonalAlertStrip from '../components/PersonalAlertStrip';
 import TrendingPublicFeed from '../components/TrendingPublicFeed';
 import YourCreationsStrip from '../components/YourCreationsStrip';
+import HottestBattle from '../components/HottestBattle';
 
 import heroFallback from '../assets/fallbacks/hero-fallback.jpg';
 import cardFallback from '../assets/fallbacks/card-fallback.jpg';
@@ -999,6 +1000,9 @@ export default function Dashboard() {
 
       {/* ═══ 0. PERSONAL ALERT STRIP — THE RETURN TRIGGER (TOP) ═══ */}
       <PersonalAlertStrip />
+
+      {/* ═══ 0.5 HOTTEST BATTLE — SPECTATOR MODE (ACQUISITION) ═══ */}
+      <HottestBattle />
 
       {/* 1. HERO */}
       <div className={isAdmin ? 'pt-14' : ''}>
