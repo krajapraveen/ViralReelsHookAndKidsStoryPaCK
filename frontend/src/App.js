@@ -159,6 +159,7 @@ import MyStories from './pages/MyStories';
 import GrowthDashboard from './pages/Admin/GrowthDashboard';
 // PRODUCTION METRICS DASHBOARD
 import ProductionMetrics from './pages/Admin/ProductionMetrics';
+import ConversionDashboard from './pages/ConversionDashboard';
 import ContentEngine from './pages/ContentEngine';
 // NAVIGATION PAGES
 import MySpacePage from './pages/MySpacePage';
@@ -350,6 +351,7 @@ function App() {
         <Route path="media-security" element={<MediaSecurityDashboard />} />
         <Route path="content-engine" element={<ContentEngine />} />
         <Route path="payments" element={<PaymentsDashboard />} />
+        <Route path="conversion" element={<ConversionDashboard />} />
       </Route>
       <Route path="/app/feature-requests" element={isAuthenticated ? <FeatureRequests /> : <Navigate to="/login" />} />
       <Route path="/app/privacy" element={isAuthenticated ? <PrivacySettings /> : <Navigate to="/login" />} />

@@ -15,50 +15,55 @@
 
 ---
 
-## Queue System (Hardened) — DONE (Apr 12)
+## Conversion Analytics Dashboard — DONE (Apr 12)
 
-### Design: Accept then queue, never reject user intent.
+### Route: /app/admin/conversion (admin only)
+### Backend: GET /api/analytics/conversion-dashboard?period=24h|7d|30d
 
-**States**: QUEUED → INIT (promoted via FIFO) → pipeline stages → READY/FAILED
-**Capacity**: MAX_CONCURRENT_JOBS = 2 per user
+**Metrics (all from real events/state transitions):**
+- Spectator → Player % (formula: spectator_conversions + quick_shots / impressions * 100)
+- Watch Start Rate (watch_started / story_card_clicked * 100)
+- Watch 50% / 100% Completion
+- Stories per Session
+- Make Your Version CTR, Quick Shot CTR, Next Episode CTR
+- Queue Rate (QUEUED / total_created * 100)
+- Queue → Complete Rate
 
-**Guarantees:**
-- FIFO ordering: sort by `created_at` ASC
-- No duplicate execution: `update_one` with `state=QUEUED` filter
-- Credits deducted ONCE at creation, not again on promotion (no double billing)
-- Queue drains on BOTH success (`_finalize_job`) AND failure (`_fail_job_terminal`)
-- Queue position visible in UI: "Queued for rendering — position #N"
-- SLOTS_BUSY error eliminated entirely from codebase
-- RATE_LIMIT prefix for hourly/daily abuse prevention (10/hr, 50/day)
+**Funnel (with drop-off %):**
+impression → card_click → watch_start → watch_50 → watch_100 → create_click → entry_created → queued → completed
 
-**Key files:**
-- `/app/backend/services/story_engine/schemas.py` — JobState.QUEUED enum
-- `/app/backend/services/story_engine/state_machine.py` — QUEUED transitions, labels, progress
-- `/app/backend/services/story_engine/safety.py` — check_rate_limits, should_queue_job
-- `/app/backend/services/story_engine/pipeline.py` — create_job (QUEUED state), _drain_queue_for_user, _finalize_job, _fail_job_terminal
+**Breakdowns:**
+- CTA variant clicks (watch_now, make_your_version, quick_shot, next_episode, etc.)
+- Source section clicks (TRENDING, CONTINUE, FRESH, UNFINISHED)
+- Session stats (unique sessions, unique users)
 
-Testing: iteration_505 (15/15) + iteration_506 (21/21) + manual 6/6 queue integrity tests
+**Files:**
+- `/app/backend/routes/analytics_dashboard.py` — Backend analytics endpoint
+- `/app/frontend/src/pages/ConversionDashboard.jsx` — Admin dashboard UI
 
 ---
 
-## Completed (All Apr 12)
-- Unfinished Worlds fix (viewer checks pipeline_jobs + graceful fallback)
+## Completed Systems (All Apr 12)
+- Queue System (hardened): QUEUED state, FIFO, drain on success+failure, no double billing
+- Unfinished Worlds fix (viewer checks pipeline_jobs)
 - Post-Launch-Branch flow (battle entry experience)
 - Data Integrity (completed = persisted)
 - Export Pipeline fix
 - Consumption-First Viral Loop
 - Entry Conversion Engine
-- System Integrity
+- System Integrity (streaks, wars, rate limiter)
 
 ---
 
 ## Backlog
 
-### P0 (Next)
-- Conversion Analytics Dashboard
-
 ### P1
-- Auto-Recovery FAILED_PERSISTENCE, Secondary Action Matrix, Follow Creator
+- Auto-Recovery FAILED_PERSISTENCE
+- Secondary Action Matrix (Anime, Kids, Comic)
+- Follow Creator / Network Graph
 
 ### P2
-- Resend domain, personalized headlines, hover autoplay
+- Resend domain verification
+- Personalized headlines by channel
+- Hover autoplay previews
+- Admin WebSocket upgrade
