@@ -173,16 +173,18 @@ function HeroSection({ stories, navigate }) {
                   return;
                 }
                 trackLoop('click', { story_id: current.job_id, story_title: current.title, source_surface: 'hero' });
+                trackFunnel('cta_clicked', { meta: { type: 'watch_now', source: 'hero', story_id: current.job_id } });
                 if (current.hook_variant_id) { axios.post(`${API}/api/engagement/hook-event`, { job_id: current.job_id, hook_variant_id: current.hook_variant_id, event_type: 'continue' }).catch(() => {}); }
-                navigate(`/app/story-video-studio?projectId=${current.job_id}`);
+                navigate(`/app/story-viewer/${current.job_id}`);
               }}
                 className="inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm sm:text-base font-bold text-white bg-gradient-to-r from-[#6C5CE7] to-[#00C2FF] shadow-[0_0_24px_rgba(0,194,255,0.28)] hover:scale-[1.02] transition-transform duration-200"
                 data-testid="hero-play-btn"
                 data-guide="continue-story">
-                <Play className="w-4 h-4 fill-white mr-2" /> Continue Story
+                <Play className="w-4 h-4 fill-white mr-2" /> Watch Now
               </button>
               <button onClick={() => {
                 if (!current.job_id || current.is_seed) { navigate('/app/story-video-studio', { state: { freshSession: true } }); return; }
+                trackFunnel('cta_clicked', { meta: { type: 'make_your_version', source: 'hero', story_id: current.job_id } });
                 navigate('/app/story-video-studio', {
                   state: {
                     prompt: current.story_text || current.hook_text || '',
@@ -193,8 +195,16 @@ function HeroSection({ stories, navigate }) {
                 });
               }}
                 className="inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm sm:text-base font-semibold text-white bg-white/10 backdrop-blur-md border border-white/15 hover:bg-white/15 transition-colors duration-200"
+                data-testid="hero-remix-btn">
+                <RefreshCw className="w-4 h-4 mr-2" /> Make Your Version
+              </button>
+              <button onClick={() => {
+                trackFunnel('cta_clicked', { meta: { type: 'create_later', source: 'hero' } });
+                navigate('/app/story-video-studio', { state: { freshSession: true } });
+              }}
+                className="inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-xs text-white/50 hover:text-white/70 transition-colors duration-200"
                 data-testid="hero-create-btn">
-                <Plus className="w-4 h-4 mr-2" /> Remix
+                <Plus className="w-3.5 h-3.5 mr-1" /> Create Later
               </button>
             </div>
           </>
@@ -284,7 +294,6 @@ function StoryCard({ story, idx, navigate, priority = false }) {
           }
         }
       } else if (visibleSince.current) {
-        // Card left viewport — check if it was a skip
         const visMs = Date.now() - visibleSince.current;
         if (wasSkippedFast(visMs)) {
           sendFeedEvent('skip_fast', { jobId: story.job_id, category: story.animation_style });
@@ -297,28 +306,28 @@ function StoryCard({ story, idx, navigate, priority = false }) {
   }, [story]);
 
   const handleClick = () => {
-    trackAction(); // Session action tracking
+    trackAction();
     trackLoop('click', { story_id: story.job_id, story_title: story.title, hook_variant: story.hook_text, category: story.category, source_surface: story.badge || 'dashboard' });
-    // Real-time session momentum + profile update
     sendFeedEvent('click', { jobId: story.job_id, category: story.animation_style, hookText: story.hook_text });
-    // Track hook A/B continue click
     if (story.job_id && story.hook_variant_id) {
       axios.post(`${API}/api/engagement/hook-event`, { job_id: story.job_id, hook_variant_id: story.hook_variant_id, event_type: 'continue' }).catch(() => {});
     }
 
-    // CONSUMPTION vs CREATION routing split
-    if (badge === 'CONTINUE' && story.job_id && !story.is_seed) {
-      // "Continue watching" → Story Viewer (consumption mode)
+    // Phase 0: Track story_card_clicked
+    trackFunnel('story_card_clicked', { meta: { badge, story_id: story.job_id, story_title: story.title } });
+
+    // CONSUMPTION-FIRST: ALL cards → Watch Page (unless seed/no real content)
+    if (story.job_id && !story.is_seed) {
       navigate(`/app/story-viewer/${story.job_id}`);
     } else {
-      // Trending/New/Fresh → Studio (creation mode)
+      // Seed cards → Studio (creation mode, no content to watch)
       navigate('/app/story-video-studio', {
         state: {
           prefill: {
             title: story.title || '', prompt: story.hook_text || story.story_prompt || '',
             hook_text: story.hook_text || '', animation_style: story.animation_style || '',
-            parent_video_id: story.is_seed ? null : story.job_id,
-            source_surface: story.badge === 'TRENDING' ? 'trending' : story.badge === 'FRESH' ? 'fresh' : 'dashboard',
+            parent_video_id: null,
+            source_surface: 'dashboard',
           },
           freshSession: true,
         },
@@ -326,8 +335,14 @@ function StoryCard({ story, idx, navigate, priority = false }) {
     }
   };
 
+  // CTA text — Watch-first hierarchy
+  let ctaLabel = 'Watch Now';
+  if (badge === 'CONTINUE') ctaLabel = 'Continue watching';
+  else if (badge === 'UNFINISHED') ctaLabel = 'Watch Story';
+  else if (badge === 'FRESH') ctaLabel = 'Watch Now';
+
   return (
-    <div ref={cardRef} className="group relative shrink-0 cursor-pointer w-[160px] h-[220px] sm:w-[200px] sm:h-[280px] lg:w-[220px] lg:h-[300px] rounded-2xl overflow-hidden bg-[#121218] border border-white/[0.08] shadow-[0_10px_32px_rgba(0,0,0,0.18)] hover:scale-[1.02] hover:shadow-[0_16px_40px_rgba(0,0,0,0.28)] transition-all duration-200"
+    <div ref={cardRef} className="group relative shrink-0 cursor-pointer w-[160px] h-[220px] sm:w-[200px] sm:h-[280px] lg:w-[220px] lg:h-[300px] rounded-2xl overflow-hidden bg-[#121218] border border-white/[0.08] shadow-[0_10px_32px_rgba(0,0,0,0.18)] hover:scale-[1.03] hover:shadow-[0_16px_40px_rgba(0,0,0,0.28)] transition-all duration-200"
       style={{ scrollSnapAlign: 'start' }}
       onClick={handleClick} data-testid={`story-card-${idx}`}>
 
@@ -343,7 +358,7 @@ function StoryCard({ story, idx, navigate, priority = false }) {
         className="absolute inset-0 w-full h-full rounded-none"
       />
 
-      {/* Card overlay — lighter, per contract */}
+      {/* Card overlay */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent pointer-events-none" />
 
       {/* Badge */}
@@ -351,20 +366,20 @@ function StoryCard({ story, idx, navigate, priority = false }) {
         <span className="mb-2 inline-flex items-center rounded-full bg-black/35 backdrop-blur-md text-white text-[10px] font-semibold px-2.5 py-1 border border-white/15">{badge}</span>
       </div>
 
-      {/* Play button on hover — CSS group-hover, no JS state */}
+      {/* Play button on hover */}
       <div className="absolute inset-0 flex items-center justify-center transition-opacity duration-200 z-[3] opacity-0 group-hover:opacity-100 pointer-events-none">
         <div className="w-11 h-11 lg:w-14 lg:h-14 rounded-full flex items-center justify-center border border-white/20" style={{ background: 'rgba(255,255,255,.15)', backdropFilter: 'blur(8px)' }}>
           <Play className="w-4 h-4 lg:w-5 lg:h-5 text-white fill-white ml-0.5" />
         </div>
       </div>
 
-      {/* Content per contract */}
+      {/* Content */}
       <div className="absolute inset-x-0 bottom-0 z-[3] p-3 sm:p-4">
         <h3 className="text-white text-sm sm:text-base font-bold leading-snug line-clamp-2 drop-shadow-[0_2px_10px_rgba(0,0,0,0.45)]">{story.title || 'Untitled'}</h3>
         <p className="mt-1 text-white/80 text-[12px] sm:text-sm leading-snug line-clamp-2">"{hook}"</p>
         <div className="mt-3 inline-flex items-center text-white text-xs sm:text-sm font-semibold">
           <Play className="w-2.5 h-2.5 lg:w-3 lg:h-3 fill-current mr-1" />
-          {badge === 'CONTINUE' ? 'Continue watching' : 'Create your version'}
+          {ctaLabel}
           <ArrowRight className="w-2.5 h-2.5 lg:w-3 lg:h-3 ml-1" />
         </div>
       </div>
@@ -908,6 +923,22 @@ export default function Dashboard() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  // ── Floating Create CTA: show only after watch or 50% scroll ──
+  const [showFloatingCreate, setShowFloatingCreate] = useState(false);
+  const scrollDepthTracked = useRef(false);
+  useEffect(() => {
+    const onScroll = () => {
+      const scrollPct = (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100;
+      if (scrollPct > 50 && !scrollDepthTracked.current) {
+        scrollDepthTracked.current = true;
+        setShowFloatingCreate(true);
+        trackFunnel('scroll_depth_50', {});
+      }
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   // ── Infinite scroll: IntersectionObserver at 70% scroll ──
   const loadMore = useCallback(async () => {
     if (loadingMore || !hasMore) return;
@@ -1241,7 +1272,7 @@ export default function Dashboard() {
                 <div
                   key={story.job_id}
                   className="flex items-center gap-3 px-5 py-3 hover:bg-white/[0.02] cursor-pointer transition-colors"
-                  onClick={() => navigate(`/app/story-video-studio?projectId=${story.job_id}`)}
+                  onClick={() => navigate(`/app/story-viewer/${story.job_id}`)}
                   data-testid={`top-story-${idx}`}
                 >
                   <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
@@ -1293,6 +1324,20 @@ export default function Dashboard() {
 
       {/* 5. ACTIVITY BAR */}
       <ActivityBar feed={liveFeed} />
+
+      {/* ═══ FLOATING CREATE CTA — delayed, conditional ═══ */}
+      {showFloatingCreate && (
+        <button
+          onClick={() => {
+            trackFunnel('create_clicked', { meta: { source: 'floating_cta' } });
+            navigate('/app/story-video-studio', { state: { freshSession: true } });
+          }}
+          className="fixed bottom-24 lg:bottom-8 right-4 sm:right-6 z-30 flex items-center gap-2 px-4 py-3 rounded-full bg-gradient-to-r from-[#6C5CE7] to-[#00C2FF] text-white text-sm font-bold shadow-[0_4px_20px_rgba(108,92,231,0.4)] hover:scale-105 transition-all duration-200 animate-in fade-in slide-in-from-bottom-4"
+          data-testid="floating-create-cta"
+        >
+          <Zap className="w-4 h-4" /> Create Story
+        </button>
+      )}
 
       {/* 6. STICKY BOTTOM NAV — mobile only */}
       <StickyBottomNav navigate={navigate} currentPath={location.pathname} />

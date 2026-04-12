@@ -1,21 +1,23 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Loader2, Play, Pause, GitBranch, Share2, BookOpen,
-  ChevronRight, Swords, Eye, Volume2, VolumeX
+  ChevronRight, Swords, Eye, Volume2, VolumeX, Heart, Bookmark,
+  RefreshCw, X
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { SafeImage } from '../components/SafeImage';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import { trackFunnel } from '../utils/funnelTracker';
 import ContinuationModal from '../components/ContinuationModal';
 
 /**
  * StoryViewerPage — Consumption-first story experience.
  * Route: /app/story-viewer/:jobId
  *
- * This is the "Netflix mode" — watch/read the story, navigate episodes,
- * then optionally remix or continue.
+ * Watch > Make Your Version > Create
+ * Auto-plays next story after delay. Engagement row for social signals.
  */
 export default function StoryViewerPage() {
   const { jobId } = useParams();
@@ -27,18 +29,30 @@ export default function StoryViewerPage() {
   const [muted, setMuted] = useState(false);
   const [continuationMode, setContinuationMode] = useState(null);
   const [siblings, setSiblings] = useState([]);
+  const [remixChain, setRemixChain] = useState([]);
+  const [liked, setLiked] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [autoPlayCountdown, setAutoPlayCountdown] = useState(null);
+  const [autoPlayCancelled, setAutoPlayCancelled] = useState(false);
   const videoRef = useRef(null);
+  const autoPlayTimer = useRef(null);
 
   const resolvedJobId = jobId || searchParams.get('projectId');
 
   useEffect(() => {
     if (!resolvedJobId) return;
+    setAutoPlayCountdown(null);
+    setAutoPlayCancelled(false);
     (async () => {
       try {
         const res = await api.get(`/api/stories/viewer/${resolvedJobId}`);
         if (res.data?.success) {
           setJob(res.data.job);
-          // Fetch siblings (other episodes in the chain)
+
+          // Phase 0: Track story_viewed
+          trackFunnel('story_viewed', { meta: { story_id: resolvedJobId, title: res.data.job.title } });
+
+          // Fetch siblings (episodes in chain)
           if (res.data.job.story_chain_id || res.data.job.root_story_id) {
             const chainId = res.data.job.root_story_id || res.data.job.story_chain_id;
             try {
@@ -48,7 +62,16 @@ export default function StoryViewerPage() {
               }
             } catch {}
           }
-          // Track view
+
+          // Fetch remix chain (branches from this story)
+          try {
+            const branchRes = await api.get(`/api/stories/${resolvedJobId}/branches`);
+            if (branchRes.data?.success) {
+              setRemixChain(branchRes.data.branches || []);
+            }
+          } catch {}
+
+          // Track view metric
           api.post('/api/stories/increment-metric', {
             job_id: resolvedJobId, metric: 'views'
           }).catch(() => {});
@@ -68,6 +91,8 @@ export default function StoryViewerPage() {
       videoRef.current.pause();
     } else {
       videoRef.current.play();
+      // Phase 0: Track watch_started
+      trackFunnel('watch_started', { meta: { story_id: resolvedJobId } });
     }
     setPlaying(!playing);
   };
@@ -76,6 +101,46 @@ export default function StoryViewerPage() {
     if (!videoRef.current) return;
     videoRef.current.muted = !muted;
     setMuted(!muted);
+  };
+
+  // Auto-play next story after video ends
+  const startAutoPlayCountdown = useCallback((nextEp) => {
+    if (!nextEp || autoPlayCancelled) return;
+    setAutoPlayCountdown(3);
+    let count = 3;
+    autoPlayTimer.current = setInterval(() => {
+      count--;
+      setAutoPlayCountdown(count);
+      if (count <= 0) {
+        clearInterval(autoPlayTimer.current);
+        navigate(`/app/story-viewer/${nextEp.job_id}`);
+      }
+    }, 1000);
+  }, [autoPlayCancelled, navigate]);
+
+  const cancelAutoPlay = () => {
+    clearInterval(autoPlayTimer.current);
+    setAutoPlayCountdown(null);
+    setAutoPlayCancelled(true);
+  };
+
+  useEffect(() => {
+    return () => clearInterval(autoPlayTimer.current);
+  }, [resolvedJobId]);
+
+  // Share handler
+  const handleShare = async () => {
+    trackFunnel('cta_clicked', { meta: { type: 'share', story_id: resolvedJobId } });
+    const url = `${window.location.origin}/app/story-viewer/${resolvedJobId}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: job?.title, url });
+      } catch {}
+    } else {
+      navigator.clipboard.writeText(url);
+      toast.success('Link copied!');
+    }
+    api.post('/api/stories/increment-metric', { job_id: resolvedJobId, metric: 'shares' }).catch(() => {});
   };
 
   if (loading) {
@@ -98,7 +163,6 @@ export default function StoryViewerPage() {
   const continuationType = job.continuation_type || 'original';
   const currentEpIndex = siblings.findIndex(s => s.job_id === resolvedJobId);
   const nextEpisode = currentEpIndex >= 0 && currentEpIndex < siblings.length - 1 ? siblings[currentEpIndex + 1] : null;
-  const prevEpisode = currentEpIndex > 0 ? siblings[currentEpIndex - 1] : null;
 
   return (
     <div className="min-h-screen bg-slate-950" data-testid="story-viewer">
@@ -117,22 +181,30 @@ export default function StoryViewerPage() {
             )}
           </div>
           <div className="flex gap-2">
+            {nextEpisode && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  trackFunnel('cta_clicked', { meta: { type: 'next_episode', story_id: nextEpisode.job_id } });
+                  navigate(`/app/story-viewer/${nextEpisode.job_id}`);
+                }}
+                className="border-violet-500/20 text-violet-400 hover:bg-violet-500/10 text-xs"
+                data-testid="viewer-next-episode-btn"
+              >
+                <Play className="w-3.5 h-3.5 mr-1" /> Next Episode
+              </Button>
+            )}
             <Button
               size="sm"
-              variant="outline"
-              onClick={() => setContinuationMode('episode')}
-              className="border-violet-500/20 text-violet-400 hover:bg-violet-500/10 text-xs"
-              data-testid="viewer-next-episode-btn"
-            >
-              <Play className="w-3.5 h-3.5 mr-1" /> Next Episode
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => setContinuationMode('branch')}
+              onClick={() => {
+                trackFunnel('cta_clicked', { meta: { type: 'make_your_version', source: 'viewer_header', story_id: resolvedJobId } });
+                setContinuationMode('branch');
+              }}
               className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold"
               data-testid="viewer-remix-btn"
             >
-              <GitBranch className="w-3.5 h-3.5 mr-1" /> Remix
+              <RefreshCw className="w-3.5 h-3.5 mr-1" /> Make Your Version
             </Button>
           </div>
         </div>
@@ -147,31 +219,32 @@ export default function StoryViewerPage() {
               src={outputUrl}
               poster={thumbnailUrl}
               className="w-full h-full object-contain"
-              onPlay={() => setPlaying(true)}
+              onPlay={() => {
+                setPlaying(true);
+                trackFunnel('watch_started', { meta: { story_id: resolvedJobId } });
+              }}
               onPause={() => setPlaying(false)}
+              onTimeUpdate={() => {
+                if (!videoRef.current) return;
+                const pct = (videoRef.current.currentTime / videoRef.current.duration) * 100;
+                if (pct >= 50 && !videoRef.current._tracked50) {
+                  videoRef.current._tracked50 = true;
+                  trackFunnel('watch_completed_50', { meta: { story_id: resolvedJobId } });
+                }
+              }}
               onEnded={() => {
                 setPlaying(false);
-                // Auto-advance hint
+                trackFunnel('watch_completed_100', { meta: { story_id: resolvedJobId } });
+                // Auto-play next with countdown
                 if (nextEpisode) {
-                  toast.info(
-                    <div className="flex items-center gap-2">
-                      <span>Next: {nextEpisode.title}</span>
-                      <button
-                        className="text-violet-400 font-bold text-xs underline"
-                        onClick={() => navigate(`/app/story-viewer/${nextEpisode.job_id}`)}
-                      >
-                        Play
-                      </button>
-                    </div>,
-                    { duration: 8000 }
-                  );
+                  startAutoPlayCountdown(nextEpisode);
                 }
               }}
               playsInline
               data-testid="video-element"
             />
             {/* Play overlay */}
-            {!playing && (
+            {!playing && !autoPlayCountdown && (
               <button
                 onClick={togglePlay}
                 className="absolute inset-0 flex items-center justify-center bg-black/20 transition-opacity"
@@ -182,6 +255,27 @@ export default function StoryViewerPage() {
                 </div>
               </button>
             )}
+
+            {/* Auto-play next countdown overlay */}
+            {autoPlayCountdown !== null && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/70 z-10" data-testid="autoplay-overlay">
+                <div className="text-center space-y-3">
+                  <p className="text-white/60 text-sm">Up next in</p>
+                  <div className="w-16 h-16 rounded-full border-2 border-violet-500 flex items-center justify-center">
+                    <span className="text-2xl font-black text-white">{autoPlayCountdown}</span>
+                  </div>
+                  <p className="text-white font-bold text-sm truncate max-w-[200px]">{nextEpisode?.title}</p>
+                  <button
+                    onClick={cancelAutoPlay}
+                    className="text-white/40 text-xs hover:text-white flex items-center gap-1 mx-auto"
+                    data-testid="cancel-autoplay-btn"
+                  >
+                    <X className="w-3 h-3" /> Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Controls */}
             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4 flex items-center justify-between">
               <button onClick={togglePlay} className="text-white/80 hover:text-white" data-testid="play-pause-btn">
@@ -212,7 +306,45 @@ export default function StoryViewerPage() {
             </div>
           </div>
 
-          {/* Attribution — derivative lineage */}
+          {/* ═══ ENGAGEMENT ROW ═══ */}
+          <div className="flex items-center gap-3 border-y border-white/5 py-3" data-testid="engagement-row">
+            <button
+              onClick={() => {
+                setLiked(!liked);
+                trackFunnel('cta_clicked', { meta: { type: 'like', story_id: resolvedJobId } });
+              }}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all text-xs font-medium ${
+                liked ? 'bg-rose-500/20 text-rose-400 border border-rose-500/20' : 'bg-white/[0.04] text-white/50 hover:text-white/80 border border-transparent'
+              }`}
+              data-testid="like-btn"
+            >
+              <Heart className={`w-4 h-4 ${liked ? 'fill-rose-400' : ''}`} />
+              Like
+            </button>
+            <button
+              onClick={() => {
+                setSaved(!saved);
+                trackFunnel('cta_clicked', { meta: { type: 'save', story_id: resolvedJobId } });
+              }}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all text-xs font-medium ${
+                saved ? 'bg-violet-500/20 text-violet-400 border border-violet-500/20' : 'bg-white/[0.04] text-white/50 hover:text-white/80 border border-transparent'
+              }`}
+              data-testid="save-btn"
+            >
+              <Bookmark className={`w-4 h-4 ${saved ? 'fill-violet-400' : ''}`} />
+              Save
+            </button>
+            <button
+              onClick={handleShare}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/[0.04] text-white/50 hover:text-white/80 transition-all text-xs font-medium border border-transparent"
+              data-testid="share-btn"
+            >
+              <Share2 className="w-4 h-4" />
+              Share
+            </button>
+          </div>
+
+          {/* Attribution */}
           {job.derivative_label && job.source_story_title && (
             <div className="flex items-center gap-2 text-xs bg-violet-500/5 border border-violet-500/10 rounded-lg px-3 py-2"
               data-testid="attribution-badge">
@@ -220,6 +352,7 @@ export default function StoryViewerPage() {
               <span className="text-violet-300">
                 {job.derivative_label === 'continued_from' && 'Continued from'}
                 {job.derivative_label === 'remixed_from' && 'Remixed from'}
+                {job.derivative_label === 'quick_shot_from' && 'Quick shot from'}
                 {job.derivative_label === 'styled_from' && 'Styled from'}
                 {job.derivative_label === 'converted_from' && 'Converted from'}
                 {' '}
@@ -231,7 +364,7 @@ export default function StoryViewerPage() {
             </div>
           )}
 
-          {/* Story Text — Readable format */}
+          {/* Story Text */}
           {storyText && (
             <div className="bg-white/[0.02] border border-white/5 rounded-xl p-5" data-testid="story-text-section">
               <div className="flex items-center gap-2 mb-3">
@@ -256,7 +389,82 @@ export default function StoryViewerPage() {
             </div>
           )}
 
-          {/* ═══ EPISODE NAVIGATION ═══ */}
+          {/* ═══ NEXT EPISODE — BIG PRIMARY CTA ═══ */}
+          {nextEpisode && (
+            <button
+              onClick={() => {
+                trackFunnel('cta_clicked', { meta: { type: 'next_episode', story_id: nextEpisode.job_id, source: 'viewer_body' } });
+                navigate(`/app/story-viewer/${nextEpisode.job_id}`);
+              }}
+              className="w-full group relative overflow-hidden rounded-xl p-5 text-left transition-all hover:scale-[1.01]"
+              data-testid="next-episode-cta"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-violet-600 to-blue-600 opacity-90 group-hover:opacity-100 transition-opacity" />
+              <div className="relative z-10 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+                  <Play className="w-6 h-6 text-white fill-white ml-0.5" />
+                </div>
+                <div className="flex-1">
+                  <span className="text-base font-black text-white block">Next Episode</span>
+                  <span className="text-sm text-white/70">{nextEpisode.title}</span>
+                </div>
+                <ChevronRight className="w-6 h-6 text-white/40 group-hover:text-white transition-colors" />
+              </div>
+            </button>
+          )}
+
+          {/* ═══ MAKE YOUR VERSION — SECONDARY CTA ═══ */}
+          <button
+            onClick={() => {
+              trackFunnel('remix_clicked', { meta: { story_id: resolvedJobId, source: 'viewer_body' } });
+              setContinuationMode('branch');
+            }}
+            className="w-full group relative overflow-hidden rounded-xl p-4 text-left transition-all hover:scale-[1.01]"
+            data-testid="make-your-version-cta"
+          >
+            <div className="absolute inset-0 bg-rose-600/20 border border-rose-500/20 rounded-xl group-hover:bg-rose-600/30 transition-colors" />
+            <div className="relative z-10 flex items-center gap-3">
+              <RefreshCw className="w-5 h-5 text-rose-400" />
+              <div className="flex-1">
+                <span className="text-sm font-bold text-rose-300 block">Make Your Version</span>
+                <span className="text-xs text-white/40">Put your own spin on this story</span>
+              </div>
+              <ChevronRight className="w-5 h-5 text-rose-300/40" />
+            </div>
+          </button>
+
+          {/* ═══ REMIX CHAIN — "People also remixed this into:" ═══ */}
+          {remixChain.length > 0 && (
+            <div data-testid="remix-chain">
+              <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider mb-3">
+                People also remixed this into
+              </h3>
+              <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+                {remixChain.map((remix, i) => (
+                  <button
+                    key={remix.job_id}
+                    onClick={() => navigate(`/app/story-viewer/${remix.job_id}`)}
+                    className="flex-shrink-0 w-[140px] rounded-xl bg-white/[0.03] border border-white/5 p-3 hover:bg-white/[0.06] transition-all text-left"
+                    data-testid={`remix-chain-card-${i}`}
+                  >
+                    {remix.thumbnail_url ? (
+                      <img src={remix.thumbnail_url} alt="" className="w-full aspect-video rounded-lg object-cover mb-2" />
+                    ) : (
+                      <div className="w-full aspect-video rounded-lg bg-slate-800/50 flex items-center justify-center mb-2">
+                        <GitBranch className="w-4 h-4 text-white/20" />
+                      </div>
+                    )}
+                    <p className="text-xs font-semibold text-white truncate">{remix.title || 'Untitled'}</p>
+                    <p className="text-[10px] text-white/30 mt-0.5">
+                      {(remix.battle_score || 0).toFixed(0)} pts
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Episode Navigation */}
           {siblings.length > 1 && (
             <div data-testid="episode-navigation">
               <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider mb-3">Episodes</h3>
@@ -298,59 +506,17 @@ export default function StoryViewerPage() {
             </div>
           )}
 
-          {/* ═══ ACTION BUTTONS ═══ */}
-          <div className="space-y-3 pt-2" data-testid="viewer-actions">
-            {/* Primary: Next Episode */}
-            {nextEpisode && (
-              <button
-                onClick={() => navigate(`/app/story-viewer/${nextEpisode.job_id}`)}
-                className="w-full group relative overflow-hidden rounded-xl p-4 text-left transition-all hover:scale-[1.01]"
-                data-testid="next-episode-cta"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-violet-600 to-blue-600 opacity-90 group-hover:opacity-100 transition-opacity" />
-                <div className="relative z-10 flex items-center gap-3">
-                  <Play className="w-5 h-5 text-white fill-white" />
-                  <div className="flex-1">
-                    <span className="text-sm font-bold text-white block">Next: {nextEpisode.title}</span>
-                    <span className="text-xs text-white/60">Continue watching</span>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-white/40 group-hover:text-white transition-colors" />
-                </div>
-              </button>
-            )}
-
-            {/* Secondary: Continue creating */}
-            <div className="grid grid-cols-2 gap-3">
-              <Button
-                onClick={() => setContinuationMode('episode')}
-                variant="outline"
-                className="w-full border-violet-500/20 text-violet-400 hover:bg-violet-500/10"
-                data-testid="create-episode-btn"
-              >
-                <Play className="w-4 h-4 mr-2" /> Create Episode
-              </Button>
-              <Button
-                onClick={() => setContinuationMode('branch')}
-                variant="outline"
-                className="w-full border-rose-500/20 text-rose-400 hover:bg-rose-500/10"
-                data-testid="create-branch-btn"
-              >
-                <GitBranch className="w-4 h-4 mr-2" /> Fork / Remix
-              </Button>
-            </div>
-
-            {/* Battle link */}
-            {(job.total_children || 0) > 0 && (
-              <Button
-                onClick={() => navigate(`/app/story-battle/${job.root_story_id || job.story_chain_id || resolvedJobId}`)}
-                variant="outline"
-                className="w-full border-amber-500/20 text-amber-400 hover:bg-amber-500/10"
-                data-testid="view-battle-from-viewer"
-              >
-                <Swords className="w-4 h-4 mr-2" /> View Story Battle
-              </Button>
-            )}
-          </div>
+          {/* Battle link */}
+          {(job.total_children || 0) > 0 && (
+            <Button
+              onClick={() => navigate(`/app/story-battle/${job.root_story_id || job.story_chain_id || resolvedJobId}`)}
+              variant="outline"
+              className="w-full border-amber-500/20 text-amber-400 hover:bg-amber-500/10"
+              data-testid="view-battle-from-viewer"
+            >
+              <Swords className="w-4 h-4 mr-2" /> View Story Battle
+            </Button>
+          )}
         </div>
       </div>
 
@@ -375,6 +541,11 @@ export default function StoryViewerPage() {
           }
         }}
       />
+
+      <style>{`
+        .no-scrollbar::-webkit-scrollbar{display:none}
+        .no-scrollbar{-ms-overflow-style:none;scrollbar-width:none}
+      `}</style>
     </div>
   );
 }

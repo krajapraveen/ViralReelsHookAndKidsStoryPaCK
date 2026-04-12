@@ -50,6 +50,21 @@ FUNNEL_STEPS = [
     # Viral loop steps
     "return_to_inspect",
     "share_revisit",
+    # ═══ Phase 0: Consumption funnel baseline ═══
+    "story_viewed",
+    "story_card_clicked",
+    "watch_started",
+    "watch_completed_50",
+    "watch_completed_100",
+    "cta_clicked",
+    "remix_clicked",
+    "create_clicked",
+    "scroll_depth_50",
+    # Spectator conversion funnel
+    "spectator_impression",
+    "spectator_pressure_shown",
+    "spectator_quick_shot",
+    "spectator_to_player_conversion",
 ]
 
 
