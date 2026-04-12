@@ -2421,15 +2421,15 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
             jobId={jobId || job?.job_id}
             rootStoryId={job?.root_story_id || job?.story_chain_id}
             onTryAgain={() => openPresetContinuation('branch', {
-              title: `${displayTitle} — New Version`,
-              instruction: 'Create a better version. Outperform the current top story with stronger writing, better plot, and more engaging characters.',
-              analyticsEvent: 'pulse_try_again_clicked',
+              title: `${displayTitle} — Twist`,
+              instruction: 'Add an unexpected twist. Something that completely changes the direction. Shock the reader.',
+              analyticsEvent: 'quality_gate_twist_clicked',
             })}
-            onBeatTop={() => openPresetContinuation('branch', {
-              title: `Beat: ${displayTitle}`,
-              instruction: 'Create the ultimate version. This needs to be dramatically better than #1. Go all out.',
-              analyticsEvent: 'pulse_beat_top_clicked',
-            })}
+            onNewJobCreated={(data) => {
+              if (data?.job_id) {
+                navigate(`/app/story-video-pipeline?projectId=${data.job_id}`);
+              }
+            }}
           />
 
           {/* ═══ SECONDARY: Add Twist / Make Funny / Next Episode ═══ */}

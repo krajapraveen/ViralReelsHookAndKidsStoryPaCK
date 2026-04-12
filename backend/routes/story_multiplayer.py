@@ -179,6 +179,27 @@ class IncrementMetricRequest(BaseModel):
     metric: str = Field(..., pattern="^(views|shares)$")
 
 
+class InstantRerunRequest(BaseModel):
+    source_job_id: str = Field(..., description="Job to create a variation from")
+    mode: str = Field(default="try_again", pattern="^(try_again|beat_top)$")
+
+
+# ═══════════════════════════════════════════════════════════════
+# VARIATION SUFFIXES for instant reruns (keeps content fresh)
+# ═══════════════════════════════════════════════════════════════
+
+_VARIATION_SUFFIXES = [
+    "Rewrite this story with a surprising twist at the climax that changes everything.",
+    "Rewrite with sharper dialogue and more vivid action scenes.",
+    "Rewrite with deeper emotional stakes and character development.",
+    "Rewrite with faster pacing and higher tension throughout.",
+    "Rewrite with a completely different opening that hooks the reader immediately.",
+    "Rewrite with an unexpected perspective shift that reveals hidden motives.",
+    "Rewrite making the conflict more intense and the resolution more satisfying.",
+    "Rewrite with richer world-building and sensory details.",
+]
+
+
 # ═══════════════════════════════════════════════════════════════
 # ENDPOINTS — Episode & Branch Creation
 # ═══════════════════════════════════════════════════════════════
@@ -675,6 +696,159 @@ async def increment_metric(request: IncrementMetricRequest):
         logger.warning(f"[BATTLE-NOTIFY] Failed to check rank notifications: {e}")
 
     return {"success": True, "job_id": request.job_id, "metric": request.metric, "battle_score": new_score}
+
+
+# ═══════════════════════════════════════════════════════════════
+# INSTANT RE-RUN — Zero-friction one-tap regeneration
+# ═══════════════════════════════════════════════════════════════
+
+@router.post("/instant-rerun")
+async def instant_rerun(
+    request: InstantRerunRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Instant Re-run — one tap, no modal, no input.
+    Reuses source job's story_text with a slight variation.
+    Mode: try_again (self-variation) or beat_top (competitive against #1).
+    """
+    import random
+    user_id = current_user.get("id") or str(current_user.get("_id"))
+
+    source = await db.story_engine_jobs.find_one(
+        {"job_id": request.source_job_id},
+        {"_id": 0, "job_id": 1, "title": 1, "story_text": 1, "animation_style": 1,
+         "root_story_id": 1, "story_chain_id": 1, "parent_job_id": 1,
+         "chain_depth": 1, "user_id": 1, "state": 1, "visibility": 1}
+    )
+    if not source:
+        raise HTTPException(status_code=404, detail="Source story not found")
+
+    # Track rerun count for this user in this session (anti-spam quality gate)
+    rerun_key = f"rerun_{user_id}_{source.get('root_story_id', request.source_job_id)}"
+    rerun_count = 0
+    rerun_doc = await db.rerun_tracker.find_one(
+        {"key": rerun_key, "created_at": {"$gte": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()}},
+        {"_id": 0, "count": 1}
+    )
+    if rerun_doc:
+        rerun_count = rerun_doc.get("count", 0)
+
+    # Quality gate: after 3 reruns, suggest trying a different approach
+    quality_warning = None
+    if rerun_count >= 3:
+        quality_warning = "Same pattern detected. Try a stronger twist to beat #1."
+
+    # Build variation text
+    base_text = source.get("story_text", "")
+    variation_suffix = random.choice(_VARIATION_SUFFIXES)
+
+    if request.mode == "beat_top":
+        # Get #1 version for competitive context
+        root_id = source.get("root_story_id") or source.get("story_chain_id") or request.source_job_id
+        top = await db.story_engine_jobs.find_one(
+            {
+                "root_story_id": root_id,
+                "state": {"$in": ["READY", "PARTIAL_READY", "COMPLETED"]},
+                "battle_score": {"$gt": 0},
+            },
+            {"_id": 0, "title": 1, "story_text": 1, "battle_score": 1},
+            sort=[("battle_score", -1)],
+        )
+        if top and top.get("story_text"):
+            variation_text = f"{base_text}\n\n[COMPETITIVE REWRITE: The current #1 version focuses on: \"{top['story_text'][:200]}...\". Create a dramatically better version that outperforms it. {variation_suffix}]"
+        else:
+            variation_text = f"{base_text}\n\n[REWRITE INSTRUCTION: {variation_suffix}]"
+        title_prefix = "Beat"
+    else:
+        variation_text = f"{base_text}\n\n[REWRITE INSTRUCTION: {variation_suffix}]"
+        title_prefix = "v" + str(rerun_count + 2)
+
+    new_title = f"{source.get('title', 'Story')} — {title_prefix}"
+
+    # Determine parent for the branch
+    parent_id = source.get("parent_job_id") or request.source_job_id
+
+    from services.story_engine.pipeline import create_job, run_pipeline
+
+    result = await create_job(
+        user_id=user_id,
+        story_text=variation_text,
+        title=new_title,
+        style_id=source.get("animation_style", "cartoon_2d"),
+        language="en",
+        age_group="all_ages",
+        parent_job_id=parent_id,
+        story_chain_id=source.get("root_story_id") or source.get("story_chain_id"),
+    )
+
+    if not result.get("success"):
+        error = result.get("error", "Generation failed")
+        if error == "insufficient_credits":
+            cc = result.get("credit_check", {})
+            raise HTTPException(status_code=402, detail=f"Insufficient credits. Required: {cc.get('required', 0)}")
+        raise HTTPException(status_code=400, detail=error)
+
+    job_id = result["job_id"]
+
+    # Set multiplayer fields — always a branch (competing version)
+    graph_info = await ensure_multiplayer_fields(job_id, parent_id, "branch")
+
+    # Attribution
+    source_creator_name = "Anonymous"
+    if source.get("user_id"):
+        pu = await db.users.find_one({"id": source["user_id"]}, {"_id": 0, "name": 1, "email": 1})
+        if pu:
+            source_creator_name = pu.get("name") or pu.get("email", "").split("@")[0]
+
+    await db.story_engine_jobs.update_one(
+        {"job_id": job_id},
+        {"$set": {
+            "derivative_label": "remixed_from",
+            "source_story_id": request.source_job_id,
+            "source_story_title": source.get("title"),
+            "source_creator_id": source.get("user_id"),
+            "source_creator_name": source_creator_name,
+            "visibility": "public",
+            "rerun_mode": request.mode,
+            "rerun_number": rerun_count + 1,
+        }}
+    )
+
+    # Track rerun count
+    await db.rerun_tracker.update_one(
+        {"key": rerun_key},
+        {"$set": {"key": rerun_key, "created_at": datetime.now(timezone.utc).isoformat()},
+         "$inc": {"count": 1}},
+        upsert=True,
+    )
+
+    # Run pipeline
+    import asyncio
+    asyncio.create_task(run_pipeline(job_id))
+
+    # Track analytics
+    try:
+        await db.analytics_events.insert_one({
+            "event": f"instant_rerun_{request.mode}",
+            "user_id": user_id,
+            "data": {"source_job_id": request.source_job_id, "new_job_id": job_id, "rerun_number": rerun_count + 1},
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception:
+        pass
+
+    return {
+        "success": True,
+        "job_id": job_id,
+        "mode": request.mode,
+        "rerun_number": rerun_count + 1,
+        "quality_warning": quality_warning,
+        "root_story_id": graph_info["root_story_id"],
+        "chain_depth": graph_info["chain_depth"],
+        "credits_charged": result.get("credits_deducted", 0),
+        "message": "Instant rerun started. New version generating...",
+    }
 
 
 # ═══════════════════════════════════════════════════════════════
