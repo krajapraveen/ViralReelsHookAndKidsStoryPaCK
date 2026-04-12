@@ -52,8 +52,24 @@ export default function EntitledDownloadButton({
         return;
       }
 
+      if (res.status === 202) {
+        // Still processing
+        const data = await res.json();
+        toast.info(data.detail?.message || 'Video is still processing. Please wait.');
+        return;
+      }
+
+      if (res.status === 410) {
+        const data = await res.json();
+        toast.error(data.detail?.message || 'Video generation failed. Please try again.');
+        return;
+      }
+
       if (!res.ok) {
-        throw new Error('Failed to get download link');
+        const data = await res.json().catch(() => ({}));
+        const msg = data.detail?.message || data.detail || 'Download not available yet';
+        toast.error(msg);
+        return;
       }
 
       const data = await res.json();

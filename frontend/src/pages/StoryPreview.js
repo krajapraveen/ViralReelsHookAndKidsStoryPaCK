@@ -13,7 +13,7 @@ import { trackLoop } from '../utils/growthTracker';
 import api from '../utils/api';
 import EntitledDownloadButton from '../components/EntitledDownloadButton';
 import { useMediaEntitlement } from '../contexts/MediaEntitlementContext';
-import ProtectedContent from '../components/ProtectedContent';
+import { ProtectedContentContainer as ProtectedContent } from '../components/ProtectedContent';
 
 export default function StoryPreview() {
   const { jobId } = useParams();

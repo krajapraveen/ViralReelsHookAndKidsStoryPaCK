@@ -86,15 +86,34 @@ async def request_download_token(
         )
 
     # Find the asset
-    job = await db.story_engine_jobs.find_one({"job_id": asset_id}, {"_id": 0, "output_url": 1, "user_id": 1})
+    job = await db.story_engine_jobs.find_one({"job_id": asset_id}, {"_id": 0, "output_url": 1, "preview_url": 1, "user_id": 1, "state": 1})
     if not job:
-        job = await db.pipeline_jobs.find_one({"job_id": asset_id}, {"_id": 0, "output_url": 1, "user_id": 1})
+        job = await db.pipeline_jobs.find_one({"job_id": asset_id}, {"_id": 0, "output_url": 1, "preview_url": 1, "user_id": 1, "state": 1})
     if not job:
         raise HTTPException(status_code=404, detail="Asset not found")
 
-    output_url = job.get("output_url")
+    # Check video state
+    state = job.get("state", "")
+    if state in ("INIT", "PLANNING", "BUILDING_CHARACTER_CONTEXT", "PLANNING_SCENE_MOTION",
+                 "GENERATING_KEYFRAMES", "GENERATING_SCENE_CLIPS", "GENERATING_AUDIO", "ASSEMBLING_VIDEO"):
+        raise HTTPException(status_code=202, detail={"status": "processing", "message": "Video is still processing. Please wait."})
+
+    # Try output_url first, then preview_url as fallback
+    output_url = job.get("output_url") or job.get("preview_url")
+
+    # Also check fallback service
     if not output_url:
-        raise HTTPException(status_code=404, detail="No downloadable output for this asset")
+        fallback = await db.story_engine_fallbacks.find_one(
+            {"job_id": asset_id},
+            {"_id": 0, "fallback_video_url": 1}
+        )
+        if fallback:
+            output_url = fallback.get("fallback_video_url")
+
+    if not output_url:
+        if state in ("FAILED", "FAILED_RENDER", "ABANDONED"):
+            raise HTTPException(status_code=410, detail={"status": "failed", "message": "Video generation failed. Please try again."})
+        raise HTTPException(status_code=404, detail={"status": "not_ready", "message": "No downloadable video yet. It may still be processing."})
 
     # Generate short-lived signed URL
     try:

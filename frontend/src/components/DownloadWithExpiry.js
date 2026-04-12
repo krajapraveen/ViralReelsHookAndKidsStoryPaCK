@@ -45,7 +45,21 @@ export default function PermanentDownload({
           toast.error('Downloads are available on paid plans');
           return;
         }
-        if (!res.ok) throw new Error('Failed to get download link');
+        if (res.status === 202) {
+          const data = await res.json();
+          toast.info(data.detail?.message || 'Video is still processing. Please wait.');
+          return;
+        }
+        if (res.status === 410) {
+          const data = await res.json();
+          toast.error(data.detail?.message || 'Video generation failed.');
+          return;
+        }
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          toast.error(data.detail?.message || data.detail || 'Download not available yet');
+          return;
+        }
         const data = await res.json();
         if (data.success && data.download_url) {
           const dlRes = await fetch(data.download_url);

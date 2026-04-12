@@ -29,6 +29,18 @@ export const ProtectedImage = ({
   const [watermarkRemoved, setWatermarkRemoved] = useState(false);
   const { canDownload: entitled } = useMediaEntitlement();
 
+  // Admin check — admins never see watermark or credit friction
+  const isAdmin = (() => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return false;
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return ['ADMIN', 'SUPERADMIN'].includes((payload.role || '').toUpperCase());
+    } catch { return false; }
+  })();
+
+  const shouldShowWatermark = showWatermark && !watermarkRemoved && !isAdmin;
+
   useEffect(() => {
     if (containerRef.current) {
       applyContentProtection(containerRef);
@@ -137,7 +149,7 @@ export const ProtectedImage = ({
         />
 
         {/* Subtle background watermark */}
-        {showWatermark && !watermarkRemoved && (
+        {shouldShowWatermark && (
           <div 
             className="absolute inset-0 pointer-events-none"
             style={{
@@ -149,7 +161,7 @@ export const ProtectedImage = ({
         )}
 
         {/* Visible watermark */}
-        {showWatermark && !watermarkRemoved && (
+        {shouldShowWatermark && (
           <div style={watermarkOverlayStyles}>
             <div className="text-[10px] leading-tight">
               Generated for {userEmail || 'user'}
@@ -185,7 +197,7 @@ export const ProtectedImage = ({
             {entitled ? 'Download' : 'Upgrade to Download'}
           </button>
 
-          {showWatermark && !watermarkRemoved && (
+          {shouldShowWatermark && (
             <button
               onClick={handleRemoveWatermark}
               className="flex items-center gap-1 px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm rounded-lg"
