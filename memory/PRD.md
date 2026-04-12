@@ -15,35 +15,40 @@
 
 ---
 
-## P0: SLOTS_BUSY → Queue System — DONE (Apr 12)
+## Queue System (Hardened) — DONE (Apr 12)
 
-### Before: "All rendering slots are busy" → dead-end error toast → user leaves
-### After: Job QUEUED → auto-renders when slot frees → never blocks user intent
+### Design: Accept then queue, never reject user intent.
 
-**Implementation:**
-- `check_rate_limits()` no longer blocks for concurrent slots. Returns None to allow creation.
-- `should_queue_job()` detects when active jobs >= MAX_CONCURRENT_JOBS (2)
-- `create_job()` sets state=QUEUED when slots busy. Credits still deducted, job still created.
-- `_finalize_job()` auto-drains queue: when a job completes, promotes oldest QUEUED → INIT + runs pipeline (FIFO)
-- All callers (quick-shot, continue-branch, continue-episode, instant-rerun) check `result.queued` before `run_pipeline()`
-- Frontend shows "Queued for rendering" toast (not error)
-- `detect_abuse()` uses RATE_LIMIT prefix, never SLOTS_BUSY
+**States**: QUEUED → INIT (promoted via FIFO) → pipeline stages → READY/FAILED
+**Capacity**: MAX_CONCURRENT_JOBS = 2 per user
 
-### States: QUEUED → INIT (promoted) → pipeline stages → READY
-### Testing: iteration_505 — 15/15 (100%)
+**Guarantees:**
+- FIFO ordering: sort by `created_at` ASC
+- No duplicate execution: `update_one` with `state=QUEUED` filter
+- Credits deducted ONCE at creation, not again on promotion (no double billing)
+- Queue drains on BOTH success (`_finalize_job`) AND failure (`_fail_job_terminal`)
+- Queue position visible in UI: "Queued for rendering — position #N"
+- SLOTS_BUSY error eliminated entirely from codebase
+- RATE_LIMIT prefix for hourly/daily abuse prevention (10/hr, 50/day)
+
+**Key files:**
+- `/app/backend/services/story_engine/schemas.py` — JobState.QUEUED enum
+- `/app/backend/services/story_engine/state_machine.py` — QUEUED transitions, labels, progress
+- `/app/backend/services/story_engine/safety.py` — check_rate_limits, should_queue_job
+- `/app/backend/services/story_engine/pipeline.py` — create_job (QUEUED state), _drain_queue_for_user, _finalize_job, _fail_job_terminal
+
+Testing: iteration_505 (15/15) + iteration_506 (21/21) + manual 6/6 queue integrity tests
 
 ---
 
-## P0: Unfinished Worlds Fix — DONE (Apr 12)
-- Viewer endpoint checks pipeline_jobs as fallback
-- Graceful "Story not available" page for invalid IDs
-- Rule: clickable = loadable
-
-## P0: Post-Launch-Branch Flow — DONE (Apr 12)
-## Data Integrity — DONE (Apr 12)
-## Export Pipeline — DONE (Apr 12)
-## Consumption-First Loop — DONE (Apr 12)
-## Entry Conversion Engine — DONE (Apr 12)
+## Completed (All Apr 12)
+- Unfinished Worlds fix (viewer checks pipeline_jobs + graceful fallback)
+- Post-Launch-Branch flow (battle entry experience)
+- Data Integrity (completed = persisted)
+- Export Pipeline fix
+- Consumption-First Viral Loop
+- Entry Conversion Engine
+- System Integrity
 
 ---
 
