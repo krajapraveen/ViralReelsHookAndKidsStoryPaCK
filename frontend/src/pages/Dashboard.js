@@ -22,6 +22,9 @@ import HeroMedia from '../components/HeroMedia';
 import StoryCardMedia from '../components/StoryCardMedia';
 import MediaPreloader from '../components/MediaPreloader';
 import WarBanner from '../components/WarBanner';
+import PersonalAlertStrip from '../components/PersonalAlertStrip';
+import TrendingPublicFeed from '../components/TrendingPublicFeed';
+import YourCreationsStrip from '../components/YourCreationsStrip';
 
 import heroFallback from '../assets/fallbacks/hero-fallback.jpg';
 import cardFallback from '../assets/fallbacks/card-fallback.jpg';
@@ -994,6 +997,9 @@ export default function Dashboard() {
       )}
 
 
+      {/* ═══ 0. PERSONAL ALERT STRIP — THE RETURN TRIGGER (TOP) ═══ */}
+      <PersonalAlertStrip />
+
       {/* 1. HERO */}
       <div className={isAdmin ? 'pt-14' : ''}>
         <HeroSection stories={safeHeroPool} navigate={navigate} />
@@ -1065,7 +1071,7 @@ export default function Dashboard() {
       {/* FEATURED CHALLENGE WINNER — Prestige Slot */}
       <FeaturedWinnerHero winner={challengeWinner} navigate={navigate} />
 
-      {/* DAILY STORY WAR BANNER */}
+      {/* ═══ 2. DAILY STORY WAR — urgency block ═══ */}
       <div className="px-4 sm:px-6 lg:px-10 py-2">
         <WarBanner />
       </div>
@@ -1102,6 +1108,12 @@ export default function Dashboard() {
           </ScrollRow>
         );
       })}
+
+      {/* ═══ 4. TRENDING NOW — public stories from ALL users ═══ */}
+      <TrendingPublicFeed />
+
+      {/* ═══ 5. YOUR CREATIONS — with rank + movement ═══ */}
+      <YourCreationsStrip />
 
       {/* TOP VIRAL CREATORS LEADERBOARD */}
       {viralLeaderboard.length > 0 && (
