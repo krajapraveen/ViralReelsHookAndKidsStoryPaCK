@@ -12,79 +12,50 @@
 ---
 
 ## Core Philosophy: WATCH > MAKE YOUR VERSION > CREATE
-Every surface enforces this hierarchy. No direct creation from homepage.
+
+---
+
+## P0 CRITICAL FIX: Export Pipeline — DONE (Apr 12)
+
+### Root Causes Found & Fixed:
+1. **Empty preview page**: `StoryPreview.js` was importing `ProtectedImage` (default export) instead of `ProtectedContentContainer` (named export). ProtectedImage renders an image with download buttons, NOT children. Fixed import.
+2. **Download fails**: `download-token` endpoint only checked `output_url`. Now also checks `preview_url` and `fallback_video_url`. Returns structured errors: 202 (processing), 404 (not_ready), 410 (failed).
+3. **Admin sees "Remove Watermark (5 Credits)"**: `ProtectedContent.js` had no admin bypass. Added `isAdmin` check — admins never see watermark or credit friction.
+4. **EntitledDownloadButton/DownloadWithExpiry**: Now handle 202/410 status codes with proper user-facing messages instead of generic errors.
+
+### Files Changed:
+- `/app/frontend/src/pages/StoryPreview.js` — import fix (line 16)
+- `/app/frontend/src/components/ProtectedContent.js` — admin bypass
+- `/app/frontend/src/components/EntitledDownloadButton.js` — structured error handling
+- `/app/frontend/src/components/DownloadWithExpiry.js` — structured error handling
+- `/app/backend/routes/media_routes.py` — fallback URL chain + state-based responses
+- Testing: iteration_503 — 8/8 (100%)
 
 ---
 
 ## Consumption-First Viral Loop — DONE (Apr 12)
-
-### Phase 0: Baseline Tracking
-- Added funnel events: story_viewed, story_card_clicked, watch_started, watch_completed_50, watch_completed_100, cta_clicked, remix_clicked, create_clicked, scroll_depth_50
-- Spectator events: spectator_impression, spectator_pressure_shown, spectator_quick_shot, spectator_to_player_conversion
-- All events tracked via POST /api/funnel/track
-
-### Phase 1: CTA Restructure
-- **Hero**: Watch Now (primary gradient) > Make Your Version (secondary outline) > Create Later (tertiary text)
-- **All Cards**: Click → /app/story-viewer/{jobId} (Watch Page). NOT creation studio.
-- **Card CTA Labels**: "Watch Now" (trending/fresh/new), "Continue watching" (continue), "Watch Story" (unfinished)
-- **"Create your version" ELIMINATED** from entire homepage
-- **Floating Create CTA**: Appears bottom-right only after 50% scroll depth or 1+ video watched
+- Phase 0: 12 baseline tracking events
+- Phase 1: Watch Now > Make Your Version > Create Later hierarchy everywhere
+- Phase 2: Watch Page with engagement row, auto-play, remix chain
 - Testing: iteration_502 — 19/19 (100%)
 
-### Phase 2: Watch Page Upgrade
-- **Next Episode**: Big primary CTA (violet gradient, full-width)
-- **Make Your Version**: Secondary CTA (rose accent, with "Put your own spin" subtext)
-- **Engagement Row**: Like, Save, Share buttons (with state tracking)
-- **Remix Chain**: "People also remixed this into:" horizontal scroll cards
-- **Auto-Play Next**: 3-second countdown overlay after video ends, with Cancel button
-- **Video Tracking**: watch_completed_50 at 50% progress, watch_completed_100 at end
-- **Attribution**: Shows "Quick shot from" alongside existing derivative labels
-
----
-
 ## Entry Conversion Engine — DONE (Apr 12)
-- Quick Shot (1-tap zero-input battle entry)
-- Personalized CTA (gap-to-#1, user state)
-- Spectator Pressure Timer (6s urgency prompt)
-- First-Win Boost (invisible 15% lift for new users)
-- Entry Streak Hook ("Streak Started!" toast)
+- Quick Shot, Personalized CTA, Pressure Timer, First-Win Boost, Streak Hook
 - Testing: iteration_501 — 18/18 (100%)
 
 ## System Integrity — DONE (Apr 12)
-- Streak boost soft-capped at 10%
-- Auto-seed daily wars
-- FAILED_RENDER excluded from rate limiter
-
----
-
-## Key Files
-- `/app/frontend/src/pages/Dashboard.js` — Consumption-first homepage (Watch > Remix > Create)
-- `/app/frontend/src/pages/StoryViewerPage.jsx` — Watch page with engagement, auto-play, remix chain
-- `/app/frontend/src/components/HottestBattle.jsx` — Entry Conversion Engine
-- `/app/backend/routes/story_multiplayer.py` — Core multiplayer + quick-shot + feeds
-- `/app/backend/routes/funnel_tracking.py` — Full funnel tracking with consumption events
-- `/app/backend/routes/daily_war.py` — War lifecycle
-- `/app/backend/routes/streaks.py` — Streak system
-- `/app/backend/routes/push_notifications.py` — Push engine
+- Streak soft-cap, auto-seed wars, FAILED_RENDER fix
 
 ---
 
 ## Backlog
 
 ### P0 (Next: Analytics Engine)
-- Conversion Analytics Dashboard (admin): Spectator->Player %, best CTA, avg session time, retention
+- Conversion Analytics Dashboard: Spectator->Player %, best CTA, retention
 - CTA variant performance tracking
-- Quick Shot quality validation
-- Pressure timer bounce validation
-- First-win boost retention impact
 
 ### P1
-- Secondary Action Matrix (Anime, Kids, Comic)
-- Follow Creator (network layer)
-- Phase C Gamification activation
+- Secondary Action Matrix, Follow Creator, Phase C Gamification
 
 ### P2
-- Resend domain verification (blocked on user DNS)
-- Personalized headline serving
-- Admin WebSocket upgrade
-- Hover autoplay preview on cards (micro-interaction)
+- Resend domain, personalized headlines, hover autoplay previews
