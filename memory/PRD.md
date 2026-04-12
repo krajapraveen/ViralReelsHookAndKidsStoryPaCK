@@ -11,49 +11,64 @@
 
 ---
 
-## Completed (Apr 11-12)
+## Complete Behavior System (Apr 11-12)
 
-### Story Multiplayer Engine — Graph, Battle, Chain, Notifications, Feed
-### Daily Story War — Lifecycle, scoring, winner declaration, war page + banner
-### Consumption vs Creation — StoryViewerPage, card routing split
-### Phase 1 — Visibility (public/unlisted/private) + Cross-User Access + Attribution
-### Phase 2A — Core Action Integrity — All buttons wired to ContinuationModal
-### Phase 2B — CompetitionPulse (session loop) + style/variation rewiring
-### Phase 3 — Feed as Return Engine — PersonalAlertStrip, TrendingPublicFeed, YourCreationsStrip
+### Engine Layer
+- Story Multiplayer Engine (graph, battle, chain, ranking)
+- Daily Story War (lifecycle, scoring, winner declaration)
+- Cross-user visibility (public/unlisted/private) + attribution
 
-### Push Notifications (Loss-Aversion) — DONE (Apr 12)
-- **Service Worker** at `/sw-push.js` — handles push events + click deep-link navigation
-- **Backend**: subscribe/unsubscribe endpoints, rate-limited push delivery (max 3/day, 2h cooldown)
-- **Only 4 triggers**: rank_drop, war_overtake, near_win (gap ≤ 2), war_winner
-- **Integrated**: rank_drop + near_win in `story_multiplayer.py`, war_overtake in `daily_war.py`
-- **Frontend**: `usePushNotifications` hook (auto-subscribe), `PushPrompt` component (non-intrusive, 7-day dismiss cooldown)
-- Testing: iteration_496 — 37/37 (100%)
+### Action Layer
+- Episode vs Branch dual flows, ContinuationModal with presets
+- All buttons wired (Add Twist, Make Funny, Next Episode, Beat #1, Improve, variations, styles)
+- Consumption vs Creation split (StoryViewerPage vs Studio)
+
+### Loop Layer
+- CompetitionPulse (live rank + gap-to-#1 + instant re-run CTAs, 20s polling)
+- Instant Re-run Engine: POST /api/stories/instant-rerun — zero-friction one-tap regeneration
+  - try_again: reuses story text + random variation suffix, generates immediately
+  - beat_top: includes #1's story as competitive context in prompt
+  - Quality gate: after 3 reruns, shows warning + "Add Twist Instead"
+  - Session depth tracking in rerun_tracker collection
+
+### Trigger Layer
+- PersonalAlertStrip (return trigger on homepage — rank drops, war overtakes, trending)
+- Push Notifications via Service Worker (rank_drop, war_overtake, near_win, war_winner)
+  - Rate limited: 3/day, 2h cooldown
+  - Deep-links to Battle/War screens
+
+### Feed Layer
+- Homepage: Alert Strip → Hero → War → Continue Watching → Trending → Discover → Your Creations
+- TrendingPublicFeed (all users' public stories with HOT badges)
+- YourCreationsStrip (user stories with rank)
 
 ---
 
 ## Key Files
-- `/app/backend/routes/push_notifications.py` — Push engine with rate limits
-- `/app/frontend/public/sw-push.js` — Service Worker
-- `/app/frontend/src/hooks/usePushNotifications.js` — Push subscription hook
-- `/app/frontend/src/components/PushPrompt.jsx` — Permission prompt
-- `/app/frontend/src/components/PersonalAlertStrip.jsx` — Return trigger
-- `/app/frontend/src/components/CompetitionPulse.jsx` — Session loop
-- `/app/frontend/src/components/ContinuationModal.jsx` — Episode/Branch/War modal
-- `/app/backend/routes/story_multiplayer.py` — All multiplayer + feeds + push triggers
+- `/app/backend/routes/story_multiplayer.py` — Core multiplayer + feeds + instant-rerun + push triggers
 - `/app/backend/routes/daily_war.py` — War lifecycle + push triggers
+- `/app/backend/routes/push_notifications.py` — Push engine with rate limits
+- `/app/frontend/src/components/CompetitionPulse.jsx` — Session intensity loop with instant re-run
+- `/app/frontend/src/components/PersonalAlertStrip.jsx` — Return trigger
+- `/app/frontend/src/components/ContinuationModal.jsx` — Episode/Branch/War modal with presets
+- `/app/frontend/src/pages/StoryVideoPipeline.js` — Post-gen with all actions wired
+- `/app/frontend/src/pages/DailyWarPage.jsx` — War experience
+- `/app/frontend/src/pages/StoryBattlePage.jsx` — Battle leaderboard
+- `/app/frontend/src/pages/StoryViewerPage.jsx` — Consumption with attribution
+- `/app/frontend/src/pages/Dashboard.js` — Feed sections
 
 ---
 
 ## Backlog
 
 ### P0
-- Session depth: "One more try" loop after every action (fast re-run, no modal friction)
-- Streak tracking (after return behavior proven)
+- Streak tracking (daily habit reinforcement)
+- Follow Creator (network layer)
 
 ### P1
-- Auto-seed daily wars via scheduler
-- Phase C Gamification activation
-- Follow Creator system
+- Auto-seed daily wars
+- Phase C Gamification
+- Clean stuck FAILED_RENDER jobs (blocking rate limiter for instant reruns)
 
 ### P2
-- Resend domain verification, A/B Week 2, public chain leaderboard
+- Resend domain, A/B Week 2, public chain leaderboard
