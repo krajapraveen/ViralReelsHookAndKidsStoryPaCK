@@ -115,19 +115,33 @@ async def request_download_token(
             raise HTTPException(status_code=410, detail={"status": "failed", "message": "Video generation failed. Please try again."})
         raise HTTPException(status_code=404, detail={"status": "not_ready", "message": "No downloadable video yet. It may still be processing."})
 
-    # Generate short-lived signed URL
+    # Validate local files actually exist before returning URL
+    if output_url.startswith("/api/generated/"):
+        import os as _os
+        local_path = _os.path.join(_os.path.dirname(_os.path.dirname(__file__)), output_url.replace("/api/generated/", "generated/"))
+        if not _os.path.isfile(local_path):
+            raise HTTPException(
+                status_code=410,
+                detail={
+                    "status": "expired",
+                    "message": "Video file has expired from temporary storage. Please regenerate the video.",
+                },
+            )
+
+    # Generate short-lived signed URL for R2 assets
     try:
         from utils.r2_presign import presign_url
         download_url = presign_url(output_url, expiry=60)  # 60 second expiry
     except Exception:
         download_url = output_url
 
-    # Log successful download token issuance
+    # Log successful download token issuance with download_success tracking
     await db.media_access_log.insert_one({
         "event": "download_granted",
         "user_id": user_id,
         "asset_id": asset_id,
         "plan_type": current_user.get("plan_type", "free"),
+        "url_type": "r2" if output_url.startswith("http") else "local",
         "timestamp": datetime.now(timezone.utc).isoformat(),
     })
 
