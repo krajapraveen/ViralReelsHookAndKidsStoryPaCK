@@ -1055,16 +1055,33 @@ async def get_story_for_viewer(story_id: str, current_user: dict = Depends(get_o
     """
     Public story viewer data — returns story content for consumption.
     No ownership check. Used by the Story Viewer Page.
+    Checks both story_engine_jobs and pipeline_jobs (legacy content).
     """
     job = await db.story_engine_jobs.find_one(
         {"job_id": story_id},
         {"_id": 0}
     )
+
+    # Fallback: check pipeline_jobs for legacy content
+    source_collection = "story_engine_jobs"
+    if not job:
+        job = await db.pipeline_jobs.find_one(
+            {"job_id": story_id},
+            {"_id": 0}
+        )
+        source_collection = "pipeline_jobs"
+
     if not job:
         raise HTTPException(status_code=404, detail="Story not found")
 
-    if job.get("state") not in ("READY", "PARTIAL_READY", "COMPLETED"):
-        raise HTTPException(status_code=400, detail="Story is not ready for viewing")
+    # State check — different field names per collection
+    if source_collection == "story_engine_jobs":
+        if job.get("state") not in ("READY", "PARTIAL_READY", "COMPLETED"):
+            raise HTTPException(status_code=400, detail="Story is not ready for viewing")
+    else:
+        # pipeline_jobs uses "status" not "state"
+        if job.get("status") not in ("COMPLETED",):
+            raise HTTPException(status_code=400, detail="Story is not ready for viewing")
 
     # Visibility check: private stories only visible to owner
     visibility = job.get("visibility", "public")

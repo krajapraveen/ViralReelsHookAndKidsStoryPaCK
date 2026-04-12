@@ -12,65 +12,41 @@
 ---
 
 ## Core Philosophy: WATCH > MAKE YOUR VERSION > CREATE
-Creation = entering a live battle, NOT saving a file.
+
+---
+
+## P0 Bug Fix: "Unfinished Worlds" Story Not Found — DONE (Apr 12)
+
+### Root Cause:
+Feed API (`engagement.py`) queries `pipeline_jobs` for Unfinished Worlds cards, but Viewer API (`story_multiplayer.py`) only queries `story_engine_jobs`. Classic **feed/detail contract mismatch** — cards were clickable but not loadable.
+
+### Fixes:
+1. **Viewer endpoint** now checks both `story_engine_jobs` AND `pipeline_jobs` (fallback). Handles different field names (`state` vs `status`).
+2. **Engagement feed** tags `pipeline_jobs` items with `source: "pipeline"` for downstream routing.
+3. **Graceful fallback UI** — instead of toast + redirect, shows "Story not available" page with "Browse Stories" and "Go Back" buttons.
+
+### Rule enforced: **clickable = loadable**
 
 ---
 
 ## P0: Post-Launch-Branch Flow — DONE (Apr 12)
+- "Entering battle..." loading, Battle Entry Banner on pipeline, auto-redirect to Watch Page
+- Testing: iteration_504 — 12/12 (100%)
 
-### Before: User clicked "Launch Branch" → generic "Creating..." → dumped on pipeline → no competition context
-### After: Full battle entry experience
-
-**Flow implemented:**
-1. **ContinuationModal**: Button shows "Entering battle..." (not "Creating..."). Success toast: "You've entered the battle!"
-2. **Pipeline Page**: Battle Entry Banner with Swords icon, "Your version is generating... Once ready, it goes live", Leaderboard link, "Saved to MySpace" note
-3. **Branch Completion**: Shows "Your version is LIVE!" with Watch Your Version + View Leaderboard buttons (not generic "Your video is ready!")
-4. **Auto-redirect**: 3-second delay then navigates to Watch Page
-5. **Watch Page**: Battle Status Banner — "Your version is LIVE" + "Competing with N others" + Leaderboard button + "Share to climb ranks"
-6. **Tracking**: branch_created, cta_clicked with type='launch_branch'
-
-Testing: iteration_504 — 12/12 backend + all frontend (100%)
-
----
-
-## Data Integrity: Completed Means Persisted — DONE (Apr 12)
-- `should_mark_ready()` hard-fails on missing output_url
-- Repair endpoint + integrity monitoring
-- 20 false-completed → FAILED_PERSISTENCE, 1 → EXPIRED
-- healthy: true, completed: 6 (all R2)
-
-## Export Pipeline Fix — DONE (Apr 12)
-- StoryPreview import fix, admin watermark bypass, structured errors
-- Testing: iteration_503 — 8/8 (100%)
-
-## Consumption-First Viral Loop — DONE (Apr 12)
-- Watch-first CTA hierarchy, baseline tracking, Watch Page with engagement + auto-play + remix chain
-- Testing: iteration_502 — 19/19 (100%)
-
+## Data Integrity — DONE (Apr 12)
+## Export Pipeline — DONE (Apr 12)
+## Consumption-First Loop — DONE (Apr 12)
 ## Entry Conversion Engine — DONE (Apr 12)
-- Quick Shot, Personalized CTA, Pressure Timer, First-Win Boost, Streak Hook
-- Testing: iteration_501 — 18/18 (100%)
-
----
-
-## Key Files
-- `/app/frontend/src/components/ContinuationModal.jsx` — Branch entry with battle language
-- `/app/frontend/src/pages/StoryVideoPipeline.js` — Battle Entry Banner + auto-redirect
-- `/app/frontend/src/pages/StoryViewerPage.jsx` — Battle Status Banner + engagement row
-- `/app/frontend/src/pages/Dashboard.js` — Watch-first homepage
-- `/app/backend/routes/story_multiplayer.py` — Core multiplayer + quick-shot
-- `/app/backend/routes/media_routes.py` — Download + integrity
 
 ---
 
 ## Backlog
 
 ### P0 (Next)
-- Conversion Analytics Dashboard (spectator->player %, CTA performance)
+- Conversion Analytics Dashboard
 
 ### P1
-- Auto-Recovery for FAILED_PERSISTENCE jobs
-- Secondary Action Matrix, Follow Creator, Phase C Gamification
+- Auto-Recovery for FAILED_PERSISTENCE, Secondary Action Matrix, Follow Creator
 
 ### P2
 - Resend domain, personalized headlines, hover autoplay

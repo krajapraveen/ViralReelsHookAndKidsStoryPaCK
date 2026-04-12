@@ -362,6 +362,7 @@ def _shape_item(job: dict, badge: str = "NEW") -> dict:
         "badge": badge,
         "created_at": job.get("created_at", ""),
         "character_summary": _extract_char_summary(job),
+        "source": job.get("_source", "story_engine"),  # track collection origin
         # Hook A/B internals (used by ranking, stripped before response)
         "_hooks": hooks,
         "_hook_locked": hook_locked,
@@ -420,6 +421,9 @@ async def get_story_feed(user: dict = Depends(get_optional_user)):
         {"status": "COMPLETED"},
         PROJ,
     ).sort([("remix_count", -1), ("created_at", -1)]).to_list(length=40)
+    # Tag pipeline_jobs source for downstream routing
+    for pj in pj_all:
+        pj["_source"] = "pipeline"
 
     # ── Shape all items ──
     def _shape_all(jobs, badge="NEW"):

@@ -39,10 +39,13 @@ export default function StoryViewerPage() {
 
   const resolvedJobId = jobId || searchParams.get('projectId');
 
+  const [notFound, setNotFound] = useState(false);
+
   useEffect(() => {
     if (!resolvedJobId) return;
     setAutoPlayCountdown(null);
     setAutoPlayCancelled(false);
+    setNotFound(false);
     (async () => {
       try {
         const res = await api.get(`/api/stories/viewer/${resolvedJobId}`);
@@ -77,8 +80,7 @@ export default function StoryViewerPage() {
           }).catch(() => {});
         }
       } catch {
-        toast.error('Story not found');
-        navigate('/app');
+        setNotFound(true);
       } finally {
         setLoading(false);
       }
@@ -151,7 +153,37 @@ export default function StoryViewerPage() {
     );
   }
 
-  if (!job) return null;
+  if (!job && !notFound) return null;
+
+  if (notFound) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center" data-testid="story-not-found">
+        <div className="text-center max-w-sm px-6">
+          <div className="w-16 h-16 rounded-2xl bg-white/[0.04] flex items-center justify-center mx-auto mb-4">
+            <BookOpen className="w-8 h-8 text-white/20" />
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2">Story not available</h2>
+          <p className="text-sm text-white/40 mb-6">This story may have been removed or is no longer accessible.</p>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={() => navigate('/app')}
+              className="px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold transition-colors"
+              data-testid="back-to-home-btn"
+            >
+              Browse Stories
+            </button>
+            <button
+              onClick={() => navigate(-1)}
+              className="px-4 py-2.5 rounded-xl bg-white/[0.06] border border-white/10 text-white/60 text-sm font-medium hover:text-white transition-colors"
+              data-testid="go-back-btn"
+            >
+              Go Back
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const title = job.title || 'Untitled';
   const storyText = job.story_text || '';
