@@ -12,57 +12,39 @@
 ---
 
 ## Core Philosophy: WATCH > MAKE YOUR VERSION > CREATE
+Creation = entering a live battle, NOT saving a file.
 
 ---
 
-## P0 CRITICAL: Data Integrity — Completed Means Persisted — DONE (Apr 12)
+## P0: Post-Launch-Branch Flow — DONE (Apr 12)
 
-### Rule: A job is NEVER marked completed without a durable output_url.
+### Before: User clicked "Launch Branch" → generic "Creating..." → dumped on pipeline → no competition context
+### After: Full battle entry experience
 
-### What was wrong:
-- 22/27 "completed" jobs had NO output_url (videos on ephemeral storage)
-- `should_mark_ready()` allowed up to 2 errors including missing output_url → PARTIAL_READY
-- Users saw "Download" button on jobs with no downloadable file
-- "Download not available" → trust-breaking UX
+**Flow implemented:**
+1. **ContinuationModal**: Button shows "Entering battle..." (not "Creating..."). Success toast: "You've entered the battle!"
+2. **Pipeline Page**: Battle Entry Banner with Swords icon, "Your version is generating... Once ready, it goes live", Leaderboard link, "Saved to MySpace" note
+3. **Branch Completion**: Shows "Your version is LIVE!" with Watch Your Version + View Leaderboard buttons (not generic "Your video is ready!")
+4. **Auto-redirect**: 3-second delay then navigates to Watch Page
+5. **Watch Page**: Battle Status Banner — "Your version is LIVE" + "Competing with N others" + Leaderboard button + "Share to climb ranks"
+6. **Tracking**: branch_created, cta_clicked with type='launch_branch'
 
-### Fixes Applied:
-1. **`should_mark_ready()`**: Missing output_url is now a HARD FAILURE. Job cannot reach READY or PARTIAL_READY without durable URL.
-2. **Backfill repair**: `POST /api/media/admin/repair-false-completed` reclassified 20 false-completed → `FAILED_PERSISTENCE`, 1 expired local file → `EXPIRED`
-3. **Integrity monitoring**: `GET /api/media/admin/integrity-check` reports `healthy: true/false` based on zero completed-without-output rule
-4. **Download-token validation**: Checks `output_url` → `preview_url` → `fallback_video_url`. Validates local files exist on disk. Returns structured errors: 202 (processing), 410 (expired/failed), 404 (not_ready).
-5. **UI truthfulness**: StoryPreview shows "This video is no longer available" + "Regenerate Video" button for undownloadable jobs. No dead-end buttons.
-
-### After Repair:
-| Metric | Before | After |
-|--------|--------|-------|
-| healthy | false | **true** |
-| completed_total | 27 (lying) | **6** (truthful) |
-| with_r2_url | 4 | 4 |
-| without_url | 20 | **0** |
-| failed_persistence | 0 | 20 (honest) |
-
-### Pipeline States:
-```
-rendering → uploading → READY (with durable R2 output_url)
-                      → PARTIAL_READY (non-critical issues, but output exists)
-                      → FAILED (critical failures)
-                      → FAILED_PERSISTENCE (completed processing but no durable storage)
-                      → EXPIRED (local file no longer exists)
-```
+Testing: iteration_504 — 12/12 backend + all frontend (100%)
 
 ---
 
-## P0: Export Pipeline Fix — DONE (Apr 12)
-- StoryPreview import fix (ProtectedContentContainer)
-- Admin watermark bypass
-- Structured download errors
-- File existence validation
+## Data Integrity: Completed Means Persisted — DONE (Apr 12)
+- `should_mark_ready()` hard-fails on missing output_url
+- Repair endpoint + integrity monitoring
+- 20 false-completed → FAILED_PERSISTENCE, 1 → EXPIRED
+- healthy: true, completed: 6 (all R2)
+
+## Export Pipeline Fix — DONE (Apr 12)
+- StoryPreview import fix, admin watermark bypass, structured errors
 - Testing: iteration_503 — 8/8 (100%)
 
 ## Consumption-First Viral Loop — DONE (Apr 12)
-- Phase 0: 12 baseline tracking events
-- Phase 1: Watch-first CTA hierarchy everywhere
-- Phase 2: Watch Page with engagement, auto-play, remix chain
+- Watch-first CTA hierarchy, baseline tracking, Watch Page with engagement + auto-play + remix chain
 - Testing: iteration_502 — 19/19 (100%)
 
 ## Entry Conversion Engine — DONE (Apr 12)
@@ -72,20 +54,22 @@ rendering → uploading → READY (with durable R2 output_url)
 ---
 
 ## Key Files
-- `/app/backend/services/story_engine/continuity.py` — `should_mark_ready()` with output_url hard rule
-- `/app/backend/routes/media_routes.py` — Download token + repair + integrity check
-- `/app/frontend/src/pages/StoryPreview.js` — Honest download state UI
-- `/app/frontend/src/components/EntitledDownloadButton.js` — Structured error handling
-- `/app/frontend/src/components/ProtectedContent.js` — Admin watermark bypass
+- `/app/frontend/src/components/ContinuationModal.jsx` — Branch entry with battle language
+- `/app/frontend/src/pages/StoryVideoPipeline.js` — Battle Entry Banner + auto-redirect
+- `/app/frontend/src/pages/StoryViewerPage.jsx` — Battle Status Banner + engagement row
+- `/app/frontend/src/pages/Dashboard.js` — Watch-first homepage
+- `/app/backend/routes/story_multiplayer.py` — Core multiplayer + quick-shot
+- `/app/backend/routes/media_routes.py` — Download + integrity
 
 ---
 
 ## Backlog
 
 ### P0 (Next)
-- Conversion Analytics Dashboard
+- Conversion Analytics Dashboard (spectator->player %, CTA performance)
 
 ### P1
+- Auto-Recovery for FAILED_PERSISTENCE jobs
 - Secondary Action Matrix, Follow Creator, Phase C Gamification
 
 ### P2
