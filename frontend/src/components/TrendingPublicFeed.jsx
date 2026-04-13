@@ -48,6 +48,17 @@ export default function TrendingPublicFeed() {
 
 function TrendingCard({ story, index, navigate }) {
   const isHot = (story.total_children || 0) >= 3 || (story.battle_score || 0) > 50;
+  const competitors = story.total_children || 0;
+  const views = story.total_views || 0;
+
+  // Generate curiosity hook based on story context
+  const hookText = isHot && competitors >= 3
+    ? `${competitors} people competing for #1`
+    : competitors >= 2
+    ? 'Battle in progress'
+    : views > 20
+    ? 'Trending now'
+    : null;
 
   return (
     <button
@@ -62,13 +73,34 @@ function TrendingCard({ story, index, navigate }) {
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-violet-600/20 to-rose-600/20" />
         )}
+
+        {/* Hook text overlay — first thing viewer sees */}
+        {hookText && (
+          <div className="absolute top-0 left-0 right-0 z-10 p-2" data-testid="card-hook-overlay">
+            <span className="text-[10px] font-bold text-white bg-black/50 backdrop-blur-sm rounded px-2 py-1 inline-block">
+              {hookText}
+            </span>
+          </div>
+        )}
+
         {/* Hot badge */}
-        {isHot && (
+        {isHot && !hookText && (
           <div className="absolute top-2 left-2 flex items-center gap-1 bg-rose-500/80 backdrop-blur rounded-full px-2 py-0.5">
             <Flame className="w-2.5 h-2.5 text-white" />
             <span className="text-[9px] font-bold text-white">HOT</span>
           </div>
         )}
+
+        {/* Live indicator for active battles */}
+        {competitors > 0 && (
+          <div className="absolute bottom-2 left-2 flex items-center gap-1 z-10">
+            <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+            <span className="text-[9px] font-semibold text-white/80 bg-black/40 backdrop-blur-sm rounded-full px-1.5 py-0.5">
+              LIVE
+            </span>
+          </div>
+        )}
+
         {/* Play overlay */}
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
           <div className="w-8 h-8 rounded-full bg-white/15 backdrop-blur flex items-center justify-center">

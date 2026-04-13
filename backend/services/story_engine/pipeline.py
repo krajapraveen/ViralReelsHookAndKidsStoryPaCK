@@ -656,6 +656,15 @@ async def _finalize_job(job_id: str) -> Dict:
 
     logger.info(f"[PIPELINE] Job {job_id[:8]} finalized: {final_state}")
 
+    # ═══ RANK NOTIFICATIONS: Check rank changes when a new entry completes ═══
+    if target in SUCCESS_STATES and job.get("continuation_type") == "branch" and job.get("parent_job_id"):
+        try:
+            from routes.story_multiplayer import check_and_send_rank_notifications, refresh_battle_score
+            await refresh_battle_score(job_id)
+            await check_and_send_rank_notifications(job_id, job["parent_job_id"])
+        except Exception as rank_err:
+            logger.warning(f"[PIPELINE] Rank notification check failed: {rank_err}")
+
     # ═══ QUEUE DRAIN: If this user has queued jobs, start the next one ═══
     try:
         user_id = job.get("user_id")

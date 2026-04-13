@@ -1135,6 +1135,22 @@ async def get_story_for_viewer(story_id: str, current_user: dict = Depends(get_o
         if user:
             creator_name = user.get("name") or user.get("email", "").split("@")[0]
 
+    # Compute battle rank for this entry if it's a branch
+    battle_rank = None
+    if job.get("continuation_type") == "branch" and job.get("parent_job_id"):
+        siblings = await db.story_engine_jobs.find(
+            {
+                "parent_job_id": job["parent_job_id"],
+                "continuation_type": "branch",
+                "state": {"$in": ["READY", "PARTIAL_READY", "COMPLETED"]},
+            },
+            {"_id": 0, "job_id": 1, "battle_score": 1}
+        ).sort("battle_score", -1).to_list(50)
+        for rank_i, sib in enumerate(siblings):
+            if sib.get("job_id") == job.get("job_id"):
+                battle_rank = rank_i + 1
+                break
+
     return {
         "success": True,
         "job": {
@@ -1157,6 +1173,7 @@ async def get_story_for_viewer(story_id: str, current_user: dict = Depends(get_o
             "total_views": job.get("total_views", 0),
             "total_shares": job.get("total_shares", 0),
             "battle_score": job.get("battle_score", 0.0),
+            "battle_rank": battle_rank,
             "creator_name": creator_name,
             "created_at": job.get("created_at"),
             "visibility": job.get("visibility", "public"),
@@ -1248,9 +1265,11 @@ async def backfill_visibility(current_user: dict = Depends(get_current_user)):
 
 async def check_and_send_rank_notifications(job_id: str, parent_job_id: str):
     """
-    After a score refresh, check if any rank changes occurred and notify affected users.
-    Triggers: rank_drop (you lost #1), version_outperformed (competitor passed you).
-    Deep-links to Story Battle screen.
+    After a score refresh, check ALL rank changes and push-notify every affected user.
+    Compares current rankings against cached ranks per-user. Fires:
+      - rank_drop push + in-app notification for EVERY user who dropped
+      - near_win push for #2 if gap is small
+    Rate-limited: max 1 rank_drop per user per battle per 2 hours.
     """
     if not parent_job_id:
         return
@@ -1268,7 +1287,8 @@ async def check_and_send_rank_notifications(job_id: str, parent_job_id: str):
     # Also include parent
     parent = await db.story_engine_jobs.find_one(
         {"job_id": parent_job_id},
-        {"_id": 0, "job_id": 1, "user_id": 1, "title": 1, "battle_score": 1}
+        {"_id": 0, "job_id": 1, "user_id": 1, "title": 1, "battle_score": 1,
+         "total_children": 1}
     )
     if parent:
         all_contenders = [parent] + contenders
@@ -1280,101 +1300,79 @@ async def check_and_send_rank_notifications(job_id: str, parent_job_id: str):
     if len(all_contenders) < 2:
         return
 
-    # The new #1
-    current_leader = all_contenders[0]
-    current_leader_id = current_leader.get("user_id")
+    now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
+    cooldown_cutoff = (now - timedelta(hours=2)).isoformat()
+    parent_title = parent.get("title", "your story") if parent else "your story"
 
-    # Check previous leader (stored in a simple cache on the parent)
-    prev_leader_id = None
-    if parent:
-        prev_leader_id = parent.get("_prev_battle_leader")
+    # Build current rank map: user_id -> new_rank
+    # (use best entry per user)
+    user_best_rank = {}
+    for i, c in enumerate(all_contenders):
+        uid = c.get("user_id")
+        if uid and uid not in user_best_rank:
+            user_best_rank[uid] = i + 1
 
-    # If leader changed, notify the old leader
-    if prev_leader_id and prev_leader_id != current_leader_id:
-        now = datetime.now(timezone.utc).isoformat()
-        new_leader_title = current_leader.get("title", "A competing version")
-
-        # Throttle: max 1 rank_drop notification per user per 6 hours
-        recent = await db.notifications.find_one({
-            "user_id": prev_leader_id,
-            "type": "rank_drop",
-            "data.parent_job_id": parent_job_id,
-            "created_at": {"$gte": (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat()},
-        })
-        if not recent:
-            await db.notifications.insert_one({
-                "user_id": prev_leader_id,
-                "type": "rank_drop",
-                "title": "You just lost #1 spot on your story",
-                "message": f"\"{new_leader_title}\" overtook you. Take it back now.",
-                "data": {
-                    "parent_job_id": parent_job_id,
-                    "new_leader_job_id": current_leader.get("job_id"),
-                    "deep_link": f"/app/story-battle/{parent_job_id}",
-                },
-                "read": False,
-                "created_at": now,
-            })
-            logger.info(f"[BATTLE-NOTIFY] rank_drop sent to {prev_leader_id[:12]} for battle {parent_job_id[:12]}")
-
-            # Fire push notification
-            try:
-                from routes.push_notifications import trigger_rank_drop_push
-                parent_title = parent.get("title", "your story") if parent else "your story"
-                await trigger_rank_drop_push(prev_leader_id, parent_title, parent_job_id, 0)
-            except Exception as push_err:
-                logger.warning(f"[PUSH] rank_drop push failed: {push_err}")
-
-    # Update stored leader
-    if parent:
-        await db.story_engine_jobs.update_one(
-            {"job_id": parent_job_id},
-            {"$set": {"_prev_battle_leader": current_leader_id}}
-        )
-
-    # Notify all non-leaders that a new version outperformed them (once per branch)
-    triggering_job = await db.story_engine_jobs.find_one(
-        {"job_id": job_id},
-        {"_id": 0, "user_id": 1, "title": 1}
+    # Load previous rank snapshot for this battle
+    prev_snapshot = await db.battle_rank_snapshot.find_one(
+        {"parent_job_id": parent_job_id},
+        {"_id": 0, "ranks": 1}
     )
-    if triggering_job:
-        triggering_user = triggering_job.get("user_id")
-        for c in all_contenders[1:]:  # Skip #1
-            cuid = c.get("user_id")
-            if cuid and cuid != triggering_user:
-                # Check recent notification to prevent spam
-                recent_outperform = await db.notifications.find_one({
-                    "user_id": cuid,
-                    "type": "version_outperformed",
-                    "data.parent_job_id": parent_job_id,
-                    "created_at": {"$gte": (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()},
-                })
-                if not recent_outperform:
-                    now = datetime.now(timezone.utc).isoformat()
-                    await db.notifications.insert_one({
-                        "user_id": cuid,
-                        "type": "version_outperformed",
-                        "title": "Your story version is falling behind",
-                        "message": "Other versions are gaining more traction. Create a better version to compete.",
-                        "data": {
-                            "parent_job_id": parent_job_id,
-                            "deep_link": f"/app/story-battle/{parent_job_id}",
-                        },
-                        "read": False,
-                        "created_at": now,
-                    })
+    prev_ranks = prev_snapshot.get("ranks", {}) if prev_snapshot else {}
 
-    # Near-win push: check if #2 contender is within gap ≤ 2 continues of #1
+    # Detect drops and send push for EVERY user who dropped rank
+    from routes.push_notifications import trigger_rank_drop_push, trigger_near_win_push
+
+    for uid, new_rank in user_best_rank.items():
+        old_rank = prev_ranks.get(uid)
+        if old_rank is not None and new_rank > old_rank:
+            # This user DROPPED — fire loss pain push + in-app notification
+            # Throttle: 1 per battle per 2 hours
+            recent = await db.notifications.find_one({
+                "user_id": uid,
+                "type": "rank_drop",
+                "data.parent_job_id": parent_job_id,
+                "created_at": {"$gte": cooldown_cutoff},
+            })
+            if not recent:
+                await db.notifications.insert_one({
+                    "user_id": uid,
+                    "type": "rank_drop",
+                    "title": f"You dropped to #{new_rank}",
+                    "message": f"Someone just beat your entry on \"{parent_title}\". Come back now and take your spot.",
+                    "data": {
+                        "parent_job_id": parent_job_id,
+                        "old_rank": old_rank,
+                        "new_rank": new_rank,
+                        "deep_link": f"/app/story-battle/{parent_job_id}",
+                    },
+                    "read": False,
+                    "created_at": now_iso,
+                })
+                logger.info(f"[BATTLE-NOTIFY] rank_drop #{old_rank}->{new_rank} push to {uid[:12]} for battle {parent_job_id[:12]}")
+
+                # Fire Web Push
+                try:
+                    await trigger_rank_drop_push(uid, parent_title, parent_job_id, new_rank)
+                except Exception as push_err:
+                    logger.warning(f"[PUSH] rank_drop push failed for {uid[:12]}: {push_err}")
+
+    # Save current rank snapshot for next comparison
+    await db.battle_rank_snapshot.update_one(
+        {"parent_job_id": parent_job_id},
+        {"$set": {"parent_job_id": parent_job_id, "ranks": user_best_rank, "updated_at": now_iso}},
+        upsert=True,
+    )
+
+    # Near-win push: #2 within gap <= 2 continues of #1
     if len(all_contenders) >= 2:
         top = all_contenders[0]
         runner_up = all_contenders[1]
         top_continues = top.get("total_children", 0)
         runner_continues = runner_up.get("total_children", 0)
         gap = top_continues - runner_continues
-        if 0 < gap <= 2:
+        if 0 < gap <= 2 and runner_up.get("user_id"):
             try:
-                from routes.push_notifications import trigger_near_win_push
-                parent_title = parent.get("title", "") if parent else ""
                 await trigger_near_win_push(
                     runner_up.get("user_id"), parent_title, parent_job_id, gap
                 )

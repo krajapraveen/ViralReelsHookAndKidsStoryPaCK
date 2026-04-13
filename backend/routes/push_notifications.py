@@ -159,9 +159,10 @@ async def send_push_to_user(user_id: str, trigger: str, title: str, body: str, d
 
 
 async def trigger_rank_drop_push(user_id: str, story_title: str, battle_parent_id: str, new_rank: int):
+    rank_text = f"#{new_rank}" if new_rank > 0 else "your spot"
     await send_push_to_user(user_id, "rank_drop",
-        f"You just lost #1 on \"{story_title}\"",
-        "Someone beat your version. Take it back now.",
+        f"You dropped to {rank_text}",
+        f"Someone just beat your entry on \"{story_title}\". Come back now and take your spot.",
         f"/app/story-battle/{battle_parent_id}")
 
 
@@ -191,5 +192,6 @@ async def create_push_indexes():
         await db.push_subscriptions.create_index([("user_id", 1), ("active", 1)])
         await db.push_subscriptions.create_index([("user_id", 1), ("endpoint", 1)], unique=True)
         await db.push_log.create_index([("user_id", 1), ("sent_at", -1)])
+        await db.battle_rank_snapshot.create_index([("parent_job_id", 1)], unique=True)
     except Exception as e:
         logger.warning(f"[PUSH] Index creation failed: {e}")

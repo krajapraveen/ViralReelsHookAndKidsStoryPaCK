@@ -24,6 +24,9 @@ export default function StoryCardMedia({
   alt,
   className = "",
   onClick,
+  hookText,
+  competitorCount,
+  viewCount,
 }) {
   const blurSrc = useMemo(() => getBlurSrc(media?.thumb_blur), [media?.thumb_blur]);
   const primarySrc = resolveMediaUrl(media?.thumbnail_small_url);
@@ -227,6 +230,31 @@ export default function StoryCardMedia({
 
       {/* Overlay */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent" />
+
+      {/* ═══ HOOK TEXT OVERLAY — creates first-second curiosity ═══ */}
+      {hookText && (
+        <div className="absolute top-2 left-2 right-2 z-10 pointer-events-none" data-testid="hook-text-overlay">
+          <p className="text-[11px] font-bold text-white/90 bg-black/50 backdrop-blur-sm rounded-lg px-2.5 py-1.5 inline-block leading-tight drop-shadow-lg">
+            {hookText}
+          </p>
+        </div>
+      )}
+
+      {/* ═══ COMPETITIVE SIGNALS — views + competitors on card ═══ */}
+      {(competitorCount > 0 || viewCount > 0) && (
+        <div className="absolute top-2 right-2 z-10 flex items-center gap-1.5 pointer-events-none" data-testid="card-social-proof">
+          {viewCount > 0 && (
+            <span className="text-[10px] font-semibold text-white/70 bg-black/40 backdrop-blur-sm rounded-full px-2 py-0.5">
+              {viewCount > 1000 ? `${(viewCount / 1000).toFixed(1)}K` : viewCount} views
+            </span>
+          )}
+          {competitorCount > 0 && (
+            <span className="text-[10px] font-bold text-amber-300/90 bg-black/40 backdrop-blur-sm rounded-full px-2 py-0.5">
+              {competitorCount} competing
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Content slot */}
       <div className="absolute inset-x-0 bottom-0 z-10 p-3 sm:p-4 pointer-events-none">

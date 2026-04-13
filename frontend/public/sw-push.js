@@ -1,4 +1,4 @@
-/* Service Worker for Push Notifications — Visionary Suite */
+/* Service Worker for Push Notifications — Story Battle Engine */
 
 self.addEventListener('push', function(event) {
   if (!event.data) return;
@@ -7,21 +7,29 @@ self.addEventListener('push', function(event) {
   try {
     payload = event.data.json();
   } catch (e) {
-    payload = { title: 'Visionary Suite', body: event.data.text() };
+    payload = { title: 'Story Battle', body: event.data.text() };
   }
 
-  const title = payload.title || 'Visionary Suite';
+  const trigger = payload.data?.trigger || 'default';
+  const title = payload.title || 'Story Battle';
+
+  // Urgency-driven notification options per trigger type
   const options = {
     body: payload.body || '',
     icon: '/favicon.ico',
     badge: '/favicon.ico',
-    tag: payload.tag || 'default',
+    tag: payload.tag || trigger,
     renotify: true,
+    requireInteraction: trigger === 'rank_drop', // rank_drop stays until tapped
     data: payload.data || {},
-    actions: [
-      { action: 'open', title: 'Open' },
-    ],
-    vibrate: [200, 100, 200],
+    vibrate: trigger === 'rank_drop'
+      ? [200, 100, 200, 100, 300] // aggressive pattern for rank drop
+      : [200, 100, 200],
+    actions: trigger === 'rank_drop'
+      ? [{ action: 'open', title: 'Take it back' }]
+      : trigger === 'near_win'
+      ? [{ action: 'open', title: 'Claim #1' }]
+      : [{ action: 'open', title: 'Open' }],
   };
 
   event.waitUntil(
@@ -37,14 +45,12 @@ self.addEventListener('notificationclick', function(event) {
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
-      // Focus existing window if open
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
           client.navigate(url);
           return client.focus();
         }
       }
-      // Open new window
       return clients.openWindow(url);
     })
   );

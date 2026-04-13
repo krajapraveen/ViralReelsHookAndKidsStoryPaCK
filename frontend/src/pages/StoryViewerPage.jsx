@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, ArrowRight, Loader2, Play, Pause, GitBranch, Share2, BookOpen,
   ChevronRight, Swords, Eye, Volume2, VolumeX, Heart, Bookmark,
-  RefreshCw, X
+  RefreshCw, X, Crown
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { SafeImage } from '../components/SafeImage';
@@ -12,6 +12,7 @@ import api from '../utils/api';
 import { trackFunnel } from '../utils/funnelTracker';
 import ContinuationModal from '../components/ContinuationModal';
 import BattlePulse from '../components/BattlePulse';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 
 /**
  * StoryViewerPage — Consumption-first story experience.
@@ -37,6 +38,8 @@ export default function StoryViewerPage() {
   const [autoPlayCancelled, setAutoPlayCancelled] = useState(false);
   const videoRef = useRef(null);
   const autoPlayTimer = useRef(null);
+  const { permission, subscribed, requestPermission, isSupported } = usePushNotifications();
+  const pushAutoPrompted = useRef(false);
 
   const resolvedJobId = jobId || searchParams.get('projectId');
 
@@ -87,6 +90,20 @@ export default function StoryViewerPage() {
       }
     })();
   }, [resolvedJobId, navigate]);
+
+  // Auto-subscribe to push notifications if user is in a battle
+  useEffect(() => {
+    if (
+      job?.continuation_type === 'branch' &&
+      isSupported &&
+      permission === 'granted' &&
+      !subscribed &&
+      !pushAutoPrompted.current
+    ) {
+      pushAutoPrompted.current = true;
+      requestPermission();
+    }
+  }, [job?.continuation_type, isSupported, permission, subscribed, requestPermission]);
 
   const togglePlay = () => {
     if (!videoRef.current) return;
@@ -435,20 +452,40 @@ export default function StoryViewerPage() {
             </button>
           </div>
 
-          {/* ═══ VIRAL SHARE PROMPT — ego + visibility, not mechanics ═══ */}
+          {/* ═══ VIRAL SHARE PROMPT — aggressive when winning, ego-driven ═══ */}
           {continuationType === 'branch' && (
             <button
               onClick={handleShare}
-              className="w-full bg-gradient-to-r from-amber-500/10 to-rose-500/10 border border-amber-500/15 rounded-xl p-3.5 text-left hover:from-amber-500/15 hover:to-rose-500/15 transition-all"
+              className={`w-full rounded-xl p-4 text-left transition-all ${
+                (job.battle_rank === 1 || job.battle_rank === '1')
+                  ? 'bg-amber-500/20 border-2 border-amber-500/40 hover:bg-amber-500/25'
+                  : 'bg-gradient-to-r from-amber-500/10 to-rose-500/10 border border-amber-500/15 hover:from-amber-500/15 hover:to-rose-500/15'
+              }`}
               data-testid="viral-share-prompt"
             >
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-amber-500/20 flex items-center justify-center flex-shrink-0">
-                  <Share2 className="w-4 h-4 text-amber-400" />
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                  (job.battle_rank === 1 || job.battle_rank === '1')
+                    ? 'bg-amber-500/30'
+                    : 'bg-amber-500/20'
+                }`}>
+                  {(job.battle_rank === 1 || job.battle_rank === '1')
+                    ? <Crown className="w-5 h-5 text-amber-400" />
+                    : <Share2 className="w-4 h-4 text-amber-400" />
+                  }
                 </div>
                 <div className="flex-1">
-                  <p className="text-xs font-bold text-amber-300">This could go viral</p>
-                  <p className="text-[10px] text-white/35">If your entry wins, we push it to everyone. Share now to boost your chances.</p>
+                  {(job.battle_rank === 1 || job.battle_rank === '1') ? (
+                    <>
+                      <p className="text-sm font-black text-amber-300">You're #1 — Share to lock it</p>
+                      <p className="text-[10px] text-white/50">This is getting pushed to more users. Share now to stay on top.</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-xs font-bold text-amber-300">This could go viral</p>
+                      <p className="text-[10px] text-white/35">If your entry wins, we push it to everyone. Share now to boost your chances.</p>
+                    </>
+                  )}
                 </div>
                 <ArrowRight className="w-4 h-4 text-amber-400/40 flex-shrink-0" />
               </div>
