@@ -79,9 +79,9 @@ export default function StoryCardMedia({
     return () => obs.disconnect();
   }, [canShowPreview, enablePreviewOnVisible, jobId]);
 
-  // ── Mobile: IntersectionObserver autoplay with debounce ──
+  // ── Auto-play on visible: both desktop AND mobile ──
   useEffect(() => {
-    if (!isMobile || !canShowPreview || !enablePreviewOnVisible || !posterReady) return;
+    if (!canShowPreview || !enablePreviewOnVisible || !posterReady) return;
     const el = containerRef.current;
     if (!el) return;
 

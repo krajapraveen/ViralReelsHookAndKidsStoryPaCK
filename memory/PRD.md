@@ -15,38 +15,52 @@
 
 ---
 
-## Quick Shot Blank Screen Fix — DONE (Apr 13)
+## Instant Dopamine + Auto-Play + Competitive Copy — DONE (Apr 13)
 
-### Root cause: Wrong route. All post-creation redirects used `/app/story-video-pipeline` but the actual route is `/app/story-video-studio`.
-- Fixed in 7 files: HottestBattle, CompetitionPulse, StoryViewerPage, StoryBattlePage, StoryChainTimeline, StoryVideoPipeline (self-references)
-- Quick Shot now shows: "Queued for rendering" → progress stages → "What's happening now" → explore links
-- Added IDLE/GENERATING fallback: "Creating your battle entry..." message with spinner for jobs without preview assets yet
+### Quick Shot Instant Feedback:
+- Success overlay: "You're in the battle! Entry accepted" with emerald Zap icon
+- Shows instantly (0s), auto-navigates to pipeline after 1.5s
+- Pipeline page shows generating state: "Creating your battle entry..." (not blank)
+- Streak hook fires inline in overlay
 
-### UX Clarity Fix:
-- Every battle row now has instruction text explaining what to do
-- "Compete or watch others win. Top entry gets visibility."
-- "#1 — Leading" label on top contender
-- Quick Shot: "We generate a competitive version for you. No thinking. No typing."
-- View Your Battle: "See your ranking, views, and competitors"
+### Auto-Play on ALL Cards (86% click drop fix):
+- `enablePreviewOnVisible={true}` for EVERY card (not just priority)
+- Desktop + mobile auto-play on scroll-into-view (removed mobile-only restriction)
+- IntersectionObserver threshold 0.6 + debounce
+
+### Competitive Copy Upgrade:
+- Header: "Compete or watch others win. Top entry gets visibility."
+- #1 label: "— Leading"
+- Near-win: "Only X pts between #1 and #2 — easy win"
+- Pressure: "Rankings can change anytime. One good entry = you take #1"
+- Quick Shot: "Enter Instantly. We generate a competitive version. No thinking. No typing."
+- CTA: "Beat #1 — Easy Win" / "Enter Your First Battle" / "Track Your Ranking"
+- View Battle: "See if you're winning or losing"
+
+### Stronger Hook Bank:
+- "She opened the door... and saw herself inside."
+- "This message appeared at 2:13 AM — then his phone died."
+- "He pressed play... and the video showed tomorrow."
 
 ---
 
 ## All Systems (Apr 12-13)
 - Queue System, Data Integrity, Export Pipeline
 - Consumption-First Loop, Entry Conversion Engine
-- Post-Launch-Branch, Analytics Dashboard
-- Funnel Integrity, "Enter Battle" CTA
+- Post-Launch-Branch, Analytics Dashboard, Funnel Integrity
+- "Enter Battle" CTA, Quick Shot blank screen fix, UX clarity
 
 ---
 
 ## Backlog
 
-### P0 (Data-driven)
-- Attack 86% impression→click drop: auto-play preview
-- Monitor Enter Battle CTR vs old 0%
+### P0 (Data-driven — wait 48h)
+- Measure: click rate improvement from auto-play
+- Measure: Enter Battle CTR vs old 0%
+- Measure: Quick Shot retention
 
 ### P1
 - Auto-Recovery FAILED_PERSISTENCE, Secondary Action Matrix
 
 ### P2
-- Resend domain, hover autoplay
+- Resend domain, personalized headlines

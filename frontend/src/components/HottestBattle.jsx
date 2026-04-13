@@ -28,6 +28,7 @@ export default function HottestBattle() {
   const [showPressure, setShowPressure] = useState(false);
   const [pressureDismissed, setPressureDismissed] = useState(false);
   const [streakJustStarted, setStreakJustStarted] = useState(false);
+  const [quickShotSuccess, setQuickShotSuccess] = useState(null); // instant dopamine overlay
   const componentRef = useRef(null);
   const isVisible = useRef(false);
   const entryTracked = useRef(false);
@@ -133,30 +134,20 @@ export default function HottestBattle() {
       });
 
       if (res.data?.success) {
-        // Check for streak hook
-        if (res.data.streak_started) {
-          setStreakJustStarted(true);
-          toast.success('Streak Started! Come back tomorrow to keep it alive.', {
-            duration: 5000,
-          });
-        } else if (res.data.current_streak > 1) {
-          toast.success(`${res.data.current_streak}-day streak! Version generating...`, {
-            duration: 3000,
-          });
-        } else if (res.data.queued) {
-          toast.success('You\'re in! Queued for rendering — we\'ll start as soon as a slot opens.', {
-            duration: 4000,
-          });
-        } else {
-          toast.success('Quick Shot fired! Your version is generating...', {
-            duration: 3000,
-          });
-        }
+        // INSTANT DOPAMINE: show success overlay before navigating
+        setQuickShotSuccess({
+          jobId: res.data.job_id,
+          queued: res.data.queued,
+          streak: res.data.current_streak || 0,
+          streakStarted: res.data.streak_started,
+        });
 
-        // Navigate to pipeline
-        if (res.data.job_id) {
-          navigate(`/app/story-video-studio?projectId=${res.data.job_id}`);
-        }
+        // Auto-navigate after 1.5s of dopamine hit
+        setTimeout(() => {
+          if (res.data.job_id) {
+            navigate(`/app/story-video-studio?projectId=${res.data.job_id}`);
+          }
+        }, 1500);
       }
     } catch (err) {
       const detail = err.response?.data?.detail || 'Quick Shot failed. Try again.';
@@ -190,29 +181,54 @@ export default function HottestBattle() {
     user_is_new, user_entry_count, user_already_in_battle,
   } = battle;
 
-  // Build personalized CTA text
-  let ctaText = 'Jump Into Battle';
+  // Build personalized CTA text — competitive, not informational
+  let ctaText = 'Enter Battle';
   let ctaSubtext = null;
 
   if (user_already_in_battle) {
-    ctaText = 'View Your Battle';
-    ctaSubtext = null;
+    ctaText = 'Track Your Ranking';
+    ctaSubtext = 'See if you\'re winning or losing';
   } else if (gap_continues_to_first !== undefined && gap_continues_to_first <= 3 && contenders?.length >= 2) {
-    ctaText = 'You can beat #1';
+    ctaText = 'Beat #1 — Easy Win';
     ctaSubtext = gap_continues_to_first > 0
-      ? `Only ${gap_continues_to_first} continue${gap_continues_to_first > 1 ? 's' : ''} ahead`
-      : 'It\'s a dead heat';
+      ? `Only ${gap_continues_to_first} continue${gap_continues_to_first > 1 ? 's' : ''} ahead — take the spotlight`
+      : 'Dead heat — one entry decides it';
   } else if (user_is_new) {
-    ctaText = 'Try your first battle';
+    ctaText = 'Enter Your First Battle';
     ctaSubtext = 'New creators get a head start';
   } else if (near_win) {
-    ctaText = 'Race is wide open';
-    ctaSubtext = `Gap to #1: only ${gap_to_first} pts`;
+    ctaText = 'Race Wide Open';
+    ctaSubtext = `Only ${gap_to_first} pts gap — one entry changes everything`;
   }
 
   return (
     <div ref={componentRef} className="px-4 sm:px-6 lg:px-10 py-2" data-testid="hottest-battle">
-      <div className="rounded-2xl border border-rose-500/20 bg-gradient-to-br from-rose-500/[0.06] to-amber-500/[0.03] overflow-hidden">
+      <div className="rounded-2xl border border-rose-500/20 bg-gradient-to-br from-rose-500/[0.06] to-amber-500/[0.03] overflow-hidden relative">
+
+        {/* ═══ INSTANT DOPAMINE OVERLAY — shows immediately after Quick Shot ═══ */}
+        {quickShotSuccess && (
+          <div className="absolute inset-0 z-20 bg-slate-950/95 backdrop-blur-md flex items-center justify-center animate-in fade-in zoom-in-95 duration-300" data-testid="quick-shot-success-overlay">
+            <div className="text-center px-6">
+              <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 flex items-center justify-center mx-auto mb-4 animate-in zoom-in duration-500">
+                <Zap className="w-8 h-8 text-emerald-400" />
+              </div>
+              <h3 className="text-xl font-black text-white mb-1">You're in the battle!</h3>
+              <p className="text-sm text-emerald-400 font-semibold mb-1">Entry accepted</p>
+              <p className="text-xs text-white/40">
+                {quickShotSuccess.queued
+                  ? 'Queued — rendering starts soon'
+                  : 'Generating your version now...'
+                }
+              </p>
+              {quickShotSuccess.streakStarted && (
+                <p className="text-xs text-orange-400 font-semibold mt-2">Streak started! Come back tomorrow.</p>
+              )}
+              {quickShotSuccess.streak > 1 && (
+                <p className="text-xs text-orange-400 mt-2">{quickShotSuccess.streak}-day streak!</p>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Header */}
         <div className="px-5 pt-5 pb-3">
@@ -287,13 +303,13 @@ export default function HottestBattle() {
           })}
         </div>
 
-        {/* Near-win highlight */}
+        {/* Near-win highlight — urgency */}
         {near_win && contenders.length >= 2 && (
           <div className="mx-5 mb-3 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2.5 text-center"
             data-testid="near-win-highlight">
             <p className="text-xs text-amber-300 font-semibold">
               <Zap className="w-3 h-3 inline mr-1" />
-              #{2} is only <span className="font-black">{gap_to_first} pts</span> from #1
+              Only <span className="font-black">{gap_to_first} pts</span> between #1 and #2 — easy win
             </p>
           </div>
         )}
@@ -308,8 +324,8 @@ export default function HottestBattle() {
               <div className="flex items-center gap-2 min-w-0">
                 <Flame className="w-4 h-4 text-rose-400 flex-shrink-0 animate-pulse" />
                 <div>
-                  <p className="text-xs font-bold text-rose-300">Battle is heating up</p>
-                  <p className="text-[10px] text-white/40">Don't miss your chance</p>
+                  <p className="text-xs font-bold text-rose-300">Rankings can change anytime</p>
+                  <p className="text-[10px] text-white/40">One good entry = you take #1</p>
                 </div>
               </div>
               <button

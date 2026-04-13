@@ -355,7 +355,7 @@ function StoryCard({ story, idx, navigate, priority = false }) {
         jobId={story.job_id}
         eager={priority}
         enablePreviewOnHover={true}
-        enablePreviewOnVisible={priority}
+        enablePreviewOnVisible={true}
         fallbackImageUrl={cardFallback}
         className="absolute inset-0 w-full h-full rounded-none"
       />
