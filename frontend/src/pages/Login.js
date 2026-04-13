@@ -9,7 +9,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import analytics from '../utils/analytics';
 import { useRecaptcha } from '../hooks/useRecaptcha';
 import { linkSessionToUser } from '../utils/growthAnalytics';
-import { GoogleLogin } from '@react-oauth/google';
 
 export default function Login({ setAuth }) {
   const [email, setEmail] = useState('');
@@ -24,7 +23,6 @@ export default function Login({ setAuth }) {
   const [errors, setErrors] = useState({ email: '', password: '' });
   const [loginError, setLoginError] = useState('');
   const [failedAttempts, setFailedAttempts] = useState(0);
-  const [googleLoading, setGoogleLoading] = useState(false);
   const forgotEmailInputRef = useRef(null);
   const forgotPasswordLinkRef = useRef(null);
   const navigate = useNavigate();
@@ -258,41 +256,6 @@ export default function Login({ setAuth }) {
     setShowForgotPassword(open);
   };
 
-  const handleGoogleSuccess = async (credentialResponse) => {
-    setGoogleLoading(true);
-    try {
-      const response = await api.post('/api/auth/google-signin', {
-        credential: credentialResponse.credential,
-      });
-      const { token, user } = response.data;
-      if (!token) {
-        throw new Error('No token in response');
-      }
-      localStorage.setItem('token', token);
-      if (user) {
-        localStorage.setItem('user', JSON.stringify(user));
-        localStorage.setItem('user_id', user.id || '');
-        analytics.trackLogin('google_direct');
-        analytics.setUserId(user.id);
-        linkSessionToUser(user.id);
-      }
-      setAuth(true);
-      // Priority: 1) URL ?return= param (from 401 redirect), 2) localStorage remix_return_url, 3) /app
-      const returnParam = searchParams.get('return');
-      const returnUrl = returnParam || localStorage.getItem('remix_return_url');
-      if (returnUrl) {
-        localStorage.removeItem('remix_return_url');
-        window.location.href = returnUrl;
-      } else {
-        window.location.href = '/app';
-      }
-    } catch (error) {
-      const msg = error?.response?.data?.detail || 'Google sign-in failed. Please try again.';
-      toast.error(msg);
-      setGoogleLoading(false);
-    }
-  };
-
   // Check if email is valid for enabling submit button
   const isForgotEmailValid = forgotEmail.trim() && isValidEmail(forgotEmail.trim());
 
@@ -308,16 +271,6 @@ export default function Login({ setAuth }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 flex items-center justify-center p-4">
-      {/* Loading overlay for Google sign-in */}
-      {googleLoading && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm">
-          <div className="text-center">
-            <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mx-auto mb-3" />
-            <p className="text-white text-sm">Signing you in...</p>
-          </div>
-        </div>
-      )}
-
       <div className="w-full max-w-md">
         <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-8 shadow-2xl">
           <div className="text-center mb-8">
@@ -457,15 +410,24 @@ export default function Login({ setAuth }) {
             </div>
 
             <div className="w-full mt-4 flex justify-center" data-testid="google-signin-btn">
-              <GoogleLogin
-                onSuccess={handleGoogleSuccess}
-                onError={() => toast.error('Google sign-in was cancelled or failed.')}
-                theme="filled_black"
-                size="large"
-                width={380}
-                text="signin_with"
-                shape="pill"
-              />
+              {/* REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH */}
+              <button
+                type="button"
+                onClick={() => {
+                  const redirectUrl = window.location.origin + '/auth/callback';
+                  window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
+                }}
+                className="w-full max-w-[380px] h-11 rounded-full border border-slate-600 bg-slate-800 hover:bg-slate-700 transition-colors flex items-center justify-center gap-3 text-sm font-medium text-white"
+                data-testid="google-signin-redirect-btn"
+              >
+                <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
+                  <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/>
+                  <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+                  <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 6.29C4.672 4.163 6.656 2.58 9 2.58z" fill="#EA4335"/>
+                </svg>
+                Sign in with Google
+              </button>
             </div>
           </div>
 

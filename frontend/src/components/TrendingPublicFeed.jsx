@@ -160,7 +160,15 @@ function TrendingCard({ story, index, navigate }) {
             className="w-full h-full object-cover kenburns-auto group-hover:animation-none"
           />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-violet-600/20 to-rose-600/20" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="absolute inset-0 bg-gradient-to-br from-violet-900/60 via-slate-800 to-rose-900/40" />
+            <div className="relative z-[2] text-center px-3">
+              <p className="text-white/80 font-bold text-sm line-clamp-2">{story.title || 'Untitled'}</p>
+              {story.animation_style && (
+                <p className="text-white/40 text-[10px] mt-1 uppercase tracking-wider">{story.animation_style.replace(/_/g, ' ')}</p>
+              )}
+            </div>
+          </div>
         )}
 
         {/* Hook text overlay — first thing viewer sees */}
