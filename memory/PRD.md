@@ -15,33 +15,33 @@
 
 ---
 
-## Psychology Layer — DONE (Apr 13)
+## Psychology Layer v2 — Continuous Tension — DONE (Apr 13)
 
-### 1. Quick Shot Instant Dopamine (ego boost, not just confirmation):
-- Overlay shows parent story thumbnail + "You're competing for #1"
-- "Your version of [title] is live" + "vs N others" + "If this wins, it gets pushed to everyone"
-- 2.5s display → auto-navigate to pipeline
+### 1. Pipeline Page — No dopamine drop after entry:
+- Branch/Quick Shot jobs show: "Your entry is going live — Competing for #1 right now"
+- Fake-real competitive stats: Est. rank, pts to #1, Live status
+- "People can already view your entry while it renders"
+- No more generic "Creating..." waiting state
 
-### 2. Identity + Ranking on Watch Page:
-- Battle Status shows: Rank #, Score, Views — live data
-- "Share to climb ranks — views and continuations determine the winner"
-- Leaderboard button always visible
+### 2. Urgency + Fear of Losing Rank:
+- Watch Page: "This battle is active right now — your rank can change anytime"
+- Return trigger: "This battle is moving fast — Come back in 10 minutes — your rank might change"
+- Near-win: "Only X pts between #1 and #2 — easy win"
+- Pressure timer: "Rankings can change anytime. One good entry = you take #1"
 
-### 3. Social Proof Density:
-- Battle header: "{N} creators competing right now — {X} views"
-- Leaderboard: "#1 — Leading" label on top entry
-- Story cards: view counts + "X competing" labels
-- Section rows: "{N} stories · {X}K views" subtitles
+### 3. Viral Share — Ego + Visibility:
+- "This could go viral — If your entry wins, we push it to everyone. Share now to boost your chances."
+- Amber gradient CTA with share icon — positioned after engagement row
 
-### 4. Competitive Copy (provokes action, not just informs):
-- "Beat #1 — Easy Win" / "Only X pts — easy win"
-- "Rankings can change anytime. One good entry = you take #1"
-- "Track Your Ranking — See if you're winning or losing"
-- "Enter Instantly — We generate a version. No thinking. No typing."
+### 4. Return Triggers:
+- "Come back in 10 minutes — your rank might change"
+- Positioned at bottom of Watch Page after battle link
+- Creates anticipation + habit loop
 
-### 5. Auto-Play on ALL Cards:
-- enablePreviewOnVisible for every card (not just priority)
-- Desktop + mobile IntersectionObserver auto-play
+### 5. Quick Shot Overlay — Stakes + Preview:
+- Shows parent thumbnail + "You're competing for #1" + "vs N others"
+- "If this wins, it gets pushed to everyone"
+- 2.5s dopamine hit before navigate
 
 ---
 
@@ -49,16 +49,16 @@
 - Queue System, Data Integrity, Export Pipeline
 - Consumption-First Loop, Entry Conversion Engine
 - Analytics Dashboard, Funnel Integrity
-- Quick Shot blank screen fix, Route fix (7 files)
+- Auto-play all cards, Social proof density
+- Competitive copy, Identity/ranking feedback
 
 ---
 
 ## Backlog
 
-### P0 (Wait 48h for data)
-- Measure click rate improvement from auto-play + social proof
-- Measure Enter Battle CTR
-- Validate Quick Shot retention at scale
+### P0 (Data-driven)
+- Monitor CTR changes
+- Quick Shot retention at scale
 
 ### P1
 - Auto-Recovery FAILED_PERSISTENCE

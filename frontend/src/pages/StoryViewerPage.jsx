@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  ArrowLeft, Loader2, Play, Pause, GitBranch, Share2, BookOpen,
+  ArrowLeft, ArrowRight, Loader2, Play, Pause, GitBranch, Share2, BookOpen,
   ChevronRight, Swords, Eye, Volume2, VolumeX, Heart, Bookmark,
   RefreshCw, X
 } from 'lucide-react';
@@ -383,8 +383,8 @@ export default function StoryViewerPage() {
                   </div>
                 </div>
                 {siblings.length > 1 && (
-                  <p className="text-[10px] text-amber-400/70 mt-2 font-medium">
-                    Share to climb ranks — views and continuations determine the winner
+                  <p className="text-[10px] text-rose-400/70 mt-2 font-medium">
+                    This battle is active right now — your rank can change anytime
                   </p>
                 )}
               </div>
@@ -428,6 +428,26 @@ export default function StoryViewerPage() {
               Share
             </button>
           </div>
+
+          {/* ═══ VIRAL SHARE PROMPT — ego + visibility, not mechanics ═══ */}
+          {continuationType === 'branch' && (
+            <button
+              onClick={handleShare}
+              className="w-full bg-gradient-to-r from-amber-500/10 to-rose-500/10 border border-amber-500/15 rounded-xl p-3.5 text-left hover:from-amber-500/15 hover:to-rose-500/15 transition-all"
+              data-testid="viral-share-prompt"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                  <Share2 className="w-4 h-4 text-amber-400" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs font-bold text-amber-300">This could go viral</p>
+                  <p className="text-[10px] text-white/35">If your entry wins, we push it to everyone. Share now to boost your chances.</p>
+                </div>
+                <ArrowRight className="w-4 h-4 text-amber-400/40 flex-shrink-0" />
+              </div>
+            </button>
+          )}
 
           {/* Attribution */}
           {job.derivative_label && job.source_story_title && (
@@ -601,6 +621,14 @@ export default function StoryViewerPage() {
             >
               <Swords className="w-4 h-4 mr-2" /> View Story Battle
             </Button>
+          )}
+
+          {/* ═══ RETURN TRIGGER — time-based tension ═══ */}
+          {continuationType === 'branch' && (
+            <div className="bg-slate-800/30 border border-white/5 rounded-xl p-4 text-center" data-testid="return-trigger">
+              <p className="text-xs font-bold text-white/50 mb-1">This battle is moving fast</p>
+              <p className="text-[10px] text-white/30">Come back in 10 minutes — your rank might change</p>
+            </div>
           )}
         </div>
       </div>

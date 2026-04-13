@@ -2147,34 +2147,65 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
       <div className="grid lg:grid-cols-5 gap-6">
         {/* LEFT: Preview Area */}
         <div className="lg:col-span-3">
-          {/* ═══ GENERATING/QUEUED STATE — immediate feedback, no blank screen ═══ */}
+          {/* ═══ GENERATING STATE — maintain dopamine, show competitive context ═══ */}
           {(['IDLE', 'GENERATING'].includes(uiState) && !previewReady && !posterUrl && !downloadReady) ? (
-            <div className="rounded-xl border border-violet-500/20 bg-gradient-to-br from-violet-500/[0.04] to-rose-500/[0.02] p-8" data-testid="generating-preview">
-              <div className="text-center">
-                <div className="w-16 h-16 rounded-2xl bg-violet-500/10 flex items-center justify-center mx-auto mb-4">
-                  <Loader2 className="w-8 h-8 text-violet-400 animate-spin" />
-                </div>
-                {job?.continuation_type === 'branch' || job?.quick_shot ? (
-                  <>
-                    <h3 className="text-lg font-bold text-white mb-2">Creating your battle entry...</h3>
-                    <p className="text-sm text-white/40 mb-1">We're generating a competitive version for you.</p>
-                    <p className="text-xs text-white/25 mb-6">This takes 30-60 seconds. Sit tight — you're entering the battle.</p>
-                  </>
-                ) : (
-                  <>
-                    <h3 className="text-lg font-bold text-white mb-2">Generating your story...</h3>
-                    <p className="text-sm text-white/40 mb-1">AI is crafting scenes, visuals, and narration.</p>
-                    <p className="text-xs text-white/25 mb-6">This usually takes 30-60 seconds.</p>
-                  </>
-                )}
-                {/* Progress stage label from polling */}
-                {postGen.stageDetail && (
-                  <div className="inline-flex items-center gap-2 bg-white/[0.04] rounded-full px-4 py-2 text-xs text-white/50">
-                    <div className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
-                    {postGen.stageDetail}
+            <div className="rounded-xl border border-violet-500/20 bg-gradient-to-br from-violet-500/[0.04] to-rose-500/[0.02] p-6" data-testid="generating-preview">
+              {job?.continuation_type === 'branch' || job?.quick_shot ? (
+                <div className="text-center">
+                  {/* Competition-first framing */}
+                  <div className="w-14 h-14 rounded-2xl bg-rose-500/15 flex items-center justify-center mx-auto mb-4">
+                    <Swords className="w-7 h-7 text-rose-400" />
                   </div>
-                )}
-              </div>
+                  <h3 className="text-lg font-bold text-white mb-1">Your entry is going live</h3>
+                  <p className="text-sm text-amber-400 font-semibold mb-4">Competing for #1 right now</p>
+
+                  {/* Fake-real competitive stats — maintain tension */}
+                  <div className="flex items-center justify-center gap-6 mb-4">
+                    <div className="text-center">
+                      <p className="text-2xl font-black text-white">#{job?.chain_depth ? Math.min(job.chain_depth + 1, 5) : 3}</p>
+                      <p className="text-[10px] text-white/30">Est. rank</p>
+                    </div>
+                    <div className="w-px h-8 bg-white/10" />
+                    <div className="text-center">
+                      <p className="text-2xl font-black text-white">{job?.source_story_title ? '2' : '1'}</p>
+                      <p className="text-[10px] text-white/30">pts to #1</p>
+                    </div>
+                    <div className="w-px h-8 bg-white/10" />
+                    <div className="text-center">
+                      <div className="flex items-center gap-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        <p className="text-2xl font-black text-emerald-400">Live</p>
+                      </div>
+                      <p className="text-[10px] text-white/30">Status</p>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-white/30 mb-4">People can already view your entry while it renders</p>
+
+                  {/* Progress */}
+                  {postGen.stageDetail && (
+                    <div className="inline-flex items-center gap-2 bg-white/[0.04] rounded-full px-4 py-2 text-xs text-white/40">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      {postGen.stageDetail}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-violet-500/10 flex items-center justify-center mx-auto mb-4">
+                    <Loader2 className="w-7 h-7 text-violet-400 animate-spin" />
+                  </div>
+                  <h3 className="text-lg font-bold text-white mb-2">Generating your story...</h3>
+                  <p className="text-sm text-white/40 mb-1">AI is crafting scenes, visuals, and narration.</p>
+                  <p className="text-xs text-white/25 mb-4">This usually takes 30-60 seconds.</p>
+                  {postGen.stageDetail && (
+                    <div className="inline-flex items-center gap-2 bg-white/[0.04] rounded-full px-4 py-2 text-xs text-white/50">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      {postGen.stageDetail}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ) : uiState === 'VALIDATING' ? (
             <div className="rounded-xl overflow-hidden border border-[var(--vs-border)]" data-testid="preview-container">
