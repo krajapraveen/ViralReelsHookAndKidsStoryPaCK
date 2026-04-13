@@ -20,6 +20,7 @@ import FeatureRequests from './pages/FeatureRequests';
 import AuthCallback from './pages/AuthCallback';
 import Contact from './pages/Contact';
 import Reviews from './pages/Reviews';
+import AboutPage from './pages/AboutPage';
 import PrivacySettings from './pages/PrivacySettings';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
@@ -276,6 +277,7 @@ function App() {
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/reviews" element={<Reviews />} />
+        <Route path="/about" element={<AboutPage />} />
         <Route path="/blog" element={<Blog />} />
         <Route path="/blog/:slug" element={<Blog />} />
         <Route path="/login" element={isAuthenticated ? <AuthenticatedRedirect /> : <Login setAuth={setIsAuthenticated} />} />

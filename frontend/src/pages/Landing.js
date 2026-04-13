@@ -7,6 +7,7 @@ import {
 import axios from 'axios';
 import { getStaticCardImg, getAllStaticBanners } from '../data/staticBanners';
 import { trackFunnel } from '../utils/funnelTracker';
+import FounderAuthorityBlock from '../components/FounderAuthorityBlock';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -222,6 +223,7 @@ export default function Landing() {
           <div className="hidden md:flex items-center gap-5">
             <Link to="/explore" className="text-sm text-slate-400 hover:text-white transition-colors">Explore</Link>
             <Link to="/gallery" className="text-sm text-slate-400 hover:text-white transition-colors">Gallery</Link>
+            <Link to="/about" className="text-sm text-slate-400 hover:text-white transition-colors">About</Link>
             <Link to="/pricing" className="text-sm text-slate-400 hover:text-white transition-colors">Pricing</Link>
             <Link to="/login" className="text-sm text-slate-400 hover:text-white transition-colors" data-testid="nav-login-link">Login</Link>
             <button onClick={goCreateFresh} className="h-8 px-4 text-sm font-semibold rounded-lg bg-gradient-to-r from-violet-600 to-rose-600 text-white hover:opacity-90 transition-opacity" data-testid="nav-create-btn">
@@ -236,6 +238,7 @@ export default function Landing() {
           <div className="md:hidden border-t border-white/[0.04] bg-[#07070f]/95 backdrop-blur-2xl px-4 py-4 space-y-3">
             <Link to="/explore" className="block text-slate-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Explore</Link>
             <Link to="/gallery" className="block text-slate-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Gallery</Link>
+            <Link to="/about" className="block text-slate-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>About</Link>
             <Link to="/pricing" className="block text-slate-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Pricing</Link>
             <Link to="/login" className="block text-slate-300 hover:text-white py-2" onClick={() => setMobileMenuOpen(false)}>Login</Link>
             <button onClick={() => { setMobileMenuOpen(false); goCreateFresh(); }} className="w-full h-10 text-sm font-semibold rounded-lg bg-gradient-to-r from-violet-600 to-rose-600 text-white">Start Creating</button>
@@ -327,6 +330,9 @@ export default function Landing() {
           )}
         </div>
       </section>
+
+      {/* ═══════ FOUNDER AUTHORITY BLOCK ═══════ */}
+      <FounderAuthorityBlock onExplore={goCreateFresh} />
 
       {/* ═══════ FIRST SESSION — FEATURED STORY ═══════ */}
       {featuredStory && (
