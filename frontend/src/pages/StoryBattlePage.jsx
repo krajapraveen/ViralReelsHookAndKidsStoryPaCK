@@ -285,24 +285,24 @@ export default function StoryBattlePage() {
           <div className="relative z-10 flex items-center justify-center gap-2">
             <Swords className="w-5 h-5 text-white" />
             <span className="text-sm font-black text-white">
-              {user_rank ? (user_rank === 1 ? 'Defend Your #1 Spot' : 'Enter Battle — Take #1') : 'Enter Battle'}
+              {user_rank ? (user_rank === 1 ? 'Defend Your #1 Spot' : 'Claim Your Rank') : 'Enter Battle'}
             </span>
           </div>
           <p className="relative z-10 text-[10px] text-white/60 text-center mt-1">
             {user_rank > 1
-              ? `You're #${user_rank} — one entry changes everything`
+              ? `You're #${user_rank} — 1 move changes everything`
               : 'Create your version and compete for the top spot'
             }
           </p>
         </button>
 
-        {/* ═══ 7. RETURN TRIGGER ═══ */}
+        {/* ═══ 7. RETURN TRIGGER — unfinished business ═══ */}
         <div className="bg-slate-800/30 border border-white/5 rounded-xl p-4 text-center" data-testid="return-trigger">
           <div className="flex items-center justify-center gap-1.5 mb-1">
             <Flame className="w-3.5 h-3.5 text-rose-400 animate-pulse" />
             <p className="text-xs font-bold text-white/50">This battle is moving fast</p>
           </div>
-          <p className="text-[10px] text-white/30">Come back in 10 minutes — your rank might change</p>
+          <p className="text-[10px] text-white/30">Leave now and your rank might drop — someone new enters every few minutes</p>
         </div>
       </div>
 

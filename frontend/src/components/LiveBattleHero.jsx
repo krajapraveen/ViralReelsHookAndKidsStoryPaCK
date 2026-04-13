@@ -143,15 +143,17 @@ export default function LiveBattleHero() {
             </h1>
 
             <p className="mt-3 max-w-lg text-sm leading-relaxed text-slate-300">
-              The battle is already moving. Jump in now, or launch your own entry and take the top spot.
+              {totalEntries > 3
+                ? `${totalEntries} creators fighting for #1 right now. Your rank is not safe.`
+                : 'The battle is live. Jump in before someone takes the top spot.'}
             </p>
 
-            {/* Stat cards */}
+            {/* Stat cards — pressure framing, not passive info */}
             <div className="mt-5 grid gap-3 grid-cols-3">
               <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-3.5" data-testid="stat-views">
                 <div className="flex items-center gap-1.5 text-slate-400">
                   <Eye className="w-3.5 h-3.5 text-violet-300" />
-                  <span className="text-[10px] font-semibold uppercase tracking-wider">Views</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider">Watching</span>
                 </div>
                 <p className="mt-1.5 text-xl font-bold text-white">
                   {totalViews > 1000 ? `${(totalViews / 1000).toFixed(1)}K` : totalViews}
@@ -160,7 +162,7 @@ export default function LiveBattleHero() {
               <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-3.5" data-testid="stat-competing">
                 <div className="flex items-center gap-1.5 text-slate-400">
                   <Swords className="w-3.5 h-3.5 text-fuchsia-300" />
-                  <span className="text-[10px] font-semibold uppercase tracking-wider">Competing</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider">Fighting</span>
                 </div>
                 <p className="mt-1.5 text-xl font-bold text-white">{totalEntries}</p>
               </div>
@@ -169,13 +171,13 @@ export default function LiveBattleHero() {
                   <Trophy className="w-3.5 h-3.5 text-amber-300" />
                   <span className="text-[10px] font-semibold uppercase tracking-wider">Your Rank</span>
                 </div>
-                <p className="mt-1.5 text-xl font-bold text-white">
+                <p className={`mt-1.5 text-xl font-bold ${userRank === 1 ? 'text-amber-300' : userRank && userRank <= 3 ? 'text-rose-300' : 'text-white'}`}>
                   {userRank ? `#${userRank}` : '—'}
                 </p>
               </div>
             </div>
 
-            {/* Rank context */}
+            {/* Rank context — psychological pressure */}
             {userRank && (
               <div className={`mt-4 rounded-2xl border p-3.5 ${
                 userRank === 1
@@ -186,17 +188,23 @@ export default function LiveBattleHero() {
                   <Crown className={`mt-0.5 w-4 h-4 flex-shrink-0 ${userRank === 1 ? 'text-amber-300' : 'text-rose-300'}`} />
                   <div>
                     <p className="text-sm font-bold text-white">
-                      {userRank === 1 ? "You're #1 — defend your spot" : `You're #${userRank} — one entry changes everything`}
+                      {userRank === 1
+                        ? "You're #1 — but they're coming for you"
+                        : userRank <= 3
+                        ? `You're losing your spot — ${activeRendering > 0 ? `${activeRendering} new entries just dropped` : 'rankings shifting now'}`
+                        : `#${userRank} — you need to move fast`}
                     </p>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      {activeRendering > 0 ? `${activeRendering} new entries rendering right now` : 'Rankings can shift anytime'}
+                      {userRank === 1
+                        ? `${activeRendering > 0 ? `${activeRendering} challengers rendering` : 'Stay sharp — someone could overtake you anytime'}`
+                        : `You're 1 move away from climbing`}
                     </p>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* CTAs */}
+            {/* CTAs — identity + speed, not generic actions */}
             <div className="mt-5 flex flex-col gap-2.5 sm:flex-row">
               <button
                 onClick={handleEnterBattle}
@@ -208,7 +216,7 @@ export default function LiveBattleHero() {
                   ? <Loader2 className="w-4 h-4 animate-spin" />
                   : <Swords className="w-4 h-4" />
                 }
-                Enter Battle
+                {userRank ? 'Claim Your Rank' : 'Enter Battle'}
               </button>
               <button
                 onClick={handleQuickShot}
@@ -220,7 +228,7 @@ export default function LiveBattleHero() {
                   ? <Loader2 className="w-4 h-4 animate-spin" />
                   : <Zap className="w-4 h-4" />
                 }
-                Quick Shot — Enter Instantly
+                Post in 10 Seconds
               </button>
             </div>
           </div>

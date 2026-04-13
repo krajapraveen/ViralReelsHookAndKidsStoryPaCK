@@ -53,24 +53,28 @@ export default function MomentumSection() {
     {
       label: 'Current Rank',
       value: data.currentRank ? `#${data.currentRank}` : '—',
+      subtext: data.currentRank === 1 ? 'Defend it' : data.currentRank ? '1 win away from climbing' : null,
       icon: Trophy,
       accent: 'text-amber-300',
     },
     {
-      label: 'Battles Entered',
+      label: 'Battles',
       value: String(data.battlesEntered),
+      subtext: data.battlesEntered >= 3 ? 'Keep the pressure on' : 'Enter more to climb',
       icon: Swords,
       accent: 'text-violet-300',
     },
     {
-      label: 'Credits',
+      label: 'Moves Left',
       value: String(data.credits),
+      subtext: data.credits < 15 ? 'Running low' : 'Use them wisely',
       icon: Flame,
       accent: 'text-rose-300',
     },
     {
       label: 'Status',
       value: data.currentRank === 1 ? 'Leading' : data.currentRank ? 'Competing' : 'Spectating',
+      subtext: data.currentRank === 1 ? 'They\'re coming for you' : data.currentRank ? 'You can take #1' : 'Jump in',
       icon: BarChart3,
       accent: 'text-sky-300',
     },
@@ -95,6 +99,7 @@ export default function MomentumSection() {
                 <span className="text-[10px] font-semibold uppercase tracking-wider">{s.label}</span>
               </div>
               <p className="mt-1.5 text-xl font-bold text-white">{s.value}</p>
+              {s.subtext && <p className="text-[10px] text-slate-500 mt-0.5">{s.subtext}</p>}
             </div>
           );
         })}

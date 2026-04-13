@@ -120,11 +120,11 @@ export default function BattlePulse({ rootStoryId, onEnterBattle, onNearWinPaywa
 
   if (!pulse) return null;
 
-  // Transform activity into competitive signals
+  // Transform activity into competitive signals — pressure, not info
   const competitiveSignals = [];
   if (pulse.active_rendering > 0) {
     competitiveSignals.push({
-      text: `${pulse.active_rendering} ${pulse.active_rendering > 1 ? 'people are' : 'person is'} trying to beat the leaderboard`,
+      text: `${pulse.active_rendering} ${pulse.active_rendering > 1 ? 'challengers' : 'challenger'} rendering right now — your rank is not safe`,
       urgent: true,
     });
   }
@@ -132,14 +132,14 @@ export default function BattlePulse({ rootStoryId, onEnterBattle, onNearWinPaywa
     const recentCount = pulse.recent_activity.length;
     if (recentCount >= 2) {
       competitiveSignals.push({
-        text: `${recentCount} new entries in the last hour`,
+        text: `${recentCount} new entries dropped in the last hour`,
         urgent: false,
       });
     }
     for (const a of pulse.recent_activity.slice(0, 2)) {
       if (a.mins_ago < 15) {
         competitiveSignals.push({
-          text: `${a.text.split(' entered')[0]} just entered — rankings shifting`,
+          text: `Someone just entered — rankings shifting now`,
           urgent: a.mins_ago < 5,
         });
         break;

@@ -53,11 +53,11 @@ function TrendingCard({ story, index, navigate }) {
 
   // Generate curiosity hook based on story context
   const hookText = isHot && competitors >= 3
-    ? `${competitors} people competing for #1`
+    ? `${competitors} creators fighting for #1`
     : competitors >= 2
     ? 'Battle in progress'
     : views > 20
-    ? 'Trending now'
+    ? `Blowing up — ${views > 100 ? `${views}` : views} watching`
     : null;
 
   return (
