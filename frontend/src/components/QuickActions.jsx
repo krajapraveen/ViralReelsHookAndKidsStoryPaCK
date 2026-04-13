@@ -80,22 +80,12 @@ export default function QuickActions() {
 
   const handleBeatLeader = async () => {
     trackFunnel('cta_clicked', { meta: { type: 'quick_actions_beat_leader' } });
-    if (topEntry) {
-      navigate('/app/story-video-studio', {
-        state: {
-          freshSession: true,
-          remixFrom: {
-            title: topEntry.title,
-            job_id: topEntry.job_id,
-            source: 'beat_leader',
-            type: 'battle_remix',
-          },
-        },
-      });
-    } else if (rootStoryId) {
+    // Always navigate to the battle page — user sees leaderboard + #1 entry, then decides to challenge
+    if (rootStoryId) {
       navigate(`/app/story-battle/${rootStoryId}`);
     } else {
-      navigate('/app/story-video-studio', { state: { freshSession: true } });
+      // No active battle — go to explore to find one
+      navigate('/app/explore');
     }
   };
 
@@ -157,9 +147,9 @@ export default function QuickActions() {
             </div>
             <ArrowRight className="w-4 h-4 text-slate-500 transition group-hover:translate-x-0.5 group-hover:text-white" />
           </div>
-          <h3 className="mt-3 text-sm font-bold text-white">Write Your Own Entry</h3>
+          <h3 className="mt-3 text-sm font-bold text-white">Write Your Own Story</h3>
           <p className="mt-1 text-xs leading-relaxed text-slate-400">
-            Your words, your style. Full creative control.
+            Start fresh. Your words, your style, your creation.
           </p>
           <p className="mt-3 text-xs font-bold text-slate-300">Open Studio</p>
         </button>
@@ -179,11 +169,11 @@ export default function QuickActions() {
           <h3 className="mt-3 text-sm font-bold text-white">Beat the Leader</h3>
           <p className="mt-1 text-xs leading-relaxed text-slate-400">
             {topEntry
-              ? <>Currently #1: <span className="text-white/70">{topEntry.title}</span></>
-              : 'See the top entry. Make something better.'
+              ? <>See who's #1: <span className="text-white/70">{topEntry.title}</span>. Think you can do better?</>
+              : 'View the leaderboard. Challenge the top entry.'
             }
           </p>
-          <p className="mt-3 text-xs font-bold text-slate-300">Challenge Now</p>
+          <p className="mt-3 text-xs font-bold text-slate-300">View Battle</p>
         </button>
       </div>
     </section>
