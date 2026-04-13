@@ -1901,7 +1901,9 @@ async def get_battle_entry_status(current_user: dict = Depends(get_current_user)
     is_unlimited = bool(user.get("is_unlimited", False)) or user.get("role", "") in {"admin", "ADMIN"}
 
     free_remaining = max(0, FREE_BATTLE_ENTRIES - entry_count)
-    needs_payment = free_remaining <= 0 and credits < 10 and not is_unlimited
+    # Real cost per story_video is 21 credits (from cost_guard.py STAGE_COSTS)
+    STORY_VIDEO_COST = 21
+    needs_payment = free_remaining <= 0 and credits < STORY_VIDEO_COST and not is_unlimited
 
     return {
         "success": True,
