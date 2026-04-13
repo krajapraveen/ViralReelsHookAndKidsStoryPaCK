@@ -66,8 +66,8 @@ export default function MomentumSection() {
     },
     {
       label: 'Moves Left',
-      value: String(data.credits),
-      subtext: data.credits < 15 ? 'Running low' : 'Use them wisely',
+      value: data.credits >= 99999 ? 'Unlimited' : String(data.credits),
+      subtext: data.credits >= 99999 ? 'Pro account' : data.credits < 15 ? 'Running low' : 'Use them wisely',
       icon: Flame,
       accent: 'text-rose-300',
     },

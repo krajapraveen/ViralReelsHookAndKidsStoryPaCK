@@ -22,6 +22,11 @@ export default function PostValueOverlay({ onTriggerPaywall }) {
     const gens = progress.total_generations || 0;
     const lastShown = parseInt(sessionStorage.getItem('post_value_shown_at') || '0', 10);
 
+    // Don't show during active pipeline generation
+    const onPipeline = window.location.pathname.includes('story-video-studio');
+    const hasActiveProject = new URLSearchParams(window.location.search).get('projectId');
+    if (onPipeline && hasActiveProject) return;
+
     // Show when a NEW generation is completed (not already shown for this count)
     if (gens > 0 && gens !== lastShown) {
       sessionStorage.setItem('post_value_shown_at', String(gens));

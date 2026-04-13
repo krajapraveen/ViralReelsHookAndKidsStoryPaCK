@@ -36,7 +36,7 @@ export default function GlobalUserBar() {
           aria-label="User menu"
         >
           <Zap className="w-3.5 h-3.5 text-amber-400" />
-          <span className="text-xs font-medium text-white">{credits ?? '...'}</span>
+          <span className="text-xs font-medium text-white">{credits >= 99999 ? '∞' : (credits ?? '...')}</span>
           <div className="w-7 h-7 rounded-full bg-indigo-500/30 border border-indigo-500/40 flex items-center justify-center">
             <User className="w-3.5 h-3.5 text-indigo-300" />
           </div>
