@@ -15,32 +15,63 @@
 
 ---
 
-## WIN/LOSS Moments + Real-Time Pulse — DONE (Apr 13)
+## Push Notifications on Rank Drop (P0) — DONE (Apr 13)
 
-### Battle Pulse System (GET /api/stories/battle-pulse/{rootId}):
-- Polls every 12s for live battle state
-- Returns: total entries, user rank, top 3, recent activity, active rendering count
-- **WIN moment**: "YOU'RE #1 RIGHT NOW — You just beat everyone" (gold Crown + animation)
-- **Rank up**: "You climbed to #N — Up from #M" (emerald)
-- **LOSS pain**: "You dropped to #N — Someone just beat your entry — Share or improve to climb back" (rose)
-- Rank change detection via `battle_rank_cache` collection (compares previous vs current)
-- 5-second auto-dismiss on moments
+### Backend:
+- `check_and_send_rank_notifications()` now tracks ALL users via `battle_rank_snapshot` collection
+- Compares current rank map vs stored snapshot — pushes to EVERY user who dropped, not just old #1
+- Rate-limited: 1 rank_drop push per user per battle per 2 hours
+- Push fires on: increment-metric (views/shares) AND pipeline completion (new branch finishes rendering)
+- Web Push via `pywebpush` with VAPID keys
+- `trigger_rank_drop_push()` copy: "You dropped to #N / Someone just beat your entry on 'Title'. Come back now and take your spot."
 
-### Real-Time Activity Feed:
-- "Admin User entered 26m ago" — shows entries from last 60 minutes
-- "4 entries generating right now" — active rendering indicator
-- Green pulse dot — "LIVE ACTIVITY" header
+### Frontend:
+- `BattlePulse.jsx` shows push notification prompt when user has a rank and permission is 'default'
+- Prompt: bell icon + "Get notified if your rank drops / We'll send a push when someone beats you" + Enable/Dismiss buttons
+- `usePushNotifications.js` hook manages service worker registration and push subscription
+- Auto-subscribes on `StoryViewerPage` when viewing a battle entry with permission already granted
 
-### Second Action Rate (North Star Metric):
-- **40%** — 2 out of 5 creators did 2+ actions
-- Verdict: "potential" (>20%, <40% = potential; >40% = strong)
-- Formula: users_with_2+_jobs / total_creators * 100
-- Added to analytics dashboard
+### Service Worker (`sw-push.js`):
+- `requireInteraction: true` for rank_drop (notification stays until tapped)
+- Aggressive vibration pattern [200, 100, 200, 100, 300] for rank_drop
+- Trigger-specific CTA: "Take it back" for rank_drop, "Claim #1" for near_win
+- Deep-links to Story Battle screen on click
 
-### Files:
-- `/app/backend/routes/story_multiplayer.py` — battle-pulse endpoint
-- `/app/frontend/src/components/BattlePulse.jsx` — WIN/LOSS + activity feed
-- `/app/backend/routes/analytics_dashboard.py` — second_action_rate metric
+---
+
+## WIN Share Trigger (P0.5) — DONE (Apr 13)
+
+### BattlePulse WIN Moment:
+- **Persistent** — does NOT auto-dismiss (user must click X or share)
+- Crown icon (w-12 h-12) + "YOU'RE #1" + "You just beat N others"
+- "This is getting pushed to more users"
+- **PRIMARY Share CTA**: full-width amber button "Share now to lock your position"
+- "Sharing boosts your visibility score"
+- Tracks `win_share_triggered` funnel event
+
+### StoryViewerPage Rank-Aware Share:
+- `battle_rank` field added to viewer API response
+- When rank = 1: Crown icon + "You're #1 — Share to lock it" (amber-500/20 bg, border-2)
+- When rank > 1: standard "This could go viral" prompt
+- Share increments both shares metric and funnel tracking
+
+---
+
+## Autoplay Hook Quality (P1) — DONE (Apr 13)
+
+### TrendingPublicFeed Cards:
+- **Hook text overlay**: context-aware text on card thumbnails
+  - 3+ competitors: "N people competing for #1"
+  - 2+ competitors: "Battle in progress"  
+  - 20+ views: "Trending now"
+- **LIVE indicator**: red pulse dot + "LIVE" badge for stories with active competitors
+- Hot badge only shows when no hook text overlay present (prevents overlap)
+- Competitive signals (views, competitors) visible at glance
+
+### StoryCardMedia:
+- New props: `hookText`, `competitorCount`, `viewCount`
+- Hook text overlay: blurred bg, bold white text, top-left positioned
+- Social proof badges: top-right, views + "competing" count
 
 ---
 
@@ -52,6 +83,9 @@
 - Instant dopamine, Continuous tension, Identity/ranking
 - WIN/LOSS moments, Real-time battle pulse
 - Viral share prompts, Return triggers
+- **Push notifications on ALL rank drops**
+- **Persistent WIN share trigger**
+- **Autoplay hook text overlays + LIVE indicators**
 
 ---
 
@@ -59,11 +93,14 @@
 
 ### P0 (Data-driven)
 - Monitor: 2nd action rate, CTR, session time
-- Validate WIN/LOSS moments trigger correctly on rank changes
+- Validate WIN/LOSS → share conversion rate
 
 ### P1
-- Push notification for rank changes
-- Auto-Recovery FAILED_PERSISTENCE
+- Follow Creator / Network Graph Expansion
+- Auto-Recovery FAILED_PERSISTENCE (P0.6)
+- Phase C Gamification (Dark launched, gated behind GREENLIGHT)
 
 ### P2
-- Resend domain, personalized headlines
+- Personalized headline serving by channel
+- Admin WebSocket upgrade
+- Resend domain verification (blocked on DNS)
