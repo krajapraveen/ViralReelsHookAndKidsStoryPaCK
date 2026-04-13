@@ -426,7 +426,11 @@ export default function StoryViewerPage() {
 
           {/* BattlePulse — WIN/LOSS moments + live activity */}
           {continuationType === 'branch' && (job.root_story_id || job.story_chain_id) && (
-            <BattlePulse rootStoryId={job.root_story_id || job.story_chain_id} />
+            <BattlePulse
+              rootStoryId={job.root_story_id || job.story_chain_id}
+              onEnterBattle={() => handleEnterBattle('loss_moment')}
+              onNearWinPaywall={() => handleEnterBattle('near_win')}
+            />
           )}
 
           {/* ═══ ENGAGEMENT ROW ═══ */}

@@ -11,12 +11,13 @@ import { usePushNotifications } from '../hooks/usePushNotifications';
  * P0: Push notification prompt on first rank detection
  * P0.5: WIN share trigger — persistent, aggressive, unmissable
  */
-export default function BattlePulse({ rootStoryId, onEnterBattle }) {
+export default function BattlePulse({ rootStoryId, onEnterBattle, onNearWinPaywall }) {
   const [pulse, setPulse] = useState(null);
   const [moment, setMoment] = useState(null);
   const [winDismissed, setWinDismissed] = useState(false);
   const [showPushPrompt, setShowPushPrompt] = useState(false);
   const pushPromptShown = useRef(false);
+  const nearWinTriggered = useRef(false);
   const hasUnmounted = useRef(false);
   const { permission, subscribed, requestPermission, isSupported } = usePushNotifications();
 
@@ -57,6 +58,26 @@ export default function BattlePulse({ rootStoryId, onEnterBattle }) {
       return () => clearTimeout(t);
     }
   }, [pulse?.user_rank, isSupported, permission]);
+
+  // NEAR-WIN AUTO-PAYWALL: rank #2 or #3, within 2pts of #1 → force paywall
+  useEffect(() => {
+    if (
+      pulse?.user_rank &&
+      pulse.user_rank >= 2 &&
+      pulse.user_rank <= 3 &&
+      pulse.top_3?.[0] &&
+      pulse.user_entry &&
+      !nearWinTriggered.current &&
+      onNearWinPaywall
+    ) {
+      const gap = pulse.top_3[0].score - pulse.user_entry.score;
+      if (gap <= 5 && gap > 0) {
+        nearWinTriggered.current = true;
+        // Small delay so user sees their rank first
+        setTimeout(() => onNearWinPaywall(), 2000);
+      }
+    }
+  }, [pulse?.user_rank, pulse?.top_3, pulse?.user_entry, onNearWinPaywall]);
 
   // Compulsion hook: when user leaves the page
   useEffect(() => {

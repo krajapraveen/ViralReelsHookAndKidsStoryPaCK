@@ -198,6 +198,14 @@ TOPUP_PACKS = {
 
 # Battle Entry Packs — priced for competition loop
 BATTLE_ENTRY_PACKS = {
+    "battle_3": {
+        "id": "battle_3",
+        "entries": 3,
+        "credits": 30,
+        "price_inr": 29,
+        "price_usd": 0.49,
+        "label": "3 Entries",
+    },
     "battle_5": {
         "id": "battle_5",
         "entries": 5,
@@ -205,6 +213,7 @@ BATTLE_ENTRY_PACKS = {
         "price_inr": 49,
         "price_usd": 0.99,
         "label": "5 Entries",
+        "badge": "POPULAR",
     },
     "battle_20": {
         "id": "battle_20",
@@ -213,17 +222,8 @@ BATTLE_ENTRY_PACKS = {
         "price_inr": 149,
         "price_usd": 1.99,
         "label": "20 Entries",
-        "badge": "POPULAR",
-    },
-    "battle_50": {
-        "id": "battle_50",
-        "entries": 50,
-        "credits": 500,
-        "price_inr": 299,
-        "price_usd": 3.99,
-        "label": "50 Entries",
         "badge": "BEST VALUE",
-        "savings": "40%",
+        "savings": "25%",
     },
 }
 

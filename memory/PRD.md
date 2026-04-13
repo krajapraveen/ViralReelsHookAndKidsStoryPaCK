@@ -104,9 +104,11 @@ Paywall Modal → Cashfree SDK → Verify → Credits Added → Resume Action
 
 ## Monetization
 - 3 free battle entries
-- ₹49 / ₹149 / ₹299 entry packs
-- Paywall triggers: free limit, loss moment, near win
+- ₹29 / ₹49 / ₹149 entry packs (micro-tier for impulse buy)
+- Paywall triggers: free limit, loss moment, near win (AUTO)
+- Near-win auto-paywall: rank #2/#3 within 5pts of #1 → forces paywall
 - Credits: 10 per story_video generation
+- Copy sells WINNING not credits ("Win the battle", "Take the top spot")
 
 ---
 

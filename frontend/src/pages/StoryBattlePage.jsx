@@ -180,6 +180,7 @@ export default function StoryBattlePage() {
         <BattlePulse
           rootStoryId={rootId}
           onEnterBattle={() => handleEnterBattle('loss_moment')}
+          onNearWinPaywall={() => handleEnterBattle('near_win')}
         />
 
         {/* ═══ 4. VIDEO AUTOPLAY (#1 contender) ═══ */}

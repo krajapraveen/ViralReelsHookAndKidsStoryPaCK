@@ -41,19 +41,19 @@ function loadCashfreeCheckout(env = 'production') {
 const TRIGGER_COPY = {
   free_limit: {
     title: "You've used your free entries",
-    subtitle: 'Unlock more to keep competing',
+    subtitle: 'One more entry could win the whole battle',
   },
   loss_moment: {
-    title: "You dropped — fight back now",
-    subtitle: "Don't let them win. Get more entries.",
+    title: "Someone just beat you",
+    subtitle: "Enter again and take the top spot",
   },
   near_win: {
-    title: "You're close to #1",
-    subtitle: 'One more entry could flip the ranking',
+    title: "You're 1 move away from #1",
+    subtitle: "Someone is beating you right now — don't let them win",
   },
   enter_battle: {
-    title: 'Unlock more battle entries',
-    subtitle: 'Keep competing for the top spot',
+    title: 'Win the battle',
+    subtitle: 'Your next entry could take #1',
   },
 };
 
@@ -239,15 +239,16 @@ export default function BattlePaywallModal({ open, onClose, onSuccess, trigger =
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-bold text-white">{pack.entries} entries</p>
-                      <p className="text-[10px] text-white/40">{pack.credits} credits</p>
+                      <p className="text-[10px] text-white/40">
+                        {pack.entries <= 3 ? 'Try again now' : pack.entries <= 5 ? 'Keep competing' : 'Dominate the battle'}
+                      </p>
                     </div>
                     <div className="text-right">
                       {purchasing === pack.id ? (
                         <Loader2 className="w-4 h-4 text-white animate-spin" />
                       ) : (
                         <>
-                          <p className="text-base font-black text-white">{pack.price_inr}</p>
-                          <p className="text-[10px] text-white/30">INR</p>
+                          <p className="text-base font-black text-white">₹{pack.price_inr}</p>
                         </>
                       )}
                     </div>
