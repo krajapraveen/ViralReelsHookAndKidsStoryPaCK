@@ -45,6 +45,13 @@ export default function LiveBattleHero() {
     load();
   }, []);
 
+  // Listen for global show-battle-paywall events (dispatched by QuickActions, etc.)
+  useEffect(() => {
+    const handler = () => setShowPaywall(true);
+    window.addEventListener('show-battle-paywall', handler);
+    return () => window.removeEventListener('show-battle-paywall', handler);
+  }, []);
+
   // Poll pulse every 12-18s (randomized to feel alive) + countdown timer
   useEffect(() => {
     if (!battle?.root_story_id) return;

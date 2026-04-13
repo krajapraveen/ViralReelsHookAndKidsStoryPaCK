@@ -1,6 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Zap, Wand2, Sparkles, ArrowRight, Swords } from 'lucide-react';
+import { toast } from 'sonner';
+import api from '../utils/api';
 import { trackFunnel } from '../utils/funnelTracker';
 
 /**
@@ -19,11 +21,36 @@ export default function QuickActions() {
       border: 'border-violet-500/15 hover:border-violet-400/30',
       cta: 'Post in 10 Seconds',
       recommended: true,
-      onClick: () => {
+      onClick: async () => {
         trackFunnel('cta_clicked', { meta: { type: 'quick_actions_quick_shot' } });
-        const el = document.querySelector('[data-testid="quick-shot-btn"]');
-        if (el) el.click();
-        else navigate('/app');
+        // Check credits first
+        try {
+          const statusRes = await api.get('/api/stories/battle-entry-status');
+          if (statusRes.data?.needs_payment) {
+            // Dispatch event for paywall — LiveBattleHero listens
+            window.dispatchEvent(new CustomEvent('show-battle-paywall', { detail: { trigger: 'free_limit' } }));
+            return;
+          }
+        } catch {}
+        // Fire Quick Shot directly
+        try {
+          const hottest = await api.get('/api/stories/hottest-battle');
+          const rootId = hottest.data?.battle?.root_story_id;
+          if (!rootId) {
+            navigate('/app/story-video-studio', { state: { freshSession: true } });
+            return;
+          }
+          const res = await api.post('/api/stories/quick-shot', { root_story_id: rootId });
+          if (res.data?.success && res.data.job_id) {
+            navigate(`/app/story-video-studio?projectId=${res.data.job_id}`);
+          }
+        } catch (err) {
+          if (err.response?.status === 402) {
+            window.dispatchEvent(new CustomEvent('show-battle-paywall', { detail: { trigger: 'free_limit' } }));
+          } else {
+            toast.error('Quick Shot failed. Try again.');
+          }
+        }
       },
     },
     {
@@ -47,8 +74,17 @@ export default function QuickActions() {
       border: 'border-rose-500/15 hover:border-rose-400/30',
       cta: 'Remix Now',
       recommended: false,
-      onClick: () => {
+      onClick: async () => {
         trackFunnel('cta_clicked', { meta: { type: 'quick_actions_remix' } });
+        // Navigate to the hottest battle for remix context
+        try {
+          const hottest = await api.get('/api/stories/hottest-battle');
+          const rootId = hottest.data?.battle?.root_story_id;
+          if (rootId) {
+            navigate(`/app/story-battle/${rootId}`);
+            return;
+          }
+        } catch {}
         navigate('/app/explore');
       },
     },
