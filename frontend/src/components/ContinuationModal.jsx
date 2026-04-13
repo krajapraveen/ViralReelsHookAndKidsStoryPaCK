@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Play, GitBranch, ArrowRight, Loader2, BookOpen, Swords, X } from 'lucide-react';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import { trackFunnel } from '../utils/funnelTracker';
 
 /**
  * ContinuationModal — Pre-generation confirmation for Episode vs Branch.
@@ -22,6 +23,27 @@ export default function ContinuationModal({
   const [title, setTitle] = useState('');
   const [storyText, setStoryText] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Track creation_started when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      trackFunnel('creation_started', {
+        story_id: parentJob?.job_id,
+        meta: { mode, is_war: isWar },
+      });
+    }
+  }, [isOpen, mode, isWar, parentJob?.job_id]);
+
+  // Track creation_abandoned on close without submit
+  const handleClose = () => {
+    if (!submitting) {
+      trackFunnel('creation_abandoned', {
+        story_id: parentJob?.job_id,
+        meta: { mode, had_title: !!title, had_text: !!storyText },
+      });
+    }
+    onClose();
+  };
 
   // Reset form when preset changes
   React.useEffect(() => {
@@ -119,7 +141,7 @@ export default function ContinuationModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" data-testid="continuation-modal">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={handleClose} />
 
       {/* Modal */}
       <div className="relative w-full max-w-lg bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
@@ -130,7 +152,7 @@ export default function ContinuationModal({
           : 'bg-gradient-to-r from-rose-600/20 to-orange-600/20'
         }`}>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="absolute top-4 right-4 text-white/40 hover:text-white transition-colors"
             data-testid="close-continuation-modal"
           >
@@ -226,7 +248,7 @@ export default function ContinuationModal({
         <div className="px-6 pb-6 flex gap-3">
           <Button
             variant="outline"
-            onClick={onClose}
+            onClick={handleClose}
             className="flex-1 border-white/10 text-white/50 hover:text-white"
             data-testid="cancel-continuation-btn"
           >

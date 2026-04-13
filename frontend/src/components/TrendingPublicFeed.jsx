@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Flame, Eye, GitBranch, Share2, ArrowRight, Play, TrendingUp } from 'lucide-react';
 import api from '../utils/api';
+import { trackFunnel } from '../utils/funnelTracker';
 
 /**
  * TrendingPublicFeed — Shows public stories from ALL users with competition metrics.
@@ -69,20 +70,39 @@ function TrendingCard({ story, index, navigate }) {
     ? `Blowing up — ${views > 100 ? `${views}` : views} watching`
     : null;
 
-  // IntersectionObserver for autoplay
+  // IntersectionObserver for autoplay + impression tracking
   useEffect(() => {
-    if (!preview?.autoplay_enabled || !preview?.preview_url || previewFailed) return;
     const el = cardRef.current;
     if (!el) return;
 
+    let impressionTracked = false;
+
     const obs = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
-          if (videoRef.current && !previewPlaying) {
-            videoRef.current.src = preview.preview_url;
-            videoRef.current.play()
-              .then(() => setPreviewPlaying(true))
-              .catch(() => setPreviewFailed(true));
+        if (entry.isIntersecting) {
+          // Track impression once
+          if (!impressionTracked) {
+            impressionTracked = true;
+            trackFunnel('feed_card_impression', {
+              story_id: story.job_id,
+              has_preview: preview?.autoplay_enabled || false,
+            });
+          }
+
+          // Autoplay preview
+          if (preview?.autoplay_enabled && preview?.preview_url && !previewFailed && entry.intersectionRatio > 0.6) {
+            if (videoRef.current && !previewPlaying) {
+              videoRef.current.src = preview.preview_url;
+              videoRef.current.play()
+                .then(() => {
+                  setPreviewPlaying(true);
+                  trackFunnel('preview_started', { story_id: story.job_id, has_preview: true });
+                })
+                .catch(() => {
+                  setPreviewFailed(true);
+                  trackFunnel('preview_failed', { story_id: story.job_id, has_preview: true });
+                });
+            }
           }
         } else {
           if (videoRef.current && previewPlaying) {
@@ -91,11 +111,11 @@ function TrendingCard({ story, index, navigate }) {
           }
         }
       },
-      { threshold: 0.6 }
+      { threshold: [0.3, 0.6] }
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [preview?.autoplay_enabled, preview?.preview_url, previewPlaying, previewFailed]);
+  }, [story.job_id, preview?.autoplay_enabled, preview?.preview_url, previewPlaying, previewFailed]);
 
   return (
     <button
@@ -116,7 +136,18 @@ function TrendingCard({ story, index, navigate }) {
             preload="none"
             poster={preview.poster_url || story.thumbnail_url}
             className={`absolute inset-0 w-full h-full object-cover z-[1] transition-opacity duration-300 ${previewPlaying ? 'opacity-100' : 'opacity-0'}`}
-            onError={() => setPreviewFailed(true)}
+            onError={() => {
+              setPreviewFailed(true);
+              trackFunnel('preview_failed', { story_id: story.job_id });
+            }}
+            onEnded={() => trackFunnel('preview_completed', { story_id: story.job_id })}
+            onTimeUpdate={(e) => {
+              // Track completion at first loop end (~2s)
+              if (e.target.currentTime >= 1.9 && !e.target._completionTracked) {
+                e.target._completionTracked = true;
+                trackFunnel('preview_completed', { story_id: story.job_id, has_preview: true });
+              }
+            }}
             data-testid={`preview-video-${index}`}
           />
         )}

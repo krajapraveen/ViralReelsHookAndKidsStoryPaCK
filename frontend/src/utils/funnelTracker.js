@@ -1,10 +1,30 @@
 /**
- * Funnel Tracker — fires conversion funnel events with rich context.
- * Every event includes: user_id, session_id, source_page, generation_count, device, plan_shown.
+ * Funnel Tracker v2 — fires conversion funnel events with rich segmentation.
+ * Every event includes: user_id, session_id, source_page, device_type, traffic_source,
+ * story_id, battle_id, has_preview, generation_count.
+ *
+ * EVENTS TRACKED:
+ * - feed_card_impression
+ * - preview_started (autoplay began)
+ * - preview_completed (2s preview finished)
+ * - preview_failed (play() rejected or error)
+ * - cta_clicked (type: enter_battle, quick_shot, share, etc.)
+ * - entered_battle (user enters competition)
+ * - creation_started
+ * - creation_abandoned
+ * - battle_paywall_viewed
+ * - battle_pack_selected
+ * - battle_payment_success
+ * - battle_payment_abandoned
+ * - win_share_triggered
+ * - spectator_quick_shot
+ * - return_trigger_sent
+ * - return_trigger_clicked
  */
 import api from './api';
 
 const SESSION_KEY = 'funnel_session_id';
+const TRAFFIC_SOURCE_KEY = 'funnel_traffic_source';
 
 function getSessionId() {
   let sid = sessionStorage.getItem(SESSION_KEY);
@@ -42,9 +62,37 @@ export function incrementGenerationCount() {
 }
 
 /**
- * Fire a funnel event.
- * @param {string} step - One of the FUNNEL_STEPS
- * @param {object} extra - Additional context (source_page, plan_shown, plan_selected, meta)
+ * Detect traffic source from URL params or referrer.
+ * Caches in sessionStorage so it persists across page navigations.
+ */
+function getTrafficSource() {
+  let src = sessionStorage.getItem(TRAFFIC_SOURCE_KEY);
+  if (src) return src;
+
+  const params = new URLSearchParams(window.location.search);
+  const utm = params.get('utm_source') || params.get('ref') || params.get('source');
+  if (utm) {
+    src = utm.toLowerCase();
+  } else {
+    const ref = document.referrer || '';
+    if (ref.includes('instagram')) src = 'instagram';
+    else if (ref.includes('facebook') || ref.includes('fb.')) src = 'facebook';
+    else if (ref.includes('twitter') || ref.includes('x.com')) src = 'twitter';
+    else if (ref.includes('youtube')) src = 'youtube';
+    else if (ref.includes('whatsapp')) src = 'whatsapp';
+    else if (ref.includes('google')) src = 'google';
+    else if (ref === '') src = 'direct';
+    else src = 'unknown';
+  }
+
+  sessionStorage.setItem(TRAFFIC_SOURCE_KEY, src);
+  return src;
+}
+
+/**
+ * Fire a funnel event with full segmentation.
+ * @param {string} step - Event name
+ * @param {object} extra - { story_id, battle_id, has_preview, source_page, meta, ... }
  */
 export function trackFunnel(step, extra = {}) {
   const payload = {
@@ -54,10 +102,14 @@ export function trackFunnel(step, extra = {}) {
     context: {
       source_page: extra.source_page || inferSourcePage(),
       generation_count: extra.generation_count ?? getGenerationCount(),
-      device: getDevice(),
+      device_type: getDevice(),
+      traffic_source: getTrafficSource(),
+      story_id: extra.story_id || extra.data?.story_id || null,
+      battle_id: extra.battle_id || extra.data?.root_id || null,
+      has_preview: extra.has_preview ?? null,
       plan_shown: extra.plan_shown || null,
       plan_selected: extra.plan_selected || null,
-      meta: extra.meta || {},
+      meta: extra.meta || extra.data || {},
     },
   };
 
@@ -69,7 +121,10 @@ function inferSourcePage() {
   const path = window.location.pathname;
   if (path === '/' || path === '/landing') return 'landing';
   if (path.includes('/app/story-video-studio')) return 'studio';
+  if (path.includes('/app/story-battle')) return 'battle_page';
+  if (path.includes('/app/story-viewer')) return 'viewer';
   if (path.includes('/app/pricing') || path.includes('/app/billing')) return 'pricing';
+  if (path.includes('/app/explore')) return 'explore';
   if (path.includes('/app')) return 'dashboard';
   if (path.includes('/v/') || path.includes('/character/')) return 'public_page';
   return 'other';

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Loader2, Trophy, GitBranch, Play, Eye, Share2,
@@ -32,6 +32,8 @@ export default function StoryBattlePage() {
   const [continuationMode, setContinuationMode] = useState(null);
   const [showPaywall, setShowPaywall] = useState(false);
   const [paywallTrigger, setPaywallTrigger] = useState('enter_battle');
+  const returnTriggerRef = useRef(null);
+  const returnTracked = useRef(false);
 
   const fetchBattle = useCallback(async () => {
     if (!storyId) return;
@@ -53,6 +55,20 @@ export default function StoryBattlePage() {
     const iv = setInterval(fetchBattle, 12000);
     return () => clearInterval(iv);
   }, [fetchBattle]);
+
+  // Track return_trigger_sent when user scrolls to see it
+  useEffect(() => {
+    const el = returnTriggerRef.current;
+    if (!el || returnTracked.current) return;
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && !returnTracked.current) {
+        returnTracked.current = true;
+        trackFunnel('return_trigger_sent', { story_id: storyId, battle_id: storyId });
+      }
+    }, { threshold: 0.5 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [storyId]);
 
   // Share handler
   const handleShare = () => {
@@ -76,7 +92,8 @@ export default function StoryBattlePage() {
         return;
       }
     } catch {}
-    trackFunnel('cta_clicked', { meta: { type: 'enter_battle', source: 'watch_page', story_id: storyId } });
+    trackFunnel('cta_clicked', { meta: { type: 'enter_battle', source: 'watch_page' }, story_id: storyId, battle_id: rootId });
+    trackFunnel('entered_battle', { story_id: storyId, battle_id: rootId });
     setContinuationMode('branch');
   };
 
@@ -297,7 +314,11 @@ export default function StoryBattlePage() {
         </button>
 
         {/* ═══ 7. RETURN TRIGGER — unfinished business ═══ */}
-        <div className="bg-slate-800/30 border border-white/5 rounded-xl p-4 text-center" data-testid="return-trigger">
+        <div
+          ref={returnTriggerRef}
+          className="bg-slate-800/30 border border-white/5 rounded-xl p-4 text-center"
+          data-testid="return-trigger"
+        >
           <div className="flex items-center justify-center gap-1.5 mb-1">
             <Flame className="w-3.5 h-3.5 text-rose-400 animate-pulse" />
             <p className="text-xs font-bold text-white/50">This battle is moving fast</p>

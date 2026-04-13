@@ -65,6 +65,21 @@ FUNNEL_STEPS = [
     "spectator_pressure_shown",
     "spectator_quick_shot",
     "spectator_to_player_conversion",
+    # ═══ V2 Observability — feed + preview + battle funnel ═══
+    "feed_card_impression",
+    "preview_started",
+    "preview_completed",
+    "preview_failed",
+    "entered_battle",
+    "creation_started",
+    "creation_abandoned",
+    "battle_paywall_viewed",
+    "battle_pack_selected",
+    "battle_payment_success",
+    "battle_payment_abandoned",
+    "win_share_triggered",
+    "return_trigger_sent",
+    "return_trigger_clicked",
 ]
 
 
@@ -94,6 +109,7 @@ async def track_funnel_event(request: Request):
     ua = request.headers.get("user-agent", "")
 
     event = {
+        "event": step,
         "step": step,
         "step_index": FUNNEL_STEPS.index(step),
         "session_id": session_id,
@@ -104,6 +120,11 @@ async def track_funnel_event(request: Request):
         "plan_shown": ctx.get("plan_shown"),
         "plan_selected": ctx.get("plan_selected"),
         "device": ctx.get("device", "unknown"),
+        "device_type": ctx.get("device_type", "unknown"),
+        "traffic_source": ctx.get("traffic_source", "unknown"),
+        "story_id": ctx.get("story_id"),
+        "battle_id": ctx.get("battle_id"),
+        "has_preview": ctx.get("has_preview"),
         "meta": ctx.get("meta", {}),
         "ip": request.client.host if request.client else None,
         "user_agent": ua[:200],

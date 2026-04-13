@@ -41,6 +41,7 @@ async def generate_preview_derivatives(job_id: str, source_url: str, db) -> dict
 
     try:
         # 1. Download source video
+        started_at = datetime.now(timezone.utc).isoformat()
         source_path = os.path.join(tmp_dir, "source.mp4")
         ok = await _download_video(source_url, source_path)
         if not ok:
@@ -97,6 +98,7 @@ async def generate_preview_derivatives(job_id: str, source_url: str, db) -> dict
 
         # 7. Persist to media_assets collection
         now = datetime.now(timezone.utc).isoformat()
+        duration_ms_elapsed = int((datetime.now(timezone.utc) - datetime.fromisoformat(started_at)).total_seconds() * 1000)
         await db.media_assets.update_one(
             {"story_id": job_id},
             {"$set": {
@@ -124,6 +126,9 @@ async def generate_preview_derivatives(job_id: str, source_url: str, db) -> dict
                 },
                 "processing": {
                     "state": "READY" if result["preview_url"] else "FAILED",
+                    "started_at": started_at,
+                    "completed_at": now,
+                    "duration_ms": duration_ms_elapsed,
                     "updated_at": now,
                 },
                 "updated_at": now,
