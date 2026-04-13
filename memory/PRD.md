@@ -15,63 +15,38 @@
 
 ---
 
-## Data-Driven Optimization (Apr 12)
+## Quick Shot Blank Screen Fix — DONE (Apr 13)
 
-### Move 1: Funnel integrity fix
-- Two honest paths: Card path vs Quick Shot path (separated)
-- Attribution warnings flag unattributed pre-tracking entries
-- 19 unattributed entries correctly identified as demo/seed data
+### Root cause: Wrong route. All post-creation redirects used `/app/story-video-pipeline` but the actual route is `/app/story-video-studio`.
+- Fixed in 7 files: HottestBattle, CompetitionPulse, StoryViewerPage, StoryBattlePage, StoryChainTimeline, StoryVideoPipeline (self-references)
+- Quick Shot now shows: "Queued for rendering" → progress stages → "What's happening now" → explore links
+- Added IDLE/GENERATING fallback: "Creating your battle entry..." message with spinner for jobs without preview assets yet
 
-### Move 2: "Make Your Version" → "Enter Battle" (0 clicks → action)
-- Changed everywhere: Dashboard hero, StoryViewer header, StoryViewer body CTA
-- "Make Your Version" = work (ignored). "Enter Battle" = action + ego (compelling)
-- Body CTA: "Compete with your own version of this story"
-- Tracking uses type='enter_battle' for proper attribution
-
-### Move 3: Quick Shot retention tracking
-- Dashboard shows: total QS users, returning %, second action %, verdict
-- Decision rule: >40% retention = strong (double down), <20% = weak (kill)
-- Current data: 50% returning, 100% second action, verdict = "strong"
-
-### Move 4: Social proof on cards
-- View counts + "X competing" labels on story cards
-- Engagement feed returns total_views and total_children
-
-### Move 5: Stronger hook bank
-- Replaced generic hooks with curiosity-gap hooks
-- "She opened the door... and saw herself inside."
-- "This message appeared at 2:13 AM — then his phone died."
+### UX Clarity Fix:
+- Every battle row now has instruction text explaining what to do
+- "Compete or watch others win. Top entry gets visibility."
+- "#1 — Leading" label on top contender
+- Quick Shot: "We generate a competitive version for you. No thinking. No typing."
+- View Your Battle: "See your ranking, views, and competitors"
 
 ---
 
-## Analytics Dashboard — /app/admin/conversion
-- Core: Spectator→Player %, Watch rates, CTA CTRs
-- Queue: rate, complete rate, health
-- Quick Shot Retention: with automated verdict
-- Funnel: with drop-off %, attribution warnings
-- Breakdowns: CTA variant, source section, session stats
-- Period filters: 24h, 7d, 30d
-
----
-
-## All Completed Systems (Apr 12)
+## All Systems (Apr 12-13)
 - Queue System, Data Integrity, Export Pipeline
 - Consumption-First Loop, Entry Conversion Engine
-- Post-Launch-Branch, Unfinished Worlds fix
-- System Integrity
+- Post-Launch-Branch, Analytics Dashboard
+- Funnel Integrity, "Enter Battle" CTA
 
 ---
 
 ## Backlog
 
-### P0 (Data-driven, after 48h)
-- Attack 86% impression→click drop: auto-play preview on visible
-- Urgency labels: "Ends in 3h", "7 people just joined"
-- Remove weak content from feed (low views + low completion)
+### P0 (Data-driven)
+- Attack 86% impression→click drop: auto-play preview
+- Monitor Enter Battle CTR vs old 0%
 
 ### P1
-- Auto-Recovery FAILED_PERSISTENCE
-- Secondary Action Matrix, Follow Creator
+- Auto-Recovery FAILED_PERSISTENCE, Secondary Action Matrix
 
 ### P2
-- Resend domain, personalized headlines, hover autoplay
+- Resend domain, hover autoplay

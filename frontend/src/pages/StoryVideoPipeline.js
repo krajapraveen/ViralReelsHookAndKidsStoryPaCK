@@ -2147,8 +2147,36 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
       <div className="grid lg:grid-cols-5 gap-6">
         {/* LEFT: Preview Area */}
         <div className="lg:col-span-3">
-          {/* Preview — TRUTH: only show when we have a real asset */}
-          {uiState === 'VALIDATING' ? (
+          {/* ═══ GENERATING/QUEUED STATE — immediate feedback, no blank screen ═══ */}
+          {(['IDLE', 'GENERATING'].includes(uiState) && !previewReady && !posterUrl && !downloadReady) ? (
+            <div className="rounded-xl border border-violet-500/20 bg-gradient-to-br from-violet-500/[0.04] to-rose-500/[0.02] p-8" data-testid="generating-preview">
+              <div className="text-center">
+                <div className="w-16 h-16 rounded-2xl bg-violet-500/10 flex items-center justify-center mx-auto mb-4">
+                  <Loader2 className="w-8 h-8 text-violet-400 animate-spin" />
+                </div>
+                {job?.continuation_type === 'branch' || job?.quick_shot ? (
+                  <>
+                    <h3 className="text-lg font-bold text-white mb-2">Creating your battle entry...</h3>
+                    <p className="text-sm text-white/40 mb-1">We're generating a competitive version for you.</p>
+                    <p className="text-xs text-white/25 mb-6">This takes 30-60 seconds. Sit tight — you're entering the battle.</p>
+                  </>
+                ) : (
+                  <>
+                    <h3 className="text-lg font-bold text-white mb-2">Generating your story...</h3>
+                    <p className="text-sm text-white/40 mb-1">AI is crafting scenes, visuals, and narration.</p>
+                    <p className="text-xs text-white/25 mb-6">This usually takes 30-60 seconds.</p>
+                  </>
+                )}
+                {/* Progress stage label from polling */}
+                {postGen.stageDetail && (
+                  <div className="inline-flex items-center gap-2 bg-white/[0.04] rounded-full px-4 py-2 text-xs text-white/50">
+                    <div className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
+                    {postGen.stageDetail}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : uiState === 'VALIDATING' ? (
             <div className="rounded-xl overflow-hidden border border-[var(--vs-border)]" data-testid="preview-container">
               <div className="aspect-video bg-slate-800 flex items-center justify-center animate-pulse">
                 <Loader2 className="w-8 h-8 text-amber-400 animate-spin" />
@@ -2502,7 +2530,7 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
             })}
             onNewJobCreated={(data) => {
               if (data?.job_id) {
-                navigate(`/app/story-video-pipeline?projectId=${data.job_id}`);
+                navigate(`/app/story-video-studio?projectId=${data.job_id}`);
               }
             }}
           />
@@ -2810,7 +2838,7 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
         }}
         onJobCreated={(data) => {
           if (data?.job_id) {
-            navigate(`/app/story-video-pipeline?projectId=${data.job_id}`);
+            navigate(`/app/story-video-studio?projectId=${data.job_id}`);
           }
         }}
       />

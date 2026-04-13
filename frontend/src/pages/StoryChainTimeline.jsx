@@ -259,7 +259,7 @@ export default function StoryChainTimeline() {
                   {i > 0 && <div className="absolute -left-3 top-1/2 w-3 h-px bg-violet-500/30" />}
 
                   <button
-                    onClick={() => hasBr ? toggleExpand(ep.job_id) : navigate(`/app/story-video-pipeline?projectId=${ep.job_id}`)}
+                    onClick={() => hasBr ? toggleExpand(ep.job_id) : navigate(`/app/story-video-studio?projectId=${ep.job_id}`)}
                     className={`w-full rounded-xl border p-4 text-left transition-all hover:bg-white/[0.03] ${
                       isExpanded ? 'border-violet-500/40 bg-violet-500/[0.06]' : 'border-white/10 bg-white/[0.02]'
                     }`}
@@ -354,7 +354,7 @@ export default function StoryChainTimeline() {
         onJobCreated={(data) => {
           if (data?.job_id) {
             toast.success('Your competing version is being created!');
-            navigate(`/app/story-video-pipeline?projectId=${data.job_id}`);
+            navigate(`/app/story-video-studio?projectId=${data.job_id}`);
           }
         }}
       />

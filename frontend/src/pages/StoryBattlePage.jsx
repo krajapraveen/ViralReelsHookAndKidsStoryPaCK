@@ -171,7 +171,7 @@ export default function StoryBattlePage() {
                 isCurrentUser={c.user_id === battle.user_id}
                 onClick={() => {
                   // Navigate to the story's pipeline view
-                  navigate(`/app/story-video-pipeline?projectId=${c.job_id}`);
+                  navigate(`/app/story-video-studio?projectId=${c.job_id}`);
                 }}
               />
             ))}
@@ -211,7 +211,7 @@ export default function StoryBattlePage() {
         onJobCreated={(data) => {
           if (data?.job_id) {
             toast.success('Your competing version is being created!');
-            navigate(`/app/story-video-pipeline?projectId=${data.job_id}`);
+            navigate(`/app/story-video-studio?projectId=${data.job_id}`);
           }
         }}
       />

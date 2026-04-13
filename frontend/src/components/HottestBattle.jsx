@@ -155,7 +155,7 @@ export default function HottestBattle() {
 
         // Navigate to pipeline
         if (res.data.job_id) {
-          navigate(`/app/story-video-pipeline?projectId=${res.data.job_id}`);
+          navigate(`/app/story-video-studio?projectId=${res.data.job_id}`);
         }
       }
     } catch (err) {
@@ -231,6 +231,7 @@ export default function HottestBattle() {
           <h3 className="text-base font-bold text-white truncate" data-testid="hottest-battle-title">
             {root_title || 'Story Battle'}
           </h3>
+          <p className="text-[11px] text-white/30 mt-1">Compete or watch others win. Top entry gets visibility.</p>
         </div>
 
         {/* Live Leaderboard — Top 3 */}
@@ -261,7 +262,11 @@ export default function HottestBattle() {
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold text-white truncate">{c.title || 'Untitled'}</p>
-                  <p className="text-[10px] text-white/30">{c.creator_name}</p>
+                  <p className="text-[10px] text-white/30">
+                    {c.creator_name}
+                    {i === 0 && ' — Leading'}
+                    {i === 1 && near_win && ' — Close behind'}
+                  </p>
                 </div>
 
                 {/* Movement indicator */}
@@ -341,12 +346,12 @@ export default function HottestBattle() {
               ) : (
                 <>
                   <Zap className="w-4 h-4 text-white" />
-                  <span className="text-sm font-black text-white">Quick Shot — 1 Tap Entry</span>
+                  <span className="text-sm font-black text-white">Quick Shot — Enter Instantly</span>
                 </>
               )}
             </div>
             <p className="relative z-10 text-[10px] text-white/60 text-center mt-0.5">
-              No prompt needed. Instant competitive version.
+              We generate a competitive version for you. No thinking. No typing.
             </p>
           </button>
 
@@ -365,6 +370,11 @@ export default function HottestBattle() {
             {ctaSubtext && (
               <p className="relative z-10 text-[10px] text-white/40 text-center mt-0.5" data-testid="cta-subtext">
                 {ctaSubtext}
+              </p>
+            )}
+            {!ctaSubtext && user_already_in_battle && (
+              <p className="relative z-10 text-[10px] text-white/30 text-center mt-0.5">
+                See your ranking, views, and competitors
               </p>
             )}
           </button>

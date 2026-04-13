@@ -599,7 +599,7 @@ export default function StoryViewerPage() {
         }}
         onJobCreated={(data) => {
           if (data?.job_id) {
-            navigate(`/app/story-video-pipeline?projectId=${data.job_id}`);
+            navigate(`/app/story-video-studio?projectId=${data.job_id}`);
           }
         }}
       />

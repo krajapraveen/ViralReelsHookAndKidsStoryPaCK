@@ -73,7 +73,7 @@ export default function CompetitionPulse({ jobId, rootStoryId, onTryAgain, onBea
         if (onNewJobCreated) {
           onNewJobCreated(res.data);
         } else if (res.data.job_id) {
-          navigate(`/app/story-video-pipeline?projectId=${res.data.job_id}`);
+          navigate(`/app/story-video-studio?projectId=${res.data.job_id}`);
         }
       }
     } catch (err) {
