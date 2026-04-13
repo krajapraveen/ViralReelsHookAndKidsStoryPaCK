@@ -19,6 +19,7 @@ export default function LiveBattleHero() {
   const [pulse, setPulse] = useState(null);
   const [loading, setLoading] = useState(true);
   const [quickShotLoading, setQuickShotLoading] = useState(false);
+  const [enterLoading, setEnterLoading] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
 
   useEffect(() => {
@@ -56,10 +57,13 @@ export default function LiveBattleHero() {
   }, [battle?.root_story_id]);
 
   const handleEnterBattle = async () => {
+    if (enterLoading) return;
+    setEnterLoading(true);
     try {
       const res = await api.get('/api/stories/battle-entry-status');
       if (res.data?.needs_payment) {
         setShowPaywall(true);
+        setEnterLoading(false);
         return;
       }
     } catch {}
@@ -93,7 +97,23 @@ export default function LiveBattleHero() {
     );
   }
 
-  if (!battle) return null;
+  if (!battle) {
+    return (
+      <section className="rounded-3xl border border-white/[0.06] bg-gradient-to-br from-[#161427] via-[#1b1633] to-[#101420] p-6 md:p-8 text-center" data-testid="live-battle-hero-empty">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.1),transparent_40%)]" />
+        <Flame className="w-8 h-8 text-rose-400 mx-auto mb-3" />
+        <h2 className="text-xl font-black text-white">No active battle yet</h2>
+        <p className="text-sm text-slate-400 mt-2 max-w-md mx-auto">Be the first to start a story and launch a battle. Create something others want to compete with.</p>
+        <button
+          onClick={() => navigate('/app/story-video-studio', { state: { freshSession: true } })}
+          className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-violet-600 px-6 py-3 text-sm font-bold text-white transition-all hover:bg-violet-500"
+          data-testid="create-first-battle-btn"
+        >
+          <Zap className="w-4 h-4" /> Create First Story
+        </button>
+      </section>
+    );
+  }
 
   const userRank = pulse?.user_rank;
   const totalEntries = pulse?.total_entries || battle.branch_count || 0;
@@ -180,10 +200,15 @@ export default function LiveBattleHero() {
             <div className="mt-5 flex flex-col gap-2.5 sm:flex-row">
               <button
                 onClick={handleEnterBattle}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-violet-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-violet-900/30 transition-all hover:bg-violet-500 hover:shadow-violet-900/40 hover:scale-[1.02] active:scale-[0.98]"
+                disabled={enterLoading}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-violet-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-violet-900/30 transition-all hover:bg-violet-500 hover:shadow-violet-900/40 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60"
                 data-testid="hero-enter-battle-btn"
               >
-                <Swords className="w-4 h-4" /> Enter Battle
+                {enterLoading
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <Swords className="w-4 h-4" />
+                }
+                Enter Battle
               </button>
               <button
                 onClick={handleQuickShot}

@@ -35,7 +35,19 @@ export default function MomentumSection() {
     load();
   }, []);
 
-  if (!data) return null;
+  if (!data) {
+    return (
+      <section className="rounded-2xl border border-white/[0.06] bg-[#121624]/80 p-5" data-testid="momentum-section-empty">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-2">
+            <TrendingUp className="w-4 h-4 text-violet-300" />
+          </div>
+          <h2 className="text-lg font-bold text-white">Your Momentum</h2>
+        </div>
+        <p className="text-sm text-slate-400">Enter your first battle to start tracking your competitive stats.</p>
+      </section>
+    );
+  }
 
   const stats = [
     {
