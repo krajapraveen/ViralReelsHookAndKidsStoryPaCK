@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import api from '../utils/api';
 import { trackFunnel } from '../utils/funnelTracker';
 import ContinuationModal from '../components/ContinuationModal';
+import BattlePulse from '../components/BattlePulse';
 
 /**
  * StoryViewerPage — Consumption-first story experience.
@@ -389,6 +390,11 @@ export default function StoryViewerPage() {
                 )}
               </div>
             </div>
+          )}
+
+          {/* BattlePulse — WIN/LOSS moments + live activity */}
+          {continuationType === 'branch' && (job.root_story_id || job.story_chain_id) && (
+            <BattlePulse rootStoryId={job.root_story_id || job.story_chain_id} />
           )}
 
           {/* ═══ ENGAGEMENT ROW ═══ */}

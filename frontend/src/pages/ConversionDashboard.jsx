@@ -143,6 +143,14 @@ export default function ConversionDashboard() {
               icon={<BarChart2 className="w-4 h-4" />}
               testId="metric-stories-per-session"
             />
+            <MetricCard
+              label="2nd Action Rate"
+              value={`${metrics.second_action_rate}%`}
+              formula={metrics.second_action_rate_formula}
+              color={metrics.second_action_verdict === 'strong' ? 'emerald' : metrics.second_action_verdict === 'potential' ? 'amber' : 'rose'}
+              icon={<TrendingUp className="w-4 h-4" />}
+              testId="metric-second-action"
+            />
           </div>
         </section>
 

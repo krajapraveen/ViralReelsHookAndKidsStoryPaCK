@@ -15,54 +15,55 @@
 
 ---
 
-## Psychology Layer v2 — Continuous Tension — DONE (Apr 13)
+## WIN/LOSS Moments + Real-Time Pulse — DONE (Apr 13)
 
-### 1. Pipeline Page — No dopamine drop after entry:
-- Branch/Quick Shot jobs show: "Your entry is going live — Competing for #1 right now"
-- Fake-real competitive stats: Est. rank, pts to #1, Live status
-- "People can already view your entry while it renders"
-- No more generic "Creating..." waiting state
+### Battle Pulse System (GET /api/stories/battle-pulse/{rootId}):
+- Polls every 12s for live battle state
+- Returns: total entries, user rank, top 3, recent activity, active rendering count
+- **WIN moment**: "YOU'RE #1 RIGHT NOW — You just beat everyone" (gold Crown + animation)
+- **Rank up**: "You climbed to #N — Up from #M" (emerald)
+- **LOSS pain**: "You dropped to #N — Someone just beat your entry — Share or improve to climb back" (rose)
+- Rank change detection via `battle_rank_cache` collection (compares previous vs current)
+- 5-second auto-dismiss on moments
 
-### 2. Urgency + Fear of Losing Rank:
-- Watch Page: "This battle is active right now — your rank can change anytime"
-- Return trigger: "This battle is moving fast — Come back in 10 minutes — your rank might change"
-- Near-win: "Only X pts between #1 and #2 — easy win"
-- Pressure timer: "Rankings can change anytime. One good entry = you take #1"
+### Real-Time Activity Feed:
+- "Admin User entered 26m ago" — shows entries from last 60 minutes
+- "4 entries generating right now" — active rendering indicator
+- Green pulse dot — "LIVE ACTIVITY" header
 
-### 3. Viral Share — Ego + Visibility:
-- "This could go viral — If your entry wins, we push it to everyone. Share now to boost your chances."
-- Amber gradient CTA with share icon — positioned after engagement row
+### Second Action Rate (North Star Metric):
+- **40%** — 2 out of 5 creators did 2+ actions
+- Verdict: "potential" (>20%, <40% = potential; >40% = strong)
+- Formula: users_with_2+_jobs / total_creators * 100
+- Added to analytics dashboard
 
-### 4. Return Triggers:
-- "Come back in 10 minutes — your rank might change"
-- Positioned at bottom of Watch Page after battle link
-- Creates anticipation + habit loop
-
-### 5. Quick Shot Overlay — Stakes + Preview:
-- Shows parent thumbnail + "You're competing for #1" + "vs N others"
-- "If this wins, it gets pushed to everyone"
-- 2.5s dopamine hit before navigate
+### Files:
+- `/app/backend/routes/story_multiplayer.py` — battle-pulse endpoint
+- `/app/frontend/src/components/BattlePulse.jsx` — WIN/LOSS + activity feed
+- `/app/backend/routes/analytics_dashboard.py` — second_action_rate metric
 
 ---
 
 ## All Systems (Apr 12-13)
 - Queue System, Data Integrity, Export Pipeline
 - Consumption-First Loop, Entry Conversion Engine
-- Analytics Dashboard, Funnel Integrity
-- Auto-play all cards, Social proof density
-- Competitive copy, Identity/ranking feedback
+- Analytics Dashboard + Funnel Integrity
+- Auto-play, Social proof, Competitive copy
+- Instant dopamine, Continuous tension, Identity/ranking
+- WIN/LOSS moments, Real-time battle pulse
+- Viral share prompts, Return triggers
 
 ---
 
 ## Backlog
 
 ### P0 (Data-driven)
-- Monitor CTR changes
-- Quick Shot retention at scale
+- Monitor: 2nd action rate, CTR, session time
+- Validate WIN/LOSS moments trigger correctly on rank changes
 
 ### P1
+- Push notification for rank changes
 - Auto-Recovery FAILED_PERSISTENCE
-- Secondary Action Matrix
 
 ### P2
 - Resend domain, personalized headlines

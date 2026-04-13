@@ -113,6 +113,20 @@ async def conversion_dashboard(
         "created_at": {"$gte": since},
     })
 
+    # ═══ SECOND ACTION RATE — the real north star ═══
+    # Users who created at least 1 job in period
+    creators_pipeline = [
+        {"$match": {"created_at": {"$gte": since}, "user_id": {"$ne": None}}},
+        {"$group": {"_id": "$user_id", "job_count": {"$sum": 1}}},
+    ]
+    creators = {}
+    async for doc in db.story_engine_jobs.aggregate(creators_pipeline):
+        creators[doc["_id"]] = doc["job_count"]
+
+    total_creators = len(creators)
+    creators_with_2plus = sum(1 for c in creators.values() if c >= 2)
+    second_action_rate = round((creators_with_2plus / max(total_creators, 1)) * 100, 2)
+
     # ═══ 5. SESSION METRICS ═══
     unique_sessions = await db.funnel_events.distinct("session_id", {"timestamp": {"$gte": since}})
     session_count = len(unique_sessions) if unique_sessions else 1
@@ -212,6 +226,11 @@ async def conversion_dashboard(
         "queue_rate_formula": "QUEUED_jobs / total_jobs_created * 100",
         "queue_to_complete_rate": round((queue_completed / max(queue_total, 1)) * 100, 2),
         "queue_to_complete_formula": "queued_then_completed / total_queued * 100",
+
+        # NORTH STAR: Second Action Rate
+        "second_action_rate": second_action_rate,
+        "second_action_rate_formula": "users_with_2+_jobs / total_creators * 100",
+        "second_action_verdict": "strong" if second_action_rate > 40 else "potential" if second_action_rate > 20 else "weak",
     }
 
     # ═══ 7. FUNNEL (ordered, with attribution) ═══
@@ -267,6 +286,8 @@ async def conversion_dashboard(
             "branch_entries": branch_entries,
             "quick_shot_entries": quick_shot_entries,
             "queue_completed": queue_completed,
+            "total_creators": total_creators,
+            "creators_with_2plus_actions": creators_with_2plus,
         },
         "session_stats": {
             "unique_sessions": session_count,

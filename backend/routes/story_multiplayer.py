@@ -1534,6 +1534,154 @@ async def get_battle_notifications(
     }
 
 
+
+# ═══════════════════════════════════════════════════════════════
+# WIN / LOSS MOMENTS + REAL-TIME BATTLE PULSE
+# ═══════════════════════════════════════════════════════════════
+
+@router.get("/battle-pulse/{root_story_id}")
+async def get_battle_pulse(
+    root_story_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Real-time battle pulse: rank changes, recent activity, WIN/LOSS moments.
+    Polled every 10-15s by the frontend to create alive-feeling competition.
+    """
+    user_id = current_user.get("id") or str(current_user.get("_id"))
+
+    # Get all branch entries for this battle, sorted by score
+    entries = await db.story_engine_jobs.find(
+        {
+            "$or": [
+                {"job_id": root_story_id},
+                {"root_story_id": root_story_id, "continuation_type": "branch"},
+            ],
+            "state": {"$in": ["READY", "PARTIAL_READY", "COMPLETED", "QUEUED", "INIT",
+                              "PLANNING", "GENERATING_KEYFRAMES", "GENERATING_SCENE_CLIPS",
+                              "GENERATING_AUDIO", "ASSEMBLING_VIDEO"]},
+        },
+        {"_id": 0, "job_id": 1, "title": 1, "user_id": 1, "battle_score": 1,
+         "total_views": 1, "total_children": 1, "created_at": 1, "state": 1,
+         "quick_shot": 1}
+    ).sort("battle_score", -1).to_list(50)
+
+    if not entries:
+        return {"success": True, "pulse": None}
+
+    # Build ranked list with user lookup
+    user_ids = list(set(e.get("user_id") for e in entries if e.get("user_id")))
+    user_map = {}
+    if user_ids:
+        users = await db.users.find(
+            {"id": {"$in": user_ids}},
+            {"_id": 0, "id": 1, "name": 1, "email": 1}
+        ).to_list(100)
+        user_map = {u["id"]: u.get("name") or u.get("email", "").split("@")[0] for u in users}
+
+    ranked = []
+    user_rank = None
+    user_entry = None
+    for i, e in enumerate(entries):
+        rank = i + 1
+        creator = user_map.get(e.get("user_id"), "Anonymous")
+        item = {
+            "job_id": e["job_id"],
+            "title": e.get("title", "Untitled"),
+            "creator_name": creator,
+            "rank": rank,
+            "score": e.get("battle_score", 0),
+            "views": e.get("total_views", 0),
+            "is_mine": e.get("user_id") == user_id,
+        }
+        ranked.append(item)
+        if e.get("user_id") == user_id and user_rank is None:
+            user_rank = rank
+            user_entry = item
+
+    # Detect WIN/LOSS moment
+    # Check user's previous rank (stored in session or compare to cached)
+    moment = None
+    if user_entry:
+        # Load last known rank from DB
+        last_rank_doc = await db.battle_rank_cache.find_one(
+            {"user_id": user_id, "root_story_id": root_story_id},
+            {"_id": 0, "rank": 1}
+        )
+        last_rank = last_rank_doc.get("rank") if last_rank_doc else None
+
+        if last_rank is not None and user_rank is not None:
+            if user_rank < last_rank:
+                # Rank improved
+                if user_rank == 1:
+                    moment = {
+                        "type": "win_first",
+                        "message": "YOU'RE #1 RIGHT NOW",
+                        "detail": "You just beat everyone in this battle",
+                        "subtext": "Your entry is getting pushed to more users",
+                    }
+                else:
+                    moment = {
+                        "type": "rank_up",
+                        "message": f"You climbed to #{user_rank}",
+                        "detail": f"Up from #{last_rank}",
+                        "subtext": f"Only {ranked[0]['score'] - user_entry['score']:.0f} pts to #1" if ranked else "",
+                    }
+            elif user_rank > last_rank:
+                # Rank dropped — LOSS PAIN
+                moment = {
+                    "type": "rank_drop",
+                    "message": f"You dropped to #{user_rank}",
+                    "detail": "Someone just beat your entry",
+                    "subtext": "Share or improve to climb back",
+                }
+
+        # Update cache
+        await db.battle_rank_cache.update_one(
+            {"user_id": user_id, "root_story_id": root_story_id},
+            {"$set": {"rank": user_rank, "updated_at": datetime.now(timezone.utc).isoformat()}},
+            upsert=True,
+        )
+
+    # Recent activity — last 5 events
+    recent_activity = []
+    now = datetime.now(timezone.utc)
+    for e in entries[:10]:
+        try:
+            created = datetime.fromisoformat(e.get("created_at", "").replace("Z", "+00:00"))
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            mins_ago = int((now - created).total_seconds() / 60)
+            if mins_ago < 60:
+                creator = user_map.get(e.get("user_id"), "Someone")
+                if e.get("user_id") != user_id:
+                    recent_activity.append({
+                        "text": f"{creator} entered {mins_ago}m ago",
+                        "type": "entry",
+                        "mins_ago": mins_ago,
+                    })
+        except (ValueError, AttributeError):
+            pass
+
+    total_entries = len(entries)
+    active_rendering = sum(1 for e in entries if e.get("state") not in ("READY", "PARTIAL_READY", "COMPLETED"))
+
+    return {
+        "success": True,
+        "pulse": {
+            "root_story_id": root_story_id,
+            "total_entries": total_entries,
+            "active_rendering": active_rendering,
+            "top_3": ranked[:3],
+            "user_rank": user_rank,
+            "user_entry": user_entry,
+            "moment": moment,
+            "recent_activity": recent_activity[:5],
+            "is_active": len(recent_activity) > 0 or active_rendering > 0,
+        },
+    }
+
+
 # ═══════════════════════════════════════════════════════════════
 # FEED PRIORITIZATION — Chain depth + continuation rate
 # ═══════════════════════════════════════════════════════════════
