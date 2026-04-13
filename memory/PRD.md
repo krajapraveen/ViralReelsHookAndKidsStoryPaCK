@@ -14,6 +14,14 @@
 
 ## Core Philosophy: WATCH > ENTER BATTLE > GENERATE > COMPETE > PAY
 
+## Audit Fixes Applied (Apr 13)
+- Cookie consent: shrunk to small bottom-right toast (no longer blocks CTAs)
+- Journey Progress Bar: only shows on Studio/Pipeline pages (removed from Dashboard, Battle, Viewer)
+- Dashboard restructured: Battle-first (HottestBattle → TrendingPublicFeed → HeroSection)
+- PostValueOverlay: "Continue with limited access" stays on /app (no studio redirect)
+- Explore page: only shows stories with thumbnails (no blank cards)
+- Login: correctly redirects to /app dashboard
+
 ---
 
 ## Master Flow (Money Loop)
