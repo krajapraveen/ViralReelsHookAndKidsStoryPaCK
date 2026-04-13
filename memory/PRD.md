@@ -14,7 +14,17 @@
 
 ## Core Philosophy: WATCH > ENTER BATTLE > GENERATE > COMPETE > PAY
 
-## Dashboard Architecture (Apr 13 — Battle-First Redesign)
+## Video Preview Pipeline (Apr 13)
+- **Media Derivative Pipeline** (`/app/backend/services/media_preview_pipeline.py`)
+  - Generates 3 derivatives per video: poster_sm (webp), poster_md (webp), 2s muted preview clip (mp4 h264 faststart)
+  - Hook selection: scene-based I-frame analysis, picks best 2s window (not just first 2s)
+  - FFmpeg: 540px width, 24fps, CRF 28, no audio, faststart
+  - Uploads to R2 under `/previews/{job_id}/`
+  - `media_assets` collection tracks all derivatives
+  - Auto-triggers on pipeline completion via `asyncio.create_task`
+  - Admin backfill: `POST /api/stories/admin/backfill-previews`
+- **Feed API** returns `preview_media` contract: `poster_url`, `preview_url`, `autoplay_enabled`, `processing_state`
+- **Frontend autoplay**: IntersectionObserver triggers `video.play()` at 60% visibility, falls back to poster on failure, pauses on scroll-out
 Dashboard order: PersonalAlertStrip → LiveBattleHero → QuickActions → TrendingPublicFeed → MomentumSection → HeroSection → Story Rows
 
 ### New Components:

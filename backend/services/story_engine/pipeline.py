@@ -656,6 +656,15 @@ async def _finalize_job(job_id: str) -> Dict:
 
     logger.info(f"[PIPELINE] Job {job_id[:8]} finalized: {final_state}")
 
+    # ═══ PREVIEW GENERATION: Generate poster + 2s preview for feed cards ═══
+    if target in SUCCESS_STATES and job.get("output_url"):
+        try:
+            from services.media_preview_pipeline import generate_preview_derivatives
+            asyncio.create_task(generate_preview_derivatives(job_id, job["output_url"], db))
+            logger.info(f"[PIPELINE] Preview generation queued for {job_id[:8]}")
+        except Exception as prev_err:
+            logger.warning(f"[PIPELINE] Preview generation failed to queue: {prev_err}")
+
     # ═══ RANK NOTIFICATIONS: Check rank changes when a new entry completes ═══
     if target in SUCCESS_STATES and job.get("continuation_type") == "branch" and job.get("parent_job_id"):
         try:

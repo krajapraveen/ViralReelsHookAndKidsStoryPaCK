@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Flame, Eye, GitBranch, Share2, ArrowRight, Play, TrendingUp } from 'lucide-react';
 import api from '../utils/api';
@@ -54,6 +54,11 @@ function TrendingCard({ story, index, navigate }) {
   const isHot = (story.total_children || 0) >= 3 || (story.battle_score || 0) > 50;
   const competitors = story.total_children || 0;
   const views = story.total_views || 0;
+  const preview = story.preview_media;
+  const videoRef = useRef(null);
+  const cardRef = useRef(null);
+  const [previewPlaying, setPreviewPlaying] = useState(false);
+  const [previewFailed, setPreviewFailed] = useState(false);
 
   // Generate curiosity hook based on story context
   const hookText = isHot && competitors >= 3
@@ -64,16 +69,65 @@ function TrendingCard({ story, index, navigate }) {
     ? `Blowing up — ${views > 100 ? `${views}` : views} watching`
     : null;
 
+  // IntersectionObserver for autoplay
+  useEffect(() => {
+    if (!preview?.autoplay_enabled || !preview?.preview_url || previewFailed) return;
+    const el = cardRef.current;
+    if (!el) return;
+
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
+          if (videoRef.current && !previewPlaying) {
+            videoRef.current.src = preview.preview_url;
+            videoRef.current.play()
+              .then(() => setPreviewPlaying(true))
+              .catch(() => setPreviewFailed(true));
+          }
+        } else {
+          if (videoRef.current && previewPlaying) {
+            videoRef.current.pause();
+            setPreviewPlaying(false);
+          }
+        }
+      },
+      { threshold: 0.6 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [preview?.autoplay_enabled, preview?.preview_url, previewPlaying, previewFailed]);
+
   return (
     <button
+      ref={cardRef}
       onClick={() => navigate(`/app/story-viewer/${story.job_id}`)}
       className="group rounded-xl border border-white/5 bg-white/[0.02] overflow-hidden text-left hover:border-white/10 transition-all"
       data-testid={`trending-card-${index}`}
     >
-      {/* Thumbnail / Gradient */}
+      {/* Thumbnail / Video Preview */}
       <div className="aspect-video bg-gradient-to-br from-slate-800 to-slate-900 relative overflow-hidden">
-        {story.thumbnail_url ? (
-          <img src={story.thumbnail_url} alt="" className="w-full h-full object-cover kenburns-auto group-hover:scale-110 group-hover:animation-none transition-transform" />
+        {/* Video preview layer (hidden until playing) */}
+        {preview?.autoplay_enabled && !previewFailed && (
+          <video
+            ref={videoRef}
+            muted
+            playsInline
+            loop
+            preload="none"
+            poster={preview.poster_url || story.thumbnail_url}
+            className={`absolute inset-0 w-full h-full object-cover z-[1] transition-opacity duration-300 ${previewPlaying ? 'opacity-100' : 'opacity-0'}`}
+            onError={() => setPreviewFailed(true)}
+            data-testid={`preview-video-${index}`}
+          />
+        )}
+
+        {/* Poster/thumbnail layer (always visible as base) */}
+        {(preview?.poster_url || story.thumbnail_url) ? (
+          <img
+            src={preview?.poster_url || story.thumbnail_url}
+            alt=""
+            className="w-full h-full object-cover kenburns-auto group-hover:animation-none"
+          />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-violet-600/20 to-rose-600/20" />
         )}

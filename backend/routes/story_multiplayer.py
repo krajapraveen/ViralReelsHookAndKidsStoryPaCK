@@ -1758,6 +1758,7 @@ async def discover_stories(
             "continuation_type": 1, "chain_depth": 1,
             "total_children": 1, "total_views": 1, "total_shares": 1,
             "battle_score": 1, "thumbnail_url": 1, "output_url": 1,
+            "preview_video_url": 1, "preview_poster_url": 1, "preview_ready": 1,
             "created_at": 1, "animation_style": 1, "root_story_id": 1,
             "derivative_label": 1, "source_story_title": 1, "source_creator_name": 1,
             "story_text": 1,
@@ -1778,6 +1779,17 @@ async def discover_stories(
         # Trim story_text for feed display
         if s.get("story_text") and len(s["story_text"]) > 200:
             s["story_text"] = s["story_text"][:200] + "..."
+        # Add preview_media contract for frontend
+        s["preview_media"] = {
+            "poster_url": s.get("preview_poster_url") or s.get("thumbnail_url"),
+            "preview_url": s.get("preview_video_url"),
+            "autoplay_enabled": bool(s.get("preview_video_url")),
+            "processing_state": "READY" if s.get("preview_ready") else "PENDING",
+        }
+        # Clean internal fields
+        s.pop("preview_video_url", None)
+        s.pop("preview_poster_url", None)
+        s.pop("preview_ready", None)
 
     total = await db.story_engine_jobs.count_documents({
         "state": {"$in": ["READY", "PARTIAL_READY", "COMPLETED"]},
@@ -1901,6 +1913,24 @@ async def get_battle_entry_status(current_user: dict = Depends(get_current_user)
         "needs_payment": needs_payment,
         "packs": list(BATTLE_ENTRY_PACKS.values()),
     }
+
+
+
+# ═══════════════════════════════════════════════════════════════
+# PREVIEW BACKFILL — Admin endpoint to generate previews for existing stories
+# ═══════════════════════════════════════════════════════════════
+
+@router.post("/admin/backfill-previews")
+async def trigger_preview_backfill(limit: int = 20, current_user: dict = Depends(get_current_user)):
+    """Admin-only: generate preview derivatives for top stories without previews."""
+    role = current_user.get("role", "")
+    if role.upper() not in ("ADMIN", "SUPERADMIN"):
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    import asyncio
+    from services.media_preview_pipeline import backfill_previews
+    asyncio.create_task(backfill_previews(db, limit=limit))
+    return {"success": True, "message": f"Backfill queued for up to {limit} stories"}
 
 
 # ═══════════════════════════════════════════════════════════════
