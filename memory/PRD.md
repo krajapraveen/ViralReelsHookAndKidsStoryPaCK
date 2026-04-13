@@ -28,8 +28,11 @@
 Dashboard order: PersonalAlertStrip → LiveBattleHero → QuickActions → TrendingPublicFeed → MomentumSection → HeroSection → Story Rows
 
 ### New Components:
-- `LiveBattleHero.jsx` — Live battle zone with stats, rank, #1 preview, Enter Battle + Quick Shot CTAs. Polls pulse every 15s. Paywall-gated.
-- `QuickActions.jsx` — 3 big entry buttons: Quick Shot, Create Story, Remix Battle
+- `LiveBattleHero.jsx` — Live battle zone with stats, rank, #1 preview, Enter Battle + Quick Shot CTAs. Polls pulse every 15s. Paywall-gated. Listens for `show-battle-paywall` global events.
+- `QuickActions.jsx` — "Choose Your Path" section with 3 differentiated entry paths:
+  - Primary: "Enter Battle Instantly" (AI auto-gen, spans 2 cols, credit-aware indicator, "Fastest path to the leaderboard" badge)
+  - Secondary: "Write Your Own Entry" (studio with full creative control)
+  - Tertiary: "Beat the Leader" (remix flow — shows dynamic #1 entry title, navigates to studio with remix context)
 - `MomentumSection.jsx` — User stats: Current Rank, Battles Entered, Credits, Status
 
 ---
@@ -139,6 +142,7 @@ Paywall Modal → Cashfree SDK → Verify → Credits Added → Resume Action
 ---
 
 ## All Completed Systems
+- CTA Conversion Redesign v2 (Apr 13): Killed hero/QuickActions duplication, renamed CTAs for action-impulse clarity, visual hierarchy with dominant primary card, credit-aware pre-click indicator, remix flow fix (studio with context instead of bare leaderboard), event bridge for paywall modal.
 - Entry Conversion Engine (Quick Shot, personalized CTAs)
 - Consumption-First UI (Watch > Make)
 - Queue System (QUEUED state, graceful handling)
