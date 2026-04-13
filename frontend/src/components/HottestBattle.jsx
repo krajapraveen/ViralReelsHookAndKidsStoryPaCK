@@ -134,20 +134,24 @@ export default function HottestBattle() {
       });
 
       if (res.data?.success) {
-        // INSTANT DOPAMINE: show success overlay before navigating
+        // INSTANT DOPAMINE: show preview + stakes + ranking before navigating
         setQuickShotSuccess({
           jobId: res.data.job_id,
           queued: res.data.queued,
           streak: res.data.current_streak || 0,
           streakStarted: res.data.streak_started,
+          // Parent story data for instant preview
+          parentTitle: battle.root_title,
+          parentThumbnail: battle.root_thumbnail,
+          competitorCount: battle.branch_count || 0,
         });
 
-        // Auto-navigate after 1.5s of dopamine hit
+        // Auto-navigate after 2.5s — enough for dopamine + reading stakes
         setTimeout(() => {
           if (res.data.job_id) {
             navigate(`/app/story-video-studio?projectId=${res.data.job_id}`);
           }
-        }, 1500);
+        }, 2500);
       }
     } catch (err) {
       const detail = err.response?.data?.detail || 'Quick Shot failed. Try again.';
@@ -205,26 +209,35 @@ export default function HottestBattle() {
     <div ref={componentRef} className="px-4 sm:px-6 lg:px-10 py-2" data-testid="hottest-battle">
       <div className="rounded-2xl border border-rose-500/20 bg-gradient-to-br from-rose-500/[0.06] to-amber-500/[0.03] overflow-hidden relative">
 
-        {/* ═══ INSTANT DOPAMINE OVERLAY — shows immediately after Quick Shot ═══ */}
+        {/* ═══ INSTANT DOPAMINE OVERLAY — ego boost + preview + stakes ═══ */}
         {quickShotSuccess && (
           <div className="absolute inset-0 z-20 bg-slate-950/95 backdrop-blur-md flex items-center justify-center animate-in fade-in zoom-in-95 duration-300" data-testid="quick-shot-success-overlay">
-            <div className="text-center px-6">
-              <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 flex items-center justify-center mx-auto mb-4 animate-in zoom-in duration-500">
-                <Zap className="w-8 h-8 text-emerald-400" />
+            <div className="text-center px-6 max-w-xs">
+              {/* Preview thumbnail from parent story */}
+              {quickShotSuccess.parentThumbnail && (
+                <div className="w-24 h-16 rounded-lg overflow-hidden mx-auto mb-3 border border-white/10">
+                  <img src={quickShotSuccess.parentThumbnail} alt="" className="w-full h-full object-cover" />
+                </div>
+              )}
+              <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-3 animate-in zoom-in duration-500">
+                <Zap className="w-6 h-6 text-emerald-400" />
               </div>
-              <h3 className="text-xl font-black text-white mb-1">You're in the battle!</h3>
-              <p className="text-sm text-emerald-400 font-semibold mb-1">Entry accepted</p>
-              <p className="text-xs text-white/40">
-                {quickShotSuccess.queued
-                  ? 'Queued — rendering starts soon'
-                  : 'Generating your version now...'
-                }
+              <h3 className="text-lg font-black text-white mb-1">You're competing for #1</h3>
+              <p className="text-sm text-emerald-400 font-semibold mb-2">
+                Your version of "{quickShotSuccess.parentTitle}" is live
+              </p>
+              <div className="flex items-center justify-center gap-3 text-[11px] text-white/40 mb-2">
+                <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> Going live now</span>
+                <span className="flex items-center gap-1"><Swords className="w-3 h-3" /> vs {quickShotSuccess.competitorCount} others</span>
+              </div>
+              <p className="text-[10px] text-amber-400/80 font-medium">
+                If this wins, it gets pushed to everyone
               </p>
               {quickShotSuccess.streakStarted && (
-                <p className="text-xs text-orange-400 font-semibold mt-2">Streak started! Come back tomorrow.</p>
+                <p className="text-[10px] text-orange-400 font-semibold mt-2">Streak started! Come back tomorrow.</p>
               )}
               {quickShotSuccess.streak > 1 && (
-                <p className="text-xs text-orange-400 mt-2">{quickShotSuccess.streak}-day streak!</p>
+                <p className="text-[10px] text-orange-400 mt-1">{quickShotSuccess.streak}-day streak!</p>
               )}
             </div>
           </div>
@@ -247,7 +260,13 @@ export default function HottestBattle() {
           <h3 className="text-base font-bold text-white truncate" data-testid="hottest-battle-title">
             {root_title || 'Story Battle'}
           </h3>
-          <p className="text-[11px] text-white/30 mt-1">Compete or watch others win. Top entry gets visibility.</p>
+          <p className="text-[11px] text-white/30 mt-1">
+            {branch_count > 3
+              ? `${branch_count} creators competing right now`
+              : 'Compete or watch others win'
+            }
+            {battle.total_views > 0 && ` — ${battle.total_views > 1000 ? `${(battle.total_views / 1000).toFixed(1)}K` : battle.total_views} views`}
+          </p>
         </div>
 
         {/* Live Leaderboard — Top 3 */}

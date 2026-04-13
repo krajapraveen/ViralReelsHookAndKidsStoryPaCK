@@ -338,9 +338,9 @@ export default function StoryViewerPage() {
             </div>
           </div>
 
-          {/* ═══ BATTLE STATUS BANNER — for branch entries ═══ */}
+          {/* ═══ BATTLE STATUS BANNER — ranking + identity + return trigger ═══ */}
           {continuationType === 'branch' && (
-            <div className="bg-rose-500/[0.06] border border-rose-500/15 rounded-xl p-4" data-testid="battle-status-banner">
+            <div className="bg-rose-500/[0.06] border border-rose-500/15 rounded-xl p-4 space-y-3" data-testid="battle-status-banner">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <Swords className="w-5 h-5 text-rose-400 flex-shrink-0" />
@@ -364,7 +364,30 @@ export default function StoryViewerPage() {
                   </button>
                 )}
               </div>
-              <p className="text-[10px] text-white/20 mt-2">Share to climb ranks. Views, shares, and continuations determine the winner.</p>
+              {/* Ranking + return hook */}
+              <div className="bg-white/[0.03] rounded-lg p-3">
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-4">
+                    <div>
+                      <span className="text-white/30">Your rank</span>
+                      <p className="text-lg font-black text-white">#{(job.battle_rank || '—')}</p>
+                    </div>
+                    <div>
+                      <span className="text-white/30">Score</span>
+                      <p className="text-lg font-black text-amber-400">{(job.battle_score || 0).toFixed(0)}</p>
+                    </div>
+                    <div>
+                      <span className="text-white/30">Views</span>
+                      <p className="text-lg font-black text-white">{job.total_views || 0}</p>
+                    </div>
+                  </div>
+                </div>
+                {siblings.length > 1 && (
+                  <p className="text-[10px] text-amber-400/70 mt-2 font-medium">
+                    Share to climb ranks — views and continuations determine the winner
+                  </p>
+                )}
+              </div>
             </div>
           )}
 

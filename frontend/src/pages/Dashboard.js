@@ -401,7 +401,7 @@ function StoryCard({ story, idx, navigate, priority = false }) {
 /* ═══════════════════════════════════════════════════════════════════
    SCROLL ROW — horizontal, lazy loaded, progressive reveal
    ═══════════════════════════════════════════════════════════════════ */
-function ScrollRow({ title, icon: Icon, iconColor, children, testId, delay = 0, eager = false }) {
+function ScrollRow({ title, subtitle, icon: Icon, iconColor, children, testId, delay = 0, eager = false }) {
   const scrollRef = useRef(null);
   const sectionRef = useRef(null);
   const [showLeft, setShowLeft] = useState(false);
@@ -445,6 +445,7 @@ function ScrollRow({ title, icon: Icon, iconColor, children, testId, delay = 0, 
           {Icon && <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${iconColor || 'text-white/60'}`} />}
           {title}
         </h2>
+        {subtitle && <span className="text-[10px] text-white/25 ml-1">{subtitle}</span>}
         <button onClick={() => scroll(1)} className="text-white/70 text-sm font-medium hover:text-white transition-colors flex items-center gap-1">
           See all <ChevronRight className="w-3 h-3" />
         </button>
@@ -1138,10 +1139,16 @@ export default function Dashboard() {
       {rows.map((row, rowIdx) => {
         const RowIcon = ROW_ICON_MAP[row.icon] || Zap;
         const stories = row.stories?.length > 0 ? row.stories : SEED_CARDS.map(s => ({ ...s, badge: row.key === 'continue_stories' ? 'CONTINUE' : s.badge }));
+        const storyCount = stories.length;
+        const totalViews = stories.reduce((sum, s) => sum + (s.total_views || 0), 0);
+        const subtitle = totalViews > 0
+          ? `${storyCount} stories${totalViews > 100 ? ` · ${totalViews > 1000 ? `${(totalViews / 1000).toFixed(1)}K` : totalViews} views` : ''}`
+          : `${storyCount} stories`;
         return (
           <ScrollRow
             key={row.key}
             title={row.title}
+            subtitle={subtitle}
             icon={RowIcon}
             iconColor={row.icon_color || 'text-white/60'}
             testId={row.key}
