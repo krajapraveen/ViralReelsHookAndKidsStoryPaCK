@@ -1,20 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Loader2, Trophy, GitBranch, Play, Eye, Share2,
-  ChevronDown, ChevronUp, Crown, Swords, TrendingUp, ArrowRight,
-  Plus
+  Crown, Swords, TrendingUp, ArrowRight, Plus, Flame
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import { trackFunnel } from '../utils/funnelTracker';
 import ContinuationModal from '../components/ContinuationModal';
-import StreakBadge from '../components/StreakBadge';
+import BattlePulse from '../components/BattlePulse';
+import BattlePaywallModal from '../components/BattlePaywallModal';
 
 /**
- * StoryBattlePage — The destination for competitive notifications.
- * Shows side-by-side comparison of competing story branches ranked by battle_score.
- * Deep-linkable at /story-battle/:storyId
+ * StoryBattlePage — THE WATCH PAGE. Core of the competition loop.
+ *
+ * 7 required components:
+ * 1. Rank + Score
+ * 2. Live activity (BattlePulse polling)
+ * 3. WIN/LOSS system (BattlePulse moments)
+ * 4. Video autoplay (#1 contender)
+ * 5. Share CTA
+ * 6. Enter Battle CTA (paywall-gated)
+ * 7. Return trigger
  */
 export default function StoryBattlePage() {
   const { storyId } = useParams();
@@ -22,21 +30,55 @@ export default function StoryBattlePage() {
   const [battle, setBattle] = useState(null);
   const [loading, setLoading] = useState(true);
   const [continuationMode, setContinuationMode] = useState(null);
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallTrigger, setPaywallTrigger] = useState('enter_battle');
 
-  useEffect(() => {
+  const fetchBattle = useCallback(async () => {
     if (!storyId) return;
-    (async () => {
-      try {
-        const res = await api.get(`/api/stories/battle/${storyId}`);
-        setBattle(res.data);
-      } catch (err) {
-        toast.error('Battle not found');
-        navigate('/app/dashboard');
-      } finally {
-        setLoading(false);
-      }
-    })();
+    try {
+      const res = await api.get(`/api/stories/battle/${storyId}`);
+      setBattle(res.data);
+    } catch {
+      toast.error('Battle not found');
+      navigate('/app');
+    } finally {
+      setLoading(false);
+    }
   }, [storyId, navigate]);
+
+  useEffect(() => { fetchBattle(); }, [fetchBattle]);
+
+  // Poll battle data every 12s for live updates
+  useEffect(() => {
+    const iv = setInterval(fetchBattle, 12000);
+    return () => clearInterval(iv);
+  }, [fetchBattle]);
+
+  // Share handler
+  const handleShare = () => {
+    const url = `${window.location.origin}/app/story-battle/${storyId}`;
+    if (navigator.share) {
+      navigator.share({ title: 'Story Battle', url }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(url);
+      toast.success('Battle link copied!');
+    }
+    trackFunnel('cta_clicked', { meta: { type: 'share_battle', story_id: storyId } });
+  };
+
+  // Enter battle with paywall check
+  const handleEnterBattle = async (trigger = 'enter_battle') => {
+    try {
+      const res = await api.get('/api/stories/battle-entry-status');
+      if (res.data?.needs_payment) {
+        setPaywallTrigger(trigger);
+        setShowPaywall(true);
+        return;
+      }
+    } catch {}
+    trackFunnel('cta_clicked', { meta: { type: 'enter_battle', source: 'watch_page', story_id: storyId } });
+    setContinuationMode('branch');
+  };
 
   if (loading) {
     return (
@@ -50,154 +92,220 @@ export default function StoryBattlePage() {
 
   const { contenders, total_contenders, user_rank, battle_parent_id, current_story } = battle;
   const topContender = contenders?.[0];
+  const rootId = battle_parent_id || storyId;
 
   return (
     <div className="min-h-screen bg-slate-950">
       {/* Header */}
       <div className="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-md border-b border-white/5">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="text-white/40 hover:text-white" data-testid="battle-back-btn">
+          <button onClick={() => navigate('/app')} className="text-white/40 hover:text-white" data-testid="battle-back-btn">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="flex-1">
-            <h1 className="text-sm font-bold text-white flex items-center gap-2">
+            <h1 className="text-sm font-bold text-white flex items-center gap-2" data-testid="battle-header-title">
               <Swords className="w-4 h-4 text-rose-400" /> Story Battle
             </h1>
-            <p className="text-xs text-white/40">{total_contenders} competing versions</p>
+            <p className="text-xs text-white/40">{total_contenders} competing</p>
           </div>
+          <button
+            onClick={handleShare}
+            className="p-2 rounded-lg bg-white/[0.04] text-white/50 hover:text-white transition-colors"
+            data-testid="battle-share-header-btn"
+          >
+            <Share2 className="w-4 h-4" />
+          </button>
           <Button
             size="sm"
-            onClick={() => setContinuationMode('branch')}
+            onClick={() => handleEnterBattle('enter_battle')}
             className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold"
-            data-testid="create-better-version-header-btn"
+            data-testid="enter-battle-header-btn"
           >
-            <Plus className="w-3.5 h-3.5 mr-1" /> Create Better Version
+            <Plus className="w-3.5 h-3.5 mr-1" /> Enter Battle
           </Button>
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-        {/* Streak Badge */}
-        <StreakBadge compact />
+      <div className="max-w-3xl mx-auto px-4 py-5 space-y-5">
 
-        {/* Current #1 Highlight */}
-        {topContender && (
-          <div className="relative overflow-hidden rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/[0.06] to-orange-500/[0.04] p-6"
-            data-testid="top-contender-card">
-            <div className="absolute top-3 right-3">
-              <div className="flex items-center gap-1 bg-amber-500/20 rounded-full px-2.5 py-1">
-                <Crown className="w-3.5 h-3.5 text-amber-400" />
-                <span className="text-xs font-bold text-amber-400">#1</span>
-              </div>
-            </div>
-            <h2 className="text-lg font-bold text-white mb-1" data-testid="top-contender-title">
-              {topContender.title || 'Untitled'}
-            </h2>
-            <p className="text-xs text-white/40 mb-3">by {topContender.creator_name}</p>
-            <div className="flex items-center gap-4 text-xs text-white/50">
-              <span className="flex items-center gap-1">
-                <Eye className="w-3.5 h-3.5" /> {topContender.total_views || 0} views
-              </span>
-              <span className="flex items-center gap-1">
-                <Share2 className="w-3.5 h-3.5" /> {topContender.total_shares || 0} shares
-              </span>
-              <span className="flex items-center gap-1">
-                <GitBranch className="w-3.5 h-3.5" /> {topContender.total_children || 0} continues
-              </span>
-              <span className="flex items-center gap-1 text-amber-400 font-semibold">
-                <TrendingUp className="w-3.5 h-3.5" /> {(topContender.battle_score || 0).toFixed(1)} pts
-              </span>
-            </div>
-            {topContender.is_original && (
-              <span className="inline-block mt-2 text-[10px] bg-white/5 border border-white/10 rounded-full px-2 py-0.5 text-white/40">
-                Original Story
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* User's Position */}
+        {/* ═══ 1. RANK + SCORE (User's position) ═══ */}
         {user_rank && (
           <div className={`rounded-xl p-4 border ${
             user_rank === 1
-              ? 'bg-emerald-500/5 border-emerald-500/20'
-              : 'bg-rose-500/5 border-rose-500/20'
+              ? 'bg-amber-500/[0.06] border-amber-500/25'
+              : 'bg-rose-500/[0.06] border-rose-500/20'
           }`} data-testid="user-rank-card">
             <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                user_rank === 1 ? 'bg-emerald-500/20' : 'bg-rose-500/20'
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                user_rank === 1 ? 'bg-amber-500/20' : 'bg-rose-500/20'
               }`}>
                 {user_rank === 1
-                  ? <Trophy className="w-5 h-5 text-emerald-400" />
-                  : <span className="text-lg font-black text-rose-400">#{user_rank}</span>
+                  ? <Crown className="w-6 h-6 text-amber-400" />
+                  : <span className="text-xl font-black text-rose-400">#{user_rank}</span>
                 }
               </div>
               <div className="flex-1">
-                <p className={`text-sm font-bold ${user_rank === 1 ? 'text-emerald-400' : 'text-rose-300'}`}>
+                <p className={`text-base font-black ${user_rank === 1 ? 'text-amber-300' : 'text-rose-300'}`}>
                   {user_rank === 1 ? "You're #1!" : `You're ranked #${user_rank}`}
                 </p>
                 <p className="text-xs text-white/40">
                   {user_rank === 1
-                    ? 'Your version is leading the competition'
-                    : `${user_rank - 1} version${user_rank > 2 ? 's' : ''} ahead of you — can you take the top spot?`
+                    ? 'Share to lock your position'
+                    : `${user_rank - 1} ahead — one entry could change it`
                   }
                 </p>
               </div>
-              {user_rank > 1 && (
-                <Button
-                  size="sm"
-                  onClick={() => setContinuationMode('branch')}
-                  className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold"
+              {user_rank === 1 ? (
+                <button
+                  onClick={handleShare}
+                  className="flex-shrink-0 px-4 py-2 rounded-lg bg-amber-500 text-black text-xs font-black hover:bg-amber-400 transition-colors"
+                  data-testid="win-share-battle-btn"
+                >
+                  <Share2 className="w-3.5 h-3.5 inline mr-1" /> Share
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleEnterBattle('loss_moment')}
+                  className="flex-shrink-0 px-4 py-2 rounded-lg bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs font-bold hover:bg-rose-500/30 transition-colors"
                   data-testid="take-back-spot-btn"
                 >
                   Take it back
-                </Button>
+                </button>
               )}
             </div>
           </div>
         )}
 
-        {/* Full Leaderboard */}
+        {/* ═══ 2+3. LIVE ACTIVITY + WIN/LOSS SYSTEM (BattlePulse) ═══ */}
+        <BattlePulse
+          rootStoryId={rootId}
+          onEnterBattle={() => handleEnterBattle('loss_moment')}
+        />
+
+        {/* ═══ 4. VIDEO AUTOPLAY (#1 contender) ═══ */}
+        {topContender?.output_url && (
+          <div className="rounded-xl overflow-hidden border border-white/5" data-testid="top-video-player">
+            <video
+              src={topContender.output_url}
+              poster={topContender.thumbnail_url}
+              className="w-full aspect-video object-contain bg-black"
+              autoPlay
+              muted
+              playsInline
+              loop
+              data-testid="battle-top-video"
+            />
+            <div className="p-3 bg-white/[0.02] flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <Crown className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-xs font-bold text-amber-300">#1</span>
+              </div>
+              <p className="text-xs font-semibold text-white truncate flex-1">{topContender.title}</p>
+              <span className="text-xs text-white/40">by {topContender.creator_name}</span>
+              <button
+                onClick={() => navigate(`/app/story-viewer/${topContender.job_id}`)}
+                className="text-xs text-violet-400 font-medium hover:text-violet-300 flex items-center gap-1"
+                data-testid="watch-full-btn"
+              >
+                Watch <Play className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ 5. SHARE CTA (prominent) ═══ */}
+        <button
+          onClick={handleShare}
+          className="w-full bg-gradient-to-r from-amber-500/10 to-rose-500/10 border border-amber-500/15 rounded-xl p-3.5 text-left hover:from-amber-500/15 hover:to-rose-500/15 transition-all"
+          data-testid="share-battle-cta"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+              <Share2 className="w-4 h-4 text-amber-400" />
+            </div>
+            <div className="flex-1">
+              <p className="text-xs font-bold text-amber-300">Share this battle</p>
+              <p className="text-[10px] text-white/35">More shares = more visibility for your entry</p>
+            </div>
+            <ArrowRight className="w-4 h-4 text-amber-400/40 flex-shrink-0" />
+          </div>
+        </button>
+
+        {/* ═══ LEADERBOARD ═══ */}
         <div data-testid="battle-leaderboard">
-          <h3 className="text-sm font-semibold text-white/60 mb-3 flex items-center gap-2">
-            <Swords className="w-4 h-4" /> Battle Leaderboard
+          <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <TrendingUp className="w-3.5 h-3.5" /> Leaderboard
           </h3>
           <div className="space-y-2">
-            {contenders.map((c, i) => (
-              <ContenderCard
+            {contenders.map((c) => (
+              <button
                 key={c.job_id}
-                contender={c}
-                rank={c.rank}
-                isCurrentUser={c.user_id === battle.user_id}
-                onClick={() => {
-                  // Navigate to the story's pipeline view
-                  navigate(`/app/story-video-studio?projectId=${c.job_id}`);
-                }}
-              />
+                onClick={() => navigate(`/app/story-viewer/${c.job_id}`)}
+                className={`w-full rounded-xl border p-3.5 flex items-center gap-3 transition-all hover:bg-white/[0.03] text-left ${
+                  c.rank === 1 ? 'border-amber-500/20 bg-amber-500/[0.03]' :
+                  c.user_id === battle.user_id ? 'border-violet-500/20 bg-violet-500/[0.03]' :
+                  'border-white/5 bg-white/[0.01]'
+                }`}
+                data-testid={`contender-card-${c.rank}`}
+              >
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                  c.rank === 1 ? 'bg-amber-500/20' : 'bg-white/5'
+                }`}>
+                  {c.rank === 1
+                    ? <Crown className="w-4 h-4 text-amber-400" />
+                    : <span className="text-xs font-black text-white/40">#{c.rank}</span>
+                  }
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-white truncate">
+                    {c.title || 'Untitled'}
+                    {c.user_id === battle.user_id && <span className="text-violet-400 text-[10px] ml-1.5">(You)</span>}
+                  </p>
+                  <p className="text-[10px] text-white/30">
+                    {c.creator_name} · {c.total_views || 0} views
+                  </p>
+                </div>
+                <span className={`text-xs font-bold flex-shrink-0 ${c.rank === 1 ? 'text-amber-400' : 'text-white/40'}`}>
+                  {(c.battle_score || 0).toFixed(0)} pts
+                </span>
+                <Play className="w-3.5 h-3.5 text-white/20 flex-shrink-0" />
+              </button>
             ))}
           </div>
         </div>
 
-        {/* CTA: Create Better Version */}
-        <div className="rounded-2xl border border-rose-500/20 bg-rose-500/[0.04] p-6 text-center"
-          data-testid="create-better-version-cta">
-          <Swords className="w-8 h-8 text-rose-400 mx-auto mb-3" />
-          <h3 className="text-lg font-bold text-white mb-1">Think you can do better?</h3>
-          <p className="text-xs text-white/40 mb-4">
-            Create your own version and compete for the #1 spot.
-            Views, shares, and continuations determine the winner.
+        {/* ═══ 6. ENTER BATTLE CTA (paywall-gated) ═══ */}
+        <button
+          onClick={() => handleEnterBattle(user_rank > 1 ? 'loss_moment' : 'enter_battle')}
+          className="w-full group relative overflow-hidden rounded-xl p-4 text-left transition-all hover:scale-[1.01] active:scale-[0.99]"
+          data-testid="enter-battle-cta"
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-rose-600 to-violet-600 opacity-90 group-hover:opacity-100 transition-opacity rounded-xl" />
+          <div className="relative z-10 flex items-center justify-center gap-2">
+            <Swords className="w-5 h-5 text-white" />
+            <span className="text-sm font-black text-white">
+              {user_rank ? (user_rank === 1 ? 'Defend Your #1 Spot' : 'Enter Battle — Take #1') : 'Enter Battle'}
+            </span>
+          </div>
+          <p className="relative z-10 text-[10px] text-white/60 text-center mt-1">
+            {user_rank > 1
+              ? `You're #${user_rank} — one entry changes everything`
+              : 'Create your version and compete for the top spot'
+            }
           </p>
-          <Button
-            onClick={() => setContinuationMode('branch')}
-            className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-8"
-            data-testid="create-better-version-btn"
-          >
-            <GitBranch className="w-4 h-4 mr-2" /> Create Better Version
-          </Button>
+        </button>
+
+        {/* ═══ 7. RETURN TRIGGER ═══ */}
+        <div className="bg-slate-800/30 border border-white/5 rounded-xl p-4 text-center" data-testid="return-trigger">
+          <div className="flex items-center justify-center gap-1.5 mb-1">
+            <Flame className="w-3.5 h-3.5 text-rose-400 animate-pulse" />
+            <p className="text-xs font-bold text-white/50">This battle is moving fast</p>
+          </div>
+          <p className="text-[10px] text-white/30">Come back in 10 minutes — your rank might change</p>
         </div>
       </div>
 
-      {/* ContinuationModal for branching */}
+      {/* ContinuationModal */}
       <ContinuationModal
         isOpen={!!continuationMode}
         onClose={() => setContinuationMode(null)}
@@ -210,75 +318,27 @@ export default function StoryBattlePage() {
         }}
         onJobCreated={(data) => {
           if (data?.job_id) {
-            toast.success('Your competing version is being created!');
+            toast.success('Your competing version is generating!');
             navigate(`/app/story-video-studio?projectId=${data.job_id}`);
           }
         }}
       />
+
+      {/* Battle Paywall — modal only */}
+      <BattlePaywallModal
+        open={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        onSuccess={() => {
+          setShowPaywall(false);
+          setContinuationMode('branch');
+        }}
+        trigger={paywallTrigger}
+        battleContext={{
+          rootTitle: current_story?.title,
+          currentRank: user_rank,
+          competitorCount: total_contenders,
+        }}
+      />
     </div>
-  );
-}
-
-
-function ContenderCard({ contender, rank, isCurrentUser, onClick }) {
-  const rankColors = {
-    1: 'border-amber-500/30 bg-amber-500/[0.04]',
-    2: 'border-slate-400/20 bg-slate-400/[0.02]',
-    3: 'border-orange-700/20 bg-orange-700/[0.02]',
-  };
-
-  const rankBadge = {
-    1: { bg: 'bg-amber-500/20', text: 'text-amber-400', icon: Crown },
-    2: { bg: 'bg-slate-400/20', text: 'text-slate-300', icon: null },
-    3: { bg: 'bg-orange-700/20', text: 'text-orange-400', icon: null },
-  };
-
-  const badge = rankBadge[rank] || { bg: 'bg-white/5', text: 'text-white/40', icon: null };
-  const RankIcon = badge.icon;
-
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full rounded-xl border p-4 flex items-center gap-4 transition-all hover:bg-white/[0.02] text-left ${
-        rankColors[rank] || 'border-white/5 bg-white/[0.01]'
-      } ${isCurrentUser ? 'ring-1 ring-violet-500/30' : ''}`}
-      data-testid={`contender-card-${rank}`}
-    >
-      {/* Rank */}
-      <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${badge.bg}`}>
-        {RankIcon
-          ? <RankIcon className={`w-4 h-4 ${badge.text}`} />
-          : <span className={`text-sm font-black ${badge.text}`}>#{rank}</span>
-        }
-      </div>
-
-      {/* Info */}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-white truncate">
-          {contender.title || 'Untitled'}
-          {isCurrentUser && <span className="text-violet-400 text-xs ml-2">(You)</span>}
-        </p>
-        <p className="text-xs text-white/30 truncate">
-          by {contender.creator_name}
-          {contender.is_original && ' · Original'}
-        </p>
-      </div>
-
-      {/* Score */}
-      <div className="text-right flex-shrink-0">
-        <p className={`text-sm font-bold ${rank === 1 ? 'text-amber-400' : 'text-white/60'}`}>
-          {(contender.battle_score || 0).toFixed(1)}
-        </p>
-        <p className="text-[10px] text-white/30">pts</p>
-      </div>
-
-      {/* Stats */}
-      <div className="flex items-center gap-3 text-[10px] text-white/30 flex-shrink-0">
-        <span>{contender.total_views || 0} views</span>
-        <span>{contender.total_children || 0} cont.</span>
-      </div>
-
-      <ArrowRight className="w-4 h-4 text-white/20 flex-shrink-0" />
-    </button>
   );
 }

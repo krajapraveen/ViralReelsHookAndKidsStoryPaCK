@@ -1855,6 +1855,54 @@ async def continue_watching_feed(
     }
 
 
+
+# ═══════════════════════════════════════════════════════════════
+# BATTLE ENTRY LIMIT + PAYWALL DATA
+# ═══════════════════════════════════════════════════════════════
+
+@router.get("/battle-entry-status")
+async def get_battle_entry_status(current_user: dict = Depends(get_current_user)):
+    """
+    Check if user has free entries remaining or needs to pay.
+    Returns entry count, free limit, and battle entry packs.
+    """
+    from config.monetization import BATTLE_ENTRY_PACKS, FREE_BATTLE_ENTRIES
+
+    user_id = current_user.get("id") or str(current_user.get("_id"))
+
+    # Count user's total branch entries (battle entries)
+    entry_count = await db.story_engine_jobs.count_documents({
+        "user_id": user_id,
+        "continuation_type": "branch",
+        "state": {"$in": ["READY", "PARTIAL_READY", "COMPLETED", "INIT", "PLANNING",
+                          "BUILDING_CHARACTER_CONTEXT", "PLANNING_SCENE_MOTION",
+                          "GENERATING_KEYFRAMES", "GENERATING_SCENE_CLIPS",
+                          "GENERATING_AUDIO", "ASSEMBLING_VIDEO", "VALIDATING", "QUEUED"]},
+    })
+
+    # Check user's credit state
+    user = await db.users.find_one(
+        {"id": user_id},
+        {"_id": 0, "credits": 1, "is_unlimited": 1, "role": 1}
+    )
+    credits = int(user.get("credits", 0)) if user else 0
+    is_unlimited = bool(user.get("is_unlimited", False)) or user.get("role", "") in {"admin", "ADMIN"}
+
+    free_remaining = max(0, FREE_BATTLE_ENTRIES - entry_count)
+    needs_payment = free_remaining <= 0 and credits < 10 and not is_unlimited
+
+    return {
+        "success": True,
+        "entry_count": entry_count,
+        "free_limit": FREE_BATTLE_ENTRIES,
+        "free_remaining": free_remaining,
+        "credits": credits,
+        "is_unlimited": is_unlimited,
+        "needs_payment": needs_payment,
+        "packs": list(BATTLE_ENTRY_PACKS.values()),
+    }
+
+
 # ═══════════════════════════════════════════════════════════════
 # INDEXES — Create DB indexes for performance
 # ═══════════════════════════════════════════════════════════════

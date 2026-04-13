@@ -12,6 +12,7 @@ import api from '../utils/api';
 import { trackFunnel } from '../utils/funnelTracker';
 import ContinuationModal from '../components/ContinuationModal';
 import BattlePulse from '../components/BattlePulse';
+import BattlePaywallModal from '../components/BattlePaywallModal';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 
 /**
@@ -36,6 +37,8 @@ export default function StoryViewerPage() {
   const [saved, setSaved] = useState(false);
   const [autoPlayCountdown, setAutoPlayCountdown] = useState(null);
   const [autoPlayCancelled, setAutoPlayCancelled] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallTrigger, setPaywallTrigger] = useState('enter_battle');
   const videoRef = useRef(null);
   const autoPlayTimer = useRef(null);
   const { permission, subscribed, requestPermission, isSupported } = usePushNotifications();
@@ -148,6 +151,21 @@ export default function StoryViewerPage() {
     return () => clearInterval(autoPlayTimer.current);
   }, [resolvedJobId]);
 
+  // Check if user can enter battle (free limit) before opening continuation modal
+  const handleEnterBattle = async (trigger = 'enter_battle') => {
+    try {
+      const res = await api.get('/api/stories/battle-entry-status');
+      if (res.data?.needs_payment) {
+        setPaywallTrigger(trigger);
+        setShowPaywall(true);
+        return;
+      }
+    } catch {}
+    // Has credits or free entries — proceed
+    trackFunnel('cta_clicked', { meta: { type: 'enter_battle', source: 'viewer', story_id: resolvedJobId } });
+    setContinuationMode('branch');
+  };
+
   // Share handler
   const handleShare = async () => {
     trackFunnel('cta_clicked', { meta: { type: 'share', story_id: resolvedJobId } });
@@ -247,10 +265,7 @@ export default function StoryViewerPage() {
             )}
             <Button
               size="sm"
-              onClick={() => {
-                trackFunnel('cta_clicked', { meta: { type: 'enter_battle', source: 'viewer_header', story_id: resolvedJobId } });
-                setContinuationMode('branch');
-              }}
+              onClick={() => handleEnterBattle('enter_battle')}
               className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold"
               data-testid="viewer-remix-btn"
             >
@@ -563,10 +578,7 @@ export default function StoryViewerPage() {
 
           {/* ═══ ENTER BATTLE — SECONDARY CTA (after content, post emotional hook) ═══ */}
           <button
-            onClick={() => {
-              trackFunnel('remix_clicked', { meta: { story_id: resolvedJobId, source: 'viewer_body' } });
-              setContinuationMode('branch');
-            }}
+            onClick={() => handleEnterBattle('enter_battle')}
             className="w-full group relative overflow-hidden rounded-xl p-4 text-left transition-all hover:scale-[1.01]"
             data-testid="make-your-version-cta"
           >
@@ -695,6 +707,22 @@ export default function StoryViewerPage() {
           if (data?.job_id) {
             navigate(`/app/story-video-studio?projectId=${data.job_id}`);
           }
+        }}
+      />
+
+      {/* Battle Paywall — modal only, returns to same action */}
+      <BattlePaywallModal
+        open={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        onSuccess={() => {
+          setShowPaywall(false);
+          setContinuationMode('branch');
+        }}
+        trigger={paywallTrigger}
+        battleContext={{
+          rootTitle: title,
+          currentRank: job?.battle_rank,
+          competitorCount: siblings.length,
         }}
       />
 

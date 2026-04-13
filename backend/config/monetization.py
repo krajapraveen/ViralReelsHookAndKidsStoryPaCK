@@ -196,6 +196,40 @@ TOPUP_PACKS = {
     },
 }
 
+# Battle Entry Packs — priced for competition loop
+BATTLE_ENTRY_PACKS = {
+    "battle_5": {
+        "id": "battle_5",
+        "entries": 5,
+        "credits": 50,
+        "price_inr": 49,
+        "price_usd": 0.99,
+        "label": "5 Entries",
+    },
+    "battle_20": {
+        "id": "battle_20",
+        "entries": 20,
+        "credits": 200,
+        "price_inr": 149,
+        "price_usd": 1.99,
+        "label": "20 Entries",
+        "badge": "POPULAR",
+    },
+    "battle_50": {
+        "id": "battle_50",
+        "entries": 50,
+        "credits": 500,
+        "price_inr": 299,
+        "price_usd": 3.99,
+        "label": "50 Entries",
+        "badge": "BEST VALUE",
+        "savings": "40%",
+    },
+}
+
+# Free battle entries before paywall
+FREE_BATTLE_ENTRIES = 3
+
 
 # =============================================================================
 # SERIES-SPECIFIC LIMITS

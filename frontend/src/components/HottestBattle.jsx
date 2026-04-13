@@ -7,6 +7,7 @@ import {
 import { Button } from './ui/button';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import BattlePaywallModal from './BattlePaywallModal';
 
 /**
  * HottestBattle — Entry Conversion Engine.
@@ -28,7 +29,9 @@ export default function HottestBattle() {
   const [showPressure, setShowPressure] = useState(false);
   const [pressureDismissed, setPressureDismissed] = useState(false);
   const [streakJustStarted, setStreakJustStarted] = useState(false);
-  const [quickShotSuccess, setQuickShotSuccess] = useState(null); // instant dopamine overlay
+  const [quickShotSuccess, setQuickShotSuccess] = useState(null);
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallTrigger, setPaywallTrigger] = useState('enter_battle');
   const componentRef = useRef(null);
   const isVisible = useRef(false);
   const entryTracked = useRef(false);
@@ -114,7 +117,7 @@ export default function HottestBattle() {
     }
   }, [viewTime, pressureDismissed, showPressure, battle?.root_story_id]);
 
-  // Quick Shot handler — 1-tap, zero input
+  // Quick Shot handler — 1-tap, zero input. Check free limit first.
   const handleQuickShot = async () => {
     if (quickShotLoading || !battle?.root_story_id) return;
     setQuickShotLoading(true);
@@ -140,13 +143,12 @@ export default function HottestBattle() {
           queued: res.data.queued,
           streak: res.data.current_streak || 0,
           streakStarted: res.data.streak_started,
-          // Parent story data for instant preview
           parentTitle: battle.root_title,
           parentThumbnail: battle.root_thumbnail,
           competitorCount: battle.branch_count || 0,
         });
 
-        // Auto-navigate after 2.5s — enough for dopamine + reading stakes
+        // Auto-navigate after 2.5s
         setTimeout(() => {
           if (res.data.job_id) {
             navigate(`/app/story-video-studio?projectId=${res.data.job_id}`);
@@ -154,11 +156,24 @@ export default function HottestBattle() {
         }, 2500);
       }
     } catch (err) {
-      const detail = err.response?.data?.detail || 'Quick Shot failed. Try again.';
-      toast.error(detail);
+      const status = err.response?.status;
+      if (status === 402) {
+        // Insufficient credits → show battle paywall
+        setPaywallTrigger('free_limit');
+        setShowPaywall(true);
+      } else {
+        const detail = err.response?.data?.detail || 'Quick Shot failed. Try again.';
+        toast.error(detail);
+      }
     } finally {
       setQuickShotLoading(false);
     }
+  };
+
+  // After payment success, retry Quick Shot
+  const handlePaywallSuccess = () => {
+    setShowPaywall(false);
+    handleQuickShot();
   };
 
   // Jump into battle (existing flow)
@@ -431,6 +446,19 @@ export default function HottestBattle() {
           </div>
         )}
       </div>
+
+      {/* Battle Paywall Modal */}
+      <BattlePaywallModal
+        open={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        onSuccess={handlePaywallSuccess}
+        trigger={paywallTrigger}
+        battleContext={{
+          rootTitle: battle?.root_title,
+          currentRank: null,
+          competitorCount: battle?.branch_count || 0,
+        }}
+      />
     </div>
   );
 }
