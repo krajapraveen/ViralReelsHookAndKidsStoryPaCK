@@ -1006,7 +1006,9 @@ async def explore_stories(category: str = "all", sort: str = "trending", cursor:
         sentences = [s.strip() for s in text.replace("\n", ". ").split(".") if s.strip()]
         job["hook_text"] = (sentences[0] + "...") if sentences else job.get("title", "")
         job.pop("story_text", None)
-        stories.append(job)
+        # Only include stories with a resolved thumbnail (no blank cards)
+        if thumb:
+            stories.append(job)
 
     # Category counts
     counts = {"all": await db.pipeline_jobs.count_documents(base_q)}

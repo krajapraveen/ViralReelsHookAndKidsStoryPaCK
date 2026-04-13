@@ -152,173 +152,92 @@ export default function CookieConsent() {
 
   return (
     <div 
-      className="fixed bottom-0 left-0 right-0 z-[9000] p-4 md:p-6"
+      className="fixed bottom-4 right-4 z-[9000] max-w-sm"
       data-testid="cookie-consent-banner"
     >
-      <div className="max-w-4xl mx-auto bg-slate-900/95 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
-        {/* Main Banner */}
-        <div className="p-4 md:p-6">
-          <div className="flex items-start gap-4">
-            <div className="hidden sm:flex w-12 h-12 rounded-xl bg-purple-500/20 items-center justify-center flex-shrink-0">
-              <Cookie className="w-6 h-6 text-purple-400" />
-            </div>
-            
-            <div className="flex-1 min-w-0">
-              <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
-                <Cookie className="w-5 h-5 text-purple-400 sm:hidden" />
-                We value your privacy
-              </h3>
-              <p className="text-sm text-slate-300 leading-relaxed">
-                We use cookies to enhance your browsing experience, analyze site traffic, and personalize content. 
-                By clicking "Accept All", you consent to our use of cookies. You can customize your preferences below.
-              </p>
-              
-              {/* Quick Links */}
-              <div className="flex flex-wrap gap-3 mt-3 text-xs">
-                <a 
-                  href="/privacy-policy" 
-                  className="text-purple-400 hover:text-purple-300 underline"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Privacy Policy
-                </a>
-                <a 
-                  href="/cookie-policy" 
-                  className="text-purple-400 hover:text-purple-300 underline"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Cookie Policy
-                </a>
-              </div>
-            </div>
+      <div className="bg-slate-900/95 backdrop-blur-xl border border-slate-700/50 rounded-xl shadow-2xl overflow-hidden">
+        <div className="p-3">
+          <div className="flex items-center gap-3">
+            <Cookie className="w-4 h-4 text-purple-400 flex-shrink-0" />
+            <p className="text-xs text-slate-300 flex-1">
+              We use cookies to improve your experience.{' '}
+              <a href="/privacy-policy" className="text-purple-400 hover:text-purple-300 underline" target="_blank" rel="noopener noreferrer">Learn more</a>
+            </p>
           </div>
-
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-3 mt-4">
+          <div className="flex gap-2 mt-2.5">
             <Button
               onClick={acceptAll}
-              className="bg-purple-600 hover:bg-purple-700 text-white flex-1 sm:flex-none"
-              data-testid="accept-all-cookies"
+              size="sm"
+              className="h-7 px-3 text-xs bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg"
+              data-testid="cookie-accept-btn"
             >
               Accept All
             </Button>
             <Button
               onClick={rejectAll}
               variant="outline"
-              className="border-slate-600 text-slate-300 hover:bg-slate-800 flex-1 sm:flex-none"
-              data-testid="reject-all-cookies"
+              size="sm"
+              className="h-7 px-3 text-xs border-slate-600 text-slate-300 hover:bg-slate-800 rounded-lg"
+              data-testid="cookie-reject-btn"
             >
               Reject All
             </Button>
-            <Button
+            <button
               onClick={() => setShowDetails(!showDetails)}
-              variant="ghost"
-              className="text-slate-400 hover:text-white flex-1 sm:flex-none"
-              data-testid="customize-cookies"
+              className="h-7 px-2 text-xs text-slate-400 hover:text-white transition-colors flex items-center gap-1"
+              data-testid="cookie-customize-btn"
             >
-              Customize
-              {showDetails ? (
-                <ChevronUp className="w-4 h-4 ml-1" />
-              ) : (
-                <ChevronDown className="w-4 h-4 ml-1" />
-              )}
-            </Button>
+              {showDetails ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
+            </button>
           </div>
         </div>
 
         {/* Detailed Preferences */}
         {showDetails && (
-          <div className="border-t border-slate-700/50 p-4 md:p-6 bg-slate-950/50">
-            <h4 className="text-sm font-semibold text-white mb-4">Cookie Preferences</h4>
+          <div className="border-t border-slate-700/50 p-3 bg-slate-950/50">
+            <h4 className="text-xs font-semibold text-white mb-3">Cookie Preferences</h4>
             
-            <div className="space-y-4">
-              {/* Necessary Cookies */}
-              <div className="flex items-start justify-between gap-4 p-3 bg-slate-800/50 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center flex-shrink-0">
-                    <Shield className="w-4 h-4 text-green-400" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-white">Necessary Cookies</p>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Essential for the website to function. Cannot be disabled.
-                    </p>
-                  </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2 p-2 bg-slate-800/50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Shield className="w-3 h-3 text-green-400" />
+                  <span className="text-xs text-white">Necessary</span>
                 </div>
-                <Switch checked={true} disabled className="opacity-50" />
+                <Switch checked={true} disabled className="opacity-50 scale-75" />
               </div>
-
-              {/* Analytics Cookies */}
-              <div className="flex items-start justify-between gap-4 p-3 bg-slate-800/50 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-                    <BarChart3 className="w-4 h-4 text-blue-400" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-white">Analytics Cookies</p>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Help us understand how visitors interact with our website (Google Analytics, PostHog).
-                    </p>
-                  </div>
+              <div className="flex items-center justify-between gap-2 p-2 bg-slate-800/50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="w-3 h-3 text-blue-400" />
+                  <span className="text-xs text-white">Analytics</span>
                 </div>
                 <Switch 
                   checked={consent.analytics} 
                   onCheckedChange={(checked) => updateConsent('analytics', checked)}
+                  className="scale-75"
                   data-testid="analytics-toggle"
                 />
               </div>
-
-              {/* Marketing Cookies */}
-              <div className="flex items-start justify-between gap-4 p-3 bg-slate-800/50 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center flex-shrink-0">
-                    <Target className="w-4 h-4 text-amber-400" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-white">Marketing Cookies</p>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Used to deliver personalized advertisements and measure campaign effectiveness.
-                    </p>
-                  </div>
+              <div className="flex items-center justify-between gap-2 p-2 bg-slate-800/50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Target className="w-3 h-3 text-amber-400" />
+                  <span className="text-xs text-white">Marketing</span>
                 </div>
                 <Switch 
                   checked={consent.marketing} 
                   onCheckedChange={(checked) => updateConsent('marketing', checked)}
+                  className="scale-75"
                   data-testid="marketing-toggle"
                 />
               </div>
-
-              {/* Preference Cookies */}
-              <div className="flex items-start justify-between gap-4 p-3 bg-slate-800/50 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center flex-shrink-0">
-                    <Cookie className="w-4 h-4 text-purple-400" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-white">Preference Cookies</p>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Remember your settings and preferences for a better experience.
-                    </p>
-                  </div>
-                </div>
-                <Switch 
-                  checked={consent.preferences} 
-                  onCheckedChange={(checked) => updateConsent('preferences', checked)}
-                  data-testid="preferences-toggle"
-                />
-              </div>
             </div>
-
-            {/* Save Preferences Button */}
-            <div className="flex justify-end mt-4">
+            <div className="flex justify-end mt-2">
               <Button
                 onClick={savePreferences}
-                className="bg-purple-600 hover:bg-purple-700 text-white"
+                size="sm"
+                className="h-7 px-3 text-xs bg-purple-600 hover:bg-purple-700 text-white rounded-lg"
                 data-testid="save-cookie-preferences"
               >
-                Save Preferences
+                Save
               </Button>
             </div>
           </div>

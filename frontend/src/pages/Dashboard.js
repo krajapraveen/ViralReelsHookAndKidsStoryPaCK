@@ -1053,7 +1053,10 @@ export default function Dashboard() {
       {/* ═══ 0.5 HOTTEST BATTLE — SPECTATOR MODE (ACQUISITION) ═══ */}
       <HottestBattle />
 
-      {/* 1. HERO */}
+      {/* ═══ 0.7 TRENDING BATTLES — VISUAL FEED (COMPETITION FIRST) ═══ */}
+      <TrendingPublicFeed />
+
+      {/* 1. HERO — Creation entry (SECONDARY to competition) */}
       <div className={isAdmin ? 'pt-14' : ''}>
         <HeroSection stories={safeHeroPool} navigate={navigate} />
       </div>
@@ -1167,9 +1170,6 @@ export default function Dashboard() {
           </ScrollRow>
         );
       })}
-
-      {/* ═══ 4. TRENDING NOW — public stories from ALL users ═══ */}
-      <TrendingPublicFeed />
 
       {/* ═══ 5. YOUR CREATIONS — with rank + movement ═══ */}
       <YourCreationsStrip />

@@ -259,7 +259,7 @@ function App() {
     <FeedbackProvider>
     <ProductGuideProvider>
     <ContentProtectionWrapper>
-      {/* Journey Progress Bar — fixed top for authenticated users (hide for admins) */}
+      {/* Journey Progress Bar — only on creation/generation pages */}
       {isAuthenticated && (() => {
         try {
           const t = localStorage.getItem('token');
@@ -268,7 +268,12 @@ function App() {
             if (p.role?.toUpperCase() === 'ADMIN' || p.role?.toUpperCase() === 'SUPERADMIN') return null;
           }
         } catch {}
-        return <JourneyProgressBar />;
+        // Only show on Studio/Pipeline creation pages
+        const path = window.location.pathname;
+        if (path.includes('story-video-studio') || path.includes('character-consistency')) {
+          return <JourneyProgressBar />;
+        }
+        return null;
       })()}
       {/* Global User Bar — profile + credits, visible on ALL authenticated pages */}
       {isAuthenticated && <GlobalUserBar />}

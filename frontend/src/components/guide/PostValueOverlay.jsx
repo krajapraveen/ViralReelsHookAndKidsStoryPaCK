@@ -46,14 +46,13 @@ export default function PostValueOverlay({ onTriggerPaywall }) {
       setShow(false);
       if (action === 'continue') {
         trackFunnel('second_action', { meta: { action: 'continue' } });
-        navigate('/app/story-video-studio', { state: { freshSession: true } });
+        navigate('/app');
       } else if (action === 'video') {
         trackFunnel('second_action', { meta: { action: 'video' } });
         navigate('/app/story-video-studio');
       } else if (action === 'share') {
         trackFunnel('second_action', { meta: { action: 'share' } });
       } else if (action === 'upgrade') {
-        // After 2nd gen, push to paywall
         if (onTriggerPaywall) onTriggerPaywall('post_value');
       }
     }, 200);
