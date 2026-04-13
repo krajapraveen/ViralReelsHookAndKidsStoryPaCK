@@ -2,7 +2,8 @@
 
 ## Architecture
 - **Frontend**: React (CRA) + TailwindCSS + Shadcn/UI
-- **Backend**: FastAPI + MongoDB + Redis
+- **Backend**: FastAPI + MongoDB
+- **Payments**: Cashfree (production + sandbox)
 - **URL**: https://trust-engine-5.preview.emergentagent.com
 
 ## Credentials
@@ -11,94 +12,137 @@
 
 ---
 
-## Core Philosophy: WATCH > ENTER BATTLE > CREATE
+## Core Philosophy: WATCH > ENTER BATTLE > GENERATE > COMPETE > PAY
 
 ---
 
-## Push Notifications on Rank Drop (P0) — DONE (Apr 13)
-
-### Backend:
-- `check_and_send_rank_notifications()` now tracks ALL users via `battle_rank_snapshot` collection
-- Compares current rank map vs stored snapshot — pushes to EVERY user who dropped, not just old #1
-- Rate-limited: 1 rank_drop push per user per battle per 2 hours
-- Push fires on: increment-metric (views/shares) AND pipeline completion (new branch finishes rendering)
-- Web Push via `pywebpush` with VAPID keys
-- `trigger_rank_drop_push()` copy: "You dropped to #N / Someone just beat your entry on 'Title'. Come back now and take your spot."
-
-### Frontend:
-- `BattlePulse.jsx` shows push notification prompt when user has a rank and permission is 'default'
-- Prompt: bell icon + "Get notified if your rank drops / We'll send a push when someone beats you" + Enable/Dismiss buttons
-- `usePushNotifications.js` hook manages service worker registration and push subscription
-- Auto-subscribes on `StoryViewerPage` when viewing a battle entry with permission already granted
-
-### Service Worker (`sw-push.js`):
-- `requireInteraction: true` for rank_drop (notification stays until tapped)
-- Aggressive vibration pattern [200, 100, 200, 100, 300] for rank_drop
-- Trigger-specific CTA: "Take it back" for rank_drop, "Claim #1" for near_win
-- Deep-links to Story Battle screen on click
+## Master Flow (Money Loop)
+```
+Dashboard → Quick Shot / Story Card → Overlay → Pipeline → Watch Page (Battle)
+↓
+User Actions: Share / Enter Again (Paywall) / Track Rank / Leave (Return Trigger)
+↓
+Return → Repeat → PAY
+```
 
 ---
 
-## WIN Share Trigger (P0.5) — DONE (Apr 13)
+## Pages & Flows
 
-### BattlePulse WIN Moment:
-- **Persistent** — does NOT auto-dismiss (user must click X or share)
-- Crown icon (w-12 h-12) + "YOU'RE #1" + "You just beat N others"
-- "This is getting pushed to more users"
-- **PRIMARY Share CTA**: full-width amber button "Share now to lock your position"
-- "Sharing boosts your visibility score"
-- Tracks `win_share_triggered` funnel event
+### Dashboard (/app)
+- Battle Cards with autoplay + hook text overlays
+- Quick Shot CTA (1-tap, zero-input)
+- View Battle CTA
+- Trending Feed with LIVE indicators
 
-### StoryViewerPage Rank-Aware Share:
-- `battle_rank` field added to viewer API response
-- When rank = 1: Crown icon + "You're #1 — Share to lock it" (amber-500/20 bg, border-2)
-- When rank > 1: standard "This could go viral" prompt
-- Share increments both shares metric and funnel tracking
+### Quick Shot (NOT a page)
+- API call + instant dopamine overlay + redirect to pipeline
+- On 402 → Battle Paywall Modal (no navigation)
+- On success → overlay with preview + ego boost → auto-redirect
+
+### Pipeline (/app/story-video-studio)
+- GENERATING: progress + competition context + activity pulse
+- READY: auto-play video + rank + share/enter again CTAs
+- Branch entries auto-redirect to Battle page after 3s
+- FAILED: retry UI
+- 402 credit gate modal (inline)
+
+### Watch Page (/app/story-battle/:id) — CORE PAGE
+7 Required Components:
+1. Rank + Score card (gold #1 with Share, rose #2+ with "Take it back")
+2. Live Activity (BattlePulse polling every 12s)
+3. WIN/LOSS moments (persistent WIN, auto-dismiss LOSS)
+4. Video autoplay (#1 contender)
+5. Share CTA ("Share this battle")
+6. Enter Battle CTA (paywall-gated, gradient button)
+7. Return Trigger ("Come back in 10 minutes")
+
+### Story Viewer (/app/story-viewer/:jobId)
+- Consumption-first with video player
+- Battle status banner with rank/score/views
+- BattlePulse + push notification prompt
+- Enter Battle gated through free-limit check
+- Rank-aware viral share prompt (Crown when #1)
+
+### Paywall (MODAL ONLY — BattlePaywallModal)
+- Triggers: free_limit, loss_moment, near_win, enter_battle
+- Packs: ₹49/5 entries, ₹149/20 entries, ₹299/50 entries
+- Cashfree payment inline (redirectTarget: '_modal')
+- Returns to SAME blocked action after payment success
+- Never navigates away from context
+
+### Payment Flow
+```
+Paywall Modal → Cashfree SDK → Verify → Credits Added → Resume Action
+```
 
 ---
 
-## Autoplay Hook Quality (P1) — DONE (Apr 13)
+## Backend State Machine
+- CREATED → GENERATING → READY → display
+- FAILED → retry (max 2)
+- QUEUED → wait for slot → GENERATING
 
-### TrendingPublicFeed Cards:
-- **Hook text overlay**: context-aware text on card thumbnails
-  - 3+ competitors: "N people competing for #1"
-  - 2+ competitors: "Battle in progress"  
-  - 20+ views: "Trending now"
-- **LIVE indicator**: red pulse dot + "LIVE" badge for stories with active competitors
-- Hot badge only shows when no hook text overlay present (prevents overlap)
-- Competitive signals (views, competitors) visible at glance
+## Free Entry Limit
+- FREE_BATTLE_ENTRIES = 3
+- After 3 entries + 0 credits → needs_payment = true → paywall
+- GET /api/stories/battle-entry-status checks limit
 
-### StoryCardMedia:
-- New props: `hookText`, `competitorCount`, `viewCount`
-- Hook text overlay: blurred bg, bold white text, top-left positioned
-- Social proof badges: top-right, views + "competing" count
+## Push Notifications
+- Rank drop push to ALL users who dropped (battle_rank_snapshot collection)
+- Service worker with trigger-specific actions + persistent rank_drop
+- Frontend prompt in BattlePulse when user has rank
+
+## Psychology Layer
+- WIN moment: persistent, unmissable Share CTA
+- LOSS moment: "Act now" + push notification
+- Competitive signals: "X people trying to beat #1"
+- Return triggers: "Your rank might change"
+- Hook text overlays on story cards
 
 ---
 
-## All Systems (Apr 12-13)
-- Queue System, Data Integrity, Export Pipeline
-- Consumption-First Loop, Entry Conversion Engine
-- Analytics Dashboard + Funnel Integrity
-- Auto-play, Social proof, Competitive copy
-- Instant dopamine, Continuous tension, Identity/ranking
-- WIN/LOSS moments, Real-time battle pulse
-- Viral share prompts, Return triggers
-- **Push notifications on ALL rank drops**
-- **Persistent WIN share trigger**
-- **Autoplay hook text overlays + LIVE indicators**
+## Monetization
+- 3 free battle entries
+- ₹49 / ₹149 / ₹299 entry packs
+- Paywall triggers: free limit, loss moment, near win
+- Credits: 10 per story_video generation
+
+---
+
+## Analytics (Tracked Events)
+- spectator_impression, spectator_quick_shot, spectator_to_player_conversion
+- battle_paywall_viewed, battle_pack_selected, battle_payment_success
+- win_share_triggered, story_viewed, watch_started, watch_completed_50/100
+- cta_clicked (type: enter_battle, share, next_episode, etc.)
+
+---
+
+## All Completed Systems
+- Entry Conversion Engine (Quick Shot, personalized CTAs)
+- Consumption-First UI (Watch > Make)
+- Queue System (QUEUED state, graceful handling)
+- Data Integrity (COMPLETED = asset exists)
+- Export Pipeline (download validation, 410 handling)
+- Conversion Analytics Dashboard
+- Psychology Layer v1+v2 (tension, ego, urgency, fear)
+- WIN/LOSS Moments + BattlePulse
+- Push Notifications on ALL rank drops
+- WIN Share Trigger (persistent, unmissable)
+- Autoplay Hook Quality (text overlays, LIVE badges)
+- Battle Paywall Modal (Cashfree inline)
+- Free Entry Limit Enforcement
+- Watch Page (7 components complete)
+- Pipeline → Battle auto-redirect
 
 ---
 
 ## Backlog
 
-### P0 (Data-driven)
-- Monitor: 2nd action rate, CTR, session time
-- Validate WIN/LOSS → share conversion rate
-
 ### P1
-- Follow Creator / Network Graph Expansion
-- Auto-Recovery FAILED_PERSISTENCE (P0.6)
-- Phase C Gamification (Dark launched, gated behind GREENLIGHT)
+- Follow Creator / Network Graph
+- Auto-Recovery FAILED_PERSISTENCE
+- Phase C Gamification (gated behind GREENLIGHT)
 
 ### P2
 - Personalized headline serving by channel

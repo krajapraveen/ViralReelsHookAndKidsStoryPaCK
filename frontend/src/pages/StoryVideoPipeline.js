@@ -1878,10 +1878,15 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
   // Reward celebration: check for streak/episode rewards when video completes
   useEffect(() => {
     if (uiState === 'READY') {
-      // Auto-redirect branches to Watch Page after 3s (battle should feel live)
+      // Auto-redirect branches to Watch Page (Battle) after 3s
       if (job?.continuation_type === 'branch' && jobId) {
+        const battleRoot = job?.root_story_id || job?.story_chain_id || job?.parent_job_id;
         const timer = setTimeout(() => {
-          navigate(`/app/story-viewer/${jobId}`, { replace: true });
+          if (battleRoot) {
+            navigate(`/app/story-battle/${battleRoot}`, { replace: true });
+          } else {
+            navigate(`/app/story-viewer/${jobId}`, { replace: true });
+          }
         }, 3000);
         return () => clearTimeout(timer);
       }
