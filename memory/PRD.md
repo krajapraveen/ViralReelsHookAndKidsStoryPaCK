@@ -142,6 +142,8 @@ Paywall Modal → Cashfree SDK → Verify → Credits Added → Resume Action
 ---
 
 ## All Completed Systems
+- UX Trust Fixes (Apr 13): (1) PostValueOverlay suppressed on first visit — only triggers after user has navigated away once. (2) Hero "Claim Your Rank" CTA now navigates to battle page first, paywall only on action attempt. Credit-aware micro-copy: "Entry requires credits · View the battle first, then decide". (3) Seeded 4 diverse battle themes (Midnight in Tokyo/anime, The Last Laugh/cartoon, Echoes of Mars/sci-fi, Recipe for Disaster/watercolor) to eliminate content repetition perception.
+- Google Sign-In Hardened (Apr 13): Popup cancel → toast + re-enable. Rapid clicks → disabled guard. Backend error → clear toast. Loading overlay during exchange.
 - P0 Google Sign-In Fix (Apr 13): Replaced broken `GoogleLogin` iframe component with `useGoogleLogin` popup hook. Custom styled button opens Google's OAuth popup directly. Backend verifies via access_token flow. No more iframe blocking.
 - P0 Feed Fix (Apr 13): Dashboard "Trending Now" cards with no thumbnails now show rich fallback (gradient + title + animation style) instead of blank dark rectangles.
 - CTA Conversion Redesign v2 (Apr 13): Killed hero/QuickActions duplication, renamed CTAs for action-impulse clarity, visual hierarchy with dominant primary card, credit-aware pre-click indicator, remix flow fix (studio with context instead of bare leaderboard), event bridge for paywall modal.

@@ -21,6 +21,7 @@ export default function LiveBattleHero() {
   const [quickShotLoading, setQuickShotLoading] = useState(false);
   const [enterLoading, setEnterLoading] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [entryStatus, setEntryStatus] = useState(null);
   const [nextUpdate, setNextUpdate] = useState(15); // countdown to next rank refresh
 
   useEffect(() => {
@@ -30,6 +31,7 @@ export default function LiveBattleHero() {
           api.get('/api/stories/hottest-battle'),
           api.get('/api/stories/battle-entry-status').catch(() => null),
         ]);
+        if (entryRes?.data) setEntryStatus(entryRes.data);
         const b = battleRes.data?.battle;
         if (b) {
           setBattle(b);
@@ -78,15 +80,8 @@ export default function LiveBattleHero() {
   const handleEnterBattle = async () => {
     if (enterLoading) return;
     setEnterLoading(true);
-    try {
-      const res = await api.get('/api/stories/battle-entry-status');
-      if (res.data?.needs_payment) {
-        setShowPaywall(true);
-        setEnterLoading(false);
-        return;
-      }
-    } catch {}
     trackFunnel('cta_clicked', { meta: { type: 'enter_battle', source: 'hero' } });
+    // Always navigate to battle page first — let user see the battle before hitting paywall
     navigate(`/app/story-battle/${battle.root_story_id}`);
   };
 
@@ -271,10 +266,19 @@ export default function LiveBattleHero() {
                   Post in 10 Seconds
                 </button>
               </div>
-              {/* Loss framing micro-copy */}
-              <div className="flex gap-4 text-[10px] text-slate-500 pl-1">
-                <span>Lose position if you wait</span>
-                <span>Fastest way to climb right now</span>
+              {/* Credit-aware micro-copy — no surprise paywall */}
+              <div className="flex gap-4 text-[10px] pl-1">
+                {entryStatus?.needs_payment ? (
+                  <>
+                    <span className="text-amber-400/70">Entry requires credits</span>
+                    <span className="text-slate-500">View the battle first, then decide</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-emerald-400/70">{entryStatus?.free_remaining > 0 ? `${entryStatus.free_remaining} free entries left` : 'Credits available'}</span>
+                    <span className="text-slate-500">Fastest way to climb right now</span>
+                  </>
+                )}
               </div>
             </div>
           </div>

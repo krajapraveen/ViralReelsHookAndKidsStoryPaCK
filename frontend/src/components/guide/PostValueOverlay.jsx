@@ -27,6 +27,14 @@ export default function PostValueOverlay({ onTriggerPaywall }) {
     const hasActiveProject = new URLSearchParams(window.location.search).get('projectId');
     if (onPipeline && hasActiveProject) return;
 
+    // Don't show on first visit — only trigger after user has created at least 1 thing
+    // AND has navigated away (returned to dashboard). This prevents interrupting first impression.
+    const hasSeenDashboard = sessionStorage.getItem('has_seen_dashboard');
+    if (!hasSeenDashboard) {
+      sessionStorage.setItem('has_seen_dashboard', '1');
+      return;
+    }
+
     // Show when a NEW generation is completed (not already shown for this count)
     if (gens > 0 && gens !== lastShown) {
       sessionStorage.setItem('post_value_shown_at', String(gens));
