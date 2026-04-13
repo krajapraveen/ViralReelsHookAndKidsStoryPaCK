@@ -21,6 +21,7 @@ export default function LiveBattleHero() {
   const [quickShotLoading, setQuickShotLoading] = useState(false);
   const [enterLoading, setEnterLoading] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [nextUpdate, setNextUpdate] = useState(15); // countdown to next rank refresh
 
   useEffect(() => {
     const load = async () => {
@@ -44,17 +45,27 @@ export default function LiveBattleHero() {
     load();
   }, []);
 
-  // Poll pulse every 15s
+  // Poll pulse every 15s + countdown timer
   useEffect(() => {
     if (!battle?.root_story_id) return;
     const iv = setInterval(async () => {
       try {
         const res = await api.get(`/api/stories/battle-pulse/${battle.root_story_id}`);
         if (res.data?.pulse) setPulse(res.data.pulse);
+        setNextUpdate(15); // reset countdown on refresh
       } catch {}
     }, 15000);
     return () => clearInterval(iv);
   }, [battle?.root_story_id]);
+
+  // Countdown ticker
+  useEffect(() => {
+    if (!battle) return;
+    const tick = setInterval(() => {
+      setNextUpdate(prev => prev > 0 ? prev - 1 : 15);
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [battle]);
 
   const handleEnterBattle = async () => {
     if (enterLoading) return;
@@ -177,59 +188,86 @@ export default function LiveBattleHero() {
               </div>
             </div>
 
-            {/* Rank context — psychological pressure */}
-            {userRank && (
-              <div className={`mt-4 rounded-2xl border p-3.5 ${
-                userRank === 1
-                  ? 'border-amber-400/20 bg-amber-400/[0.06]'
-                  : 'border-rose-400/15 bg-rose-400/[0.04]'
-              }`} data-testid="rank-context">
-                <div className="flex items-start gap-2.5">
-                  <Crown className={`mt-0.5 w-4 h-4 flex-shrink-0 ${userRank === 1 ? 'text-amber-300' : 'text-rose-300'}`} />
-                  <div>
-                    <p className="text-sm font-bold text-white">
-                      {userRank === 1
-                        ? "You're #1 — but they're coming for you"
-                        : userRank <= 3
-                        ? `You're losing your spot — ${activeRendering > 0 ? `${activeRendering} new entries just dropped` : 'rankings shifting now'}`
-                        : `#${userRank} — you need to move fast`}
-                    </p>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {userRank === 1
-                        ? `${activeRendering > 0 ? `${activeRendering} challengers rendering` : 'Stay sharp — someone could overtake you anytime'}`
-                        : `You're 1 move away from climbing`}
-                    </p>
+            {/* Time pressure + rank context */}
+            <div className="mt-4 space-y-2.5">
+              {/* Countdown timer — measurable urgency */}
+              <div className="flex items-center gap-2 text-[11px]" data-testid="rank-countdown">
+                <span className="inline-flex items-center gap-1 text-amber-400/80 font-mono font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                  Next rank update in 0:{nextUpdate.toString().padStart(2, '0')}
+                </span>
+                <span className="text-slate-500">— rankings can shift anytime</span>
+              </div>
+
+              {/* Rank context — psychological pressure */}
+              {userRank && (
+                <div className={`rounded-2xl border p-3.5 ${
+                  userRank === 1
+                    ? 'border-amber-400/20 bg-amber-400/[0.06]'
+                    : 'border-rose-400/15 bg-rose-400/[0.04]'
+                }`} data-testid="rank-context">
+                  <div className="flex items-start gap-2.5">
+                    <Crown className={`mt-0.5 w-4 h-4 flex-shrink-0 ${userRank === 1 ? 'text-amber-300' : 'text-rose-300'}`} />
+                    <div>
+                      <p className="text-sm font-bold text-white">
+                        {userRank === 1
+                          ? "You're #1 — but they're coming for you"
+                          : userRank <= 3
+                          ? `You're losing your spot — ${activeRendering > 0 ? `${activeRendering} new entries just dropped` : 'rankings shifting now'}`
+                          : `#${userRank} — you need to move fast`}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {userRank === 1
+                          ? `${activeRendering > 0 ? `${activeRendering} challengers rendering` : 'Stay sharp — someone could overtake you anytime'}`
+                          : `You're 1 move away from climbing`}
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* CTAs — identity + speed, not generic actions */}
-            <div className="mt-5 flex flex-col gap-2.5 sm:flex-row">
-              <button
-                onClick={handleEnterBattle}
-                disabled={enterLoading}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-violet-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-violet-900/30 transition-all hover:bg-violet-500 hover:shadow-violet-900/40 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60"
-                data-testid="hero-enter-battle-btn"
-              >
-                {enterLoading
-                  ? <Loader2 className="w-4 h-4 animate-spin" />
-                  : <Swords className="w-4 h-4" />
-                }
-                {userRank ? 'Claim Your Rank' : 'Enter Battle'}
-              </button>
-              <button
-                onClick={handleQuickShot}
-                disabled={quickShotLoading}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-6 py-3 text-sm font-bold text-white transition-all hover:bg-white/[0.08] hover:scale-[1.02] active:scale-[0.98]"
-                data-testid="hero-quick-shot-btn"
-              >
-                {quickShotLoading
-                  ? <Loader2 className="w-4 h-4 animate-spin" />
-                  : <Zap className="w-4 h-4" />
-                }
-                Post in 10 Seconds
-              </button>
+              {/* Win reward visibility — what #1 gets */}
+              <div className="rounded-2xl border border-amber-500/10 bg-amber-500/[0.03] p-3 flex items-center gap-2.5" data-testid="win-reward">
+                <Crown className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                <p className="text-xs text-amber-200/70">
+                  <span className="font-bold text-amber-200">#1 gets featured to all users</span> — maximum visibility, maximum attention
+                </p>
+              </div>
+            </div>
+
+            {/* CTAs — identity + speed + loss micro-copy */}
+            <div className="mt-5 space-y-1.5">
+              <div className="flex flex-col gap-2.5 sm:flex-row">
+                <button
+                  onClick={handleEnterBattle}
+                  disabled={enterLoading}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-violet-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-violet-900/30 transition-all hover:bg-violet-500 hover:shadow-violet-900/40 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60"
+                  data-testid="hero-enter-battle-btn"
+                >
+                  {enterLoading
+                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                    : <Swords className="w-4 h-4" />
+                  }
+                  {userRank ? 'Claim Your Rank' : 'Enter Battle'}
+                </button>
+                <button
+                  onClick={handleQuickShot}
+                  disabled={quickShotLoading}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-6 py-3 text-sm font-bold text-white transition-all hover:bg-white/[0.08] hover:scale-[1.02] active:scale-[0.98]"
+                  data-testid="hero-quick-shot-btn"
+                >
+                  {quickShotLoading
+                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                    : <Zap className="w-4 h-4" />
+                  }
+                  Post in 10 Seconds
+                </button>
+              </div>
+              {/* Loss framing micro-copy */}
+              <div className="flex gap-4 text-[10px] text-slate-500 pl-1">
+                <span>Lose position if you wait</span>
+                <span>Fastest way to climb right now</span>
+              </div>
             </div>
           </div>
 

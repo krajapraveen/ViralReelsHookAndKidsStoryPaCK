@@ -150,8 +150,16 @@ export default function BattlePulse({ rootStoryId, onEnterBattle, onNearWinPaywa
     const gap = (pulse.top_3[0].score - (pulse.user_entry?.score || 0)).toFixed(0);
     if (gap <= 5) {
       competitiveSignals.push({
-        text: `Only ${gap} pts to #1 — one share could flip it`,
+        text: `Only ${gap} pts to #1 — one entry could flip it`,
         urgent: true,
+      });
+    }
+    // Personalized threat — show who's ahead
+    const aheadEntry = pulse.top_3.find(e => !e.is_mine && e.rank < pulse.user_rank);
+    if (aheadEntry) {
+      competitiveSignals.push({
+        text: `${aheadEntry.creator_name} is ahead of you with ${aheadEntry.views} views`,
+        urgent: false,
       });
     }
   }
