@@ -142,6 +142,8 @@ Paywall Modal → Cashfree SDK → Verify → Credits Added → Resume Action
 ---
 
 ## All Completed Systems
+- P0 Google Sign-In Fix (Apr 13): Replaced broken `GoogleLogin` iframe component with `useGoogleLogin` popup hook. Custom styled button opens Google's OAuth popup directly. Backend verifies via access_token flow. No more iframe blocking.
+- P0 Feed Fix (Apr 13): Dashboard "Trending Now" cards with no thumbnails now show rich fallback (gradient + title + animation style) instead of blank dark rectangles.
 - CTA Conversion Redesign v2 (Apr 13): Killed hero/QuickActions duplication, renamed CTAs for action-impulse clarity, visual hierarchy with dominant primary card, credit-aware pre-click indicator, remix flow fix (studio with context instead of bare leaderboard), event bridge for paywall modal.
 - Entry Conversion Engine (Quick Shot, personalized CTAs)
 - Consumption-First UI (Watch > Make)

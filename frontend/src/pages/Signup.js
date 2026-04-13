@@ -11,6 +11,7 @@ import analytics from '../utils/analytics';
 import { useRecaptcha } from '../hooks/useRecaptcha';
 import { trackSignupCompleted, linkSessionToUser } from '../utils/growthAnalytics';
 import { trackConversion } from '../lib/abTesting';
+import { useGoogleLogin } from '@react-oauth/google';
 
 export default function Signup({ setAuth }) {
   const [name, setName] = useState('');
@@ -305,11 +306,11 @@ export default function Signup({ setAuth }) {
     }
   };
 
-  const handleGoogleSuccess = async (credentialResponse) => {
+  const handleGoogleSuccess = async (tokenResponse) => {
     setGoogleLoading(true);
     try {
       const response = await api.post('/api/auth/google-signin', {
-        credential: credentialResponse.credential,
+        access_token: tokenResponse.access_token,
       });
       const { token, user } = response.data;
       if (!token) {
@@ -343,6 +344,11 @@ export default function Signup({ setAuth }) {
       setGoogleLoading(false);
     }
   };
+
+  const googleLogin = useGoogleLogin({
+    onSuccess: handleGoogleSuccess,
+    onError: () => { toast.error('Google sign-up was cancelled or failed.'); },
+  });
 
   // Custom input styles for dark theme
   const inputBaseStyles = `
@@ -543,15 +549,11 @@ export default function Signup({ setAuth }) {
             </div>
 
             <div className="w-full mt-4 flex justify-center" data-testid="google-signup-btn">
-              {/* REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH */}
               <button
                 type="button"
-                onClick={() => {
-                  const redirectUrl = window.location.origin + '/auth/callback';
-                  window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
-                }}
+                onClick={() => googleLogin()}
                 className="w-full max-w-[380px] h-11 rounded-full border border-slate-600 bg-slate-800 hover:bg-slate-700 transition-colors flex items-center justify-center gap-3 text-sm font-medium text-white"
-                data-testid="google-signup-redirect-btn"
+                data-testid="google-signup-popup-btn"
               >
                 <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
                   <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
