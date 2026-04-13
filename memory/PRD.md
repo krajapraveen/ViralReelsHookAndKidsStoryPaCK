@@ -14,13 +14,13 @@
 
 ## Core Philosophy: WATCH > ENTER BATTLE > GENERATE > COMPETE > PAY
 
-## Audit Fixes Applied (Apr 13)
-- Cookie consent: shrunk to small bottom-right toast (no longer blocks CTAs)
-- Journey Progress Bar: only shows on Studio/Pipeline pages (removed from Dashboard, Battle, Viewer)
-- Dashboard restructured: Battle-first (HottestBattle → TrendingPublicFeed → HeroSection)
-- PostValueOverlay: "Continue with limited access" stays on /app (no studio redirect)
-- Explore page: only shows stories with thumbnails (no blank cards)
-- Login: correctly redirects to /app dashboard
+## Dashboard Architecture (Apr 13 — Battle-First Redesign)
+Dashboard order: PersonalAlertStrip → LiveBattleHero → QuickActions → TrendingPublicFeed → MomentumSection → HeroSection → Story Rows
+
+### New Components:
+- `LiveBattleHero.jsx` — Live battle zone with stats, rank, #1 preview, Enter Battle + Quick Shot CTAs. Polls pulse every 15s. Paywall-gated.
+- `QuickActions.jsx` — 3 big entry buttons: Quick Shot, Create Story, Remix Battle
+- `MomentumSection.jsx` — User stats: Current Rank, Battles Entered, Credits, Status
 
 ---
 

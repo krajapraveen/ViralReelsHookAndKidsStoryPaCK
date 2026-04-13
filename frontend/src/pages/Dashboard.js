@@ -27,6 +27,9 @@ import TrendingPublicFeed from '../components/TrendingPublicFeed';
 import YourCreationsStrip from '../components/YourCreationsStrip';
 import HottestBattle from '../components/HottestBattle';
 import StreakBadge from '../components/StreakBadge';
+import LiveBattleHero from '../components/LiveBattleHero';
+import QuickActions from '../components/QuickActions';
+import MomentumSection from '../components/MomentumSection';
 
 import heroFallback from '../assets/fallbacks/hero-fallback.jpg';
 import cardFallback from '../assets/fallbacks/card-fallback.jpg';
@@ -1045,18 +1048,25 @@ export default function Dashboard() {
       {/* ═══ 0. PERSONAL ALERT STRIP — THE RETURN TRIGGER (TOP) ═══ */}
       <PersonalAlertStrip />
 
-      {/* ═══ 0.3 STREAK BADGE — IDENTITY LAYER ═══ */}
-      <div className="px-4 sm:px-6 lg:px-10 py-1">
-        <StreakBadge />
+      {/* ═══ SECTION 1: LIVE BATTLE HERO — Above the fold, instant engagement ═══ */}
+      <div className="px-4 sm:px-6 lg:px-10 py-2">
+        <LiveBattleHero />
       </div>
 
-      {/* ═══ 0.5 HOTTEST BATTLE — SPECTATOR MODE (ACQUISITION) ═══ */}
-      <HottestBattle />
+      {/* ═══ SECTION 2: QUICK ACTIONS — Fast entry paths ═══ */}
+      <div className="px-4 sm:px-6 lg:px-10 py-2">
+        <QuickActions />
+      </div>
 
-      {/* ═══ 0.7 TRENDING BATTLES — VISUAL FEED (COMPETITION FIRST) ═══ */}
+      {/* ═══ SECTION 3: TRENDING BATTLES — Scroll hook ═══ */}
       <TrendingPublicFeed />
 
-      {/* 1. HERO — Creation entry (SECONDARY to competition) */}
+      {/* ═══ SECTION 4: YOUR MOMENTUM — Retention stats ═══ */}
+      <div className="px-4 sm:px-6 lg:px-10 py-2">
+        <MomentumSection />
+      </div>
+
+      {/* ═══ SECTION 5: CREATION STUDIO (moved down) ═══ */}
       <div className={isAdmin ? 'pt-14' : ''}>
         <HeroSection stories={safeHeroPool} navigate={navigate} />
       </div>
