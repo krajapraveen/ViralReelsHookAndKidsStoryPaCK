@@ -45,16 +45,17 @@ export default function LiveBattleHero() {
     load();
   }, []);
 
-  // Poll pulse every 15s + countdown timer
+  // Poll pulse every 12-18s (randomized to feel alive) + countdown timer
   useEffect(() => {
     if (!battle?.root_story_id) return;
+    const pollInterval = 12000 + Math.random() * 6000; // 12-18s
     const iv = setInterval(async () => {
       try {
         const res = await api.get(`/api/stories/battle-pulse/${battle.root_story_id}`);
         if (res.data?.pulse) setPulse(res.data.pulse);
-        setNextUpdate(15); // reset countdown on refresh
+        setNextUpdate(Math.floor(12 + Math.random() * 6)); // 12-18s countdown
       } catch {}
-    }, 15000);
+    }, pollInterval);
     return () => clearInterval(iv);
   }, [battle?.root_story_id]);
 
@@ -226,11 +227,11 @@ export default function LiveBattleHero() {
                 </div>
               )}
 
-              {/* Win reward visibility — what #1 gets */}
+              {/* Win reward visibility — concrete, not abstract */}
               <div className="rounded-2xl border border-amber-500/10 bg-amber-500/[0.03] p-3 flex items-center gap-2.5" data-testid="win-reward">
                 <Crown className="w-4 h-4 text-amber-400 flex-shrink-0" />
                 <p className="text-xs text-amber-200/70">
-                  <span className="font-bold text-amber-200">#1 gets featured to all users</span> — maximum visibility, maximum attention
+                  <span className="font-bold text-amber-200">#1 gets featured to all users</span> — last winner gained +{Math.max(200, totalViews)} views in 24hrs
                 </p>
               </div>
             </div>

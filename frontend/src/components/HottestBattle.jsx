@@ -237,16 +237,16 @@ export default function HottestBattle() {
               <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-3 animate-in zoom-in duration-500">
                 <Zap className="w-6 h-6 text-emerald-400" />
               </div>
-              <h3 className="text-lg font-black text-white mb-1">You're competing for #1</h3>
+              <h3 className="text-lg font-black text-white mb-1">You're now competing</h3>
               <p className="text-sm text-emerald-400 font-semibold mb-2">
-                Your version of "{quickShotSuccess.parentTitle}" is live
+                Your entry is live — first viewers arriving
               </p>
               <div className="flex items-center justify-center gap-3 text-[11px] text-white/40 mb-2">
                 <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> Going live now</span>
                 <span className="flex items-center gap-1"><Swords className="w-3 h-3" /> vs {quickShotSuccess.competitorCount} others</span>
               </div>
               <p className="text-[10px] text-amber-400/80 font-medium">
-                If this wins, it gets pushed to everyone
+                Win this and get featured to everyone
               </p>
               {quickShotSuccess.streakStarted && (
                 <p className="text-[10px] text-orange-400 font-semibold mt-2">Streak started! Come back tomorrow.</p>

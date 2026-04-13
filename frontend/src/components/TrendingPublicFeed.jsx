@@ -24,6 +24,10 @@ export default function TrendingPublicFeed() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-10 py-3" data-testid="trending-public-feed">
+      <style>{`
+        @keyframes kenburns{0%{transform:scale(1) translate(0,0)}50%{transform:scale(1.06) translate(-1%,-0.5%)}100%{transform:scale(1) translate(0,0)}}
+        .kenburns-auto{animation:kenburns 10s ease-in-out infinite}
+      `}</style>
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-bold text-white flex items-center gap-2">
           <Flame className="w-4 h-4 text-amber-400" /> Trending Now
@@ -69,7 +73,7 @@ function TrendingCard({ story, index, navigate }) {
       {/* Thumbnail / Gradient */}
       <div className="aspect-video bg-gradient-to-br from-slate-800 to-slate-900 relative overflow-hidden">
         {story.thumbnail_url ? (
-          <img src={story.thumbnail_url} alt="" className="w-full h-full object-cover" />
+          <img src={story.thumbnail_url} alt="" className="w-full h-full object-cover kenburns-auto group-hover:scale-110 group-hover:animation-none transition-transform" />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-violet-600/20 to-rose-600/20" />
         )}
