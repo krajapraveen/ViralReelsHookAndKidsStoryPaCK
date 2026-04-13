@@ -259,8 +259,11 @@ export default function Login({ setAuth }) {
   };
 
   // Google Sign-In via popup (useGoogleLogin — access_token flow)
+  const [googleClicking, setGoogleClicking] = useState(false);
+
   const handleGoogleSuccess = async (tokenResponse) => {
     setGoogleLoading(true);
+    setGoogleClicking(false);
     try {
       const response = await api.post('/api/auth/google-signin', {
         access_token: tokenResponse.access_token,
@@ -293,8 +296,15 @@ export default function Login({ setAuth }) {
 
   const googleLogin = useGoogleLogin({
     onSuccess: handleGoogleSuccess,
-    onError: () => { toast.error('Google sign-in was cancelled or failed.'); },
+    onError: () => { setGoogleClicking(false); toast.error('Google sign-in failed. Please try again.'); },
+    onNonOAuthError: () => { setGoogleClicking(false); toast.error('Google sign-in was cancelled.'); },
   });
+
+  const handleGoogleClick = () => {
+    if (googleClicking || googleLoading) return;
+    setGoogleClicking(true);
+    googleLogin();
+  };
 
   // Check if email is valid for enabling submit button
   const isForgotEmailValid = forgotEmail.trim() && isValidEmail(forgotEmail.trim());
@@ -462,8 +472,9 @@ export default function Login({ setAuth }) {
             <div className="w-full mt-4 flex justify-center" data-testid="google-signin-btn">
               <button
                 type="button"
-                onClick={() => googleLogin()}
-                className="w-full max-w-[380px] h-11 rounded-full border border-slate-600 bg-slate-800 hover:bg-slate-700 transition-colors flex items-center justify-center gap-3 text-sm font-medium text-white"
+                onClick={handleGoogleClick}
+                disabled={googleClicking || googleLoading}
+                className="w-full max-w-[380px] h-11 rounded-full border border-slate-600 bg-slate-800 hover:bg-slate-700 transition-colors flex items-center justify-center gap-3 text-sm font-medium text-white disabled:opacity-60 disabled:cursor-not-allowed"
                 data-testid="google-signin-popup-btn"
               >
                 <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">

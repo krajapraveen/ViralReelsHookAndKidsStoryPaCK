@@ -306,8 +306,11 @@ export default function Signup({ setAuth }) {
     }
   };
 
+  const [googleClicking, setGoogleClicking] = useState(false);
+
   const handleGoogleSuccess = async (tokenResponse) => {
     setGoogleLoading(true);
+    setGoogleClicking(false);
     try {
       const response = await api.post('/api/auth/google-signin', {
         access_token: tokenResponse.access_token,
@@ -347,8 +350,15 @@ export default function Signup({ setAuth }) {
 
   const googleLogin = useGoogleLogin({
     onSuccess: handleGoogleSuccess,
-    onError: () => { toast.error('Google sign-up was cancelled or failed.'); },
+    onError: () => { setGoogleClicking(false); toast.error('Google sign-up failed. Please try again.'); },
+    onNonOAuthError: () => { setGoogleClicking(false); toast.error('Google sign-up was cancelled.'); },
   });
+
+  const handleGoogleClick = () => {
+    if (googleClicking || googleLoading) return;
+    setGoogleClicking(true);
+    googleLogin();
+  };
 
   // Custom input styles for dark theme
   const inputBaseStyles = `
@@ -551,8 +561,9 @@ export default function Signup({ setAuth }) {
             <div className="w-full mt-4 flex justify-center" data-testid="google-signup-btn">
               <button
                 type="button"
-                onClick={() => googleLogin()}
-                className="w-full max-w-[380px] h-11 rounded-full border border-slate-600 bg-slate-800 hover:bg-slate-700 transition-colors flex items-center justify-center gap-3 text-sm font-medium text-white"
+                onClick={handleGoogleClick}
+                disabled={googleClicking || googleLoading}
+                className="w-full max-w-[380px] h-11 rounded-full border border-slate-600 bg-slate-800 hover:bg-slate-700 transition-colors flex items-center justify-center gap-3 text-sm font-medium text-white disabled:opacity-60 disabled:cursor-not-allowed"
                 data-testid="google-signup-popup-btn"
               >
                 <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
