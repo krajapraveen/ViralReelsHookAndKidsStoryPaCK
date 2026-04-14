@@ -25,162 +25,87 @@
   - Admin backfill: `POST /api/stories/admin/backfill-previews`
 - **Feed API** returns `preview_media` contract: `poster_url`, `preview_url`, `autoplay_enabled`, `processing_state`
 - **Frontend autoplay**: IntersectionObserver triggers `video.play()` at 60% visibility, falls back to poster on failure, pauses on scroll-out
-Dashboard order: PersonalAlertStrip → LiveBattleHero → QuickActions → TrendingPublicFeed → MomentumSection → HeroSection → Story Rows
+Dashboard order: PersonalAlertStrip > LiveBattleHero > QuickActions > TrendingPublicFeed > MomentumSection > HeroSection > Story Rows
 
 ### New Components:
 - `LiveBattleHero.jsx` — Live battle zone with stats, rank, #1 preview, Enter Battle + Quick Shot CTAs. Polls pulse every 15s. Paywall-gated. Listens for `show-battle-paywall` global events.
-- `QuickActions.jsx` — "Choose Your Path" section with 3 differentiated entry paths:
-  - Primary: "Enter Battle Instantly" (AI auto-gen, spans 2 cols, credit-aware indicator, "Fastest path to the leaderboard" badge)
-  - Secondary: "Write Your Own Entry" (studio with full creative control)
-  - Tertiary: "Beat the Leader" (remix flow — shows dynamic #1 entry title, navigates to studio with remix context)
+- `QuickActions.jsx` — "Choose Your Path" section with 3 differentiated entry paths
 - `MomentumSection.jsx` — User stats: Current Rank, Battles Entered, Credits, Status
 
 ---
 
 ## Master Flow (Money Loop)
 ```
-Dashboard → Quick Shot / Story Card → Overlay → Pipeline → Watch Page (Battle)
-↓
-User Actions: Share / Enter Again (Paywall) / Track Rank / Leave (Return Trigger)
-↓
-Return → Repeat → PAY
+Dashboard > Quick Shot / Story Card > Overlay > Pipeline > Watch Page (Battle)
+> User Actions: Share / Enter Again (Paywall) / Track Rank / Leave (Return Trigger)
+> Return > Repeat > PAY
 ```
-
----
-
-## Pages & Flows
-
-### Dashboard (/app)
-- Battle Cards with autoplay + hook text overlays
-- Quick Shot CTA (1-tap, zero-input)
-- View Battle CTA
-- Trending Feed with LIVE indicators
-
-### Quick Shot (NOT a page)
-- API call + instant dopamine overlay + redirect to pipeline
-- On 402 → Battle Paywall Modal (no navigation)
-- On success → overlay with preview + ego boost → auto-redirect
-
-### Pipeline (/app/story-video-studio)
-- GENERATING: progress + competition context + activity pulse
-- READY: auto-play video + rank + share/enter again CTAs
-- Branch entries auto-redirect to Battle page after 3s
-- FAILED: retry UI
-- 402 credit gate modal (inline)
-
-### Watch Page (/app/story-battle/:id) — CORE PAGE
-7 Required Components:
-1. Rank + Score card (gold #1 with Share, rose #2+ with "Take it back")
-2. Live Activity (BattlePulse polling every 12s)
-3. WIN/LOSS moments (persistent WIN, auto-dismiss LOSS)
-4. Video autoplay (#1 contender)
-5. Share CTA ("Share this battle")
-6. Enter Battle CTA (paywall-gated, gradient button)
-7. Return Trigger ("Come back in 10 minutes")
-
-### Story Viewer (/app/story-viewer/:jobId)
-- Consumption-first with video player
-- Battle status banner with rank/score/views
-- BattlePulse + push notification prompt
-- Enter Battle gated through free-limit check
-- Rank-aware viral share prompt (Crown when #1)
-
-### Paywall (MODAL ONLY — BattlePaywallModal)
-- Triggers: free_limit, loss_moment, near_win, enter_battle
-- Packs: ₹49/5 entries, ₹149/20 entries, ₹299/50 entries
-- Cashfree payment inline (redirectTarget: '_modal')
-- Returns to SAME blocked action after payment success
-- Never navigates away from context
-
-### Payment Flow
-```
-Paywall Modal → Cashfree SDK → Verify → Credits Added → Resume Action
-```
-
----
-
-## Backend State Machine
-- CREATED → GENERATING → READY → display
-- FAILED → retry (max 2)
-- QUEUED → wait for slot → GENERATING
-
-## Free Entry Limit
-- FREE_BATTLE_ENTRIES = 3
-- After 3 entries + 0 credits → needs_payment = true → paywall
-- GET /api/stories/battle-entry-status checks limit
-
-## Push Notifications
-- Rank drop push to ALL users who dropped (battle_rank_snapshot collection)
-- Service worker with trigger-specific actions + persistent rank_drop
-- Frontend prompt in BattlePulse when user has rank
-
-## Psychology Layer
-- WIN moment: persistent, unmissable Share CTA
-- LOSS moment: "Act now" + push notification
-- Competitive signals: "X people trying to beat #1"
-- Return triggers: "Your rank might change"
-- Hook text overlays on story cards
-
----
-
-## Monetization
-- 3 free battle entries
-- ₹29 / ₹49 / ₹149 entry packs (micro-tier for impulse buy)
-- Paywall triggers: free limit, loss moment, near win (AUTO)
-- Near-win auto-paywall: rank #2/#3 within 5pts of #1 → forces paywall
-- Credits: 10 per story_video generation
-- Copy sells WINNING not credits ("Win the battle", "Take the top spot")
-
----
-
-## Analytics (Tracked Events)
-- spectator_impression, spectator_quick_shot, spectator_to_player_conversion
-- battle_paywall_viewed, battle_pack_selected, battle_payment_success
-- win_share_triggered, story_viewed, watch_started, watch_completed_50/100
-- cta_clicked (type: enter_battle, share, next_episode, etc.)
 
 ---
 
 ## All Completed Systems
-- Content Seeding Sprint (Apr 14): Submitted 12 diverse seed stories through full pipeline (Story → Scenes → Images → Sora 2 Video → Audio → Assembly → R2). Categories: Bedtime Magic, Emotional, Mind-Blowing Twist, 1M Views Hook. Pipeline bugs fixed: FFmpeg reinstalled, QUEUED state handling, admin exemption from abuse detection and queue. 17+ videos READY with real thumbnails and output URLs. Auto-play battle hero now has real video content.
-- Emotional Copy + Battle Hero Autoplay (Apr 14): Hero CTA → "Take #1 Spot". Preview → "Think you can beat this?". Post-gen CTAs → emotional copy. Guided Start vibes → outcome-driven labels.
-- Studio Creation Engine V2 (Apr 14): Full sprint with feature flags — Draft Safety, Post-Generation Loop, Recent Drafts Panel, Guided Start V2.
-- Studio Creation Engine (Apr 14): Project Identity, Draft Persistence V1, Navigation Guard, Guided Start V1.
-- Studio Fresh Session Fix (Apr 14): "Write Your Own Story" now opens a clean blank studio with no "Recent Videos" sidebar.
-- P0.5 Performance Hardening (Apr 14): Consolidated 7 dashboard API calls into single `/api/dashboard/init` endpoint. Dashboard load: 5.07s → 2.47s (first), 1.89s (repeat).
-- P0 Performance Sprint (Apr 14): Route-level code splitting (141 eager → 5 eager + 136 lazy). Backend TTL caching for feed/battle endpoints. Image lazy loading on feed cards.
-- CTA Route Separation Fix (Apr 13): "Write Your Own Story" → fresh studio. "Beat the Leader" → battle leaderboard. Updated labels and copy.
-- UX Trust Fixes (Apr 13): (1) PostValueOverlay suppressed on first visit — only triggers after user has navigated away once. (2) Hero "Claim Your Rank" CTA now navigates to battle page first, paywall only on action attempt. Credit-aware micro-copy: "Entry requires credits · View the battle first, then decide". (3) Seeded 4 diverse battle themes (Midnight in Tokyo/anime, The Last Laugh/cartoon, Echoes of Mars/sci-fi, Recipe for Disaster/watercolor) to eliminate content repetition perception.
-- Google Sign-In Hardened (Apr 13): Popup cancel → toast + re-enable. Rapid clicks → disabled guard. Backend error → clear toast. Loading overlay during exchange.
-- P0 Google Sign-In Fix (Apr 13): Replaced broken `GoogleLogin` iframe component with `useGoogleLogin` popup hook. Custom styled button opens Google's OAuth popup directly. Backend verifies via access_token flow. No more iframe blocking.
-- P0 Feed Fix (Apr 13): Dashboard "Trending Now" cards with no thumbnails now show rich fallback (gradient + title + animation style) instead of blank dark rectangles.
-- CTA Conversion Redesign v2 (Apr 13): Killed hero/QuickActions duplication, renamed CTAs for action-impulse clarity, visual hierarchy with dominant primary card, credit-aware pre-click indicator, remix flow fix (studio with context instead of bare leaderboard), event bridge for paywall modal.
-- Entry Conversion Engine (Quick Shot, personalized CTAs)
-- Consumption-First UI (Watch > Make)
-- Queue System (QUEUED state, graceful handling)
-- Data Integrity (COMPLETED = asset exists)
-- Export Pipeline (download validation, 410 handling)
+- **Master QA Execution (Apr 14)**: Ran full 4-layer QA suite — 114 tests across Smoke/Regression/Negative/Failure. Found and fixed 1 HIGH-severity XSS vulnerability in draft save endpoint. Final verdict: CONDITIONALLY READY.
+- Content Seeding Sprint (Apr 14): 26 real videos with thumbnails, clips, and assembly.
+- Emotional Copy + Battle Hero Autoplay (Apr 14)
+- Studio Creation Engine V2 (Apr 14): Draft Safety, Post-Generation Loop, Recent Drafts Panel, Guided Start V2.
+- Studio Fresh Session Fix (Apr 14)
+- P0.5 Performance Hardening (Apr 14): 7 API calls -> 1, load 5s -> 1.8s
+- P0 Performance Sprint (Apr 14): Code splitting, TTL caching, image lazy loading
+- CTA Route Separation Fix (Apr 13)
+- UX Trust Fixes (Apr 13)
+- Google Sign-In Hardened (Apr 13)
+- P0 Feed Fix (Apr 13)
+- CTA Conversion Redesign v2 (Apr 13)
+- Entry Conversion Engine
+- Consumption-First UI
+- Queue System
+- Data Integrity
+- Export Pipeline
 - Conversion Analytics Dashboard
-- Psychology Layer v1+v2 (tension, ego, urgency, fear)
+- Psychology Layer v1+v2
 - WIN/LOSS Moments + BattlePulse
 - Push Notifications on ALL rank drops
-- WIN Share Trigger (persistent, unmissable)
-- Autoplay Hook Quality (text overlays, LIVE badges)
+- WIN Share Trigger
+- Autoplay Hook Quality
 - Battle Paywall Modal (Cashfree inline)
 - Free Entry Limit Enforcement
 - Watch Page (7 components complete)
-- Pipeline → Battle auto-redirect
+- Pipeline > Battle auto-redirect
+- XSS Sanitization on draft save endpoint (Apr 14)
+
+---
+
+## QA Status (Apr 14, 2026)
+
+| Layer | Tests | Passed | Status |
+|-------|-------|--------|--------|
+| Smoke Tests | 20 | 20 | ALL PASS |
+| Regression Suite | 69 | 69 | ALL PASS |
+| Negative/Failure | 25 | 25 | ALL PASS (post-fix) |
+| **Total** | **114** | **114** | **CONDITIONALLY READY** |
+
+### Defects Found & Fixed
+- DEF-001 (HIGH): XSS in draft save — FIXED, VERIFIED
+
+### Conditions for Production Ready
+1. Manual Google OAuth test in real browser
+2. Resend email domain verification (user DNS action)
+3. Real user traffic validation (20-50 users)
 
 ---
 
 ## Backlog
 
 ### P1
+- Push live traffic (20-50 real users) and track funnel signals
+- WebP/AVIF image optimization for banners/thumbnails
+- Optimize thresholds based on traffic data
 - Follow Creator / Network Graph
 - Auto-Recovery FAILED_PERSISTENCE
-- Phase C Gamification (gated behind GREENLIGHT)
 
 ### P2
+- Category-specific AI hook selection policies
+- Replace asyncio.create_task with Celery
 - Personalized headline serving by channel
 - Admin WebSocket upgrade
 - Resend domain verification (blocked on DNS)
