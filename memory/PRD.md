@@ -10,65 +10,63 @@
 
 ---
 
-## Systems Built This Session (Apr 14)
+## Monitoring Endpoints (Use During Traffic Push)
 
-### 1. Red Flag Alert System
-- **7 invariant checks** running on every guardrail request
-- Alerts persist in `system_alerts` collection with severity, count, first_seen_at, last_seen_at, sample_entity_ids
-- Auto-dedup: same invariant/entity doesn't spam
-- Auto-resolve: when invariant returns healthy, open alerts close
+### Guardrails — System Integrity
+```
+GET /api/admin/guardrails
+Authorization: Bearer <admin_token>
+```
+Returns pass/fail for 7 invariants. If `healthy: false` → STOP traffic.
 
-### 2. Guardrail Endpoint (`GET /api/admin/guardrails`)
-- Admin-only (403 for standard users)
-- Returns per invariant: status, name, severity, count, sample_ids, last_triggered_at, trigger_count
-- Overall healthy/unhealthy flag
-- Sub-endpoints: `/alerts` (open), `/history` (N-day history)
+### User Signals — Product Truth
+```
+GET /api/admin/user-signals?days=1
+Authorization: Bearer <admin_token>
+```
+Returns 4 core signals:
+1. **TTFV**: median, p75, p90, reached vs not-reached counts
+2. **Funnel**: landing → typing → generate → completed → postgen (with conversion %)
+3. **Second Action Rate**: users who did anything after first generation
+4. **Return Behavior**: 2+ session users, same-day returns, median return delay
 
-### Invariants Monitored:
-| Key | Severity | What It Catches |
-|-----|----------|-----------------|
-| negative_credits | Critical | Any user with credits < 0 |
-| duplicate_credit_grants | Critical | Same order_id credited twice |
-| multiple_active_drafts | High | User with >1 draft (status=draft) |
-| orphan_processing_jobs | High | Jobs stuck PROCESSING >30min |
-| analytics_session_duplication | Medium | session_started >1 per session_id |
-| payment_without_credit | Critical | PAID order without ledger entry |
-| private_content_leak | High | Non-READY content in public queries |
-
-### 3. XSS Hardening (15 vectors tested)
-- Case-insensitive regex: `(?i)(javascript|vbscript|data)\s*:`
-- bleach.clean() strips all HTML tags
-- html.escape() escapes remaining chars
-- 15/15 vectors pass: URL-encoded, entity-encoded, mixed-case, whitespace, tab, newline, href, data URI, markdown link, double-encoded, SVG, img, body, style, unicode
-
-### 4. Draft Race Condition Fix
-- MongoDB unique partial index: `one_active_draft_per_user`
-- Upsert with DuplicateKeyError fallback
-- Tested: 50 concurrent saves → exactly 1 draft
-
-### 5. Analytics Server-Side Dedup
-- DEDUP_EVENTS: session_started, session_ended, typing_started
-- Checks existing event before insert
-- Cleaned 25 duplicate events from pre-fix testing
+### How to Interpret (First 50 Users)
+- TTFV > 3min → friction problem (fix UX, not backend)
+- Landing→typing < 40% → hero/CTA not compelling
+- Generate→completed < 60% → pipeline trust issue
+- Second action < 20% → weak product pull
+- Return rate < 10% → forgettable product
 
 ---
 
-## All Bugs Found & Fixed Across All Phases
+## All Systems Built This Session
 
-| # | Bug | Severity | Phase | Status |
-|---|-----|----------|-------|--------|
-| 1 | XSS in draft save (script/onerror) | Critical | P2 | FIXED |
-| 2 | Draft race (50 concurrent → 2 drafts) | High | P2 | FIXED (unique index) |
-| 3 | Analytics dedup (5x session_started) | Medium | P2 | FIXED (server dedup) |
-| 4 | `javascript:` bypass (exact case) | Critical | P2 | FIXED (regex) |
-| 5 | `JaVaScRiPt:` mixed case bypass | Critical | P3 | FIXED (case-insensitive regex) |
-| 6 | R2 HEAD 403 | Low | P2 | Known (R2 limitation, GET works) |
-| 7 | Draft race under network instability | High | P3 | FIXED (unique index) |
+| System | Status | Files |
+|--------|--------|-------|
+| Red Flag Alerts (7 invariants) | LIVE | `/app/backend/routes/guardrails.py` |
+| Guardrail Endpoint | LIVE | Same file |
+| User Signals Endpoint | LIVE | `/app/backend/routes/user_signals.py` |
+| XSS Hardening (15 vectors) | VERIFIED | `/app/backend/routes/drafts.py` |
+| Draft Race Fix (unique index) | VERIFIED | Same + MongoDB index |
+| Analytics Dedup (server-side) | VERIFIED | `/app/backend/routes/funnel_tracking.py` |
+| Funnel Tracking V3 (7 events) | LIVE | `funnel_tracking.py` + `useSessionTracker.js` |
+| R2 Media Proxy | LIVE | `/app/backend/routes/r2_proxy.py` |
+
+## All Bugs Found & Fixed
+
+| # | Bug | Severity | Fix |
+|---|-----|----------|-----|
+| 1 | XSS in drafts (script/onerror) | Critical | bleach + html.escape |
+| 2 | Draft race condition | High | Unique partial index + fallback |
+| 3 | Analytics dedup missing | Medium | Server-side DEDUP_EVENTS |
+| 4 | javascript: bypass (exact case) | Critical | Case-insensitive regex |
+| 5 | JaVaScRiPt: mixed case | Critical | Same regex (IGNORECASE) |
+| 6 | R2 HEAD 403 | Low | R2 limitation (GET works) |
 
 ## Ship Status
-**READY FOR LIMITED TRAFFIC** with guardrails active.
+**READY FOR LIMITED TRAFFIC** — Guardrails + User Signals active.
 
 ## Backlog
-- P0: Push 20-50 users with monitoring
-- P1: WebP/AVIF, threshold tuning, staging payment fault injection
-- P2: Celery, category AI hooks, battle recomputation testing
+- P0: Push 20-50 users, check guardrails every 30min, analyze user-signals
+- P1: WebP/AVIF, payment fault injection in staging
+- P2: Celery, category AI hooks, battle recomputation

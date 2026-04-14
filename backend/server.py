@@ -641,6 +641,9 @@ api_router.include_router(r2_proxy_router)
 from routes.guardrails import router as guardrails_router
 api_router.include_router(guardrails_router)
 
+from routes.user_signals import router as user_signals_router
+api_router.include_router(user_signals_router)
+
 from routes.media_admin import router as media_admin_router
 api_router.include_router(media_admin_router)
 
