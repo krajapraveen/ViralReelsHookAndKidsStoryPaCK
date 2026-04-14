@@ -15,6 +15,7 @@ import {
   Shield, Check, X, Zap, ChevronDown, ArrowRight, GitBranch, Swords, BarChart2
 } from 'lucide-react';
 import FEATURES from '../config/featureFlags';
+import { trackFunnel } from '../utils/funnelTracker';
 import UpsellModal from '../components/UpsellModal';
 import CreationActionsBar from '../components/CreationActionsBar';
 import ProgressiveGeneration from '../components/ProgressiveGeneration';
@@ -415,6 +416,9 @@ function StoryVideoPipelineInner() {
   // Series context — when generating from a Story Series flow
   const [seriesContext, setSeriesContext] = useState(null);
 
+  // ─── FUNNEL TRACKING (dedup guards) ──────────────────────────────────────
+  const typingStartedRef = useRef(false);
+
   // ─── DRAFT PERSISTENCE ─────────────────────────────────────────────────────
   const [showResumeDraft, setShowResumeDraft] = useState(false);
   const [pendingDraft, setPendingDraft] = useState(null);
@@ -426,6 +430,13 @@ function StoryVideoPipelineInner() {
   useEffect(() => {
     if (phase !== 'input') return;
     if (!title.trim() && !storyText.trim()) return;
+
+    // Fire typing_started ONCE per session
+    if (!typingStartedRef.current && (title.trim() || storyText.trim())) {
+      typingStartedRef.current = true;
+      trackFunnel('typing_started', { meta: { source: isFreshSession ? 'fresh' : 'return' } });
+    }
+
     // Don't save if content hasn't changed
     if (title === lastSavedRef.current.title && storyText === lastSavedRef.current.storyText) return;
 
@@ -836,6 +847,7 @@ function StoryVideoPipelineInner() {
           if (j.status === 'COMPLETED' || j.status === 'PARTIAL') {
             clearAllTimeouts();
             setPhase('postgen');
+            trackFunnel('generation_completed', { story_id: jid, meta: { status: j.status } });
             await validateAndResolve(jid, j);
           } else if (j.status === 'FAILED') {
             clearAllTimeouts();
@@ -900,6 +912,12 @@ function StoryVideoPipelineInner() {
   const handleGenerate = async () => {
     if (createLockRef.current) return; // Prevent double-click
     setFormError('');
+
+    // Track generate_clicked BEFORE validation — captures intent even on validation failure
+    trackFunnel('generate_clicked', {
+      story_id: jobId,
+      meta: { title_length: title.trim().length, story_length: storyText.trim().length, style: animStyle },
+    });
 
     if (!title.trim()) { setFormError('Please enter a title for your video.'); return; }
     if (title.trim().length < 3) { setFormError('Title must be at least 3 characters.'); return; }
@@ -3106,7 +3124,7 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <button
                   onClick={() => {
-                    try { api.post('/api/funnel/track', { event: 'rewrite_with_twist', data: { job_id: jobId || job?.job_id } }); } catch {}
+                    trackFunnel('postgen_cta_clicked', { story_id: jobId || job?.job_id, meta: { type: 'rewrite_twist' } });
                     navigate('/app/story-video-studio', {
                       state: { freshSession: true, remixFrom: { title: displayTitle, type: 'rewrite_twist' } },
                     });
@@ -3122,7 +3140,7 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
                 </button>
                 <button
                   onClick={() => {
-                    try { api.post('/api/funnel/track', { event: 'change_style', data: { job_id: jobId || job?.job_id, current_style: currentStyle } }); } catch {}
+                    trackFunnel('postgen_cta_clicked', { story_id: jobId || job?.job_id, meta: { type: 'change_style', current_style: currentStyle } });
                     navigate('/app/story-video-studio', {
                       state: {
                         freshSession: true,
@@ -3141,7 +3159,8 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
                 </button>
                 <button
                   onClick={() => {
-                    try { api.post('/api/funnel/track', { event: 'enter_battle_from_result', data: { job_id: jobId || job?.job_id } }); } catch {}
+                    trackFunnel('postgen_cta_clicked', { story_id: jobId || job?.job_id, meta: { type: 'enter_battle' } });
+                    trackFunnel('battle_enter_clicked', { story_id: jobId || job?.job_id, meta: { source: 'postgen' } });
                     const rootId = job?.parent_job_id || job?.root_story_id || jobId;
                     navigate(`/app/story-battle/${rootId}`);
                   }}

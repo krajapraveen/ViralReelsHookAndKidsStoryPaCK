@@ -80,6 +80,13 @@ FUNNEL_STEPS = [
     "win_share_triggered",
     "return_trigger_sent",
     "return_trigger_clicked",
+    # ═══ V3 — Core growth metrics (critical 7) ═══
+    "typing_started",
+    "generate_clicked",
+    "postgen_cta_clicked",
+    "battle_enter_clicked",
+    "session_started",
+    "session_ended",
 ]
 
 

@@ -278,7 +278,7 @@ export default function Landing() {
               className="group h-14 px-8 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white font-bold text-base hover:shadow-[0_0_40px_-8px_rgba(139,92,246,0.5)] transition-all hover:scale-[1.02] flex items-center gap-2 pulse-glow"
               data-testid="hero-continue-btn"
             >
-              <Zap className="w-5 h-5" /> Create Your First Video — Free
+              <Zap className="w-5 h-5" /> Create Your Story &amp; Take #1 Spot
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </button>
             <button
@@ -296,7 +296,7 @@ export default function Landing() {
 
           {/* Trust line */}
           <p className="text-xs text-slate-500 mb-6 fade-up-3" data-testid="hero-trust-line">
-            No credit card required &bull; Takes 30 seconds &bull; Free to start
+            No credit card required &bull; Free to start &bull; Compete for #1
           </p>
 
           {/* ─── ALIVE SIGNALS ─── */}

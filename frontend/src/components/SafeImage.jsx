@@ -6,7 +6,7 @@ const API = process.env.REACT_APP_BACKEND_URL;
  * Convert R2 CDN URLs to backend proxy URLs for cross-browser CORS compatibility.
  * Safari and mobile browsers block direct R2 CDN requests (no CORS headers).
  */
-function safeMediaUrl(url) {
+export function safeMediaUrl(url) {
   if (!url) return url;
   const r2Match = url.match(/^https?:\/\/pub-[a-f0-9]+\.r2\.dev\/(.+)$/);
   if (r2Match) return `${API}/api/media/r2/${r2Match[1]}?w=400&q=80`;

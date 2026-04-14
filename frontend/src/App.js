@@ -12,6 +12,7 @@ import { ErrorBoundary } from './components/recovery';
 import AppTour, { TourProvider } from './components/AppTour';
 import CookieConsent from './components/CookieConsent';
 import PushPrompt from './components/PushPrompt';
+import useSessionTracker from './utils/useSessionTracker';
 import './App.css';
 
 // ═══ CRITICAL PATH — Eager imports (landing, auth, dashboard) ═══
@@ -205,6 +206,9 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [paywallReason, setPaywallReason] = useState('post_value');
+
+  // Session tracking — fires session_started / session_ended
+  useSessionTracker();
 
   const triggerPaywall = useCallback((reason = 'post_value') => {
     setPaywallReason(reason);

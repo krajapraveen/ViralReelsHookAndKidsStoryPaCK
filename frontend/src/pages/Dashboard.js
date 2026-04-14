@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { trackLoop } from '../utils/growthTracker';
 import { trackFunnel } from '../utils/funnelTracker';
 import { setCdnBase } from '../utils/mediaUrl';
+import { safeMediaUrl } from '../components/SafeImage';
 import { sendFeedEvent, fetchMoreStories, updateScrollSpeed, getDynamicHookDelay, wasSkippedFast } from '../utils/feedTracker';
 import { startSession, endSession, trackAction } from '../utils/sessionTracker';
 import {
@@ -764,7 +765,7 @@ function FeaturedWinnerHero({ winner, navigate }) {
           <div className="w-36 sm:w-48 lg:w-56 flex-shrink-0 relative bg-zinc-900/80 overflow-hidden">
             {winner.thumbnail_url ? (
               <img
-                src={winner.thumbnail_url}
+                src={safeMediaUrl(winner.thumbnail_url)}
                 alt={winner.title}
                 className="w-full h-full object-cover"
                 loading="lazy"
@@ -1296,7 +1297,7 @@ export default function Dashboard() {
                     {idx + 1}
                   </span>
                   {story.thumbnail_url ? (
-                    <img src={story.thumbnail_url} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+                    <img src={safeMediaUrl(story.thumbnail_url)} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
                   ) : (
                     <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0"><Film className="w-4 h-4 text-white/20" /></div>
                   )}

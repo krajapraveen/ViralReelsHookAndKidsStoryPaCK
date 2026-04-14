@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import api from '../utils/api';
 import { trackFunnel } from '../utils/funnelTracker';
+import { safeMediaUrl } from './SafeImage';
 import BattlePaywallModal from './BattlePaywallModal';
 
 /**
@@ -80,7 +81,7 @@ export default function LiveBattleHero() {
   const handleEnterBattle = async () => {
     if (enterLoading) return;
     setEnterLoading(true);
-    trackFunnel('cta_clicked', { meta: { type: 'enter_battle', source: 'hero' } });
+    trackFunnel('battle_enter_clicked', { meta: { source: 'hero', battle_id: battle.root_story_id } });
     // Always navigate to battle page first — let user see the battle before hitting paywall
     navigate(`/app/story-battle/${battle.root_story_id}`);
   };
@@ -291,15 +292,15 @@ export default function LiveBattleHero() {
                 {topEntry?.output_url ? (
                   <video
                     autoPlay muted loop playsInline
-                    poster={topEntry?.thumbnail_url || battle.root_thumbnail || ''}
+                    poster={safeMediaUrl(topEntry?.thumbnail_url || battle.root_thumbnail || '')}
                     className="w-full h-full object-cover"
                     data-testid="hero-autoplay-video"
                   >
-                    <source src={topEntry.output_url} type="video/mp4" />
+                    <source src={safeMediaUrl(topEntry.output_url)} type="video/mp4" />
                   </video>
                 ) : topEntry?.thumbnail_url || battle.root_thumbnail ? (
                   <img
-                    src={topEntry?.thumbnail_url || battle.root_thumbnail}
+                    src={safeMediaUrl(topEntry?.thumbnail_url || battle.root_thumbnail)}
                     alt={topEntry?.title || battle.root_title}
                     className="w-full h-full object-cover"
                   />

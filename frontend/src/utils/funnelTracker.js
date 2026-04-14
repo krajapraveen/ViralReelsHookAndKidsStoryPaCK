@@ -26,7 +26,7 @@ import api from './api';
 const SESSION_KEY = 'funnel_session_id';
 const TRAFFIC_SOURCE_KEY = 'funnel_traffic_source';
 
-function getSessionId() {
+export function getSessionId() {
   let sid = sessionStorage.getItem(SESSION_KEY);
   if (!sid) {
     sid = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;

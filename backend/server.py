@@ -635,6 +635,9 @@ api_router.include_router(story_engine_router)
 from routes.media_proxy import router as media_proxy_router
 api_router.include_router(media_proxy_router)
 
+from routes.r2_proxy import router as r2_proxy_router
+api_router.include_router(r2_proxy_router)
+
 from routes.media_admin import router as media_admin_router
 api_router.include_router(media_admin_router)
 
