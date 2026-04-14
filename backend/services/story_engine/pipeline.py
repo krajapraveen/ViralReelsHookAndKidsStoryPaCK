@@ -449,10 +449,10 @@ async def process_next_stage(job_id: str) -> Dict:
         state = JobState.PLANNING
         job = await db.story_engine_jobs.find_one({"job_id": job_id}, {"_id": 0})
 
-    # Handle QUEUED state — don't process, just wait for promotion
+    # Handle QUEUED state — exit pipeline loop, queue promotion daemon will restart when slot opens
     if state.value == "QUEUED":
-        logger.info(f"[PIPELINE] Job {job_id[:8]} is QUEUED — skipping processing, awaiting promotion")
-        return {"success": True, "terminal": False, "queued": True}
+        logger.info(f"[PIPELINE] Job {job_id[:8]} is QUEUED — exiting pipeline, awaiting promotion")
+        return {"success": True, "terminal": True, "queued": True}
 
     # Validate state is an active stage
     if state not in STAGE_FUNCTIONS:

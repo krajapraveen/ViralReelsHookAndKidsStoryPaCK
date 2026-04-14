@@ -91,6 +91,11 @@ async def check_rate_limits(db, user_id: str) -> Optional[str]:
 
 async def should_queue_job(db, user_id: str) -> bool:
     """Check if a new job should be queued (slots busy) vs run immediately."""
+    # Admin users skip queue
+    user_doc = await db.users.find_one({"id": user_id}, {"_id": 0, "role": 1})
+    if user_doc and user_doc.get("role") in ("admin", "ADMIN"):
+        return False
+
     terminal_states = [
         "READY", "PARTIAL_READY", "FAILED", "COMPLETED",
         "FAILED_PLANNING", "FAILED_IMAGES", "FAILED_TTS", "FAILED_RENDER",

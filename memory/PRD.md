@@ -142,7 +142,8 @@ Paywall Modal → Cashfree SDK → Verify → Credits Added → Resume Action
 ---
 
 ## All Completed Systems
-- Emotional Copy + Battle Hero Autoplay (Apr 14): Hero CTA "Claim Your Rank" → "Take #1 Spot". Preview overlay → "Think you can beat this?". Post-gen CTAs: "Make it 10x better?" / "Not the vibe you wanted?" / "You're Rank #3 right now — Only one story can take #1". Guided Start vibes: "Bedtime Magic" / "Emotional Story" / "Mind-Blowing Twist" / "1M Views Hook". Recent Drafts → "Your unfinished stories are waiting". Hero #1 preview supports autoplay video (muted, looping) with gradient+title fallback.
+- Content Seeding Sprint (Apr 14): Submitted 12 diverse seed stories through full pipeline (Story → Scenes → Images → Sora 2 Video → Audio → Assembly → R2). Categories: Bedtime Magic, Emotional, Mind-Blowing Twist, 1M Views Hook. Pipeline bugs fixed: FFmpeg reinstalled, QUEUED state handling, admin exemption from abuse detection and queue. 17+ videos READY with real thumbnails and output URLs. Auto-play battle hero now has real video content.
+- Emotional Copy + Battle Hero Autoplay (Apr 14): Hero CTA → "Take #1 Spot". Preview → "Think you can beat this?". Post-gen CTAs → emotional copy. Guided Start vibes → outcome-driven labels.
 - Studio Creation Engine V2 (Apr 14): Full sprint with feature flags — Draft Safety, Post-Generation Loop, Recent Drafts Panel, Guided Start V2.
 - Studio Creation Engine (Apr 14): Project Identity, Draft Persistence V1, Navigation Guard, Guided Start V1.
 - Studio Fresh Session Fix (Apr 14): "Write Your Own Story" now opens a clean blank studio with no "Recent Videos" sidebar.
