@@ -192,6 +192,10 @@ async def get_cashfree_plans():
 @limiter.limit("5/minute")
 async def create_cashfree_order(request: Request, data: CashfreeOrderRequest, user: dict = Depends(get_current_user)):
     """Create a Cashfree payment order"""
+    # Kill switch check
+    from routes.kill_switches import check_payments_allowed
+    await check_payments_allowed()
+
     if not cashfree_client:
         await log_exception(
             functionality="cashfree_create_order",

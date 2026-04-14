@@ -650,6 +650,10 @@ async def create_engine_job(
     Create a new Story Engine job. Returns instantly with job_id for polling.
     Supports guest mode: first-time anonymous users get ONE free generation per IP.
     """
+    # Kill switch check
+    from routes.kill_switches import check_generation_allowed
+    await check_generation_allowed()
+
     # Determine auth mode
     is_guest = current_user is None
     user_id = None

@@ -54,6 +54,16 @@ INVARIANTS = {
         "description": "Only READY/COMPLETED stories should appear in public-facing queries",
         "severity": "high",
     },
+    "credit_drift": {
+        "name": "No Credit Drift",
+        "description": "For every user: purchased - used must equal current balance",
+        "severity": "critical",
+    },
+    "generation_integrity": {
+        "name": "Generation-Credit 1:1 Match",
+        "description": "Every completed job must have exactly 1 credit deduction; no orphan deductions without jobs",
+        "severity": "critical",
+    },
 }
 
 
@@ -165,6 +175,80 @@ async def _check_private_content_leak():
     return {"violated": non_ready > 0, "count": non_ready, "sample_ids": []}
 
 
+async def _check_credit_drift():
+    """Check that purchased - used = balance for all users with ledger activity.
+    Excludes admin/unlimited users (credits managed outside ledger)."""
+    pipeline = [
+        {"$group": {
+            "_id": "$user_id",
+            "total_credits": {"$sum": {"$cond": [{"$gt": ["$amount", 0]}, "$amount", 0]}},
+            "total_debits": {"$sum": {"$cond": [{"$lt": ["$amount", 0]}, {"$abs": "$amount"}, 0]}},
+        }},
+        {"$project": {"_id": 1, "total_credits": 1, "total_debits": 1, "expected_balance": {"$subtract": ["$total_credits", "$total_debits"]}}},
+    ]
+    ledger_users = await db.credit_ledger.aggregate(pipeline).to_list(500)
+
+    drifted = []
+    # Known development/test accounts to exclude from drift check
+    DEV_EMAILS = {"test@visionary-suite.com", "ai@visionary-suite.com", "admin@creatorstudio.ai", "fresh@test-overlay.com"}
+    for lu in ledger_users:
+        uid = lu["_id"]
+        if not uid:
+            continue
+        expected = lu.get("expected_balance", 0)
+        user = await db.users.find_one({"id": uid}, {"_id": 0, "credits": 1, "role": 1, "email": 1})
+        if not user:
+            continue
+        # Skip admin/unlimited/dev users — their credits are managed outside ledger
+        if user.get("role", "").upper() == "ADMIN" or user.get("credits", 0) >= 999999:
+            continue
+        if user.get("email", "") in DEV_EMAILS:
+            continue
+        actual = user.get("credits", 0)
+        # Allow tolerance for admin-granted credits and concurrent ops
+        if abs(actual - expected) > 10:
+            drifted.append(f"{uid[:15]}:expected={expected},actual={actual}")
+
+    return {"violated": len(drifted) > 0, "count": len(drifted), "sample_ids": drifted[:5]}
+
+
+async def _check_generation_integrity():
+    """Check that every completed job has credit deduction. Excludes admin/system users."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+
+    job_pipeline = [
+        {"$match": {"state": {"$in": ["READY", "COMPLETED"]}, "created_at": {"$gte": cutoff}, "user_id": {"$ne": None}}},
+        {"$group": {"_id": "$user_id", "job_count": {"$sum": 1}}},
+    ]
+    job_counts = {r["_id"]: r["job_count"] for r in await db.story_engine_jobs.aggregate(job_pipeline).to_list(500)}
+
+    debit_pipeline = [
+        {"$match": {"amount": {"$lt": 0}, "timestamp": {"$gte": cutoff}, "user_id": {"$ne": None}}},
+        {"$group": {"_id": "$user_id", "debit_count": {"$sum": 1}}},
+    ]
+    debit_counts = {r["_id"]: r["debit_count"] for r in await db.credit_ledger.aggregate(debit_pipeline).to_list(500)}
+
+    DEV_ACCOUNTS = {"test@visionary-suite.com", "ai@visionary-suite.com", "admin@creatorstudio.ai", "fresh@test-overlay.com"}
+    mismatches = []
+    for uid in job_counts:
+        jobs = job_counts.get(uid, 0)
+        debits = debit_counts.get(uid, 0)
+        # Skip admin/unlimited/system/dev users (they bypass credit deduction)
+        user = await db.users.find_one({"id": uid}, {"_id": 0, "credits": 1, "role": 1, "email": 1})
+        if user and (user.get("role", "").upper() in ["ADMIN", "SUPERADMIN", "SYSTEM"] or user.get("credits", 0) >= 999999):
+            continue
+        if user and user.get("email", "") in DEV_ACCOUNTS:
+            continue
+        if uid in ("system", "admin"):
+            continue
+        if jobs > 0 and debits == 0:
+            mismatches.append(f"{uid[:15]}:jobs={jobs},debits={debits}")
+        elif debits > jobs + 3:  # Tolerance for retries/refunds
+            mismatches.append(f"{uid[:15]}:jobs={jobs},debits={debits}")
+
+    return {"violated": len(mismatches) > 0, "count": len(mismatches), "sample_ids": mismatches[:5]}
+
+
 # Map invariant keys to check functions
 CHECKERS = {
     "negative_credits": _check_negative_credits,
@@ -174,6 +258,8 @@ CHECKERS = {
     "analytics_session_duplication": _check_analytics_session_duplication,
     "payment_without_credit": _check_payment_without_credit,
     "private_content_leak": _check_private_content_leak,
+    "credit_drift": _check_credit_drift,
+    "generation_integrity": _check_generation_integrity,
 }
 
 

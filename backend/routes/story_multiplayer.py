@@ -950,6 +950,11 @@ async def quick_shot(
     Auto-generates a competitive branch from the root story with a random twist.
     Converts passive spectators into active players.
     """
+    # Kill switch checks
+    from routes.kill_switches import check_battle_allowed, check_generation_allowed
+    await check_battle_allowed()
+    await check_generation_allowed()
+
     import random
     user_id = current_user.get("id") or str(current_user.get("_id"))
 

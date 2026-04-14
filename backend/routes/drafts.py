@@ -35,6 +35,9 @@ class DraftStatusUpdate(BaseModel):
 @router.post("/save")
 async def save_draft(data: DraftSave, current_user: dict = Depends(get_current_user)):
     """Save or update the user's current active draft. One active draft per user."""
+    from routes.kill_switches import check_writes_allowed
+    await check_writes_allowed()
+
     user_id = current_user.get("id") or str(current_user.get("_id", ""))
     now = datetime.now(timezone.utc).isoformat()
 

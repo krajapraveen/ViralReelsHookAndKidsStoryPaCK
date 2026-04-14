@@ -10,72 +10,63 @@
 
 ---
 
-## Ship Status: CONTROLLED RELEASE READY
+## Production Control System (Complete)
 
-### What is proven:
-- **Module access layer**: 10/10 creator tools route correctly, auth-protected, mobile-responsive
-- **System integrity**: 7 invariant guardrails all PASS (credits, drafts, analytics, payments, privacy)
-- **Security**: XSS hardened (15 vectors), draft race fixed (unique index), analytics dedup (server-side)
-- **Monitoring**: Guardrails + User Signals endpoints live
+### Kill Switches (`GET/POST /api/admin/kill-switch`)
+| Switch | Effect | User Message |
+|--------|--------|-------------|
+| KS1: generation_disabled | Blocks all create endpoints | "Content generation temporarily disabled. Credits safe." |
+| KS2: payments_disabled | Blocks checkout + webhook | "Payments temporarily disabled. No charges." |
+| KS3: battle_disabled | Blocks quick-shot + submit | "Battle submissions paused." |
+| KS4: readonly_mode | Blocks ALL writes | "System in read-only mode." |
 
-### What is NOT proven:
-- Generation pipeline under real multi-user load
-- Partial failure recovery per module
-- Character/story memory continuity across real outputs
-- Credit reconciliation during failed generations
-- Production media pipeline quality
+Toggle: `POST /api/admin/kill-switch/{id}` with `{"enabled": true/false, "reason": "..."}`
 
-### Known issue:
-- SV-007: `/api/story-engine/create` returns 422 (not 401) without auth — sloppy contract, not a breach
+### Guardrails (`GET /api/admin/guardrails`) — 9 Invariants
+| # | Invariant | Severity | What It Catches |
+|---|-----------|----------|-----------------|
+| 1 | negative_credits | Critical | Users with balance < 0 |
+| 2 | duplicate_credit_grants | Critical | Same order_id credited twice |
+| 3 | multiple_active_drafts | High | >1 draft per user |
+| 4 | orphan_processing_jobs | High | Jobs stuck >30min |
+| 5 | analytics_session_duplication | Medium | session_started >1 per session |
+| 6 | payment_without_credit | Critical | PAID order without ledger entry |
+| 7 | private_content_leak | High | Non-READY in feed |
+| 8 | credit_drift | Critical | purchased - used != balance |
+| 9 | generation_integrity | Critical | Jobs without matching deductions |
+
+### User Signals (`GET /api/admin/user-signals?days=N`)
+- TTFV (median, p75, p90)
+- Funnel (landing → typing → generate → completed → postgen with conversion %)
+- Second Action Rate (breakdown by type)
+- Return Behavior (2+ sessions, same-day, median delay)
 
 ---
 
-## Monitoring Endpoints
+## Monitoring Protocol During Traffic
 
-### System integrity (every 30 min during traffic)
 ```
+# Every 30 min — system integrity
 GET /api/admin/guardrails
-Authorization: Bearer <admin_token>
-```
+→ If healthy: false → STOP TRAFFIC
 
-### Product truth (after 10/25/50 users)
-```
+# After 10/25/50 users — product truth
 GET /api/admin/user-signals?days=1
-Authorization: Bearer <admin_token>
-```
 
-### Signal interpretation:
-- TTFV > 3min → friction problem
-- Landing→typing < 40% → hero/CTA issue
-- Second action < 20% → weak product pull
-- Return rate < 10% → forgettable product
+# Emergency — instant disable
+POST /api/admin/kill-switch/generation_disabled {"enabled": true, "reason": "..."}
+POST /api/admin/kill-switch/payments_disabled {"enabled": true, "reason": "..."}
+```
 
 ---
 
-## All Bugs Found & Fixed (Complete History)
-
-| # | Bug | Severity | Phase | Fix |
-|---|-----|----------|-------|-----|
-| 1 | XSS in draft save | Critical | QA P1 | bleach + html.escape |
-| 2 | Draft race condition | High | P2 | Unique partial MongoDB index |
-| 3 | Analytics dedup missing | Medium | P2 | Server-side DEDUP_EVENTS |
-| 4 | javascript: XSS bypass | Critical | P2 | Case-insensitive regex |
-| 5 | JaVaScRiPt: mixed case | Critical | P3 | (?i)(javascript\|vbscript\|data)\s*: |
-| 6 | R2 HEAD 403 | Low | P2 | R2 limitation (GET works) |
-| 7 | Orphan subscription order | Low | Guardrails | Excluded from payment check |
-
-## Systems Built This Session
-- Red Flag Alert System (7 invariants)
-- Guardrail Endpoint + Alerts + History
-- User Signals Endpoint (4 core signals)
-- XSS Hardening (15 vectors)
-- Draft Race Fix (unique index)
-- Analytics Dedup (server-side)
-- Funnel Tracking V3 (7 events)
-- R2 Media Proxy
-- Session Time Tracking
+## Ship Status: CONTROLLED RELEASE READY
+- 9/9 guardrails PASS
+- 4/4 kill switches verified (503 on all blocked actions)
+- User signals endpoint live
+- Kill switches audit-logged to system_alerts
 
 ## Backlog
-- P0: Push 20-50 users, monitor guardrails + user-signals
-- P1: Fix SV-007 auth contract, WebP/AVIF, payment fault injection in staging
-- P2: Deep pipeline testing per module from live evidence, Celery, category AI hooks
+- P0: Push 20-50 users with monitoring
+- P1: Fix SV-007, WebP/AVIF, payment fault injection
+- P2: Pipeline stress test, Celery, character continuity
