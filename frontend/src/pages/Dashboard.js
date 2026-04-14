@@ -884,15 +884,22 @@ export default function Dashboard() {
     refreshCredits();
     const load = async () => {
       try {
-        const [feedRes, metricsRes] = await Promise.all([
+        // Single consolidated API call replaces 7 separate calls
+        const [feedRes, initRes] = await Promise.all([
           axios.get(`${API}/api/engagement/story-feed`, auth()),
-          axios.get(`${API}/api/growth/loop-dashboard?days=7`, auth()).catch(() => ({ data: { health: {}, live_feed: [], raw: {} } })),
+          axios.get(`${API}/api/dashboard/init`, auth()).catch(() => ({ data: {} })),
         ]);
         setFeed(feedRes.data);
         if (feedRes.data.cdn_base) setCdnBase(feedRes.data.cdn_base);
-        setMetrics({ ...metricsRes.data.health, active_users: metricsRes.data.raw?.active_users || 0 });
-        setLiveFeed(metricsRes.data.live_feed || []);
-        // Set initial offset for infinite scroll
+
+        // Hydrate from consolidated init response
+        const init = initRes.data || {};
+        if (init.daily_challenge) setDailyChallenge(init.daily_challenge);
+        if (init.top_stories?.length) setTopStories(init.top_stories.slice(0, 5));
+        if (init.challenge_winner) setChallengeWinner(init.challenge_winner);
+        if (init.viral_status) setViralStats(init.viral_status);
+        if (init.viral_leaderboard?.length) setViralLeaderboard(init.viral_leaderboard);
+
         const initialStories = (feedRes.data.rows || []).reduce((acc, r) => acc + (r.stories?.length || 0), 0);
         setScrollOffset(initialStories);
       } catch (e) {
@@ -903,26 +910,6 @@ export default function Dashboard() {
       setLoading(false);
     };
     load();
-    // Fetch daily challenge
-    axios.get(`${API}/api/retention/challenge/today`).then(res => {
-      if (res.data?.challenge) setDailyChallenge(res.data.challenge);
-    }).catch(() => {});
-    // Fetch top stories leaderboard
-    axios.get(`${API}/api/retention/top-stories`).then(res => {
-      if (res.data?.stories?.length) setTopStories(res.data.stories.slice(0, 5));
-    }).catch(() => {});
-    // Fetch challenge winner
-    axios.get(`${API}/api/retention/challenge/winner`).then(res => {
-      if (res.data?.winner) setChallengeWinner(res.data.winner);
-    }).catch(() => {});
-    // Fetch viral reward status
-    axios.get(`${API}/api/viral/rewards/status`, auth()).then(res => {
-      setViralStats(res.data);
-    }).catch(() => {});
-    // Fetch viral leaderboard
-    axios.get(`${API}/api/viral/leaderboard?limit=5`).then(res => {
-      if (res.data?.leaderboard?.length) setViralLeaderboard(res.data.leaderboard);
-    }).catch(() => {});
   }, []);
 
   // ── Session tracking ──

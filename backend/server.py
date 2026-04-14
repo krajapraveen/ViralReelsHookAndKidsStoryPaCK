@@ -675,6 +675,10 @@ api_router.include_router(streaks_router)
 
 api_router.include_router(media_access_router)
 
+from routes.dashboard_init import router as dashboard_init_router
+api_router.include_router(dashboard_init_router)
+
+
 
 # Include API router in app
 app.include_router(api_router)
