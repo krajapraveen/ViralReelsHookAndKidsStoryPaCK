@@ -1176,6 +1176,7 @@ function StoryVideoPipelineInner() {
           userCredits={userCredits}
           showLoginGate={showLoginGate}
           seriesContext={seriesContext}
+          isFreshSession={!!location.state?.freshSession}
         />}
 
         {phase === 'processing' && (
@@ -1237,7 +1238,7 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
   qualityMode, setQualityMode,
   onGenerate, submitting, userJobs, onViewJob, rateLimitStatus, formError,
   showRemixBanner, remixSourceTool, remixSourceTitle, onDismissRemix, userCredits,
-  showLoginGate, seriesContext }) {
+  showLoginGate, seriesContext, isFreshSession }) {
 
   const styles = options?.animation_styles || [];
   const ages = options?.age_groups || [];
@@ -1578,7 +1579,8 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
           )}
         </div>
 
-        {/* Sidebar */}
+        {/* Sidebar — hidden in fresh session to keep creation focus */}
+        {!isFreshSession && (
         <div className="space-y-4">
           <h3 className="text-sm font-medium text-[var(--vs-text-muted)] uppercase tracking-wide">Recent Videos</h3>
           {recentJobs.length === 0 && <p className="text-sm text-[var(--vs-text-muted)]">No videos yet. Create your first!</p>}
@@ -1591,6 +1593,7 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
             </button>
           ))}
         </div>
+        )}
       </div>
     </div>
   );

@@ -142,7 +142,8 @@ Paywall Modal → Cashfree SDK → Verify → Credits Added → Resume Action
 ---
 
 ## All Completed Systems
-- P0.5 Performance Hardening (Apr 14): Consolidated 7 dashboard API calls into single `/api/dashboard/init` endpoint (parallel DB queries, 20s TTL cache). Dashboard load: 5.07s → 2.47s (first), 1.89s (repeat). 71% fewer network requests.
+- Studio Fresh Session Fix (Apr 14): "Write Your Own Story" now opens a clean blank studio with no "Recent Videos" sidebar. The sidebar only shows when user navigates to studio directly (not from fresh creation intent). Prevents creation-vs-browsing intent collision.
+- P0.5 Performance Hardening (Apr 14): Consolidated 7 dashboard API calls into single `/api/dashboard/init` endpoint. Dashboard load: 5.07s → 2.47s (first), 1.89s (repeat).
 - P0 Performance Sprint (Apr 14): Route-level code splitting (141 eager → 5 eager + 136 lazy). Backend TTL caching for feed/battle endpoints. Image lazy loading on feed cards.
 - CTA Route Separation Fix (Apr 13): "Write Your Own Story" → fresh studio. "Beat the Leader" → battle leaderboard. Updated labels and copy.
 - UX Trust Fixes (Apr 13): (1) PostValueOverlay suppressed on first visit — only triggers after user has navigated away once. (2) Hero "Claim Your Rank" CTA now navigates to battle page first, paywall only on action attempt. Credit-aware micro-copy: "Entry requires credits · View the battle first, then decide". (3) Seeded 4 diverse battle themes (Midnight in Tokyo/anime, The Last Laugh/cartoon, Echoes of Mars/sci-fi, Recipe for Disaster/watercolor) to eliminate content repetition perception.
