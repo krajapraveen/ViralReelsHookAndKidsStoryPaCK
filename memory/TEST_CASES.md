@@ -1,539 +1,618 @@
-# Visionary Suite — Complete End-to-End Test Cases
+# Visionary Suite — Master End-to-End QA Test Suite
 
-**App URL**: https://trust-engine-5.preview.emergentagent.com
-**Test User**: test@visionary-suite.com / Test@2026#
-**Fresh User**: fresh@test-overlay.com / Fresh@2026#
-**Admin User**: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
-
----
-
-## 1. AUTHENTICATION & ACCOUNT MANAGEMENT
-
-### 1.1 Email Registration
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 1.1.1 | Positive | Register with valid name, email, password (8+ chars, uppercase, number, special) | Account created, redirect to /app, welcome toast |
-| 1.1.2 | Negative | Register with already registered email | Error: "Email already registered" |
-| 1.1.3 | Negative | Register with password < 8 characters | Validation error shown |
-| 1.1.4 | Negative | Register with empty name field | Validation error shown |
-| 1.1.5 | Negative | Register with invalid email format (no @, no domain) | Validation error shown |
-| 1.1.6 | Negative | Register with same IP more than 2 times/month | Error: "Maximum accounts per IP exceeded" |
-| 1.1.7 | Positive | Register and check initial credits (should be 50) | Credits = 50 on dashboard |
-
-### 1.2 Email Login
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 1.2.1 | Positive | Login with valid test@visionary-suite.com / Test@2026# | Redirects to /app dashboard |
-| 1.2.2 | Negative | Login with wrong password | Error toast: "Invalid credentials" |
-| 1.2.3 | Negative | Login with non-existent email | Error toast: "Invalid credentials" |
-| 1.2.4 | Negative | Login with empty email/password | Validation error, submit disabled |
-| 1.2.5 | Positive | Login and verify JWT token stored in localStorage | localStorage.token exists |
-| 1.2.6 | Positive | Login with return URL parameter (?return=/app/story-battle/xxx) | Redirects to the return URL after login |
-| 1.2.7 | Negative | Login with locked account (brute force) | Error: "Account locked" message |
-
-### 1.3 Google Sign-In
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 1.3.1 | Positive | Click "Sign in with Google" → complete OAuth popup | Redirects to /app, user created/logged in |
-| 1.3.2 | Negative | Click Google button → close popup mid-flow | Toast: "Google sign-in was cancelled", button re-enabled |
-| 1.3.3 | Negative | Click Google button rapidly 3 times | Only 1 popup opens (button disabled after first click) |
-| 1.3.4 | Positive | Google sign-in on /signup page | Same flow, "Sign up with Google" text |
-| 1.3.5 | Negative | Google returns invalid token | Toast: error message from backend, no stuck loader |
-| 1.3.6 | Positive | Existing Google user logs in again | Logs in (doesn't create duplicate account) |
-| 1.3.7 | Positive | Google loading overlay shows during token exchange | "Signing you in..." spinner visible |
-
-### 1.4 Password Management
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 1.4.1 | Positive | Click "Forgot Password" → enter valid email → submit | Success message: "Reset email sent" |
-| 1.4.2 | Negative | Forgot password with non-existent email | Error or generic "If account exists, email sent" |
-| 1.4.3 | Positive | Reset password with valid token + new password | Password changed, can login with new password |
-| 1.4.4 | Negative | Reset password with expired/invalid token | Error: "Invalid or expired token" |
-| 1.4.5 | Positive | Change password from profile (old + new password) | Success, old password stops working |
-| 1.4.6 | Negative | Change password with wrong current password | Error: "Current password is incorrect" |
-
-### 1.5 Session & Auth Guards
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 1.5.1 | Positive | Access /app while logged in | Dashboard loads |
-| 1.5.2 | Negative | Access /app while logged out | Redirects to /login |
-| 1.5.3 | Negative | Access /app/story-battle/:id while logged out | Redirects to /login |
-| 1.5.4 | Positive | Access /login while already logged in | Redirects to /app |
-| 1.5.5 | Positive | Logout (clear localStorage) → access /app | Redirects to /login |
-| 1.5.6 | Positive | Token persists across page refresh | Still authenticated after F5 |
+**Version**: 2.0 — Production-Grade Master Test Matrix
+**Last Updated**: April 14, 2026
+**Total Test Cases**: 386+
+**Organized into**: Smoke Tests | Regression Suite | Negative/Failure Suite | Exploratory Manual QA
 
 ---
 
-## 2. LANDING PAGE (Public — /)
+## Layer 1: SMOKE TESTS (Must-run after every deploy)
 
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 2.1 | Positive | Open landing page (/) | Loads with hero, showcase grid, stats, live activity |
-| 2.2 | Positive | Showcase grid shows story cards with images | At least 5+ cards with real thumbnails |
-| 2.3 | Positive | Public stats load (creators, videos created) | Numbers displayed (e.g., "36 creators, 64 videos") |
-| 2.4 | Positive | Live activity section shows recent stories | "Happening now" section with story titles |
-| 2.5 | Positive | CTA buttons navigate to /signup or /login | Correct navigation |
-| 2.6 | Positive | Navigation links (Gallery, Explore, Pricing, About) work | Each loads correct page |
-| 2.7 | Positive | Mobile responsive layout | Hero stacks, cards resize, no overflow |
-| 2.8 | Negative | Landing page with slow network | Skeleton/loader shows, content loads progressively |
+These 20 tests MUST pass before any release. Failure = deploy blocked.
 
----
-
-## 3. DASHBOARD (/app) — Battle-First Layout
-
-### 3.1 Dashboard Loading
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 3.1.1 | Positive | Login → Dashboard loads within 3s | Hero, QuickActions, Feed all visible |
-| 3.1.2 | Positive | Dashboard makes consolidated API call (/api/dashboard/init) | Single init request + feed request (2 total, not 7) |
-| 3.1.3 | Positive | Repeat visit (navigate to /app) loads faster | < 2s with cached data |
-| 3.1.4 | Positive | Skeleton/loading state shows before content | Shimmer/skeleton visible during load |
-
-### 3.2 LiveBattleHero Component
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 3.2.1 | Positive | Hero shows live battle with #1 entry autoplay video | Video plays automatically, muted |
-| 3.2.2 | Positive | Hero shows user rank ("You're #6"), watching count, competing count | Stats visible and accurate |
-| 3.2.3 | Positive | "Take #1 Spot" CTA navigates to /app/story-battle/{rootId} | Navigates to battle page (NOT paywall) |
-| 3.2.4 | Positive | "Post in 10 Seconds" CTA triggers Quick Shot flow | For paid user: fires API → navigate to studio. For free-exhausted: paywall modal |
-| 3.2.5 | Positive | "Think you can beat this?" overlay on video preview | Clicking navigates to battle page |
-| 3.2.6 | Positive | Credit-aware micro-copy shows for free-exhausted user | "Entry requires credits · View the battle first, then decide" |
-| 3.2.7 | Positive | Credit-aware micro-copy for user with free entries | "X free entries left · Fastest way to climb right now" |
-| 3.2.8 | Positive | Hero polls battle pulse every 12-18s | Network requests visible, rank updates live |
-| 3.2.9 | Negative | No active battle exists | Hero shows graceful fallback state |
-| 3.2.10 | Positive | #1 entry shows title, creator name, points | All metadata displayed correctly |
-
-### 3.3 QuickActions ("Choose Your Path")
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 3.3.1 | Positive | "Enter Battle Instantly" (primary, spans 2 cols) visible with badge | "Fastest path to the leaderboard" badge, violet border |
-| 3.3.2 | Positive | Click "Enter Battle Instantly" (free-exhausted user) | Paywall modal opens via show-battle-paywall event |
-| 3.3.3 | Positive | Click "Enter Battle Instantly" (user with credits) | Quick Shot API fires → navigate to studio with progress |
-| 3.3.4 | Positive | "Write Your Own Story" navigates to /app/story-video-studio | Fresh blank studio (no Recent Videos sidebar) |
-| 3.3.5 | Positive | "Beat the Leader" navigates to /app/story-battle/{rootId} | Battle leaderboard page loads (NOT studio) |
-| 3.3.6 | Negative | "Write Your Own Story" and "Beat the Leader" go to DIFFERENT URLs | URLs must differ — this is a critical test |
-| 3.3.7 | Positive | "Beat the Leader" shows dynamic #1 entry title | "See who's #1: [title]. Think you can do better?" |
-| 3.3.8 | Positive | Credit indicator on "Enter Battle Instantly" shows pre-click | "Credits required" or "X free entries left" |
-| 3.3.9 | Positive | Section title = "Choose Your Path" | Correct heading visible |
-
-### 3.4 Trending Feed ("Trending Now")
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 3.4.1 | Positive | Feed shows diverse story cards (different titles, styles) | At least 4 different titles/themes visible |
-| 3.4.2 | Positive | Cards show real thumbnails (not blank dark boxes) | Poster images or gradient fallback with title |
-| 3.4.3 | Positive | Cards show LIVE badges, hook text, view/share counts | Metadata overlays visible |
-| 3.4.4 | Positive | Click on feed card navigates to /app/story-viewer/{jobId} | Story viewer loads |
-| 3.4.5 | Positive | Feed images lazy load (below-the-fold) | `loading="lazy"` on img elements |
-| 3.4.6 | Negative | Story with no thumbnail | Gradient fallback with title + animation style text |
-| 3.4.7 | Positive | Feed autoplay video preview on scroll (IntersectionObserver) | Video plays at 60% visibility, pauses on scroll-out |
-
-### 3.5 PostValueOverlay
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 3.5.1 | Positive | First visit to dashboard | Overlay does NOT appear (suppressed) |
-| 3.5.2 | Positive | Second visit to dashboard (after navigating away) | Overlay may appear if user has generations |
-| 3.5.3 | Positive | Click "Continue with limited access" | Overlay dismissed |
-| 3.5.4 | Negative | User with 0 generations | Overlay never appears |
-
-### 3.6 BattlePaywallModal
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 3.6.1 | Positive | Triggered by show-battle-paywall event | Modal opens with pricing tiers |
-| 3.6.2 | Positive | Shows user's rank, competing count, credits | Context data accurate |
-| 3.6.3 | Positive | Shows 3 pricing tiers (₹29/₹49/₹149) | All packs visible with descriptions |
-| 3.6.4 | Positive | Close modal | Closes without navigation change |
-| 3.6.5 | Positive | Select a pack → Cashfree payment flow | Payment SDK initiates (or sandbox mode activates) |
+| # | Test | Area | Status |
+|---|------|------|--------|
+| S1 | Google sign-in success | Auth | |
+| S2 | Google sign-in cancel/failure graceful handling | Auth | |
+| S3 | "Write Your Own Story" opens blank studio | CTA Routing | |
+| S4 | Direct studio URL access still works | Studio | |
+| S5 | Recent drafts do not hijack fresh session | Studio | |
+| S6 | Typing triggers debounced draft save | Drafts | |
+| S7 | Resume modal restores correct draft | Drafts | |
+| S8 | Start Fresh truly starts fresh | Drafts | |
+| S9 | Generate button creates only one job | Pipeline | |
+| S10 | Refresh during generation can recover status | Pipeline | |
+| S11 | Failed generation does not delete draft | Pipeline | |
+| S12 | Completed result opens correct video | Result | |
+| S13 | Post-gen CTAs function correctly | Post-Gen Loop | |
+| S14 | Enter battle routes to correct battle | Battle | |
+| S15 | Feed cards each open correct story | Feed | |
+| S16 | Paywall appears at correct stage | Credits | |
+| S17 | Credits deducted exactly once | Credits | |
+| S18 | Admin/unlimited credits display correctly | Admin | |
+| S19 | Hero autoplay/fallback works | Dashboard | |
+| S20 | Mobile hero and studio are usable | Mobile | |
 
 ---
 
-## 4. STORY VIDEO STUDIO (/app/story-video-studio)
+## Layer 2: REGRESSION SUITE
 
-### 4.1 Fresh Session Entry
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 4.1.1 | Positive | Navigate via "Write Your Own Story" CTA | Blank studio, empty title/text, NO "Recent Videos" sidebar |
-| 4.1.2 | Positive | Navigate via URL directly | Studio loads (may show Recent Videos) |
-| 4.1.3 | Positive | Resume Draft modal appears (if draft exists) | "Resume your last draft?" with Continue/Start Fresh |
-| 4.1.4 | Positive | Click "Continue" on resume modal | Draft content restored (title, text, style) |
-| 4.1.5 | Positive | Click "Start Fresh" on resume modal | Empty form, draft discarded from DB |
-| 4.1.6 | Negative | No existing draft | Resume modal does NOT appear |
+Priority order: Auth > CTA Routing > Studio Fresh Session > Draft Persistence > Generation Pipeline > Result Page > Battle Flow > Credits/Paywall > Share/Public > Admin
 
-### 4.2 Guided Start (Vibe Picker)
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 4.2.1 | Positive | Fresh session + empty text → vibes appear | "What do you want to create?" with 4 pills |
-| 4.2.2 | Positive | Click "Bedtime Magic" | Story text auto-fills with kids story idea, toast shown |
-| 4.2.3 | Positive | Click "Emotional Story" | Story text auto-fills with emotional idea |
-| 4.2.4 | Positive | Click "Mind-Blowing Twist" | Story text auto-fills with thriller idea |
-| 4.2.5 | Positive | Click "1M Views Hook" | Story text auto-fills with viral idea |
-| 4.2.6 | Positive | Click "Random Idea" | Story text auto-fills with random category idea |
-| 4.2.7 | Positive | Click "Use Sample" | Title + Story text pre-filled with editable sample |
-| 4.2.8 | Positive | After text is entered, vibes disappear | Vibe picker hidden once text exists |
-| 4.2.9 | Negative | Not in fresh session → vibes don't appear | Guided start hidden |
+### 2.1 Authentication and Session Management
 
-### 4.3 Story Creation Form
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 4.3.1 | Positive | Fill title (3-100 chars) + story text (50+ chars) + select style | Form valid, Generate button enabled |
-| 4.3.2 | Negative | Story text < 50 characters | "need X more" indicator, Generate disabled |
-| 4.3.3 | Negative | Title empty | Validation error on submit |
-| 4.3.4 | Positive | Select animation style (watercolor, cartoon_2d, anime_style, etc.) | Style selected, visual indicator |
-| 4.3.5 | Positive | Select age group (kids_5_8, tweens_9_12, teens_13_plus) | Age group set |
-| 4.3.6 | Positive | Select voice preset (narrator_warm, narrator_dramatic, etc.) | Voice preset set |
-| 4.3.7 | Positive | Select quality mode (fast, balanced) | Mode set |
+#### Sign Up
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 1 | User signs up with valid email, password, and required fields. Expected: account created, session established, redirected to dashboard or onboarding. | Positive | |
+| 2 | User signs up via Google. Expected: account created or linked, redirected correctly, no duplicate account created. | Positive | |
+| 3 | Existing Google-linked user signs in again. Expected: same account reused, no duplicate records. | Positive | |
+| 4 | Invalid email format. Expected: inline validation, no API submit. | Negative | |
+| 5 | Weak password. Expected: clear validation message, no account created. | Negative | |
+| 6 | Required fields blank. Expected: validation shown, submit blocked. | Negative | |
+| 7 | Duplicate email registration. Expected: user sees "account already exists" or sign-in prompt. | Negative | |
+| 8 | Google popup canceled by user. Expected: clear toast, button re-enabled, no broken loading state. | Negative | |
+| 9 | Popup blocked by browser. Expected: friendly error with retry guidance. | Negative | |
+| 10 | Google auth callback fails or token invalid. Expected: user returned safely, no half-authenticated state. | Negative | |
 
-### 4.4 Draft Persistence
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 4.4.1 | Positive | Type title + text → wait 3s → refresh page | Draft saved, resume modal shows on return |
-| 4.4.2 | Positive | Draft auto-saves only when content changes (debounced) | No save on identical content |
-| 4.4.3 | Positive | Generate story → draft marked "processing" (not deleted) | Draft status = "processing" in DB |
-| 4.4.4 | Positive | Generation succeeds → draft marked "completed" | Draft status = "completed" |
-| 4.4.5 | Positive | Generation FAILS → draft reverts to "draft" | Draft recovered, can resume |
-| 4.4.6 | Positive | Click "Start Fresh" on resume → draft discarded | Draft deleted from DB |
+#### Login
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 11 | Valid credentials login. Expected: redirected to correct post-login destination. | Positive | |
+| 12 | Remembered session persists across refresh. Expected: user remains logged in. | Positive | |
+| 13 | Session expires and user logs back in. Expected: clean re-auth without corruption. | Positive | |
+| 14 | Wrong password. Expected: clear error, no account info leakage. | Negative | |
+| 15 | Non-existent email. Expected: generic failure message. | Negative | |
+| 16 | Token expired mid-session. Expected: user prompted to re-login, unsaved work preserved where applicable. | Negative | |
+| 17 | Multiple rapid login attempts. Expected: no duplicate sessions or UI corruption. | Negative | |
 
-### 4.5 Navigation Guard
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 4.5.1 | Positive | Type 20+ chars → try to close/refresh browser tab | Browser "Leave site?" confirmation dialog |
-| 4.5.2 | Negative | Type < 20 chars → close tab | No confirmation dialog |
-| 4.5.3 | Positive | In processing phase → no guard | No dialog (draft already saved) |
+#### Logout
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 18 | Logout from dashboard. Expected: session destroyed, redirected to public page. | Positive | |
+| 19 | Logout from studio mid-idle state. Expected: clean exit; drafts already saved remain recoverable. | Positive | |
+| 20 | Logout while generation in progress. Expected: no account corruption; on re-login job status still resolvable. | Negative | |
 
-### 4.6 Recent Drafts Panel
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 4.6.1 | Positive | Fresh session + type 20+ chars → Recent Drafts appears | Collapsed panel with "Your unfinished stories are waiting" |
-| 4.6.2 | Positive | Expand Recent Drafts | Shows max 3 items with title, date, status badge |
-| 4.6.3 | Positive | Status badges: Draft (amber), Rendering (blue), Ready (green) | Correct colors/labels |
-| 4.6.4 | Positive | Click a "Ready" item → navigates to that project | Opens /app/story-video-studio?projectId={id} |
-| 4.6.5 | Negative | No recent items | Panel does not appear |
-| 4.6.6 | Negative | Fresh session + < 20 chars typed | Panel hidden |
+### 2.2 Roles and Access Control
 
-### 4.7 Story Generation Pipeline
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 4.7.1 | Positive | Click Generate → pipeline starts | Phase transitions: input → processing, progress UI shown |
-| 4.7.2 | Positive | Pipeline stages visible: Planning → Keyframes → Scene Clips → Audio → Assembly | Each stage reflected in UI |
-| 4.7.3 | Positive | Generation completes → video plays | Phase = postgen, video player visible |
-| 4.7.4 | Negative | Insufficient credits | 402 credit gate modal appears (inline) |
-| 4.7.5 | Negative | Pipeline fails | Error state with retry option |
-| 4.7.6 | Positive | Retry failed generation | Pipeline restarts |
-| 4.7.7 | Positive | Rate limit check passes for normal user | Creation allowed if within limits |
-| 4.7.8 | Negative | Rate limit exceeded (5+ videos in 10 min) | Error: "Please wait a few minutes" |
-| 4.7.9 | Positive | Admin user bypasses rate limit and queue | Immediate processing, no QUEUED state |
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 21 | Standard user sees only user features. | Positive | |
+| 22 | Credits shown correctly. | Positive | |
+| 23 | Admin-only routes hidden and protected server-side. | Positive | |
+| 24 | Standard user manually visits admin URL. Expected: 403/redirect, no data leak. | Negative | |
+| 25 | Standard user tampers frontend role flag. Expected: backend still blocks protected actions. | Negative | |
+| 26 | Admin sees admin panel. | Positive | |
+| 27 | QA/unlimited credits display as "Unlimited" or special indicator. | Positive | |
+| 28 | Admin can access test tools and monitor jobs. | Positive | |
+| 29 | Unlimited credit raw values like 9999999 shown to user. Expected: never shown raw. | Negative | |
+| 30 | Admin bar hidden behind overlays or z-index collisions. Expected: always visible where intended. | Negative | |
 
-### 4.8 Post-Generation Loop
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 4.8.1 | Positive | After video ready → "Keep creating" section visible | 3 CTAs below video |
-| 4.8.2 | Positive | "Make it 10x better?" → navigates to studio with remix context | Fresh studio with remixFrom state |
-| 4.8.3 | Positive | "Not the vibe you wanted?" → navigates to studio with prefilled text | Same story text, can change style |
-| 4.8.4 | Positive | "You're Rank #3 right now" → navigates to battle page | /app/story-battle/{rootId} loads |
-| 4.8.5 | Positive | "Create Entirely New Story" → blank studio | Fresh session studio |
-| 4.8.6 | Positive | Funnel events tracked for each CTA click | POST /api/funnel/track fires |
+### 2.3 Landing Page and Public Entry
+
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 31 | Landing page loads without auth. | Positive | |
+| 32 | Hero, CTA buttons, banners, and media load. | Positive | |
+| 33 | Mobile and desktop layouts render correctly. | Positive | |
+| 34 | Broken image or missing hero asset. Expected: fallback state, layout not broken. | Negative | |
+| 35 | Slow network. Expected: skeleton/loading state, no blank white screen. | Negative | |
+| 36 | "Write Your Own Story" goes to fresh studio session. | Positive | |
+| 37 | "Take #1 Spot" goes to battle flow or battle detail as intended. | Positive | |
+| 38 | "Quick Shot" initiates quick generation flow correctly. | Positive | |
+| 39 | "Create Story" opens blank studio. | Positive | |
+| 40 | "Remix Battle" routes to battle/remix experience. | Positive | |
+| 41 | Two different CTAs lead to same misleading page. Expected: route separation preserved. | Negative | |
+| 42 | CTA routes to wrong page after deployment. Expected: test catches mismatch. | Negative | |
+| 43 | User not logged in clicks protected CTA. Expected: login/paywall/auth flow handled cleanly and returns user to intended route. | Negative | |
+
+### 2.4 Dashboard
+
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 44 | Dashboard loads under target time with main modules present. | Positive | |
+| 45 | Live battle hero appears. | Positive | |
+| 46 | Trending battles/cards appear. | Positive | |
+| 47 | Momentum section appears. | Positive | |
+| 48 | Credit balance appears correctly. | Positive | |
+| 49 | Feed/discover loads with data. | Positive | |
+| 50 | APIs slow or partially fail. Expected: partial render with fallbacks, page still usable. | Negative | |
+| 51 | No stories available. Expected: empty state, not broken state. | Negative | |
+| 52 | Duplicate API calls on reload. Expected: limited due to caching/idempotent behavior. | Negative | |
+| 53 | Lazy-loaded routes only fetch needed chunks. | Positive | |
+| 54 | Feed images lazy load. | Positive | |
+| 55 | Cached dashboard APIs return faster on repeated refresh. | Positive | |
+| 56 | Dashboard mounts 7+ parallel heavy calls again. Expected: regression test fails. | Negative | |
+| 57 | Admin chunks loaded for standard user. Expected: no eager admin loading. | Negative | |
+
+### 2.5 Live Battle Hero and Battle Discovery
+
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 58 | Hero shows top battle metadata. | Positive | |
+| 59 | If preview video exists, autoplay muted loop works. | Positive | |
+| 60 | If preview video absent, poster image shown. | Positive | |
+| 61 | If poster absent, gradient fallback shown cleanly. | Positive | |
+| 62 | Broken video URL. Expected: fallback to poster/gradient. | Negative | |
+| 63 | Video autoplay blocked on mobile. Expected: muted playsInline fallback handled. | Negative | |
+| 64 | No top contender data. Expected: clean placeholder state. | Negative | |
+| 65 | "Think you can beat this?" opens battle or battle viewer. | Positive | |
+| 66 | "Take #1 Spot" routes correctly with battle context. | Positive | |
+| 67 | Hero says user is rank #3 when not applicable. Expected: correct personalized or generic text. | Negative | |
+| 68 | CTA opens blank or unrelated battle. Expected: fail. | Negative | |
+
+### 2.6 Feed / Trending Battles / Story Cards
+
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 69 | Cards show title, style/theme, views, competing count, score. | Positive | |
+| 70 | Diverse battle themes render, not repeated clones. | Positive | |
+| 71 | Thumbnail/video preview matches story. | Positive | |
+| 72 | Multiple cards show same story accidentally. | Negative | |
+| 73 | Incorrect title-thumbnail pairing. | Negative | |
+| 74 | Duplicate stories due to API merge bug. | Negative | |
+| 75 | Missing view count causes layout break. | Negative | |
+| 76 | Clicking card opens correct story or battle detail. | Positive | |
+| 77 | Public card opens public viewer if shared/public. | Positive | |
+| 78 | Private card respects permissions. | Positive | |
+| 79 | Every card opens same story. | Negative | |
+| 80 | Clicking card opens stale cached story. | Negative | |
+| 81 | Story ID mismatch between card and detail page. | Negative | |
+
+### 2.7 Story Video Studio — Fresh Session and Core Input
+
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 82 | "Write Your Own Story" opens blank studio. | Positive | |
+| 83 | Title empty. | Positive | |
+| 84 | Story text empty. | Positive | |
+| 85 | Style selector visible. | Positive | |
+| 86 | Voice/age selectors visible. | Positive | |
+| 87 | Recent Videos/Recent Drafts hidden initially when fresh session requires that. | Positive | |
+| 88 | Fresh session auto-loads old project. | Negative | |
+| 89 | Sidebar history distracts fresh session unintentionally. | Negative | |
+| 90 | Last-used story appears in text area on new session. | Negative | |
+| 91 | Direct URL access to studio works. | Positive | |
+| 92 | Direct studio access may show recent drafts/history as designed. | Positive | |
+| 93 | Existing project deep-link loads correct project. | Positive | |
+| 94 | Direct access incorrectly treated as fresh session. | Negative | |
+| 95 | Recent drafts missing when they should appear. | Negative | |
+| 96 | Query param projectId ignored. | Negative | |
+
+### 2.8 Guided Start
+
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 97 | Bedtime Magic selectable. | Positive | |
+| 98 | Emotional Story selectable. | Positive | |
+| 99 | Mind-Blowing Twist selectable. | Positive | |
+| 100 | 1M Views Hook selectable. | Positive | |
+| 101 | Selected vibe affects prompt generation. | Positive | |
+| 102 | No vibe selected and Generate Idea clicked. Expected: default behavior or validation. | Negative | |
+| 103 | Vibe state resets unexpectedly on minor interaction. | Negative | |
+| 104 | Generate Idea fills story field with vibe-appropriate idea. | Positive | |
+| 105 | Random Idea returns different valid prompt. | Positive | |
+| 106 | Use Sample Story inserts editable content. | Positive | |
+| 107 | Guided Start disappears after user begins typing. | Positive | |
+| 108 | Generate Idea API fails. Expected: friendly error, no broken UI. | Negative | |
+| 109 | Same idea returned every time unexpectedly. | Negative | |
+| 110 | Sample story overwrites user-entered text without warning. | Negative | |
+| 111 | Guided Start remains visible after text entered and causes clutter. | Negative | |
+
+### 2.9 Draft Persistence and Resume
+
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 112 | Draft saves 3 seconds after user stops typing. | Positive | |
+| 113 | Save only happens when content changes. | Positive | |
+| 114 | Title-only edit triggers save. | Positive | |
+| 115 | Story-text-only edit triggers save. | Positive | |
+| 116 | Metadata changes save correctly if intended. | Positive | |
+| 117 | Save fires on every keystroke. | Negative | |
+| 118 | Save does not fire after content changed. | Negative | |
+| 119 | Draft from one project overwrites another. | Negative | |
+| 120 | Network failure during auto-save leaves UI hanging. | Negative | |
+| 121 | Returning user with saved draft sees resume modal. | Positive | |
+| 122 | "Continue" restores correct draft. | Positive | |
+| 123 | "Start Fresh" discards or bypasses draft as designed. | Positive | |
+| 124 | Resume loads correct projectId. | Positive | |
+| 125 | Resume modal appears when no real draft exists. | Negative | |
+| 126 | Resume opens wrong project. | Negative | |
+| 127 | Start Fresh still restores old draft. | Negative | |
+| 128 | Modal loops repeatedly after dismissal. | Negative | |
+| 129 | Unsaved changes warning appears when leaving after significant input. | Positive | |
+| 130 | No warning for empty form. | Positive | |
+| 131 | No warning after save and no unsaved change. | Positive | |
+| 132 | Warning appears constantly even for tiny/no changes. | Negative | |
+| 133 | No warning when unsaved long story exists. | Negative | |
+| 134 | Guard traps user and blocks intentional navigation after save. | Negative | |
+| 135 | Draft starts as draft. | Positive | |
+| 136 | On generate click, state changes to processing. | Positive | |
+| 137 | On successful completion, state becomes completed. | Positive | |
+| 138 | On generation failure, processing reverts to draft. | Positive | |
+| 139 | Draft deleted on generate. | Negative | |
+| 140 | Failed processing remains stuck forever. | Negative | |
+| 141 | Completed draft still shown as editable draft without status clarity. | Negative | |
+
+### 2.10 Recent Drafts / Recent Videos / Project History
+
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 142 | Panel appears only after user types threshold if intended. | Positive | |
+| 143 | Shows max 3 items. | Positive | |
+| 144 | Each item has title, last edited date, and status badge. | Positive | |
+| 145 | Clicking item opens correct project. | Positive | |
+| 146 | Panel appears too early and distracts. | Negative | |
+| 147 | Every draft entry opens same project. | Negative | |
+| 148 | Completed projects mixed with drafts without distinction. | Negative | |
+| 149 | Duplicate entries shown. | Negative | |
+| 150 | Incorrect ordering by edited time. | Negative | |
+| 151 | Returning users see actual recent items. | Positive | |
+| 152 | Each recent item maps to correct unique story/video. | Positive | |
+| 153 | All recent videos open same story. | Negative | |
+| 154 | Placeholder items shown as if real. | Negative | |
+| 155 | Stale deleted project still shown. | Negative | |
+
+### 2.11 Story Generation Pipeline
+
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 156 | Valid title + story + settings start generation. | Positive | |
+| 157 | Generate button disabled while request in-flight. | Positive | |
+| 158 | Idempotency prevents duplicate projects on double-click. | Positive | |
+| 159 | Double-click creates duplicate jobs. | Negative | |
+| 160 | Empty title/story submit allowed when not supposed to. | Negative | |
+| 161 | Very long story causes silent failure. | Negative | |
+| 162 | Invalid style/voice payload crashes pipeline. | Negative | |
+| 163 | Story planning stage begins. | Positive | |
+| 164 | Scene generation stage begins. | Positive | |
+| 165 | Image generation stage begins. | Positive | |
+| 166 | Voice generation stage begins. | Positive | |
+| 167 | Video compilation stage begins. | Positive | |
+| 168 | Progress bar/status updates correctly. | Positive | |
+| 169 | Stage status stuck forever. | Negative | |
+| 170 | Backend completes but frontend shows old stage. | Negative | |
+| 171 | Refresh during pipeline loses ability to recover status. | Negative | |
+| 172 | Overlay/modal interrupts active pipeline unexpectedly. | Negative | |
+| 173 | Image generation failure surfaces clearly. | Positive | |
+| 174 | Voice generation failure surfaces clearly. | Positive | |
+| 175 | Video assembly failure surfaces clearly. | Positive | |
+| 176 | Retry path exists where intended. | Positive | |
+| 177 | Pipeline fails silently. | Negative | |
+| 178 | User loses project after failure. | Negative | |
+| 179 | Failed job shown as successful. | Negative | |
+| 180 | Retry creates corrupted duplicate with shared state. | Negative | |
+
+### 2.12 Result Page / Completed Story
+
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 181 | Completed video plays correctly. | Positive | |
+| 182 | Title, metadata, thumbnail, output URL consistent. | Positive | |
+| 183 | Share controls visible. | Positive | |
+| 184 | Post-generation loop CTAs visible. | Positive | |
+| 185 | Result page loads but video URL missing. | Negative | |
+| 186 | Wrong video linked to project. | Negative | |
+| 187 | Page shows spinner forever despite completion. | Negative | |
+| 188 | Refresh on result page preserves correct content. | Positive | |
+| 189 | Direct URL with projectId opens same result. | Positive | |
+| 190 | Refresh loads last project instead. | Negative | |
+| 191 | Deep-link opens another user's project. | Negative | |
+
+### 2.13 Post-Generation Loop
+
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 192 | "Rewrite with twist" reopens same project with editable content. | Positive | |
+| 193 | Original story context preserved. | Positive | |
+| 194 | User can modify and regenerate. | Positive | |
+| 195 | Rewrite opens blank studio unexpectedly. | Negative | |
+| 196 | Rewrite starts new unrelated project without user intent. | Negative | |
+| 197 | Original draft/result lost. | Negative | |
+| 198 | "Change style" — same story retained, style changed. | Positive | |
+| 199 | Regeneration starts correctly with new style. | Positive | |
+| 200 | Style change resets text. | Negative | |
+| 201 | Style change affects wrong project. | Negative | |
+| 202 | Style change creates hidden duplicate unintentionally. | Negative | |
+| 203 | "Enter battle" CTA navigates to correct battle. | Positive | |
+| 204 | Story ready for battle submission. | Positive | |
+| 205 | Rank/competition messaging aligns with actual context or safe generic fallback. | Positive | |
+| 206 | Enter battle shown for ineligible/incomplete story. | Negative | |
+| 207 | CTA routes to wrong battle. | Negative | |
+| 208 | User hits paywall without context. | Negative | |
+
+### 2.14 Battle Pages and Competition Flow
+
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 209 | Battle page shows #1 entry, leaderboard, user rank, competitors, counts. | Positive | |
+| 210 | Video previews/thumbnails load. | Positive | |
+| 211 | "Watch #1 First" opens correct content. | Positive | |
+| 212 | Leaderboard order incorrect. | Negative | |
+| 213 | User rank displayed when none exists. | Negative | |
+| 214 | Battle title mismatched with entries. | Negative | |
+| 215 | User with credits can submit entry. | Positive | |
+| 216 | Entry appears in battle context after processing. | Positive | |
+| 217 | Rank updates correctly after judging/scoring. | Positive | |
+| 218 | No-credits user submission path unclear. | Negative | |
+| 219 | Same entry submitted multiple times accidentally. | Negative | |
+| 220 | Wrong story submitted into battle. | Negative | |
+
+### 2.15 Quick Shot Flow
+
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 221 | Quick Shot CTA triggers fast generation flow. | Positive | |
+| 222 | User lands in studio/progress state correctly. | Positive | |
+| 223 | Deep-linked job loads. | Positive | |
+| 224 | Quick Shot click appears to do nothing. | Negative | |
+| 225 | Overlay/paywall blocks active pipeline unexpectedly. | Negative | |
+| 226 | Quick Shot opens wrong page. | Negative | |
+| 227 | Generated content visible. | Positive | |
+| 228 | Progress percent updates. | Positive | |
+| 229 | Job stuck at percent forever. | Negative | |
+| 230 | User cannot access result from Quick Shot-generated project. | Negative | |
+
+### 2.16 Share and Public Pages
+
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 231 | Shared story link opens publicly if allowed. | Positive | |
+| 232 | Correct title, video, and metadata shown. | Positive | |
+| 233 | Creator revisit tracked where implemented. | Positive | |
+| 234 | Private story leaked publicly. | Negative | |
+| 235 | Shared link opens wrong story. | Negative | |
+| 236 | Share page missing media but marked public. | Negative | |
+| 237 | Public creation page displays remixes/origin chain if intended. | Positive | |
+| 238 | Remix indicator shown for remix stories. | Positive | |
+| 239 | Remix chain broken. | Negative | |
+| 240 | Original creator attribution missing. | Negative | |
+| 241 | Public page exposes hidden/private data. | Negative | |
+
+### 2.17 Credits, Paywall, Plans, Top-Ups
+
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 242 | Standard user sees correct credit balance. | Positive | |
+| 243 | Credits reduce correctly after generation/battle action. | Positive | |
+| 244 | Unlimited/admin display handled specially. | Positive | |
+| 245 | Negative credits displayed. | Negative | |
+| 246 | Credits deducted twice on retry. | Negative | |
+| 247 | Credits deducted on failed job when policy says not to. | Negative | |
+| 248 | User without sufficient credits sees paywall at correct moment. | Positive | |
+| 249 | Battle flow shows user the battle first before paywall if that is current rule. | Positive | |
+| 250 | After successful purchase, user returns to intended action. | Positive | |
+| 251 | Paywall appears too early and breaks trust. | Negative | |
+| 252 | Paywall traps user in loop. | Negative | |
+| 253 | Purchase success but credits not updated. | Negative | |
+| 254 | Purchase canceled but UI says success. | Negative | |
+| 255 | Weekly/monthly/quarterly/yearly plans display correctly if active. | Positive | |
+| 256 | Top-up purchase works. | Positive | |
+| 257 | Subscription status updates in account. | Positive | |
+| 258 | Wrong plan credits granted. | Negative | |
+| 259 | Failed payment still grants credits. | Negative | |
+| 260 | Double charge due to retries/webhook duplication. | Negative | |
+
+### 2.18 Payment Gateway and Webhooks
+
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 261 | Checkout URL generated correctly. | Positive | |
+| 262 | User completes payment and gets credits. | Positive | |
+| 263 | Pending status polls correctly until resolved. | Positive | |
+| 264 | Gateway timeout. Expected: idempotent handling, no double crediting, clear status. | Negative | |
+| 265 | User closes checkout window. | Negative | |
+| 266 | Webhook delayed. | Negative | |
+| 267 | Duplicate webhook arrives. | Negative | |
+| 268 | Signature invalid. | Negative | |
+
+### 2.19 Analytics and Event Tracking
+
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 269 | Track page_view on major pages. | Positive | |
+| 270 | Track CTA clicks. | Positive | |
+| 271 | Track typing start. | Positive | |
+| 272 | Track generate click. | Positive | |
+| 273 | Track generation success/failure. | Positive | |
+| 274 | Track post-gen CTA clicks. | Positive | |
+| 275 | Track battle entry click. | Positive | |
+| 276 | Track share click/revisit if implemented. | Positive | |
+| 277 | Duplicate events on rerender. | Negative | |
+| 278 | Missing event on critical step. | Negative | |
+| 279 | Wrong event properties attached. | Negative | |
+| 280 | Analytics failure breaks user flow. | Negative | |
+| 281 | Quick Shot and full studio paths are distinguishable. | Positive | |
+| 282 | Battle vs non-battle generation paths separately tracked. | Positive | |
+| 283 | All actions attributed to same funnel source. | Negative | |
+| 284 | Revisit events missing. | Negative | |
+| 285 | Chain depth/remix events not captured where expected. | Negative | |
+
+### 2.20 Notifications, Toasts, Loading, and Error Messaging
+
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 286 | Button loading states visible during async actions. | Positive | |
+| 287 | Success toasts shown when useful. | Positive | |
+| 288 | Error toasts/messages are specific but safe. | Positive | |
+| 289 | Spinner with no message. | Negative | |
+| 290 | Button remains disabled after failure. | Negative | |
+| 291 | Multiple duplicate toasts spam user. | Negative | |
+| 292 | Raw backend error exposed. | Negative | |
 
 ---
 
-## 5. STORY BATTLE PAGE (/app/story-battle/:storyId)
+## Layer 3: NEGATIVE / FAILURE SUITE
 
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 5.1 | Positive | Navigate to battle page with valid storyId | Leaderboard with ranked entries, scores, share CTA |
-| 5.2 | Positive | #1 entry shows gold badge + "Share this battle" | Crown icon, share button visible |
-| 5.3 | Positive | #2+ entries show "Take it back" prompt | Rose-colored rank indicator |
-| 5.4 | Positive | Battle Pulse polls every 12s | Network requests visible, live updates |
-| 5.5 | Positive | "Enter Battle" CTA → paywall check | Free user: enters directly. Exhausted user: paywall |
-| 5.6 | Positive | Video autoplay for #1 contender | Video plays if output_url exists |
-| 5.7 | Positive | Share button generates share link | Link copied to clipboard |
-| 5.8 | Negative | Invalid storyId | Error state or redirect to /app |
-| 5.9 | Positive | User's own entry highlighted | "is_mine" flag shows visual indicator |
-| 5.10 | Positive | Competing count + viewer count shown | Real-time battle stats |
+### 3.1 Mobile, Tablet, Desktop Responsiveness
 
----
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 293 | Landing page works on mobile. | Positive | |
+| 294 | Dashboard hero/cards usable on mobile. | Positive | |
+| 295 | Studio form usable on mobile. | Positive | |
+| 296 | Draft modal readable on mobile. | Positive | |
+| 297 | Battle page usable on mobile. | Positive | |
+| 298 | CTA clipped/off-screen. | Negative | |
+| 299 | Hero video overflows container. | Negative | |
+| 300 | Sidebar overlays input form. | Negative | |
+| 301 | Sticky bars cover primary controls. | Negative | |
+| 302 | Tap targets large enough. | Positive | |
+| 303 | Video controls/tap areas usable. | Positive | |
+| 304 | Hover-only interaction on mobile. | Negative | |
+| 305 | Accidental double taps create duplicate actions. | Negative | |
 
-## 6. STORY VIEWER (/app/story-viewer/:jobId)
+### 3.2 Browser and Platform Compatibility
 
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 6.1 | Positive | Navigate with valid jobId | Video player loads, story plays |
-| 6.2 | Positive | Battle status banner shows rank/score | Rank badge visible if in battle |
-| 6.3 | Positive | Share CTA visible | Share button works (copies link) |
-| 6.4 | Positive | "Enter Battle" CTA (paywall-gated) | Free: enters. Exhausted: paywall modal |
-| 6.5 | Negative | Invalid jobId | Error: "Story not found" |
-| 6.6 | Positive | View count increments | total_views increases in DB |
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 306 | Chrome desktop passes. | Positive | |
+| 307 | Safari desktop passes. | Positive | |
+| 308 | Safari iPhone passes. | Positive | |
+| 309 | Chrome Android passes. | Positive | |
+| 310 | Incognito/private mode works for public and auth flows. | Positive | |
+| 311 | Safari blocks autoplay unexpectedly without fallback. | Negative | |
+| 312 | Local/session storage failures break drafts. | Negative | |
+| 313 | Third-party cookie restrictions break auth redirect handling. | Negative | |
 
----
+### 3.3 Accessibility
 
-## 7. QUICK SHOT (API-driven, no dedicated page)
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 314 | Buttons have accessible labels. | Positive | |
+| 315 | Inputs have labels. | Positive | |
+| 316 | Keyboard navigation works through major flows. | Positive | |
+| 317 | Focus management on modals works. | Positive | |
+| 318 | Sufficient contrast for text and CTA buttons. | Positive | |
+| 319 | Screen reader announces errors and statuses where practical. | Positive | |
+| 320 | Modal traps focus incorrectly. | Negative | |
+| 321 | Hidden elements still tabbable. | Negative | |
+| 322 | Color-only status indicators. | Negative | |
+| 323 | Autoplay media without appropriate controls/context causes accessibility issue. | Negative | |
 
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 7.1 | Positive | Click Quick Shot (user with credits) | POST /api/stories/quick-shot → job created → redirect to studio |
-| 7.2 | Negative | Click Quick Shot (free entries exhausted, no credits) | Paywall modal opens |
-| 7.3 | Positive | Quick Shot generates AI story without user input | Story text auto-generated, pipeline starts |
-| 7.4 | Negative | Quick Shot with no active battle (no root_story_id) | Fallback: redirect to fresh studio |
+### 3.4 Security and Abuse Cases
 
----
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 324 | Title/story text sanitized and stored safely. | Positive | |
+| 325 | File uploads validated if uploads exist. | Positive | |
+| 326 | XSS payload in title or story text. | Negative | |
+| 327 | HTML/script injection in share/public pages. | Negative | |
+| 328 | Oversized payload DOS attempt. | Negative | |
+| 329 | Malformed projectId query param. | Negative | |
+| 330 | Unauthorized access to another user's project via guessed ID. | Negative | |
+| 331 | Protected endpoints require auth. | Positive | |
+| 332 | Role-protected endpoints require correct role. | Positive | |
+| 333 | User changes credits/client-side and submits. | Negative | |
+| 334 | Replay request duplicates charge/creation. | Negative | |
+| 335 | CSRF/session misuse where applicable. | Negative | |
+| 336 | Rate-limit missing on sensitive endpoints. | Negative | |
 
-## 8. PAYMENT SYSTEM (Cashfree)
+### 3.5 Performance and Load
 
-### 8.1 Payment Flow
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 8.1.1 | Positive | Select credit pack in paywall → create order | POST /api/cashfree/create-order returns order_id |
-| 8.1.2 | Positive | Complete Cashfree payment → verify | POST /api/cashfree/verify → credits added |
-| 8.1.3 | Positive | After payment → credits visible on dashboard | Credit count updated |
-| 8.1.4 | Negative | Payment fails/cancelled | Error toast, no credits added, can retry |
-| 8.1.5 | Positive | Payment webhook received | Credits delivered even if verify call fails |
-| 8.1.6 | Positive | Payment history visible | GET /api/cashfree/payments/history returns orders |
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 337 | Dashboard under target load time. | Positive | |
+| 338 | Code splitting working. | Positive | |
+| 339 | Image lazy loading working. | Positive | |
+| 340 | Performance regresses after hero/video changes. | Negative | |
+| 341 | Huge bundle loaded on landing page again. | Negative | |
+| 342 | Concurrent generation requests handled gracefully within designed limit. | Positive | |
+| 343 | Queue/semaphore prevents meltdown. | Positive | |
+| 344 | Too many concurrent jobs crash worker. | Negative | |
+| 345 | Rejections not graceful. | Negative | |
+| 346 | Tracking calls block main request handling. | Negative | |
 
-### 8.2 Free Entry Limit
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 8.2.1 | Positive | New user gets 3 free battle entries | battle-entry-status: free_remaining = 3 |
-| 8.2.2 | Positive | After 3 entries + 0 credits → needs_payment = true | Paywall triggers on next action |
-| 8.2.3 | Positive | After payment → entries available again | needs_payment = false |
+### 3.6 Caching and Staleness
 
----
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 347 | Cached feed endpoints refresh within TTL. | Positive | |
+| 348 | User sees updated data after TTL or force refresh. | Positive | |
+| 349 | Stale leaderboard never updates. | Negative | |
+| 350 | User sees old credits after purchase. | Negative | |
+| 351 | Recent drafts panel shows deleted/stale content due to cache mismatch. | Negative | |
 
-## 9. FIRST-TIME USER ONBOARDING
+### 3.7 Admin and Monitoring
 
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 9.1 | Positive | Fresh user first login → onboarding overlay appears | "Create your first AI story in 10 seconds" |
-| 9.2 | Positive | Click X (close button) → overlay dismissed | Dashboard visible, onboarding_dismissed in localStorage |
-| 9.3 | Positive | Click "Skip for now" → overlay dismissed | Same as X close behavior |
-| 9.4 | Positive | Click "Start Now" → navigate to studio | /app/story-video-studio with freshSession |
-| 9.5 | Positive | Reload after dismiss → overlay does NOT reappear | Persisted via localStorage |
-| 9.6 | Negative | User with 1+ generations → overlay never shows | Suppressed for returning users |
-| 9.7 | Negative | Admin user → overlay never shows | Suppressed for admin role |
-| 9.8 | Positive | Progress indicator shows "Step 1 of 5" | Visual progress bar visible |
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 352 | User management loads. | Positive | |
+| 353 | Credit grants work. | Positive | |
+| 354 | Job monitor shows statuses. | Positive | |
+| 355 | Feature flags configurable if admin-exposed. | Positive | |
+| 356 | Alerts visible. | Positive | |
+| 357 | Admin panel hidden behind other components. | Negative | |
+| 358 | Admin actions affect wrong user. | Negative | |
+| 359 | Admin actions not audited/logged. | Negative | |
+| 360 | Stuck jobs visible. | Positive | |
+| 361 | Guard escalation visible. | Positive | |
+| 362 | Alerts deduplicated. | Positive | |
+| 363 | Critical failures silent. | Negative | |
+| 364 | Alert spam on repeated same incident. | Negative | |
+| 365 | Recovery not reflected. | Negative | |
 
----
+### 3.8 Feature Flags and Rollout Safety
 
-## 10. PERFORMANCE
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 366 | Each flagged feature can be turned off independently. | Positive | |
+| 367 | System works when any one feature is off. | Positive | |
+| 368 | Safe defaults used if config missing. | Positive | |
+| 369 | App crashes if flag file missing/malformed. | Negative | |
+| 370 | Partial flag disable leaves dead UI controls. | Negative | |
+| 371 | Flag off on frontend but backend endpoint assumed always on. | Negative | |
 
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 10.1 | Positive | First login → dashboard load time | < 3s (target < 2.5s) |
-| 10.2 | Positive | Repeat visit (navigate to /app) | < 2s |
-| 10.3 | Positive | Landing page cold load | < 2s |
-| 10.4 | Positive | Route-level code splitting active | Only critical JS loaded initially (not admin/studio/tools) |
-| 10.5 | Positive | Lazy-loaded page shows loading spinner during chunk fetch | PageLoader spinner visible briefly |
-| 10.6 | Positive | Feed scroll smooth | No jank, lazy images load on scroll |
-| 10.7 | Positive | Dashboard consolidated API (/api/dashboard/init) | Returns feed + challenge + leaderboard in 1 call |
-| 10.8 | Positive | API responses compressed (gzip) | Content-Encoding: gzip header present |
-| 10.9 | Positive | TTL cache on hottest-battle and feed endpoints | Second call within 15s returns cached data (faster) |
-| 10.10 | Negative | Slow 4G simulation | Content loads progressively, no blank screens |
+### 3.9 Data Integrity and Idempotency
 
----
-
-## 11. FEED & DISCOVERY APIs
-
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 11.1 | Positive | GET /api/stories/feed/discover?limit=8&sort_by=trending | Returns 8 stories sorted by battle_score desc |
-| 11.2 | Positive | GET /api/stories/feed/discover?sort_by=latest | Returns stories sorted by created_at desc |
-| 11.3 | Positive | GET /api/stories/feed/discover?sort_by=most_continued | Returns stories sorted by total_children desc |
-| 11.4 | Positive | Pagination: offset=0&limit=4, then offset=4&limit=4 | Different stories in each page, has_more flag correct |
-| 11.5 | Positive | Stories include preview_media (poster_url, preview_url) | Media URLs present for generated stories |
-| 11.6 | Negative | is_seed_content: true stories excluded from feed | Seed-flagged stories don't appear |
-| 11.7 | Positive | Feed returns total count | total field matches actual count |
-
----
-
-## 12. BATTLE SYSTEM APIs
-
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 12.1 | Positive | GET /api/stories/hottest-battle | Returns battle with root_title, contenders[3], branch_count |
-| 12.2 | Positive | Contenders include output_url + thumbnail_url | Video URLs present for generated entries |
-| 12.3 | Positive | GET /api/stories/battle-entry-status | Returns needs_payment, free_remaining, credits |
-| 12.4 | Positive | GET /api/stories/battle/{storyId} | Returns full battle with all branches, ranked |
-| 12.5 | Positive | GET /api/stories/battle-pulse/{rootId} | Returns live pulse with top_3, total entries, watching |
-| 12.6 | Positive | Pulse includes output_url/thumbnail_url for contenders | Video data in pulse response |
-| 12.7 | Positive | POST /api/stories/quick-shot | Creates new story entry in battle |
-| 12.8 | Negative | Quick shot with insufficient credits | 402 error |
-| 12.9 | Positive | POST /api/stories/continue-branch | Creates branch entry linked to root |
-
----
-
-## 13. DRAFT SYSTEM APIs
-
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 13.1 | Positive | POST /api/drafts/save (title + story_text) | Draft saved/updated, success: true |
-| 13.2 | Positive | GET /api/drafts/current | Returns active draft with content |
-| 13.3 | Positive | POST /api/drafts/status {status: "processing"} | Draft state transitions to processing |
-| 13.4 | Positive | POST /api/drafts/status {status: "completed"} | Draft state transitions to completed |
-| 13.5 | Positive | POST /api/drafts/status {status: "draft"} (failure recovery) | Draft reverts from processing to draft |
-| 13.6 | Positive | DELETE /api/drafts/discard | Active draft deleted |
-| 13.7 | Positive | GET /api/drafts/recent | Returns max 3 items (draft + recent projects) |
-| 13.8 | Positive | GET /api/drafts/idea | Returns random story idea |
-| 13.9 | Positive | GET /api/drafts/idea?vibe=kids | Returns kids category idea |
-| 13.10 | Positive | GET /api/drafts/idea?vibe=thriller | Returns thriller category idea |
-| 13.11 | Negative | GET /api/drafts/current with no draft | Returns {draft: null} |
-| 13.12 | Negative | GET /api/drafts/current (draft with empty title AND text) | Returns {draft: null} (filtered) |
+| TC# | Test Case | Type | Status |
+|-----|-----------|------|--------|
+| 372 | One click = one project/job. | Positive | |
+| 373 | One payment event = one credit grant. | Positive | |
+| 374 | One draft per intended scope behaves consistently. | Positive | |
+| 375 | Duplicate records on retries. | Negative | |
+| 376 | Same webhook processed multiple times. | Negative | |
+| 377 | Same project appears under multiple users. | Negative | |
+| 378 | Battle entry duplicated due to refresh. | Negative | |
 
 ---
 
-## 14. FUNNEL TRACKING & ANALYTICS
+## Layer 4: EXPLORATORY MANUAL QA — Critical End-to-End Journeys
 
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 14.1 | Positive | POST /api/funnel/track with valid event | Event stored in funnel_events collection |
-| 14.2 | Positive | Events include device_type, traffic_source, has_preview | Segmented data stored |
-| 14.3 | Positive | CTA clicks fire funnel events | Each button click tracked with type |
-| 14.4 | Positive | Battle paywall viewed → tracked | battle_paywall_viewed event in DB |
-| 14.5 | Positive | Payment success → tracked | battle_payment_success event in DB |
-
----
-
-## 15. PUSH NOTIFICATIONS
-
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 15.1 | Positive | Rank drop triggers push notification | Notification sent to dropped users |
-| 15.2 | Positive | WIN event triggers share prompt | Persistent share CTA |
-| 15.3 | Positive | Push prompt appears in BattlePulse | Notification permission request shown |
-| 15.4 | Negative | User denies push permission | Graceful fallback, no repeated prompts |
+| Journey | Description | Priority | Status |
+|---------|-------------|----------|--------|
+| A | **New user creates first story**: Landing -> sign up -> dashboard -> Write Your Own Story -> blank studio -> type -> auto-save -> generate -> result. Zero confusion, no old content leakage. | P0 | |
+| B | **New user enters battle**: Landing -> hero click -> battle view -> auth/paywall if needed -> create version -> submit to battle. Battle context preserved. | P0 | |
+| C | **Returning user resumes draft**: Login -> studio -> resume modal -> continue -> edit -> generate. Exact draft restored. | P0 | |
+| D | **Quick Shot user**: Dashboard -> Quick Shot -> generation progress -> result -> post-gen loop. No overlay interruption. | P1 | |
+| E | **No-credit user**: User attempts premium/generation action with insufficient credits. Honest paywall, return-to-intent after purchase. | P0 | |
+| F | **Failure recovery**: User types story -> draft saves -> generate -> backend failure -> status reverts to draft -> user retries. No content loss. | P0 | |
+| G | **Mobile user**: Mobile landing -> auth -> create story -> generate -> share. Complete usability on phone. | P1 | |
+| H | **Shared/public story**: User shares completed story -> recipient opens public page. Correct story shown, no private leakage. | P1 | |
 
 ---
 
-## 16. PUBLIC PAGES
+## Execution Results
 
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 16.1 | Positive | /pricing loads | Pricing plans visible |
-| 16.2 | Positive | /about loads | Founder Authority Block + about content |
-| 16.3 | Positive | /gallery loads | Public gallery of stories |
-| 16.4 | Positive | /explore loads | Explore/discovery feed |
-| 16.5 | Positive | /share/:shareId loads | Shared story visible (public) |
-| 16.6 | Positive | /v/:slug loads | Public creation page |
-| 16.7 | Positive | /creator/:username loads | Creator profile page |
-| 16.8 | Positive | /blog loads | Blog listing |
-| 16.9 | Positive | /privacy-policy, /terms, /cookie-policy load | Legal pages render |
-| 16.10 | Positive | /user-manual or /help loads | Help documentation |
+*Results will be populated as tests are executed.*
 
----
+### Execution Log
+| Date | Layer | Tests Run | Passed | Failed | Blocked | Notes |
+|------|-------|-----------|--------|--------|---------|-------|
+| | | | | | | |
 
-## 17. USER PROFILE & SETTINGS
-
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 17.1 | Positive | GET /api/auth/me returns user data | Name, email, credits, role |
-| 17.2 | Positive | PUT /api/auth/profile updates name | Name updated |
-| 17.3 | Positive | /app/profile page loads | Profile editing form |
-| 17.4 | Positive | /app/billing page loads | Credit balance + payment history |
-| 17.5 | Positive | /app/history page loads | Generation history |
-| 17.6 | Positive | /app/my-stories page loads | User's created stories |
-| 17.7 | Positive | Export data (GET /api/auth/export-data) | Returns user data export |
-| 17.8 | Positive | Delete account (DELETE /api/auth/account) | Account deleted |
+### Defect Register
+| ID | Severity | Module | Description | Expected | Actual | Fix Applied | Retest Status |
+|----|----------|--------|-------------|----------|--------|-------------|---------------|
+| | | | | | | | |
 
 ---
 
-## 18. ADMIN FUNCTIONALITY
+## Final Readiness Verdict
 
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 18.1 | Positive | Login as admin → /app/admin loads | Admin dashboard with analytics |
-| 18.2 | Positive | Admin sees unlimited credits | Credits display shows unlimited |
-| 18.3 | Positive | Admin can view all users (/app/admin/users) | User management list |
-| 18.4 | Positive | Admin can adjust user credits | PUT /api/admin/users/{id}/credits works |
-| 18.5 | Positive | Admin bypasses rate limiting | Can create unlimited stories |
-| 18.6 | Positive | Admin bypasses abuse detection | No "submitted several videos" error |
-| 18.7 | Positive | Admin bypasses queue (no QUEUED state) | Jobs start immediately |
-| 18.8 | Positive | Admin analytics dashboard shows metrics | Revenue, users, conversions |
-| 18.9 | Positive | Admin can trigger backfill previews | POST /api/stories/admin/backfill-previews works |
+**Status**: PENDING
 
----
-
-## 19. FEATURE FLAGS
-
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 19.1 | Positive | draftPersistenceV2 = true → draft auto-save works | Drafts saved on content change |
-| 19.2 | Positive | postGenerationLoop = true → loop CTAs visible after generation | 3 CTAs appear below video |
-| 19.3 | Positive | recentDraftsPanel = true → panel appears after 20+ chars | Collapsed drafts panel visible |
-| 19.4 | Positive | guidedStartV2 = true → vibe picker shows | Category pills visible in fresh session |
-| 19.5 | Negative | If flag is false → feature hidden | Component not rendered |
-
----
-
-## 20. CODE SPLITTING & LAZY LOADING
-
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 20.1 | Positive | Landing page loads only critical JS (not admin/studio) | Network tab shows small initial bundle |
-| 20.2 | Positive | Navigate to /app/story-video-studio → lazy chunk loads | Additional JS chunk fetched on navigation |
-| 20.3 | Positive | Navigate to /app/admin → admin chunk loads | Admin code not in initial bundle |
-| 20.4 | Positive | PageLoader spinner shows during chunk loading | "Loading..." spinner visible briefly |
-| 20.5 | Negative | Navigate to non-existent route | Redirects to / or /app (catch-all) |
-
----
-
-## 21. MOBILE RESPONSIVENESS
-
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 21.1 | Positive | Dashboard on 390px viewport | Hero stacks, QuickActions stack vertically |
-| 21.2 | Positive | QuickActions primary card full-width on mobile | No horizontal overflow |
-| 21.3 | Positive | Feed cards resize on mobile | Cards stack/grid adjusts |
-| 21.4 | Positive | Studio form on mobile | Textarea full-width, buttons accessible |
-| 21.5 | Positive | Login/Signup on mobile | Form fits, Google button full-width |
-| 21.6 | Positive | Battle page on mobile | Leaderboard stacks, CTAs accessible |
-| 21.7 | Positive | Close/Skip buttons have 40px+ touch targets | Tappable on mobile |
-
----
-
-## 22. ERROR HANDLING & EDGE CASES
-
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 22.1 | Negative | API returns 500 on dashboard init | Error toast, partial content loads |
-| 22.2 | Negative | Network disconnects during story generation | Generation continues server-side, reconnect shows progress |
-| 22.3 | Negative | Expired JWT token → API call | 401 → redirect to login |
-| 22.4 | Negative | MongoDB connection drops | Graceful error messages, not raw stack traces |
-| 22.5 | Negative | Cashfree payment timeout | User informed, can retry |
-| 22.6 | Negative | FFmpeg not installed (container restart) | FAILED_RENDER state, retry option |
-| 22.7 | Negative | LLM budget exceeded | Story fails with clear error message |
-| 22.8 | Negative | Invalid story content (safety filter) | Content rewritten or error with explanation |
-| 22.9 | Negative | Concurrent duplicate requests | Deduplicated, no double-charge |
-| 22.10 | Positive | ErrorBoundary catches React crash in studio | Fallback UI instead of white screen |
-
----
-
-## 23. COOKIE CONSENT & LEGAL
-
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 23.1 | Positive | First visit shows cookie consent banner | Banner appears at bottom |
-| 23.2 | Positive | Accept cookies → banner dismissed | Banner hidden, preference stored |
-| 23.3 | Positive | Cookie preference persists across sessions | Banner doesn't reappear |
-
----
-
-## 24. SHARING & VIRAL
-
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 24.1 | Positive | Share battle link → /share/:shareId loads | Public share page with battle context |
-| 24.2 | Positive | Viral pack share → /viral/:jobId loads | Viral share page |
-| 24.3 | Positive | Share button copies link to clipboard | "Link copied" toast |
-| 24.4 | Positive | WIN share prompt is persistent and unmissable | Crown icon, share CTA stays visible |
-
----
-
-## 25. CONTENT SEEDING VALIDATION
-
-| # | Type | Test Case | Expected Result |
-|---|------|-----------|-----------------|
-| 25.1 | Positive | Feed shows 5+ different story titles/themes | No content repetition |
-| 25.2 | Positive | Top stories have real video thumbnails | No blank/gradient cards for seeded content |
-| 25.3 | Positive | Battle contenders have output_url | Autoplay hero has real video |
-| 25.4 | Positive | View counts and scores look realistic | 80-890 views, 60-200 scores |
-| 25.5 | Positive | Multiple animation styles represented | watercolor, cartoon, cinematic, anime, comic |
-
----
-
-## TOTAL: 25 categories, ~200 test cases
+- [ ] Production Ready
+- [ ] Conditionally Ready
+- [ ] Not Ready
