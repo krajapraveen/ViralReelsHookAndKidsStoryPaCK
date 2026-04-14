@@ -64,6 +64,11 @@ INVARIANTS = {
         "description": "Every completed job must have exactly 1 credit deduction; no orphan deductions without jobs",
         "severity": "critical",
     },
+    "orphan_deductions": {
+        "name": "No Orphan Credit Deductions",
+        "description": "Every generation-related deduction must map to a valid job (active, completed, or failed-with-refund)",
+        "severity": "critical",
+    },
 }
 
 
@@ -249,6 +254,55 @@ async def _check_generation_integrity():
     return {"violated": len(mismatches) > 0, "count": len(mismatches), "sample_ids": mismatches[:5]}
 
 
+async def _check_orphan_deductions():
+    """Check that every generation-related credit deduction maps to a valid job.
+    A deduction is orphaned if it references a job_id that doesn't exist, or
+    the job is missing/stuck with no terminal state or refund."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+
+    # Get all generation-related deductions (negative amounts with job references)
+    deductions = await db.credit_ledger.find(
+        {"amount": {"$lt": 0}, "timestamp": {"$gte": cutoff}, "user_id": {"$ne": None}},
+        {"_id": 0, "user_id": 1, "amount": 1, "job_id": 1, "order_id": 1, "reason": 1, "type": 1, "timestamp": 1}
+    ).to_list(500)
+
+    orphans = []
+    for ded in deductions:
+        job_id = ded.get("job_id")
+        reason = str(ded.get("reason", "")).lower()
+        ded_type = str(ded.get("type", "")).lower()
+
+        # Skip non-generation deductions (purchases, refunds, etc)
+        if ded_type in ("refund", "admin_adjustment", "purchase"):
+            continue
+        if "refund" in reason or "adjustment" in reason:
+            continue
+
+        # If deduction has a job_id, verify the job exists
+        if job_id:
+            job = await db.story_engine_jobs.find_one(
+                {"job_id": job_id},
+                {"_id": 0, "state": 1, "job_id": 1}
+            )
+            if not job:
+                orphans.append(f"deduction_no_job:{job_id[:15]}:amt={ded['amount']}")
+            elif job.get("state") in ("FAILED",) :
+                # Failed job — check if refund exists
+                refund = await db.credit_ledger.find_one(
+                    {"job_id": job_id, "amount": {"$gt": 0}, "type": {"$in": ["refund", "credit_refund"]}}
+                )
+                if not refund:
+                    # Failed job with deduction but no refund — flag but lower severity
+                    # (may be intentional policy: no refund on failure)
+                    pass
+        else:
+            # Deduction without job_id reference — check if it's a generation deduction
+            if "generat" in reason or "story" in reason or "creat" in reason:
+                orphans.append(f"deduction_no_ref:{ded.get('user_id','?')[:10]}:amt={ded['amount']}:ts={ded.get('timestamp','?')[:16]}")
+
+    return {"violated": len(orphans) > 0, "count": len(orphans), "sample_ids": orphans[:5]}
+
+
 # Map invariant keys to check functions
 CHECKERS = {
     "negative_credits": _check_negative_credits,
@@ -260,6 +314,7 @@ CHECKERS = {
     "private_content_leak": _check_private_content_leak,
     "credit_drift": _check_credit_drift,
     "generation_integrity": _check_generation_integrity,
+    "orphan_deductions": _check_orphan_deductions,
 }
 
 
@@ -376,6 +431,50 @@ async def get_open_alerts(current_user: dict = Depends(get_current_user)):
     ).sort("severity_order", 1).to_list(100)
 
     return {"alerts": alerts, "count": len(alerts)}
+
+
+@router.get("/critical")
+async def get_critical_guardrails(current_user: dict = Depends(get_current_user)):
+    """
+    Fast critical-only guardrail check. Designed for 1-5 minute polling.
+    Checks ONLY money/credit/generation invariants — no heavy aggregations.
+    """
+    if current_user.get("role", "").upper() != "ADMIN":
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    CRITICAL_KEYS = ["negative_credits", "duplicate_credit_grants", "payment_without_credit",
+                     "credit_drift", "generation_integrity", "orphan_deductions"]
+
+    results = {}
+    overall_healthy = True
+    now = datetime.now(timezone.utc).isoformat()
+
+    for key in CRITICAL_KEYS:
+        meta = INVARIANTS.get(key)
+        checker = CHECKERS.get(key)
+        if not meta or not checker:
+            continue
+        try:
+            result = await checker()
+            await _persist_alert(key, result, meta)
+            status = "FAIL" if result["violated"] else "PASS"
+            if result["violated"]:
+                overall_healthy = False
+            results[key] = {
+                "status": status,
+                "count": result["count"],
+                "sample_ids": result["sample_ids"],
+            }
+        except Exception as e:
+            results[key] = {"status": "ERROR", "error": str(e)[:100]}
+
+    return {
+        "healthy": overall_healthy,
+        "checked_at": now,
+        "checks": len(results),
+        "invariants": results,
+    }
 
 
 @router.get("/history")

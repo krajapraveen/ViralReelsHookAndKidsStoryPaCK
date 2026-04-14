@@ -84,6 +84,13 @@ api.interceptors.response.use(
         window.location.href = loginUrl;
       }
     }
+
+    // Kill switch 503 — honest user messaging, no retry storm
+    if (error.response?.status === 503) {
+      const msg = error.response?.data?.detail || 'This feature is temporarily unavailable. Please try again shortly.';
+      toast.error(msg, { duration: 5000, id: 'service-unavailable' });
+    }
+
     return Promise.reject(error);
   }
 );
