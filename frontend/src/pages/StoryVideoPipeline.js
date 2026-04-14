@@ -414,6 +414,82 @@ function StoryVideoPipelineInner() {
   // Series context — when generating from a Story Series flow
   const [seriesContext, setSeriesContext] = useState(null);
 
+  // ─── DRAFT PERSISTENCE ─────────────────────────────────────────────────────
+  const [showResumeDraft, setShowResumeDraft] = useState(false);
+  const [pendingDraft, setPendingDraft] = useState(null);
+  const draftSaveTimer = useRef(null);
+  const lastSavedRef = useRef({ title: '', storyText: '' });
+  const isFreshSession = !!location.state?.freshSession;
+
+  // Auto-save draft (debounced — saves 3s after last change, only if content changed)
+  useEffect(() => {
+    if (phase !== 'input') return;
+    if (!title.trim() && !storyText.trim()) return;
+    // Don't save if content hasn't changed
+    if (title === lastSavedRef.current.title && storyText === lastSavedRef.current.storyText) return;
+
+    if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+    draftSaveTimer.current = setTimeout(() => {
+      lastSavedRef.current = { title, storyText };
+      api.post('/api/drafts/save', {
+        title, story_text: storyText, animation_style: animStyle,
+        age_group: ageGroup, voice_preset: voicePreset,
+      }).catch(() => {}); // silent save
+    }, 3000);
+
+    return () => { if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current); };
+  }, [title, storyText, animStyle, ageGroup, voicePreset, phase]);
+
+  // Check for existing draft on fresh session mount
+  useEffect(() => {
+    if (!isFreshSession) return;
+    if (searchParams.get('projectId')) return; // deep-linked to a project
+    api.get('/api/drafts/current').then(res => {
+      const draft = res.data?.draft;
+      if (draft && (draft.title?.trim() || draft.story_text?.trim())) {
+        setPendingDraft(draft);
+        setShowResumeDraft(true);
+      }
+    }).catch(() => {});
+  }, [isFreshSession]);
+
+  const handleResumeDraft = () => {
+    if (pendingDraft) {
+      setTitle(pendingDraft.title || '');
+      setStoryText(pendingDraft.story_text || '');
+      if (pendingDraft.animation_style) setAnimStyle(pendingDraft.animation_style);
+      if (pendingDraft.age_group) setAgeGroup(pendingDraft.age_group);
+      if (pendingDraft.voice_preset) setVoicePreset(pendingDraft.voice_preset);
+      lastSavedRef.current = { title: pendingDraft.title || '', storyText: pendingDraft.story_text || '' };
+    }
+    setShowResumeDraft(false);
+  };
+
+  const handleDiscardDraft = () => {
+    api.delete('/api/drafts/discard').catch(() => {});
+    setShowResumeDraft(false);
+  };
+
+  // Clear draft when story is successfully generated
+  useEffect(() => {
+    if (phase === 'processing' && jobId) {
+      api.delete('/api/drafts/discard').catch(() => {});
+    }
+  }, [phase, jobId]);
+
+  // ─── NAVIGATION GUARD (unsaved changes warning) ────────────────────────────
+  useEffect(() => {
+    const hasContent = title.trim().length > 20 || storyText.trim().length > 20;
+    if (!hasContent || phase !== 'input') return;
+
+    const handler = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [title, storyText, phase]);
+
   const onViewJob = useCallback((job) => {
     if (job?.job_id) {
       navigate(`/app/story-video-studio?projectId=${job.job_id}`);
@@ -1067,6 +1143,42 @@ function StoryVideoPipelineInner() {
       <main className="max-w-6xl mx-auto px-4 py-8">
         {showUpsell && <UpsellModal credits={userCredits} onClose={() => setShowUpsell(false)} />}
 
+        {/* ═══ RESUME DRAFT MODAL ═══ */}
+        {showResumeDraft && pendingDraft && (
+          <div className="fixed inset-0 z-[101] flex items-center justify-center bg-black/70 backdrop-blur-sm" data-testid="resume-draft-modal">
+            <div className="bg-[#12121a] border border-white/10 rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6 text-center">
+              <div className="w-12 h-12 rounded-xl bg-indigo-500/15 flex items-center justify-center mx-auto mb-4">
+                <BookOpen className="w-6 h-6 text-indigo-400" />
+              </div>
+              <h3 className="text-lg font-bold text-white mb-1">Resume your last draft?</h3>
+              <p className="text-sm text-slate-400 mb-2">
+                {pendingDraft.title ? `"${pendingDraft.title}"` : 'Untitled draft'}
+              </p>
+              {pendingDraft.story_text && (
+                <p className="text-xs text-slate-500 mb-5 line-clamp-2">
+                  {pendingDraft.story_text.slice(0, 120)}{pendingDraft.story_text.length > 120 ? '...' : ''}
+                </p>
+              )}
+              <div className="flex gap-3">
+                <button
+                  onClick={handleDiscardDraft}
+                  className="flex-1 h-10 rounded-xl border border-white/10 text-sm text-slate-300 hover:bg-white/5 transition-colors"
+                  data-testid="draft-start-fresh"
+                >
+                  Start Fresh
+                </button>
+                <button
+                  onClick={handleResumeDraft}
+                  className="flex-1 h-10 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm font-semibold text-white transition-colors"
+                  data-testid="draft-resume"
+                >
+                  Continue
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ═══ STRICT CREDIT GATE MODAL ═══ */}
         {creditGate && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm" data-testid="credit-gate-modal">
@@ -1403,6 +1515,52 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
                   {storyText.length} / 10,000 characters {storyText.length > 0 && storyText.trim().length < 50 ? `(need ${50 - storyText.trim().length} more)` : '(min 50)'}
                 </p>
               </div>
+
+              {/* Guided Start — only in fresh session when text is empty */}
+              {isFreshSession && !storyText.trim() && (
+                <div className="flex items-center gap-2 mt-2" data-testid="guided-start">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const res = await api.get('/api/drafts/idea');
+                        if (res.data?.idea) {
+                          setStoryText(res.data.idea);
+                          toast.success('Idea generated!');
+                        }
+                      } catch {
+                        // Fallback local ideas
+                        const ideas = [
+                          "A lonely robot discovers an abandoned garden on a space station and decides to bring it back to life, one flower at a time.",
+                          "Two rival chefs are trapped in a magical kitchen where every dish they cook comes alive and picks sides in their rivalry.",
+                          "A child finds a pair of glasses that lets them see the dreams of everyone around them — but some dreams are nightmares.",
+                          "A time-traveling librarian must fix a single misplaced book that accidentally erased an entire civilization from history.",
+                          "An old lighthouse keeper realizes the light doesn't guide ships — it keeps something ancient asleep beneath the waves.",
+                        ];
+                        setStoryText(ideas[Math.floor(Math.random() * ideas.length)]);
+                        toast.success('Idea generated!');
+                      }
+                    }}
+                    className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1"
+                    data-testid="generate-idea-btn"
+                  >
+                    <Sparkles className="w-3 h-3" /> Generate Idea
+                  </button>
+                  <span className="text-slate-600 text-xs">or</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTitle('The Secret Garden on Mars');
+                      setStoryText('On a dusty red planet where nothing grows, a small girl named Zara discovers a hidden cave filled with glowing plants. Each plant whispers a story from Earth — tales of forests, rivers, and animals she has never seen. When the colony leaders want to seal the cave, Zara must convince them that these stories are worth saving, because without stories, what is a civilization?');
+                      toast.success('Sample story loaded — feel free to edit!');
+                    }}
+                    className="text-xs text-slate-400 hover:text-slate-300 transition-colors flex items-center gap-1"
+                    data-testid="use-sample-btn"
+                  >
+                    <BookOpen className="w-3 h-3" /> Use Sample Story
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 

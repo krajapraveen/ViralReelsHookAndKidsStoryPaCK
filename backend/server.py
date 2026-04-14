@@ -678,6 +678,10 @@ api_router.include_router(media_access_router)
 from routes.dashboard_init import router as dashboard_init_router
 api_router.include_router(dashboard_init_router)
 
+from routes.drafts import router as drafts_router
+api_router.include_router(drafts_router)
+
+
 
 
 # Include API router in app

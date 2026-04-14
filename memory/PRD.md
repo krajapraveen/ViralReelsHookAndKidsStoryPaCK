@@ -142,7 +142,8 @@ Paywall Modal → Cashfree SDK → Verify → Credits Added → Resume Action
 ---
 
 ## All Completed Systems
-- Studio Fresh Session Fix (Apr 14): "Write Your Own Story" now opens a clean blank studio with no "Recent Videos" sidebar. The sidebar only shows when user navigates to studio directly (not from fresh creation intent). Prevents creation-vs-browsing intent collision.
+- Studio Creation Engine (Apr 14): (1) Project Identity verified (unique job_id per project, URL-based routing via ?projectId). (2) Draft Persistence — auto-save every 3s after changes, resume modal on re-entry ("Continue" / "Start Fresh"), draft cleared on generation. (3) Navigation Guard — beforeunload warning when content > 20 chars. (4) Guided Start — "Generate Idea" (random AI prompt from 10 curated ideas) + "Use Sample Story" (pre-fills complete editable story) shown in fresh session when text empty.
+- Studio Fresh Session Fix (Apr 14): "Write Your Own Story" now opens a clean blank studio with no "Recent Videos" sidebar.
 - P0.5 Performance Hardening (Apr 14): Consolidated 7 dashboard API calls into single `/api/dashboard/init` endpoint. Dashboard load: 5.07s → 2.47s (first), 1.89s (repeat).
 - P0 Performance Sprint (Apr 14): Route-level code splitting (141 eager → 5 eager + 136 lazy). Backend TTL caching for feed/battle endpoints. Image lazy loading on feed cards.
 - CTA Route Separation Fix (Apr 13): "Write Your Own Story" → fresh studio. "Beat the Leader" → battle leaderboard. Updated labels and copy.
