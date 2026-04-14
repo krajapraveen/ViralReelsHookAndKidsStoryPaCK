@@ -109,6 +109,11 @@ async def detect_abuse(db, user_id: str) -> Optional[str]:
     Detect potential abuse patterns.
     Returns RATE_LIMIT errors (not SLOTS_BUSY) for abuse prevention.
     """
+    # Exempt admin users from abuse detection
+    user_doc = await db.users.find_one({"id": user_id}, {"_id": 0, "role": 1})
+    if user_doc and user_doc.get("role") in ("admin", "ADMIN"):
+        return None
+
     now = datetime.now(timezone.utc)
     ten_min_ago = (now - timedelta(minutes=10)).isoformat()
 

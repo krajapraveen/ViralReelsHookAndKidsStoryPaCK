@@ -846,8 +846,10 @@ async def create_engine_job(
     }
 
     # Include rewrite note if terms were sanitized
-    if story_rewrite.was_rewritten or title_rewrite.was_rewritten:
-        response["rewrite_note"] = story_rewrite.user_note or title_rewrite.user_note
+    if se_safety and hasattr(se_safety, 'clean') and se_safety.clean:
+        rewrites = se_safety.clean.get("rewrites", [])
+        if rewrites:
+            response["rewrite_note"] = f"{len(rewrites)} term(s) were adjusted for content safety."
 
     return response
 
