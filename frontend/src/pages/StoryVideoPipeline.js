@@ -1384,7 +1384,7 @@ function RecentDraftsPanel({ onViewJob }) {
         data-testid="recent-drafts-toggle"
       >
         <ChevronDown className={`w-3 h-3 transition-transform ${expanded ? 'rotate-0' : '-rotate-90'}`} />
-        <span className="uppercase tracking-wider font-medium">Recent Drafts</span>
+        <span className="uppercase tracking-wider font-medium">Your unfinished stories are waiting</span>
         <span className="text-slate-600">({items.length})</span>
       </button>
       {expanded && (
@@ -1599,17 +1599,22 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
               {isFreshSession && !storyText.trim() && (FEATURES.guidedStartV2 ? (
                 <div className="mt-3 space-y-2" data-testid="guided-start">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-xs text-slate-500">Pick a vibe:</span>
-                    {['kids', 'drama', 'thriller', 'viral'].map(v => (
-                      <button key={v} type="button" data-testid={`vibe-${v}`}
+                    <span className="text-xs text-slate-500">What do you want to create?</span>
+                    {[
+                      { id: 'kids', label: 'Bedtime Magic' },
+                      { id: 'drama', label: 'Emotional Story' },
+                      { id: 'thriller', label: 'Mind-Blowing Twist' },
+                      { id: 'viral', label: '1M Views Hook' },
+                    ].map(v => (
+                      <button key={v.id} type="button" data-testid={`vibe-${v.id}`}
                         onClick={async () => {
                           try {
-                            const res = await api.get(`/api/drafts/idea?vibe=${v}`);
-                            if (res.data?.idea) { setStoryText(res.data.idea); toast.success(`${v.charAt(0).toUpperCase() + v.slice(1)} idea loaded!`); }
+                            const res = await api.get(`/api/drafts/idea?vibe=${v.id}`);
+                            if (res.data?.idea) { setStoryText(res.data.idea); toast.success(`${v.label} idea loaded!`); }
                           } catch { toast.error('Could not generate idea'); }
                         }}
-                        className="px-2.5 py-1 text-[11px] rounded-full border border-white/10 text-slate-300 hover:bg-white/5 hover:text-white transition-colors capitalize"
-                      >{v}</button>
+                        className="px-2.5 py-1 text-[11px] rounded-full border border-white/10 text-slate-300 hover:bg-white/5 hover:text-white transition-colors"
+                      >{v.label}</button>
                     ))}
                   </div>
                   <div className="flex items-center gap-2">
@@ -3111,8 +3116,8 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
                 >
                   <Sparkles className="w-4 h-4 text-violet-400 flex-shrink-0" />
                   <div>
-                    <p className="text-xs font-semibold text-white">Rewrite with twist</p>
-                    <p className="text-[10px] text-slate-500">Same story, unexpected ending</p>
+                    <p className="text-xs font-semibold text-white">Make it 10x better?</p>
+                    <p className="text-[10px] text-slate-500">Add a twist and beat your current version</p>
                   </div>
                 </button>
                 <button
@@ -3130,8 +3135,8 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
                 >
                   <Image className="w-4 h-4 text-sky-400 flex-shrink-0" />
                   <div>
-                    <p className="text-xs font-semibold text-white">Change style</p>
-                    <p className="text-[10px] text-slate-500">Same story, new look</p>
+                    <p className="text-xs font-semibold text-white">Not the vibe you wanted?</p>
+                    <p className="text-[10px] text-slate-500">Switch style instantly</p>
                   </div>
                 </button>
                 <button
@@ -3140,13 +3145,13 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
                     const rootId = job?.parent_job_id || job?.root_story_id || jobId;
                     navigate(`/app/story-battle/${rootId}`);
                   }}
-                  className="flex items-center gap-2 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] hover:border-rose-500/20 transition-all text-left"
+                  className="flex items-center gap-2 p-3 rounded-xl border border-rose-500/10 bg-rose-500/[0.03] hover:bg-rose-500/[0.06] hover:border-rose-500/20 transition-all text-left"
                   data-testid="loop-enter-battle"
                 >
                   <Swords className="w-4 h-4 text-rose-400 flex-shrink-0" />
                   <div>
-                    <p className="text-xs font-semibold text-white">Enter battle</p>
-                    <p className="text-[10px] text-slate-500">Compete for #1</p>
+                    <p className="text-xs font-semibold text-white">You're Rank #3 right now</p>
+                    <p className="text-[10px] text-rose-400/70">Only one story can take #1</p>
                   </div>
                 </button>
               </div>

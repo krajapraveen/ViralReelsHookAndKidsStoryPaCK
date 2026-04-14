@@ -142,7 +142,8 @@ Paywall Modal → Cashfree SDK → Verify → Credits Added → Resume Action
 ---
 
 ## All Completed Systems
-- Studio Creation Engine V2 (Apr 14): Full sprint with feature flags. (1) Draft Safety — status-based lifecycle (draft→processing→completed), failure recovery reverts to draft, NEVER deletes. (2) Post-Generation Loop — "Rewrite with twist" / "Change style" / "Enter battle" CTAs after video result. (3) Recent Drafts Panel — collapsed sidebar showing 3 items with title, date, status badge (Draft/Rendering/Ready), expands on click, appears after 20+ chars typed. (4) Guided Start V2 — vibe picker (Kids/Drama/Thriller/Viral) with 16 category-specific prompts + "Random Idea" + "Use Sample".
+- Emotional Copy + Battle Hero Autoplay (Apr 14): Hero CTA "Claim Your Rank" → "Take #1 Spot". Preview overlay → "Think you can beat this?". Post-gen CTAs: "Make it 10x better?" / "Not the vibe you wanted?" / "You're Rank #3 right now — Only one story can take #1". Guided Start vibes: "Bedtime Magic" / "Emotional Story" / "Mind-Blowing Twist" / "1M Views Hook". Recent Drafts → "Your unfinished stories are waiting". Hero #1 preview supports autoplay video (muted, looping) with gradient+title fallback.
+- Studio Creation Engine V2 (Apr 14): Full sprint with feature flags — Draft Safety, Post-Generation Loop, Recent Drafts Panel, Guided Start V2.
 - Studio Creation Engine (Apr 14): Project Identity, Draft Persistence V1, Navigation Guard, Guided Start V1.
 - Studio Fresh Session Fix (Apr 14): "Write Your Own Story" now opens a clean blank studio with no "Recent Videos" sidebar.
 - P0.5 Performance Hardening (Apr 14): Consolidated 7 dashboard API calls into single `/api/dashboard/init` endpoint. Dashboard load: 5.07s → 2.47s (first), 1.89s (repeat).

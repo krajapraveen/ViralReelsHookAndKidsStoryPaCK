@@ -251,7 +251,7 @@ export default function LiveBattleHero() {
                     ? <Loader2 className="w-4 h-4 animate-spin" />
                     : <Swords className="w-4 h-4" />
                   }
-                  {userRank ? 'Claim Your Rank' : 'Enter Battle'}
+                  {userRank ? 'Take #1 Spot' : 'Enter Battle'}
                 </button>
                 <button
                   onClick={handleQuickShot}
@@ -283,27 +283,45 @@ export default function LiveBattleHero() {
             </div>
           </div>
 
-          {/* Right — #1 Preview */}
-          <div className="relative">
+          {/* Right — #1 Preview with Auto-Play */}
+          <div className="relative" data-testid="hero-preview">
             <div className="overflow-hidden rounded-2xl border border-white/[0.06] bg-black/20 shadow-xl">
               <div className="relative aspect-[16/10]">
-                {topEntry?.thumbnail_url || battle.root_thumbnail ? (
+                {/* Auto-play video preview (muted, looping) — falls back to poster/gradient */}
+                {topEntry?.output_url ? (
+                  <video
+                    autoPlay muted loop playsInline
+                    poster={topEntry?.thumbnail_url || battle.root_thumbnail || ''}
+                    className="w-full h-full object-cover"
+                    data-testid="hero-autoplay-video"
+                  >
+                    <source src={topEntry.output_url} type="video/mp4" />
+                  </video>
+                ) : topEntry?.thumbnail_url || battle.root_thumbnail ? (
                   <img
                     src={topEntry?.thumbnail_url || battle.root_thumbnail}
                     alt={topEntry?.title || battle.root_title}
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-violet-600/20 to-rose-600/20" />
+                  <div className="w-full h-full bg-gradient-to-br from-violet-900/60 via-slate-800 to-rose-900/40 flex items-center justify-center">
+                    <div className="text-center px-4">
+                      <p className="text-white/80 font-bold text-lg">{topEntry?.title || battle.root_title}</p>
+                      <p className="text-white/40 text-xs mt-1">
+                        {topEntry?.score?.toFixed(0) || 0} pts · {battle.branch_count || 0} competing
+                      </p>
+                    </div>
+                  </div>
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
+                {/* "Think you can beat this?" overlay CTA */}
                 <button
                   onClick={() => navigate(`/app/story-battle/${battle.root_story_id}`)}
                   className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-black/40 px-2.5 py-1 text-[10px] font-medium text-white backdrop-blur-sm hover:bg-black/60 transition-colors"
                   data-testid="hero-watch-preview"
                 >
-                  <PlayCircle className="w-3.5 h-3.5" /> Watch Battle
+                  <PlayCircle className="w-3.5 h-3.5" /> Think you can beat this?
                 </button>
 
                 <div className="absolute bottom-0 left-0 right-0 p-4">
