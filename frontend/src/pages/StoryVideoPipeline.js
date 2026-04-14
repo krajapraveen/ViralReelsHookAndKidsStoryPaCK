@@ -14,6 +14,7 @@ import {
   Share2, Link2, Copy, ExternalLink, RefreshCcw as Remix, ShieldAlert,
   Shield, Check, X, Zap, ChevronDown, ArrowRight, GitBranch, Swords, BarChart2
 } from 'lucide-react';
+import FEATURES from '../config/featureFlags';
 import UpsellModal from '../components/UpsellModal';
 import CreationActionsBar from '../components/CreationActionsBar';
 import ProgressiveGeneration from '../components/ProgressiveGeneration';
@@ -470,10 +471,16 @@ function StoryVideoPipelineInner() {
     setShowResumeDraft(false);
   };
 
-  // Clear draft when story is successfully generated
+  // Clear draft when story is successfully generated (status-based, never delete)
   useEffect(() => {
+    if (!FEATURES.draftPersistenceV2) return;
     if (phase === 'processing' && jobId) {
-      api.delete('/api/drafts/discard').catch(() => {});
+      // Mark draft as processing — NOT deleted. Recoverable on failure.
+      api.post('/api/drafts/status', { status: 'processing' }).catch(() => {});
+    }
+    if (phase === 'postgen' && jobId) {
+      // Generation succeeded — mark completed
+      api.post('/api/drafts/status', { status: 'completed' }).catch(() => {});
     }
   }, [phase, jobId]);
 
@@ -490,6 +497,9 @@ function StoryVideoPipelineInner() {
     return () => window.removeEventListener('beforeunload', handler);
   }, [title, storyText, phase]);
 
+  // ─── DRAFT FAILURE RECOVERY ────────────────────────────────────────────────
+  // (Moved after postGen useReducer — see below)
+
   const onViewJob = useCallback((job) => {
     if (job?.job_id) {
       navigate(`/app/story-video-studio?projectId=${job.job_id}`);
@@ -504,6 +514,14 @@ function StoryVideoPipelineInner() {
 
   // Post-generation state machine
   const [postGen, dispatchPostGen] = useReducer(postGenReducer, INITIAL_POST_GEN_STATE);
+
+  // ─── DRAFT FAILURE RECOVERY (must be after postGen useReducer) ─────────────
+  useEffect(() => {
+    if (!FEATURES.draftPersistenceV2) return;
+    if (postGen.uiState === 'FAILED') {
+      api.post('/api/drafts/status', { status: 'draft' }).catch(() => {});
+    }
+  }, [postGen.uiState]);
 
   // Timeout tracking (soft + hard)
   const hardTimeoutRef = useRef(null);
@@ -1344,6 +1362,67 @@ export default function StoryVideoPipeline() {
   );
 }
 
+
+// ─── RECENT DRAFTS PANEL ──────────────────────────────────────────────────────
+function RecentDraftsPanel({ onViewJob }) {
+  const navigate = useNavigate();
+  const [items, setItems] = useState([]);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    api.get('/api/drafts/recent').then(res => {
+      if (res.data?.items?.length) setItems(res.data.items);
+    }).catch(() => {});
+  }, []);
+
+  if (!items.length) return null;
+
+  return (
+    <div className="space-y-2" data-testid="recent-drafts-panel">
+      <button onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-2 text-xs text-slate-500 hover:text-slate-300 transition-colors w-full"
+        data-testid="recent-drafts-toggle"
+      >
+        <ChevronDown className={`w-3 h-3 transition-transform ${expanded ? 'rotate-0' : '-rotate-90'}`} />
+        <span className="uppercase tracking-wider font-medium">Recent Drafts</span>
+        <span className="text-slate-600">({items.length})</span>
+      </button>
+      {expanded && (
+        <div className="space-y-1.5 pl-1">
+          {items.map((item, i) => (
+            <button key={item.project_id || `draft-${i}`}
+              onClick={() => {
+                if (item.type === 'project' && item.project_id) {
+                  navigate(`/app/story-video-studio?projectId=${item.project_id}`);
+                }
+              }}
+              disabled={item.type === 'draft'}
+              className="w-full text-left p-2.5 rounded-lg bg-white/[0.02] border border-white/[0.04] hover:border-white/[0.08] transition-all flex items-center justify-between gap-2 disabled:opacity-50"
+              data-testid={`recent-draft-${i}`}
+            >
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-white truncate">{item.title}</p>
+                {item.last_edited && (
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    {new Date(item.last_edited).toLocaleDateString()}
+                  </p>
+                )}
+              </div>
+              <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+                item.status === 'draft' ? 'bg-amber-500/10 text-amber-400' :
+                item.status === 'processing' ? 'bg-blue-500/10 text-blue-400' :
+                'bg-emerald-500/10 text-emerald-400'
+              }`}>
+                {item.status === 'draft' ? 'Draft' : item.status === 'processing' ? 'Rendering' : 'Ready'}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── INPUT PHASE ──────────────────────────────────────────────────────────────
 function InputPhase({ options, title, setTitle, storyText, setStoryText,
   animStyle, setAnimStyle, ageGroup, setAgeGroup, voicePreset, setVoicePreset,
@@ -1516,51 +1595,54 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
                 </p>
               </div>
 
-              {/* Guided Start — only in fresh session when text is empty */}
-              {isFreshSession && !storyText.trim() && (
+              {/* Guided Start V2 — Vibe picker + category ideas */}
+              {isFreshSession && !storyText.trim() && (FEATURES.guidedStartV2 ? (
+                <div className="mt-3 space-y-2" data-testid="guided-start">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs text-slate-500">Pick a vibe:</span>
+                    {['kids', 'drama', 'thriller', 'viral'].map(v => (
+                      <button key={v} type="button" data-testid={`vibe-${v}`}
+                        onClick={async () => {
+                          try {
+                            const res = await api.get(`/api/drafts/idea?vibe=${v}`);
+                            if (res.data?.idea) { setStoryText(res.data.idea); toast.success(`${v.charAt(0).toUpperCase() + v.slice(1)} idea loaded!`); }
+                          } catch { toast.error('Could not generate idea'); }
+                        }}
+                        className="px-2.5 py-1 text-[11px] rounded-full border border-white/10 text-slate-300 hover:bg-white/5 hover:text-white transition-colors capitalize"
+                      >{v}</button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button type="button" data-testid="generate-idea-btn"
+                      onClick={async () => {
+                        try {
+                          const res = await api.get('/api/drafts/idea');
+                          if (res.data?.idea) { setStoryText(res.data.idea); toast.success('Idea generated!'); }
+                        } catch { toast.error('Could not generate idea'); }
+                      }}
+                      className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1"
+                    ><Sparkles className="w-3 h-3" /> Random Idea</button>
+                    <span className="text-slate-600 text-xs">or</span>
+                    <button type="button" data-testid="use-sample-btn"
+                      onClick={() => {
+                        setTitle('The Secret Garden on Mars');
+                        setStoryText('On a dusty red planet where nothing grows, a small girl named Zara discovers a hidden cave filled with glowing plants. Each plant whispers a story from Earth — tales of forests, rivers, and animals she has never seen. When the colony leaders want to seal the cave, Zara must convince them that these stories are worth saving, because without stories, what is a civilization?');
+                        toast.success('Sample story loaded — feel free to edit!');
+                      }}
+                      className="text-xs text-slate-400 hover:text-slate-300 transition-colors flex items-center gap-1"
+                    ><BookOpen className="w-3 h-3" /> Use Sample</button>
+                  </div>
+                </div>
+              ) : isFreshSession && !storyText.trim() && (
                 <div className="flex items-center gap-2 mt-2" data-testid="guided-start">
-                  <button
-                    type="button"
+                  <button type="button" data-testid="generate-idea-btn"
                     onClick={async () => {
-                      try {
-                        const res = await api.get('/api/drafts/idea');
-                        if (res.data?.idea) {
-                          setStoryText(res.data.idea);
-                          toast.success('Idea generated!');
-                        }
-                      } catch {
-                        // Fallback local ideas
-                        const ideas = [
-                          "A lonely robot discovers an abandoned garden on a space station and decides to bring it back to life, one flower at a time.",
-                          "Two rival chefs are trapped in a magical kitchen where every dish they cook comes alive and picks sides in their rivalry.",
-                          "A child finds a pair of glasses that lets them see the dreams of everyone around them — but some dreams are nightmares.",
-                          "A time-traveling librarian must fix a single misplaced book that accidentally erased an entire civilization from history.",
-                          "An old lighthouse keeper realizes the light doesn't guide ships — it keeps something ancient asleep beneath the waves.",
-                        ];
-                        setStoryText(ideas[Math.floor(Math.random() * ideas.length)]);
-                        toast.success('Idea generated!');
-                      }
+                      try { const res = await api.get('/api/drafts/idea'); if (res.data?.idea) { setStoryText(res.data.idea); toast.success('Idea generated!'); } } catch {}
                     }}
                     className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1"
-                    data-testid="generate-idea-btn"
-                  >
-                    <Sparkles className="w-3 h-3" /> Generate Idea
-                  </button>
-                  <span className="text-slate-600 text-xs">or</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTitle('The Secret Garden on Mars');
-                      setStoryText('On a dusty red planet where nothing grows, a small girl named Zara discovers a hidden cave filled with glowing plants. Each plant whispers a story from Earth — tales of forests, rivers, and animals she has never seen. When the colony leaders want to seal the cave, Zara must convince them that these stories are worth saving, because without stories, what is a civilization?');
-                      toast.success('Sample story loaded — feel free to edit!');
-                    }}
-                    className="text-xs text-slate-400 hover:text-slate-300 transition-colors flex items-center gap-1"
-                    data-testid="use-sample-btn"
-                  >
-                    <BookOpen className="w-3 h-3" /> Use Sample Story
-                  </button>
+                  ><Sparkles className="w-3 h-3" /> Generate Idea</button>
                 </div>
-              )}
+              ))}
             </div>
           </div>
 
@@ -1751,6 +1833,11 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
             </button>
           ))}
         </div>
+        )}
+
+        {/* Recent Drafts Panel — appears in fresh session after typing 20+ chars */}
+        {FEATURES.recentDraftsPanel && isFreshSession && storyText.trim().length >= 20 && (
+          <RecentDraftsPanel onViewJob={onViewJob} />
         )}
       </div>
     </div>
@@ -3006,6 +3093,65 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
             parentGenerationId={jobId || job?.job_id}
             remixSourceTitle={displayTitle}
           />
+
+          {/* ═══ POST-GENERATION LOOP — Retention CTAs ═══ */}
+          {FEATURES.postGenerationLoop && (
+            <div className="space-y-2 pt-2 border-t border-white/[0.06]" data-testid="post-gen-loop">
+              <p className="text-xs text-slate-500 uppercase tracking-wider font-medium">Keep creating</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <button
+                  onClick={() => {
+                    try { api.post('/api/funnel/track', { event: 'rewrite_with_twist', data: { job_id: jobId || job?.job_id } }); } catch {}
+                    navigate('/app/story-video-studio', {
+                      state: { freshSession: true, remixFrom: { title: displayTitle, type: 'rewrite_twist' } },
+                    });
+                  }}
+                  className="flex items-center gap-2 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] hover:border-violet-500/20 transition-all text-left"
+                  data-testid="loop-rewrite-twist"
+                >
+                  <Sparkles className="w-4 h-4 text-violet-400 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs font-semibold text-white">Rewrite with twist</p>
+                    <p className="text-[10px] text-slate-500">Same story, unexpected ending</p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    try { api.post('/api/funnel/track', { event: 'change_style', data: { job_id: jobId || job?.job_id, current_style: currentStyle } }); } catch {}
+                    navigate('/app/story-video-studio', {
+                      state: {
+                        freshSession: true,
+                        prefill: { title: displayTitle, storyText: storyText || job?.story_text || '' },
+                      },
+                    });
+                  }}
+                  className="flex items-center gap-2 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] hover:border-sky-500/20 transition-all text-left"
+                  data-testid="loop-change-style"
+                >
+                  <Image className="w-4 h-4 text-sky-400 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs font-semibold text-white">Change style</p>
+                    <p className="text-[10px] text-slate-500">Same story, new look</p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    try { api.post('/api/funnel/track', { event: 'enter_battle_from_result', data: { job_id: jobId || job?.job_id } }); } catch {}
+                    const rootId = job?.parent_job_id || job?.root_story_id || jobId;
+                    navigate(`/app/story-battle/${rootId}`);
+                  }}
+                  className="flex items-center gap-2 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] hover:border-rose-500/20 transition-all text-left"
+                  data-testid="loop-enter-battle"
+                >
+                  <Swords className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs font-semibold text-white">Enter battle</p>
+                    <p className="text-[10px] text-slate-500">Compete for #1</p>
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* New Video */}
           <Button onClick={() => {

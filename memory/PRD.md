@@ -142,7 +142,8 @@ Paywall Modal → Cashfree SDK → Verify → Credits Added → Resume Action
 ---
 
 ## All Completed Systems
-- Studio Creation Engine (Apr 14): (1) Project Identity verified (unique job_id per project, URL-based routing via ?projectId). (2) Draft Persistence — auto-save every 3s after changes, resume modal on re-entry ("Continue" / "Start Fresh"), draft cleared on generation. (3) Navigation Guard — beforeunload warning when content > 20 chars. (4) Guided Start — "Generate Idea" (random AI prompt from 10 curated ideas) + "Use Sample Story" (pre-fills complete editable story) shown in fresh session when text empty.
+- Studio Creation Engine V2 (Apr 14): Full sprint with feature flags. (1) Draft Safety — status-based lifecycle (draft→processing→completed), failure recovery reverts to draft, NEVER deletes. (2) Post-Generation Loop — "Rewrite with twist" / "Change style" / "Enter battle" CTAs after video result. (3) Recent Drafts Panel — collapsed sidebar showing 3 items with title, date, status badge (Draft/Rendering/Ready), expands on click, appears after 20+ chars typed. (4) Guided Start V2 — vibe picker (Kids/Drama/Thriller/Viral) with 16 category-specific prompts + "Random Idea" + "Use Sample".
+- Studio Creation Engine (Apr 14): Project Identity, Draft Persistence V1, Navigation Guard, Guided Start V1.
 - Studio Fresh Session Fix (Apr 14): "Write Your Own Story" now opens a clean blank studio with no "Recent Videos" sidebar.
 - P0.5 Performance Hardening (Apr 14): Consolidated 7 dashboard API calls into single `/api/dashboard/init` endpoint. Dashboard load: 5.07s → 2.47s (first), 1.89s (repeat).
 - P0 Performance Sprint (Apr 14): Route-level code splitting (141 eager → 5 eager + 136 lazy). Backend TTL caching for feed/battle endpoints. Image lazy loading on feed cards.
