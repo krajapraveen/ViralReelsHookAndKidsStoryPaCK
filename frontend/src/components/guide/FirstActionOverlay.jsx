@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProductGuide } from '../../contexts/ProductGuideContext';
-import { Play, ArrowRight, Sparkles } from 'lucide-react';
+import { Play, ArrowRight, Sparkles, X } from 'lucide-react';
 
 export default function FirstActionOverlay() {
   const { progress, loading } = useProductGuide();
@@ -16,6 +16,7 @@ export default function FirstActionOverlay() {
     const hasGenerated = (progress.total_generations || 0) > 0;
     const dismissed = progress.guide_dismissed;
     const overlayDismissed = sessionStorage.getItem('first_action_done');
+    const permanentlyDismissed = localStorage.getItem('onboarding_dismissed');
 
     // Skip for admin users
     try {
@@ -23,7 +24,7 @@ export default function FirstActionOverlay() {
       if (user.role === 'ADMIN' || user.role === 'admin') return;
     } catch { /* ignore */ }
 
-    if (!hasGenerated && !dismissed && !overlayDismissed) {
+    if (!hasGenerated && !dismissed && !overlayDismissed && !permanentlyDismissed) {
       setShow(true);
       requestAnimationFrame(() => {
         requestAnimationFrame(() => setAnimateIn(true));
@@ -42,13 +43,22 @@ export default function FirstActionOverlay() {
     }, 300);
   };
 
+  const handleDismiss = () => {
+    setAnimateIn(false);
+    sessionStorage.setItem('first_action_done', '1');
+    localStorage.setItem('onboarding_dismissed', 'true');
+    setTimeout(() => {
+      setShow(false);
+    }, 300);
+  };
+
   return (
     <div
       className={`fixed inset-0 z-[10500] flex items-center justify-center transition-all duration-500 ${animateIn ? 'opacity-100' : 'opacity-0'}`}
       data-testid="first-action-overlay"
     >
-      {/* Darkened background — blocks all interaction */}
-      <div className="absolute inset-0 bg-black/85 backdrop-blur-md" />
+      {/* Darkened background — click to dismiss */}
+      <div className="absolute inset-0 bg-black/85 backdrop-blur-md" onClick={handleDismiss} />
 
       {/* Content card */}
       <div
@@ -58,6 +68,16 @@ export default function FirstActionOverlay() {
         <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-3xl opacity-20 blur-xl" />
 
         <div className="relative bg-slate-900/95 border border-slate-700/60 rounded-3xl p-8 shadow-2xl text-center">
+          {/* Close button — top right */}
+          <button
+            onClick={handleDismiss}
+            className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-white/[0.06] hover:bg-white/[0.12] transition-colors"
+            data-testid="first-action-close-btn"
+            aria-label="Close"
+          >
+            <X className="w-5 h-5 text-white/60" />
+          </button>
+
           {/* Icon */}
           <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
             <Sparkles className="w-8 h-8 text-white" />
@@ -87,8 +107,17 @@ export default function FirstActionOverlay() {
             <ArrowRight className="w-5 h-5" />
           </button>
 
+          {/* Skip link */}
+          <button
+            onClick={handleDismiss}
+            className="mt-4 text-sm text-slate-500 hover:text-slate-300 transition-colors"
+            data-testid="first-action-skip-btn"
+          >
+            Skip for now
+          </button>
+
           {/* Progress hint */}
-          <div className="mt-6 flex items-center justify-center gap-2">
+          <div className="mt-5 flex items-center justify-center gap-2">
             <div className="flex gap-1.5">
               <div className="w-8 h-1.5 rounded-full bg-indigo-500" />
               <div className="w-8 h-1.5 rounded-full bg-slate-700" />
