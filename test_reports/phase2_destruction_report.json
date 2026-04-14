@@ -1,0 +1,147 @@
+{
+  "scenarios": [
+    {
+      "name": "A1-StaleToken",
+      "status": "PASS",
+      "proof": "All endpoints reject stale tokens",
+      "state": "Auth verified",
+      "why": "JWT validation works"
+    },
+    {
+      "name": "A4-IDOR",
+      "status": "PASS",
+      "proof": "HTTP 403",
+      "state": "Blocked",
+      "why": "Auth check works"
+    },
+    {
+      "name": "P1-WebhookReplay",
+      "status": "PASS",
+      "proof": "Both rejected with 403 (sig validation)",
+      "state": "Signature check blocks replays",
+      "why": "Webhook security working"
+    },
+    {
+      "name": "C2-DraftRace",
+      "status": "DEFECT",
+      "proof": "2 active drafts",
+      "state": "Upsert race",
+      "why": "MongoDB upsert not fully atomic"
+    },
+    {
+      "name": "ANL1-Dedup",
+      "status": "DEFECT",
+      "proof": "5 events stored",
+      "state": "No server dedup",
+      "why": "Backend trusts client dedup only"
+    },
+    {
+      "name": "ANL2-Attribution",
+      "status": "PASS",
+      "proof": "instagram correctly stored",
+      "state": "Attribution accurate",
+      "why": "Context propagated"
+    },
+    {
+      "name": "SEC1-XSS",
+      "status": "DEFECT",
+      "proof": "1 passed through",
+      "state": "XSS vulnerable",
+      "why": "Sanitization incomplete"
+    },
+    {
+      "name": "C6-Negative",
+      "status": "PASS",
+      "proof": "0 negative",
+      "state": "Credit floor enforced",
+      "why": "All >= 0"
+    },
+    {
+      "name": "F1-PrivateLeak",
+      "status": "PASS",
+      "proof": "All READY",
+      "state": "No leak",
+      "why": "Filter correct"
+    },
+    {
+      "name": "AD3-AdminBypass",
+      "status": "PASS",
+      "proof": "All blocked",
+      "state": "Role enforcement works",
+      "why": "Middleware correct"
+    },
+    {
+      "name": "M2-Media",
+      "status": "DEFECT",
+      "proof": "6 broken",
+      "state": "Media integrity issue",
+      "why": "URL or proxy failure"
+    },
+    {
+      "name": "PERF1-Load",
+      "status": "PASS",
+      "proof": "ok=15, err=0",
+      "state": "Stable",
+      "why": "Handles 15 concurrent"
+    },
+    {
+      "name": "K1-CreditGate",
+      "status": "PASS",
+      "proof": "Credits 13 < required 21, gate active",
+      "state": "Low balance blocked",
+      "why": "Pre-flight check works"
+    }
+  ],
+  "defects": [
+    {
+      "title": "Race condition: multiple active drafts created",
+      "module": "Studio",
+      "severity": "High",
+      "setup": "10 concurrent saves",
+      "steps": "POST /api/drafts/save x10",
+      "expected": "1 draft (upsert)",
+      "actual": "2 drafts",
+      "evidence": "",
+      "root": "drafts.py upsert"
+    },
+    {
+      "title": "session_started not deduplicated server-side",
+      "module": "Analytics",
+      "severity": "Medium",
+      "setup": "5x same event same session",
+      "steps": "POST /api/funnel/track x5",
+      "expected": "1 stored (dedup)",
+      "actual": "5 stored",
+      "evidence": "sid=dedup-01f0c7",
+      "root": "funnel_tracking.py"
+    },
+    {
+      "title": "XSS vectors stored unsanitized",
+      "module": "Security",
+      "severity": "Critical",
+      "setup": "6 XSS payloads",
+      "steps": "Save+retrieve draft",
+      "expected": "All stripped",
+      "actual": "Stored: ['javascript:alert(1)']",
+      "evidence": "",
+      "root": "drafts.py sanitize_input"
+    },
+    {
+      "title": "Media URLs inaccessible",
+      "module": "Media",
+      "severity": "High",
+      "setup": "Check 3 READY jobs",
+      "steps": "HEAD on URLs",
+      "expected": "200/302",
+      "actual": "Broken: ['6ade2a58-60e2-4705-ad6e-95646e0f4168:output_url=405', '6ade2a58-60e2-4705-ad6e-95646e0f4168:thumbnail_url=405', 'b95498d4-2e2a-4472-8dac-f8a253d07dfd:output_url=405', 'b95498d4-2e2a-4472-8dac-f8a253d07dfd:thumbnail_url=405', '261430a2-28f5-4c40-bac2-35f8d275fae7:output_url=405', '261430a2-28f5-4c40-bac2-35f8d275fae7:thumbnail_url=405']",
+      "evidence": "",
+      "root": "R2 proxy"
+    }
+  ],
+  "summary": {
+    "total": 13,
+    "pass": 9,
+    "defect": 4,
+    "bugs": 4
+  }
+}

@@ -115,6 +115,15 @@ async def track_funnel_event(request: Request):
     ctx = body.get("context", {})
     ua = request.headers.get("user-agent", "")
 
+    # Server-side dedup: critical once-per-session events
+    DEDUP_EVENTS = {"session_started", "session_ended", "typing_started"}
+    if step in DEDUP_EVENTS:
+        existing = await db.funnel_events.find_one(
+            {"session_id": session_id, "step": step}, {"_id": 1}
+        )
+        if existing:
+            return {"success": True, "session_id": session_id, "dedup": True}
+
     event = {
         "event": step,
         "step": step,

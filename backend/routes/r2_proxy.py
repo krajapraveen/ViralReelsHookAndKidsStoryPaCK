@@ -64,6 +64,7 @@ CONTENT_TYPES = {
 
 
 @router.get("/r2/{path:path}")
+@router.head("/r2/{path:path}")
 async def r2_proxy(path: str, request: Request):
     """
     Proxy R2 media content. Generates a presigned URL and redirects (302),
