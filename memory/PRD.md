@@ -1,4 +1,4 @@
-# Visionary Suite — PRD (Updated Apr 14, 2026)
+# Visionary Suite — PRD
 
 ## Architecture
 - React + FastAPI + MongoDB + Cloudflare R2 + Cashfree
@@ -10,45 +10,65 @@
 
 ---
 
-## Phase 3+4 Testing Summary (Apr 14)
+## Systems Built This Session (Apr 14)
 
-### Kill-Sheet Results: 38 tests | PASS: 36 | FAIL: 1 (fixed) | BLOCKED: 2
+### 1. Red Flag Alert System
+- **7 invariant checks** running on every guardrail request
+- Alerts persist in `system_alerts` collection with severity, count, first_seen_at, last_seen_at, sample_entity_ids
+- Auto-dedup: same invariant/entity doesn't spam
+- Auto-resolve: when invariant returns healthy, open alerts close
 
-### Bugs Found Across All Phases
+### 2. Guardrail Endpoint (`GET /api/admin/guardrails`)
+- Admin-only (403 for standard users)
+- Returns per invariant: status, name, severity, count, sample_ids, last_triggered_at, trigger_count
+- Overall healthy/unhealthy flag
+- Sub-endpoints: `/alerts` (open), `/history` (N-day history)
 
-| Bug | Severity | Status | Fix |
-|-----|----------|--------|-----|
-| Draft race (50 concurrent) | High | FIXED | MongoDB unique partial index + upsert with DuplicateKey fallback |
-| Analytics dedup (session_started) | Medium | FIXED | Server-side DEDUP_EVENTS check |
-| XSS: `javascript:` bypass | Critical | FIXED | Case-insensitive regex for javascript/vbscript/data URI schemes |
-| XSS: `JaVaScRiPt:` mixed case | Critical | FIXED | Same regex fix (re.IGNORECASE) |
-| R2 HEAD 403 | Low | Known | R2 limitation, GET works, not user-facing |
+### Invariants Monitored:
+| Key | Severity | What It Catches |
+|-----|----------|-----------------|
+| negative_credits | Critical | Any user with credits < 0 |
+| duplicate_credit_grants | Critical | Same order_id credited twice |
+| multiple_active_drafts | High | User with >1 draft (status=draft) |
+| orphan_processing_jobs | High | Jobs stuck PROCESSING >30min |
+| analytics_session_duplication | Medium | session_started >1 per session_id |
+| payment_without_credit | Critical | PAID order without ledger entry |
+| private_content_leak | High | Non-READY content in public queries |
 
-### What Survived Destruction
-- 50 concurrent draft saves → 1 draft (unique index enforced)
-- 10x session_started → 1 stored (server dedup)
-- Webhook replay → 403 (signature validation)
-- Stale token → 401 on all endpoints
-- IDOR → 403 on non-owner job access
-- No negative credits in DB
-- No duplicate feed cards
-- No private content in feed
-- Admin APIs blocked for standard users
-- Media re-fetchable via presigned URLs
-- Event ordering preserved chronologically
-- Attribution correct (direct/instagram/share_link)
-- 6/6 XSS vectors sanitized (script, onerror, onload, javascript:, svg, data:)
-- Credits consistent across repeated requests
-- Battle scores correctly ordered
+### 3. XSS Hardening (15 vectors tested)
+- Case-insensitive regex: `(?i)(javascript|vbscript|data)\s*:`
+- bleach.clean() strips all HTML tags
+- html.escape() escapes remaining chars
+- 15/15 vectors pass: URL-encoded, entity-encoded, mixed-case, whitespace, tab, newline, href, data URI, markdown link, double-encoded, SVG, img, body, style, unicode
 
-### Ship Recommendation
-READY FOR LIMITED TRAFFIC with monitoring on:
-- Credits/ledger drift
-- Analytics event counts
-- Error rates
-- Session durations
+### 4. Draft Race Condition Fix
+- MongoDB unique partial index: `one_active_draft_per_user`
+- Upsert with DuplicateKeyError fallback
+- Tested: 50 concurrent saves → exactly 1 draft
+
+### 5. Analytics Server-Side Dedup
+- DEDUP_EVENTS: session_started, session_ended, typing_started
+- Checks existing event before insert
+- Cleaned 25 duplicate events from pre-fix testing
+
+---
+
+## All Bugs Found & Fixed Across All Phases
+
+| # | Bug | Severity | Phase | Status |
+|---|-----|----------|-------|--------|
+| 1 | XSS in draft save (script/onerror) | Critical | P2 | FIXED |
+| 2 | Draft race (50 concurrent → 2 drafts) | High | P2 | FIXED (unique index) |
+| 3 | Analytics dedup (5x session_started) | Medium | P2 | FIXED (server dedup) |
+| 4 | `javascript:` bypass (exact case) | Critical | P2 | FIXED (regex) |
+| 5 | `JaVaScRiPt:` mixed case bypass | Critical | P3 | FIXED (case-insensitive regex) |
+| 6 | R2 HEAD 403 | Low | P2 | Known (R2 limitation, GET works) |
+| 7 | Draft race under network instability | High | P3 | FIXED (unique index) |
+
+## Ship Status
+**READY FOR LIMITED TRAFFIC** with guardrails active.
 
 ## Backlog
-- P0: Push 20-50 real users via Instagram reel
-- P1: WebP/AVIF optimization, threshold tuning
-- P2: Celery queue, category AI hooks
+- P0: Push 20-50 users with monitoring
+- P1: WebP/AVIF, threshold tuning, staging payment fault injection
+- P2: Celery, category AI hooks, battle recomputation testing
