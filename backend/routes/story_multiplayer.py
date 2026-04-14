@@ -1436,11 +1436,14 @@ async def get_hottest_battle(current_user: dict = Depends(get_optional_user)):
                 {"job_id": root_id},
                 {"root_story_id": root_id, "continuation_type": "branch",
                  "state": {"$in": ["READY", "PARTIAL_READY", "COMPLETED"]}},
+                {"parent_job_id": root_id,
+                 "state": {"$in": ["READY", "PARTIAL_READY", "COMPLETED"]}},
             ],
         },
         {
             "_id": 0, "job_id": 1, "title": 1, "user_id": 1,
             "battle_score": 1, "total_children": 1, "total_views": 1, "total_shares": 1,
+            "output_url": 1, "thumbnail_url": 1,
         }
     ).sort("battle_score", -1).limit(5).to_list(5)
 
@@ -1565,6 +1568,7 @@ async def get_battle_pulse(
             "$or": [
                 {"job_id": root_story_id},
                 {"root_story_id": root_story_id, "continuation_type": "branch"},
+                {"parent_job_id": root_story_id},
             ],
             "state": {"$in": ["READY", "PARTIAL_READY", "COMPLETED", "QUEUED", "INIT",
                               "PLANNING", "GENERATING_KEYFRAMES", "GENERATING_SCENE_CLIPS",
@@ -1572,7 +1576,7 @@ async def get_battle_pulse(
         },
         {"_id": 0, "job_id": 1, "title": 1, "user_id": 1, "battle_score": 1,
          "total_views": 1, "total_children": 1, "created_at": 1, "state": 1,
-         "quick_shot": 1}
+         "quick_shot": 1, "output_url": 1, "thumbnail_url": 1}
     ).sort("battle_score", -1).to_list(50)
 
     if not entries:
@@ -1602,6 +1606,8 @@ async def get_battle_pulse(
             "score": e.get("battle_score", 0),
             "views": e.get("total_views", 0),
             "is_mine": e.get("user_id") == user_id,
+            "output_url": e.get("output_url"),
+            "thumbnail_url": e.get("thumbnail_url"),
         }
         ranked.append(item)
         if e.get("user_id") == user_id and user_rank is None:
