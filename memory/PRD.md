@@ -142,7 +142,8 @@ Paywall Modal → Cashfree SDK → Verify → Credits Added → Resume Action
 ---
 
 ## All Completed Systems
-- CTA Route Separation Fix (Apr 13): "Write Your Own Story" → fresh studio (/app/story-video-studio). "Beat the Leader" → battle leaderboard (/app/story-battle/{rootId}). Previously both went to studio. Updated labels, descriptions, and CTA text to match destination intent.
+- P0 Performance Sprint (Apr 14): Route-level code splitting (141 eager imports → 5 eager + 136 lazy via React.lazy/Suspense). Backend TTL caching (15s) for hottest-battle and feed/discover endpoints. Image lazy loading on feed cards. Skeleton loader for lazy routes. ~130+ page components now loaded on demand instead of upfront.
+- CTA Route Separation Fix (Apr 13): "Write Your Own Story" → fresh studio. "Beat the Leader" → battle leaderboard. Updated labels and copy.
 - UX Trust Fixes (Apr 13): (1) PostValueOverlay suppressed on first visit — only triggers after user has navigated away once. (2) Hero "Claim Your Rank" CTA now navigates to battle page first, paywall only on action attempt. Credit-aware micro-copy: "Entry requires credits · View the battle first, then decide". (3) Seeded 4 diverse battle themes (Midnight in Tokyo/anime, The Last Laugh/cartoon, Echoes of Mars/sci-fi, Recipe for Disaster/watercolor) to eliminate content repetition perception.
 - Google Sign-In Hardened (Apr 13): Popup cancel → toast + re-enable. Rapid clicks → disabled guard. Backend error → clear toast. Loading overlay during exchange.
 - P0 Google Sign-In Fix (Apr 13): Replaced broken `GoogleLogin` iframe component with `useGoogleLogin` popup hook. Custom styled button opens Google's OAuth popup directly. Backend verifies via access_token flow. No more iframe blocking.

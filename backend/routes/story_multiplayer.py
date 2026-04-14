@@ -17,16 +17,21 @@ New fields on story_engine_jobs:
 import os
 import sys
 import logging
+import time
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel, Field
+from cachetools import TTLCache
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from shared import db, get_current_user, get_optional_user
 
 logger = logging.getLogger("story_multiplayer")
 router = APIRouter(prefix="/stories", tags=["Story Multiplayer"])
+
+# In-memory TTL cache for hot endpoints (reduces DB load on repeated dashboard loads)
+_cache = TTLCache(maxsize=32, ttl=15)  # 15s TTL, keeps data fresh enough
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1383,9 +1388,14 @@ async def check_and_send_rank_notifications(job_id: str, parent_job_id: str):
 @router.get("/hottest-battle")
 async def get_hottest_battle(current_user: dict = Depends(get_optional_user)):
     """
-    Find the hottest active battle — the story root with the most branches + highest total activity.
-    Used for the Spectator Mode on the homepage.
+    Find the hottest active battle. Cached 15s to avoid repeated aggregation on dashboard load.
     """
+    user_id = current_user.get("id") if current_user else None
+    cache_key = f"hottest:{user_id or 'anon'}"
+    cached = _cache.get(cache_key)
+    if cached:
+        return cached
+
     # Find story roots with the most branches (most competitive)
     pipeline_agg = [
         {"$match": {
@@ -1485,7 +1495,7 @@ async def get_hottest_battle(current_user: dict = Depends(get_optional_user)):
             "state": {"$in": ["READY", "PARTIAL_READY", "COMPLETED"]},
         }) > 0
 
-    return {
+    result = {
         "success": True,
         "battle": {
             "root_story_id": root_id,
@@ -1498,12 +1508,13 @@ async def get_hottest_battle(current_user: dict = Depends(get_optional_user)):
             "near_win": near_win,
             "gap_to_first": gap_to_first,
             "gap_continues_to_first": gap_continues_to_first,
-            # Conversion personalization
             "user_entry_count": user_entry_count,
             "user_is_new": user_is_new,
             "user_already_in_battle": user_already_in_battle,
         },
     }
+    _cache[cache_key] = result
+    return result
 
 
 @router.get("/notifications/battle")
@@ -1738,8 +1749,13 @@ async def discover_stories(
 ):
     """
     Public discovery feed — ALL public stories from ALL users.
-    Paginated, filterable. This is the core cross-user discovery endpoint.
+    Paginated, filterable. Cached for 15s to speed up repeated dashboard loads.
     """
+    cache_key = f"feed:{sort_by}:{limit}:{offset}"
+    cached = _cache.get(cache_key)
+    if cached:
+        return cached
+
     sort_key = {
         "latest": [("created_at", -1)],
         "trending": [("battle_score", -1)],
@@ -1797,7 +1813,7 @@ async def discover_stories(
         "is_seed_content": {"$ne": True},
     })
 
-    return {
+    result = {
         "success": True,
         "stories": stories,
         "total": total,
@@ -1805,6 +1821,8 @@ async def discover_stories(
         "limit": limit,
         "has_more": offset + limit < total,
     }
+    _cache[cache_key] = result
+    return result
 
 
 @router.get("/feed/continue-watching")

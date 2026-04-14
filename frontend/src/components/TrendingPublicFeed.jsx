@@ -157,6 +157,7 @@ function TrendingCard({ story, index, navigate }) {
           <img
             src={preview?.poster_url || story.thumbnail_url}
             alt=""
+            loading="lazy"
             className="w-full h-full object-cover kenburns-auto group-hover:animation-none"
           />
         ) : (
