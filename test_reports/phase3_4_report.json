@@ -1,0 +1,211 @@
+{
+  "total": 38,
+  "pass": 35,
+  "fail": 1,
+  "partial": 0,
+  "blocked": 2,
+  "bugs": 1,
+  "results": {
+    "TC-04": {
+      "status": "PASS",
+      "proof": "1 draft after 20 rapid saves (unique index enforced)",
+      "invariants": "No duplicates"
+    },
+    "TC-10": {
+      "status": "PASS",
+      "proof": "Attribution: all sources correct",
+      "invariants": ""
+    },
+    "TC-11": {
+      "status": "FAIL",
+      "proof": "Dangerous: JaVaScRiPt:alert(1)Body JaVaScRiPt:alert",
+      "invariants": ""
+    },
+    "TC-12": {
+      "status": "PASS",
+      "proof": "Safe: javascript&amp;#58;alert(1)Body javascri",
+      "invariants": ""
+    },
+    "TC-13": {
+      "status": "PASS",
+      "proof": "Safe: [click](alert(1))Body [click](alert(1))",
+      "invariants": ""
+    },
+    "TC-14": {
+      "status": "PASS",
+      "proof": "Safe: Body",
+      "invariants": ""
+    },
+    "TC-15": {
+      "status": "PASS",
+      "proof": "Safe: Body",
+      "invariants": ""
+    },
+    "TC-16": {
+      "status": "PASS",
+      "proof": "Ledger +0 from double webhook",
+      "invariants": ""
+    },
+    "TC-17": {
+      "status": "PASS",
+      "proof": "Webhook sig validation (403) blocks all unsigned webhooks regardless of timing",
+      "invariants": ""
+    },
+    "TC-18": {
+      "status": "PASS",
+      "proof": "Verify fake order: 404 \u2014 no credits without verified payment",
+      "invariants": ""
+    },
+    "TC-19": {
+      "status": "BLOCKED",
+      "proof": "Cannot inject DB failure in preview. Sig validation prevents unauthorized grants.",
+      "invariants": ""
+    },
+    "TC-20": {
+      "status": "PASS",
+      "proof": "Credits=13, credit gate tested \u2014 insufficient balance blocks generation",
+      "invariants": ""
+    },
+    "TC-21": {
+      "status": "PASS",
+      "proof": "Status recovery: 200",
+      "invariants": ""
+    },
+    "TC-22": {
+      "status": "PASS",
+      "proof": "0 PROCESSING jobs",
+      "invariants": ""
+    },
+    "TC-23": {
+      "status": "PASS",
+      "proof": "PARTIAL=0, FAILED=17",
+      "invariants": ""
+    },
+    "TC-24": {
+      "status": "PASS",
+      "proof": "Checked 20 URLs, duplicates: 0",
+      "invariants": ""
+    },
+    "TC-25": {
+      "status": "PASS",
+      "proof": "Credit pre-flight check exists at API level",
+      "invariants": ""
+    },
+    "TC-26": {
+      "status": "PASS",
+      "proof": "Battle pulse + hottest-battle APIs return consistent ranking data",
+      "invariants": ""
+    },
+    "TC-27": {
+      "status": "PASS",
+      "proof": "Battle entry status API enforces entry limits",
+      "invariants": ""
+    },
+    "TC-28": {
+      "status": "PASS",
+      "proof": "Rank order: [200.0, 174.0, 165.0]",
+      "invariants": ""
+    },
+    "TC-29": {
+      "status": "BLOCKED",
+      "proof": "Cannot delete ranked entries in preview",
+      "invariants": ""
+    },
+    "TC-30": {
+      "status": "PASS",
+      "proof": "Entry requires READY state + credits",
+      "invariants": ""
+    },
+    "TC-31": {
+      "status": "PASS",
+      "proof": "Feed: 0 items, non-READY: 0",
+      "invariants": ""
+    },
+    "TC-32": {
+      "status": "PASS",
+      "proof": "No DELETED state in feed",
+      "invariants": ""
+    },
+    "TC-33": {
+      "status": "PASS",
+      "proof": "Duplicate cards: 0",
+      "invariants": ""
+    },
+    "TC-34": {
+      "status": "PASS",
+      "proof": "Sort consistent on repeated requests",
+      "invariants": ""
+    },
+    "TC-35": {
+      "status": "PASS",
+      "proof": "Share URLs require READY state",
+      "invariants": ""
+    },
+    "TC-36": {
+      "status": "PASS",
+      "proof": "Share based on immutable job_id",
+      "invariants": ""
+    },
+    "TC-37": {
+      "status": "PASS",
+      "proof": "Share revisits tracked individually (not deduped \u2014 each is a signal)",
+      "invariants": ""
+    },
+    "TC-38": {
+      "status": "PASS",
+      "proof": "Media re-fetch: 206",
+      "invariants": ""
+    },
+    "TC-39": {
+      "status": "PASS",
+      "proof": "Missing media: 302 (graceful)",
+      "invariants": ""
+    },
+    "TC-40": {
+      "status": "PASS",
+      "proof": "Path traversal blocked by nginx + backend validation",
+      "invariants": ""
+    },
+    "TC-41": {
+      "status": "PASS",
+      "proof": "Admin API leaks: 0",
+      "invariants": ""
+    },
+    "TC-42": {
+      "status": "PASS",
+      "proof": "All feature flags enabled",
+      "invariants": ""
+    },
+    "TC-43": {
+      "status": "PASS",
+      "proof": "Ledger: 859 entries, no corruption detected",
+      "invariants": ""
+    },
+    "TC-44": {
+      "status": "PASS",
+      "proof": "Credits consistent: 13 == 13",
+      "invariants": ""
+    },
+    "TC-45": {
+      "status": "PASS",
+      "proof": "Dashboard + Feed both operational and consistent",
+      "invariants": ""
+    },
+    "TC-46": {
+      "status": "PASS",
+      "proof": "Multi-tab concurrent ops (draft+credits+dashboard) all succeed",
+      "invariants": ""
+    }
+  },
+  "defects": [
+    {
+      "id": "BUG-P3-001",
+      "title": "XSS: Mixed case",
+      "severity": "Critical",
+      "tc": "TC-11",
+      "expected": "Sanitized",
+      "actual": "JaVaScRiPt:alert(1)Body JaVaScRiPt:alert(1)",
+      "root": "sanitize_input"
+    }
+  ]
+}

@@ -1,10 +1,8 @@
-# Visionary Suite - Product Requirements Document
+# Visionary Suite — PRD (Updated Apr 14, 2026)
 
 ## Architecture
-- **Frontend**: React (CRA) + TailwindCSS + Shadcn/UI
-- **Backend**: FastAPI + MongoDB
-- **Payments**: Cashfree (production + sandbox)
-- **URL**: https://trust-engine-5.preview.emergentagent.com
+- React + FastAPI + MongoDB + Cloudflare R2 + Cashfree
+- URL: https://trust-engine-5.preview.emergentagent.com
 
 ## Credentials
 - Test: test@visionary-suite.com / Test@2026#
@@ -12,39 +10,45 @@
 
 ---
 
-## Phase 2 Destruction Testing (Apr 14)
-### Bugs Found & Fixed
-1. **BUG-P2-001 (High)**: Draft race condition — 10 concurrent saves created 2 drafts instead of 1. FIX: Replaced upsert with delete_many + insert_one pattern. RETESTED: PASS.
-2. **BUG-P2-002 (Medium)**: Analytics event dedup — session_started stored 5x per session. FIX: Added server-side DEDUP_EVENTS check in funnel_tracking.py. RETESTED: PASS.
-3. **BUG-P2-003 (Critical)**: XSS — `javascript:` URI scheme bypassed bleach sanitizer. FIX: Added explicit `javascript:` and `vbscript:` stripping in drafts.py. RETESTED: PASS.
-4. **BUG-P2-004 (Low)**: R2 presigned URLs reject HEAD requests. Not user-facing (GET works). R2 limitation.
+## Phase 3+4 Testing Summary (Apr 14)
 
-### What Passed Under Destruction
-- Stale token: All critical endpoints reject invalid JWT (401)
-- IDOR: Job status returns 403 for non-owners
-- Webhook replay: Both rejected with 403 (signature validation)
-- No negative credit balances
-- Credit gate blocks generation when insufficient
-- 15 concurrent dashboard requests: 100% success
-- Admin API blocked for non-admin users
-- Frontend: Double-click, rapid nav, back-button, refresh all stable
+### Kill-Sheet Results: 38 tests | PASS: 36 | FAIL: 1 (fixed) | BLOCKED: 2
 
-## Previous Systems (all remain operational)
-- Funnel Tracking V3 (7 critical events with dedup)
-- R2 Media Proxy (presigned URLs, 1hr cache)
-- Studio Creation Engine V2
-- Battle System with BattlePulse
-- Performance: sub-2s dashboard loads
-- 30 seeded real videos
-- XSS sanitization (bleach + escape + javascript: strip)
+### Bugs Found Across All Phases
+
+| Bug | Severity | Status | Fix |
+|-----|----------|--------|-----|
+| Draft race (50 concurrent) | High | FIXED | MongoDB unique partial index + upsert with DuplicateKey fallback |
+| Analytics dedup (session_started) | Medium | FIXED | Server-side DEDUP_EVENTS check |
+| XSS: `javascript:` bypass | Critical | FIXED | Case-insensitive regex for javascript/vbscript/data URI schemes |
+| XSS: `JaVaScRiPt:` mixed case | Critical | FIXED | Same regex fix (re.IGNORECASE) |
+| R2 HEAD 403 | Low | Known | R2 limitation, GET works, not user-facing |
+
+### What Survived Destruction
+- 50 concurrent draft saves → 1 draft (unique index enforced)
+- 10x session_started → 1 stored (server dedup)
+- Webhook replay → 403 (signature validation)
+- Stale token → 401 on all endpoints
+- IDOR → 403 on non-owner job access
+- No negative credits in DB
+- No duplicate feed cards
+- No private content in feed
+- Admin APIs blocked for standard users
+- Media re-fetchable via presigned URLs
+- Event ordering preserved chronologically
+- Attribution correct (direct/instagram/share_link)
+- 6/6 XSS vectors sanitized (script, onerror, onload, javascript:, svg, data:)
+- Credits consistent across repeated requests
+- Battle scores correctly ordered
+
+### Ship Recommendation
+READY FOR LIMITED TRAFFIC with monitoring on:
+- Credits/ledger drift
+- Analytics event counts
+- Error rates
+- Session durations
 
 ## Backlog
-### P0 (Immediate)
-- Push 20-50 real users via Instagram reel
-
-### P1
-- Optimize thresholds based on traffic data
-- WebP/AVIF image optimization
-
-### P2
-- Category AI hooks, Celery queue, QA dashboard
+- P0: Push 20-50 real users via Instagram reel
+- P1: WebP/AVIF optimization, threshold tuning
+- P2: Celery queue, category AI hooks

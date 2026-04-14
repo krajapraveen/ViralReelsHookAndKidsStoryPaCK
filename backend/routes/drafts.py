@@ -41,13 +41,28 @@ async def save_draft(data: DraftSave, current_user: dict = Depends(get_current_u
     safe_title = sanitize_input(data.title, max_length=500)
     safe_story = sanitize_input(data.story_text, max_length=10000)
 
-    # Strip javascript: protocol (not caught by bleach)
-    safe_title = safe_title.replace("javascript:", "").replace("vbscript:", "")
-    safe_story = safe_story.replace("javascript:", "").replace("vbscript:", "")
+    # Strip dangerous URI schemes (case-insensitive — catches JaVaScRiPt:, JAVASCRIPT:, etc.)
+    import re as _re
+    _uri_pattern = _re.compile(r'(?i)(javascript|vbscript|data)\s*:', _re.IGNORECASE)
+    safe_title = _uri_pattern.sub('', safe_title)
+    safe_story = _uri_pattern.sub('', safe_story)
 
-    # Atomic upsert: delete extras first to prevent race-condition duplicates
-    existing = await db.story_drafts.find_one({"user_id": user_id, "status": "draft"})
-    if existing:
+    # Atomic upsert with unique index safety (one_active_draft_per_user index)
+    try:
+        result = await db.story_drafts.update_one(
+            {"user_id": user_id, "status": "draft"},
+            {"$set": {
+                "title": safe_title,
+                "story_text": safe_story,
+                "animation_style": data.animation_style,
+                "age_group": data.age_group,
+                "voice_preset": data.voice_preset,
+                "updated_at": now,
+            }, "$setOnInsert": {"user_id": user_id, "status": "draft", "created_at": now}},
+            upsert=True,
+        )
+    except Exception:
+        # Unique index violation (race condition) — retry as update only
         await db.story_drafts.update_one(
             {"user_id": user_id, "status": "draft"},
             {"$set": {
@@ -59,20 +74,6 @@ async def save_draft(data: DraftSave, current_user: dict = Depends(get_current_u
                 "updated_at": now,
             }}
         )
-    else:
-        # Clean up any orphan drafts first, then insert
-        await db.story_drafts.delete_many({"user_id": user_id, "status": "draft"})
-        await db.story_drafts.insert_one({
-            "user_id": user_id,
-            "status": "draft",
-            "title": safe_title,
-            "story_text": safe_story,
-            "animation_style": data.animation_style,
-            "age_group": data.age_group,
-            "voice_preset": data.voice_preset,
-            "updated_at": now,
-            "created_at": now,
-        })
     return {"success": True}
 
 
