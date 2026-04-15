@@ -784,6 +784,8 @@ Allow: /character/
 Allow: /experience
 
 Disallow: /app/
+Allow: /api/public/sitemap.xml
+Allow: /api/public/robots.txt
 Disallow: /api/
 Disallow: /login
 Disallow: /signup
