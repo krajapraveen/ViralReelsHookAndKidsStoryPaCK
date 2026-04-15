@@ -1,63 +1,83 @@
-# Visionary Suite — PRD
+# Visionary Suite — Product Requirements Document
 
-## Architecture
-- React + FastAPI + MongoDB + Cloudflare R2 + Cashfree
-- URL: https://trust-engine-5.preview.emergentagent.com
+## Original Problem Statement
+Evolve the platform from a standard AI content generator into a highly addictive "Story Multiplayer Engine" built on viral network effects. PRODUCT REQUIREMENTS: Prioritize consumption, zero-friction entry, and strict behavioral psychology.
 
-## Credentials
-- Test: test@visionary-suite.com / Test@2026#
-- Admin: admin@creatorstudio.ai / Cr3@t0rStud!o#2026
+## Production Domain
+- **Website**: https://www.visionary-suite.com
 
----
+## Core Architecture
+- **Frontend**: React (CRA) on port 3000
+- **Backend**: FastAPI on port 8001
+- **Database**: MongoDB
+- **Storage**: Cloudflare R2 (via boto3 proxy)
+- **Payments**: Cashfree
+- **Auth**: JWT + Google OAuth (Emergent-managed)
+- **AI**: OpenAI/Gemini/Sora via Emergent LLM Key
+- **Email**: Resend (Emergent-managed, DNS verification pending)
 
-## Production Control System (Final)
+## Key Modules (10 Creator Tools)
+1. Story Video Studio (full pipeline)
+2. Reel Generator
+3. Story Generator
+4. Character Consistency Studio
+5. Coloring Book Wizard
+6. Photo to Comic
+7. GIF Maker / Reaction GIF
+8. Comic Storybook Builder
+9. Bedtime Story Builder
+10. Story Episode Creator
 
-### Kill Switches (`POST /api/admin/kill-switch/{id}`)
-| Switch | What It Blocks | User Sees |
-|--------|---------------|-----------|
-| generation_disabled | All create endpoints | "Content generation temporarily disabled. Credits safe." |
-| payments_disabled | Cashfree create-order | "Payments temporarily disabled. No charges." |
-| battle_disabled | Quick-shot + submit | "Battle submissions paused." |
-| readonly_mode | ALL writes (drafts, gen, payments) | "System in read-only mode." |
+## What's Been Implemented
 
-**Webhook exception**: Payment callbacks bypass readonly mode — reconciliation always works.
-**Frontend**: 503 responses show honest toast (no spinner, no retry storm).
+### SEO & Google Indexing (April 2026)
+- **Dynamic sitemap.xml** at `/api/public/sitemap.xml` — 125+ URLs covering static pages, blog posts, pipeline jobs, shares, series
+- **robots.txt** at `/api/public/robots.txt` — Allow/Disallow rules, Sitemap directive pointing to production URL
+- **Static robots.txt** backup in `frontend/public/robots.txt`
+- **JSON-LD structured data** in `index.html` — WebSite, Organization, SoftwareApplication schemas
+- **react-helmet-async** meta tags on Landing, Blog, Explore, Pricing pages with canonical URLs, OG tags
+- **Fixed FRONTEND_URL** bug — sitemap now uses `www.visionary-suite.com` instead of preview URL
+- **Removed duplicate `<title>` tag** from index.html
 
-### Guardrails — 10 Invariants
-| # | Invariant | Severity | Endpoint |
-|---|-----------|----------|----------|
-| 1 | negative_credits | Critical | full + critical |
-| 2 | duplicate_credit_grants | Critical | full + critical |
-| 3 | multiple_active_drafts | High | full only |
-| 4 | orphan_processing_jobs | High | full only |
-| 5 | analytics_session_duplication | Medium | full only |
-| 6 | payment_without_credit | Critical | full + critical |
-| 7 | private_content_leak | High | full only |
-| 8 | credit_drift | Critical | full + critical |
-| 9 | generation_integrity | Critical | full + critical |
-| 10 | orphan_deductions | Critical | full + critical |
+### Enterprise Protection Layer (Completed)
+- Guardrail APIs (`/api/admin/guardrails/critical`) — credit drift, orphan deductions, data integrity
+- 4 Kill Switches (Generation, Payments, Battle, Read-Only) with frontend 503 toast handling
+- User Signals API (`/api/admin/user-signals`) — TTFV, funnel drop-offs, return behavior
+- Draft Concurrency Race Condition fix (MongoDB Unique Partial Index)
+- XSS sanitization (bleach + case-insensitive regex)
+- R2 media proxy (`/api/media/r2/`)
+- 7 strict funnel tracking events with server-side deduplication
 
-### Monitoring Endpoints
-```
-# Every 1-5 min — money/credit/generation (fast, 6 critical checks)
-GET /api/admin/guardrails/critical
+### Story Multiplayer Engine
+- Story battles, chains, continuations
+- Explore feed with genre filtering
+- Public creation pages with OG meta tags
+- Creator profiles
+- Series system
 
-# Every 30 min — full system health (10 checks)
-GET /api/admin/guardrails
-
-# After 10/25/50 users — product truth
-GET /api/admin/user-signals?days=1
-
-# Emergency controls
-GET /api/admin/kill-switch
-POST /api/admin/kill-switch/{id} {"enabled": true, "reason": "..."}
-```
-
----
-
-## Current Status: 10/10 PASS, 4 kill switches operational, frontend 503 handled
+## Pending / Blocked
+- **Resend Domain Verification** — BLOCKED on user DNS action
+- **WebP/AVIF image optimization** (P1)
+- **Push live traffic monitoring** (P0)
 
 ## Backlog
-- P0: Push 20-50 users with monitoring
-- P1: SV-007 auth fix, WebP/AVIF, payment fault injection in staging
-- P2: Pipeline stress, Celery, character continuity
+- (P2) Category-specific AI hook selection
+- (P0.6) Auto-Recovery for FAILED_PERSISTENCE jobs
+- (P2) Replace asyncio.create_task with Celery
+
+## Key Endpoints
+- `GET /api/public/sitemap.xml` — Dynamic XML sitemap
+- `GET /api/public/robots.txt` — Crawler directives
+- `GET /api/admin/guardrails/critical` — Money/data integrity
+- `GET /api/admin/user-signals` — Product analytics
+- `POST /api/admin/kill-switch/{id}` — Emergency disable
+- `GET /api/media/r2/{key}` — Media proxy
+
+## 3rd Party Integrations
+- Cashfree (Payments) — User API Key required
+- Cloudflare R2 (Storage) — Emergent managed
+- Resend (Emails) — Emergent managed
+- OpenAI/Gemini/Sora — Emergent LLM Key
+- Google OAuth — User Client ID/Secret
+- Google Analytics 4 (GA4) — G-X4Y9E4QSF8
+- PostHog — Analytics
