@@ -19,6 +19,11 @@ logger = logging.getLogger("public_api")
 
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://www.visionary-suite.com")
 
+# Canonical domain for SEO (sitemap, robots.txt, OG tags)
+# Hardcoded because deployment platforms override FRONTEND_URL with preview URLs
+# and sitemaps must ALWAYS reference the production domain for Google indexing.
+CANONICAL_URL = "https://www.visionary-suite.com"
+
 
 def slugify(text: str) -> str:
     """Create URL-friendly slug from text."""
@@ -794,7 +799,7 @@ Disallow: /reset-password
 Disallow: /forgot-password
 Disallow: /verify-email
 
-Sitemap: {FRONTEND_URL}/api/public/sitemap.xml
+Sitemap: {CANONICAL_URL}/api/public/sitemap.xml
 """
     return Response(content=content.strip(), media_type="text/plain", headers={"Cache-Control": "public, max-age=86400"})
 
@@ -825,7 +830,7 @@ async def sitemap():
     ]
     for path, freq, priority, lastmod in static_pages:
         url_entries.append(f"""  <url>
-    <loc>{FRONTEND_URL}{path}</loc>
+    <loc>{CANONICAL_URL}{path}</loc>
     <lastmod>{lastmod}</lastmod>
     <changefreq>{freq}</changefreq>
     <priority>{priority}</priority>
@@ -841,7 +846,7 @@ async def sitemap():
                 if hasattr(pub_date, 'strftime'):
                     pub_date = pub_date.strftime('%Y-%m-%d')
                 url_entries.append(f"""  <url>
-    <loc>{FRONTEND_URL}/blog/{slug}</loc>
+    <loc>{CANONICAL_URL}/blog/{slug}</loc>
     <lastmod>{pub_date}</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
@@ -862,7 +867,7 @@ async def sitemap():
         created = item.get('created_at')
         lastmod = created.strftime('%Y-%m-%d') if hasattr(created, 'strftime') else today
         url_entries.append(f"""  <url>
-    <loc>{FRONTEND_URL}/v/{slug}</loc>
+    <loc>{CANONICAL_URL}/v/{slug}</loc>
     <lastmod>{lastmod}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -881,7 +886,7 @@ async def sitemap():
         created = share.get("createdAt")
         lastmod = created.strftime('%Y-%m-%d') if hasattr(created, 'strftime') else today
         url_entries.append(f"""  <url>
-    <loc>{FRONTEND_URL}/share/{share_id}</loc>
+    <loc>{CANONICAL_URL}/share/{share_id}</loc>
     <lastmod>{lastmod}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
@@ -901,7 +906,7 @@ async def sitemap():
             created = s.get("created_at")
             lastmod = created.strftime('%Y-%m-%d') if hasattr(created, 'strftime') else today
             url_entries.append(f"""  <url>
-    <loc>{FRONTEND_URL}/series/{sid}</loc>
+    <loc>{CANONICAL_URL}/series/{sid}</loc>
     <lastmod>{lastmod}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.5</priority>
