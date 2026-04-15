@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import { Button } from '../components/ui/button';
 import { 
   ArrowLeft, Calendar, Eye, Tag, Clock, Search, ChevronRight,
@@ -59,6 +60,14 @@ function BlogList() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950">
+      <Helmet>
+        <title>Visionary Suite Blog | AI Video Creation Tips & Guides</title>
+        <meta name="description" content="Learn how to create stunning AI-generated videos from stories. Tips, guides, and tutorials for content creators." />
+        <link rel="canonical" href="https://www.visionary-suite.com/blog" />
+        <meta property="og:title" content="Visionary Suite Blog" />
+        <meta property="og:description" content="AI video creation tips, guides, and tutorials." />
+        <meta property="og:url" content="https://www.visionary-suite.com/blog" />
+      </Helmet>
       {/* Header */}
       <header className="bg-slate-900/80 backdrop-blur-sm border-b border-slate-700/50 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -307,6 +316,15 @@ function BlogPost() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950">
+      <Helmet>
+        <title>{post.title} | Visionary Suite Blog</title>
+        <meta name="description" content={post.excerpt || post.title} />
+        <link rel="canonical" href={`https://www.visionary-suite.com/blog/${post.slug}`} />
+        <meta property="og:title" content={post.title} />
+        <meta property="og:description" content={post.excerpt || post.title} />
+        <meta property="og:url" content={`https://www.visionary-suite.com/blog/${post.slug}`} />
+        <meta property="og:type" content="article" />
+      </Helmet>
       {/* Header */}
       <header className="bg-slate-900/80 backdrop-blur-sm border-b border-slate-700/50 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">

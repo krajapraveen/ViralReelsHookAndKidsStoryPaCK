@@ -1,0 +1,25 @@
+User-agent: *
+Allow: /
+Allow: /explore
+Allow: /pricing
+Allow: /blog
+Allow: /about
+Allow: /contact
+Allow: /reviews
+Allow: /gallery
+Allow: /v/
+Allow: /creator/
+Allow: /series/
+Allow: /character/
+Allow: /experience
+
+Disallow: /app/
+Disallow: /api/
+Disallow: /login
+Disallow: /signup
+Disallow: /auth/
+Disallow: /reset-password
+Disallow: /forgot-password
+Disallow: /verify-email
+
+Sitemap: https://www.visionary-suite.com/api/public/sitemap.xml

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import {
   Play, ArrowRight, Menu, X, Eye, RefreshCcw, Zap, Command,
   ChevronRight, Sparkles, Film, BookOpen, Users, GitBranch, Clock, Activity
@@ -196,6 +197,15 @@ export default function Landing() {
 
   return (
     <div className="vs-page overflow-x-hidden" data-testid="landing-page">
+      <Helmet>
+        <title>Visionary Suite | AI Content Creator for Viral Reels & Kids Stories</title>
+        <meta name="description" content="Write any story and our AI generates scenes, creates images, adds voiceover, and renders a complete video. Start free with 10 credits." />
+        <link rel="canonical" href="https://www.visionary-suite.com" />
+        <meta property="og:title" content="Visionary Suite | Turn Stories into AI Videos in 90 Seconds" />
+        <meta property="og:description" content="Write any story. Our AI generates scenes, creates images, adds voiceover, and renders a complete video — all in under 90 seconds." />
+        <meta property="og:url" content="https://www.visionary-suite.com" />
+        <meta property="og:type" content="website" />
+      </Helmet>
       <style>{`
         @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }

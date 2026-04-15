@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import axios from 'axios';
 import {
   Play, Flame, Sparkles, Zap, Film, Heart, Eye,
@@ -104,6 +105,14 @@ export default function ExplorePage() {
 
   return (
     <div className="min-h-screen bg-[#06060e] text-white" data-testid="explore-page">
+      <Helmet>
+        <title>Explore Stories | Visionary Suite</title>
+        <meta name="description" content="Discover AI-generated stories from creators worldwide. Continue stories, remix plots, and compete in story battles." />
+        <link rel="canonical" href="https://www.visionary-suite.com/explore" />
+        <meta property="og:title" content="Explore Stories | Visionary Suite" />
+        <meta property="og:description" content="Discover AI-generated stories from creators worldwide." />
+        <meta property="og:url" content="https://www.visionary-suite.com/explore" />
+      </Helmet>
       <style>{`
         @keyframes shimmer-glow {
           0%,100%{box-shadow:0 0 8px rgba(245,158,11,.15)}

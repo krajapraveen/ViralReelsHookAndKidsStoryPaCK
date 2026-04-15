@@ -49,6 +49,51 @@
         <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
         <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()" />
         
+        <!-- JSON-LD Structured Data: WebSite -->
+        <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          "name": "Visionary Suite",
+          "url": "https://www.visionary-suite.com",
+          "description": "Write any story and our AI generates scenes, creates images, adds voiceover, and renders a complete video in 90 seconds.",
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://www.visionary-suite.com/explore?q={search_term_string}",
+            "query-input": "required name=search_term_string"
+          }
+        }
+        </script>
+        <!-- JSON-LD Structured Data: Organization -->
+        <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          "name": "Visionary Suite",
+          "url": "https://www.visionary-suite.com",
+          "logo": "https://www.visionary-suite.com/og-image.png",
+          "sameAs": []
+        }
+        </script>
+        <!-- JSON-LD Structured Data: SoftwareApplication -->
+        <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@type": "SoftwareApplication",
+          "name": "Visionary Suite",
+          "applicationCategory": "MultimediaApplication",
+          "operatingSystem": "Web",
+          "url": "https://www.visionary-suite.com",
+          "description": "AI-powered story-to-video engine. Write a story, get a cinematic video in 90 seconds.",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "INR",
+            "description": "Start free with 10 credits"
+          }
+        }
+        </script>
+        
         <!-- Preconnect for Performance -->
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -68,7 +113,6 @@
         work correctly both with client-side routing and a non-root public URL.
         Learn how to configure a non-root public URL by running `npm run build`.
         -->
-        <title>Visionary Suite | Generate viral reels + kids story videos</title>
         <!-- Razorpay removed - using Cashfree for production payments -->
         <script>window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);</script>
         <script>

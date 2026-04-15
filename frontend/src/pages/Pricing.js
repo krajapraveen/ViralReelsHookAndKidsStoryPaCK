@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import { Check, Sparkles, ArrowLeft, Loader2, Zap, Film, Star } from 'lucide-react';
@@ -83,6 +84,14 @@ export default function Pricing() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950/80 to-slate-950 text-white">
+      <Helmet>
+        <title>Pricing | Visionary Suite - AI Story Video Creator</title>
+        <meta name="description" content="Start free with 10 credits. Create AI-generated story videos, reels, and animations. Affordable plans for creators." />
+        <link rel="canonical" href="https://www.visionary-suite.com/pricing" />
+        <meta property="og:title" content="Pricing | Visionary Suite" />
+        <meta property="og:description" content="Start free with 10 credits. Affordable AI video creation plans." />
+        <meta property="og:url" content="https://www.visionary-suite.com/pricing" />
+      </Helmet>
       <div className="max-w-6xl mx-auto px-4 py-12">
         <Link to="/">
           <Button variant="ghost" className="text-slate-300 hover:text-white hover:bg-white/[0.06] mb-8" data-testid="pricing-back-btn">

@@ -17,7 +17,7 @@ from shared import db
 router = APIRouter(prefix="/public", tags=["public"])
 logger = logging.getLogger("public_api")
 
-FRONTEND_URL = os.environ.get("BACKEND_PUBLIC_URL", "https://www.visionary-suite.com")
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://www.visionary-suite.com")
 
 
 def slugify(text: str) -> str:
@@ -763,40 +763,153 @@ async def og_image(slug: str):
     return Response(content=buf.getvalue(), media_type="image/png", headers={"Cache-Control": "public, max-age=3600"})
 
 
+# ─── ROBOTS.TXT ────────────────────────────────────────────────────────────
+
+@router.get("/robots.txt")
+async def robots_txt():
+    """Serve robots.txt for search engine crawlers."""
+    content = f"""User-agent: *
+Allow: /
+Allow: /explore
+Allow: /pricing
+Allow: /blog
+Allow: /about
+Allow: /contact
+Allow: /reviews
+Allow: /gallery
+Allow: /v/
+Allow: /creator/
+Allow: /series/
+Allow: /character/
+Allow: /experience
+
+Disallow: /app/
+Disallow: /api/
+Disallow: /login
+Disallow: /signup
+Disallow: /auth/
+Disallow: /reset-password
+Disallow: /forgot-password
+Disallow: /verify-email
+
+Sitemap: {FRONTEND_URL}/api/public/sitemap.xml
+"""
+    return Response(content=content.strip(), media_type="text/plain", headers={"Cache-Control": "public, max-age=86400"})
+
+
 # ─── SITEMAP ──────────────────────────────────────────────────────────────
 
 @router.get("/sitemap.xml")
 async def sitemap():
-    """Generate XML sitemap for all public creations."""
+    """Generate comprehensive XML sitemap for all public content."""
+    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    url_entries = []
+
+    # ── Static pages with priorities ──
+    static_pages = [
+        ("", "daily", "1.0", today),
+        ("/explore", "daily", "0.9", today),
+        ("/gallery", "daily", "0.8", today),
+        ("/pricing", "monthly", "0.7", today),
+        ("/blog", "weekly", "0.8", today),
+        ("/about", "monthly", "0.5", today),
+        ("/contact", "monthly", "0.4", today),
+        ("/reviews", "weekly", "0.6", today),
+        ("/experience", "weekly", "0.8", today),
+        ("/user-manual", "monthly", "0.4", today),
+        ("/privacy-policy", "yearly", "0.2", today),
+        ("/terms-of-service", "yearly", "0.2", today),
+        ("/cookie-policy", "yearly", "0.2", today),
+    ]
+    for path, freq, priority, lastmod in static_pages:
+        url_entries.append(f"""  <url>
+    <loc>{FRONTEND_URL}{path}</loc>
+    <lastmod>{lastmod}</lastmod>
+    <changefreq>{freq}</changefreq>
+    <priority>{priority}</priority>
+  </url>""")
+
+    # ── Blog posts ──
+    try:
+        from routes.blog_content import BLOG_POSTS
+        for post in BLOG_POSTS:
+            slug = post.get("slug", "")
+            if slug:
+                pub_date = post.get("published_date", today)
+                if hasattr(pub_date, 'strftime'):
+                    pub_date = pub_date.strftime('%Y-%m-%d')
+                url_entries.append(f"""  <url>
+    <loc>{FRONTEND_URL}/blog/{slug}</loc>
+    <lastmod>{pub_date}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>""")
+    except Exception:
+        pass
+
+    # ── Public creations (pipeline jobs) ──
     items = await db.pipeline_jobs.find(
         {"status": "COMPLETED"},
         {"_id": 0, "slug": 1, "job_id": 1, "created_at": 1}
     ).sort("created_at", -1).to_list(length=5000)
 
-    urls = [f"""  <url>
-    <loc>{FRONTEND_URL}/v/{item.get('slug') or item['job_id']}</loc>
-    <lastmod>{item.get('created_at', datetime.now(timezone.utc)).strftime('%Y-%m-%d') if hasattr(item.get('created_at', ''), 'strftime') else datetime.now(timezone.utc).strftime('%Y-%m-%d')}</lastmod>
+    for item in items:
+        slug = item.get('slug') or item.get('job_id', '')
+        if not slug:
+            continue
+        created = item.get('created_at')
+        lastmod = created.strftime('%Y-%m-%d') if hasattr(created, 'strftime') else today
+        url_entries.append(f"""  <url>
+    <loc>{FRONTEND_URL}/v/{slug}</loc>
+    <lastmod>{lastmod}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
-  </url>""" for item in items]
+  </url>""")
 
-    # Static pages
-    static_pages = [
-        ("", "daily", "1.0"),
-        ("/explore", "daily", "0.9"),
-        ("/pricing", "monthly", "0.6"),
-        ("/blog", "weekly", "0.7"),
-    ]
-    static_urls = [f"""  <url>
-    <loc>{FRONTEND_URL}{path}</loc>
-    <changefreq>{freq}</changefreq>
-    <priority>{priority}</priority>
-  </url>""" for path, freq, priority in static_pages]
+    # ── Shared stories ──
+    shares = await db.shares.find(
+        {"parentShareId": None},
+        {"_id": 0, "id": 1, "createdAt": 1}
+    ).sort("createdAt", -1).to_list(length=2000)
+
+    for share in shares:
+        share_id = share.get("id", "")
+        if not share_id:
+            continue
+        created = share.get("createdAt")
+        lastmod = created.strftime('%Y-%m-%d') if hasattr(created, 'strftime') else today
+        url_entries.append(f"""  <url>
+    <loc>{FRONTEND_URL}/share/{share_id}</loc>
+    <lastmod>{lastmod}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>""")
+
+    # ── Public series ──
+    try:
+        series_list = await db.story_series.find(
+            {"visibility": "public"},
+            {"_id": 0, "series_id": 1, "created_at": 1}
+        ).to_list(length=500)
+
+        for s in series_list:
+            sid = s.get("series_id", "")
+            if not sid:
+                continue
+            created = s.get("created_at")
+            lastmod = created.strftime('%Y-%m-%d') if hasattr(created, 'strftime') else today
+            url_entries.append(f"""  <url>
+    <loc>{FRONTEND_URL}/series/{sid}</loc>
+    <lastmod>{lastmod}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.5</priority>
+  </url>""")
+    except Exception:
+        pass
 
     xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-{chr(10).join(static_urls)}
-{chr(10).join(urls)}
+{chr(10).join(url_entries)}
 </urlset>"""
 
     return Response(content=xml, media_type="application/xml", headers={"Cache-Control": "public, max-age=3600"})
