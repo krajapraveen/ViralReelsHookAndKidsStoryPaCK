@@ -32,12 +32,15 @@ function WidgetState({ state, lastUpdated, children }) {
       </div>
     );
   }
+  const age = lastUpdated ? Math.round((Date.now() - new Date(lastUpdated).getTime()) / 1000) : null;
+  const freshness = age === null ? null : age < 60 ? 'LIVE' : age < 600 ? 'DELAYED' : 'STALE';
+  const freshnessColor = freshness === 'LIVE' ? 'text-emerald-400' : freshness === 'DELAYED' ? 'text-amber-400' : 'text-rose-400';
   return (
     <div className="relative">
       {children}
       {lastUpdated && (
-        <div className="absolute top-2 right-2 text-[9px] text-slate-600">
-          {Math.round((Date.now() - new Date(lastUpdated).getTime()) / 1000)}s ago
+        <div className={`absolute top-2 right-2 text-[9px] ${freshnessColor} font-mono`} data-testid="widget-freshness">
+          {freshness} {age}s ago
         </div>
       )}
     </div>
@@ -1970,7 +1973,7 @@ export default function AdminDashboard() {
         )}
 
         {section === 'growth_validation' && (
-          <GrowthDashboard />
+          <GrowthDashboard parentDays={days} parentRefreshSignal={autoRefresh ? summary.ts : null} />
         )}
 
         {section === 'dark_launch' && (

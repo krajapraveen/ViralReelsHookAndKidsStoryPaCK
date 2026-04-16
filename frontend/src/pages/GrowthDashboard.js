@@ -82,16 +82,28 @@ function FunnelStep({ stage, count, rate, isLast, prevCount }) {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export default function GrowthDashboard() {
+export default function GrowthDashboard({ parentDays, parentRefreshSignal }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [hours, setHours] = useState(72);
+  const [lastFetched, setLastFetched] = useState(null);
+
+  // Sync hours from parent days prop (7d=168h, 30d=720h, 90d=2160h)
+  const dayToHoursMap = { 7: 168, 30: 720, 90: 2160 };
+  const [hours, setHours] = useState(parentDays ? (dayToHoursMap[parentDays] || 720) : 720);
+
+  // Sync when parent changes
+  useEffect(() => {
+    if (parentDays && dayToHoursMap[parentDays]) {
+      setHours(dayToHoursMap[parentDays]);
+    }
+  }, [parentDays]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const res = await api.get(`/api/admin/metrics/growth?hours=${hours}`);
       setData(res.data);
+      setLastFetched(new Date());
     } catch (err) {
       toast.error('Failed to load growth metrics');
     } finally {
@@ -100,6 +112,13 @@ export default function GrowthDashboard() {
   }, [hours]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Re-fetch when parent polling triggers
+  useEffect(() => {
+    if (parentRefreshSignal) {
+      fetchData();
+    }
+  }, [parentRefreshSignal]);
 
   if (loading && !data) {
     return (
@@ -127,12 +146,23 @@ export default function GrowthDashboard() {
 
   return (
     <div className="space-y-6" data-testid="growth-dashboard">
-      {/* Header + Period selector */}
+      {/* Header + Period selector + Freshness */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <TrendingUp className="w-5 h-5 text-violet-400" />
           <h2 className="text-base font-semibold text-white">Growth Validation</h2>
           <span className="text-[10px] text-slate-500 bg-slate-800 px-2 py-0.5 rounded-full font-mono">DATA MODE</span>
+          {lastFetched && (
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${
+              (Date.now() - lastFetched.getTime()) < 60000 ? 'text-emerald-400 bg-emerald-500/10' :
+              (Date.now() - lastFetched.getTime()) < 600000 ? 'text-amber-400 bg-amber-500/10' :
+              'text-rose-400 bg-rose-500/10'
+            }`} data-testid="growth-freshness">
+              {(Date.now() - lastFetched.getTime()) < 60000 ? 'LIVE' :
+               (Date.now() - lastFetched.getTime()) < 600000 ? 'DELAYED' : 'STALE'}
+              {' '}{Math.round((Date.now() - lastFetched.getTime()) / 1000)}s ago
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {[24, 72, 168, 720].map(h => (
@@ -142,6 +172,7 @@ export default function GrowthDashboard() {
               className={`text-[10px] px-2 py-1 rounded font-mono transition-colors ${
                 hours === h ? 'bg-violet-600 text-white' : 'text-slate-500 hover:text-white'
               }`}
+              data-testid={`growth-period-${h}`}
             >
               {h <= 24 ? '24h' : h <= 72 ? '3d' : h <= 168 ? '7d' : '30d'}
             </button>
