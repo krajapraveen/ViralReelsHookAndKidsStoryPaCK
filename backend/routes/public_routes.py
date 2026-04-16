@@ -34,34 +34,48 @@ def slugify(text: str) -> str:
     return text[:80].strip('-')
 
 
-# ─── PLATFORM STATS (Real Data) ──────────────────────────────────────────
+# ─── PLATFORM STATS (Real Data — Cumulative Lifetime) ──────────────────────────────────────────
 
 @router.get("/stats")
 async def get_platform_stats():
-    """Return real platform statistics for social proof."""
+    """Return cumulative platform statistics for social proof. Counts ALL creation types."""
     users_count = await db.users.count_documents({})
     jobs_completed = await db.pipeline_jobs.count_documents({"status": "COMPLETED"})
+    jobs_any = await db.pipeline_jobs.count_documents({})
 
-    # Count total scenes across completed jobs
+    # Count total scenes across ALL jobs (not just completed)
     pipeline = [
-        {"$match": {"status": "COMPLETED"}},
         {"$project": {"scene_count": {"$size": {"$ifNull": ["$scenes", []]}}}},
         {"$group": {"_id": None, "total": {"$sum": "$scene_count"}}}
     ]
     scene_result = await db.pipeline_jobs.aggregate(pipeline).to_list(length=1)
     total_scenes = scene_result[0]["total"] if scene_result else 0
 
-    # Count total generations from all tools
+    # Count generations from all tools (reels, comics, gifs, stories, etc.)
     gen_count = await db.generations.count_documents({})
 
-    # Total creations = pipeline jobs + other generations
-    total_creations = jobs_completed + gen_count
+    # Count shares, forks, remixes
+    shares_count = await db.shares.count_documents({})
+    forks_count = await db.shares.count_documents({"parentShareId": {"$ne": None}})
+
+    # Total creations = pipeline jobs + generations + shares + forks
+    total_creations = jobs_any + gen_count + shares_count + forks_count
+
+    # Today's activity for "live" subtext
+    from datetime import timedelta
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    today_iso = today_start.isoformat()
+
+    stories_today = await db.pipeline_jobs.count_documents({"created_at": {"$gte": today_start}})
+    creators_today = await db.users.count_documents({"createdAt": {"$gte": today_iso}})
 
     return {
         "creators": users_count,
         "videos_created": jobs_completed,
         "total_creations": total_creations,
         "ai_scenes": total_scenes,
+        "stories_today": stories_today,
+        "creators_today": creators_today,
     }
 
 

@@ -513,23 +513,33 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ═══════ 4. SOCIAL PROOF (Real) ═══════ */}
+      {/* ═══════ 4. SOCIAL PROOF (Real + Animated) ═══════ */}
       {stats && (
         <section className="border-y border-white/[0.04] py-10 px-4" data-testid="social-proof">
-          <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-            {[
-              { value: stats.videos_created || 0, label: 'Stories Created', suffix: '+' },
-              { value: stats.creators || 0, label: 'Creators', suffix: '' },
-              { value: stats.ai_scenes || 0, label: 'Scenes Generated', suffix: '+' },
-              { value: stats.total_creations || 0, label: 'Total Creations', suffix: '+' },
-            ].filter(s => s.value > 0).map((stat) => (
-              <div key={stat.label}>
-                <div className="text-3xl md:text-4xl font-black text-white tabular-nums">
-                  {stat.value.toLocaleString()}{stat.suffix}
-                </div>
-                <div className="text-sm text-slate-500 mt-1">{stat.label}</div>
-              </div>
-            ))}
+          <div className="max-w-5xl mx-auto">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+              {[
+                { value: stats.videos_created || 0, label: 'Stories Created', suffix: '+', todayKey: 'stories_today' },
+                { value: stats.creators || 0, label: 'Active Creators', suffix: '+', todayKey: 'creators_today' },
+                { value: stats.ai_scenes || 0, label: 'AI Scenes Generated', suffix: '+' },
+                { value: stats.total_creations || 0, label: 'Videos & Creations Made', suffix: '+' },
+              ].filter(s => s.value > 0).map((stat) => {
+                const todayCount = stat.todayKey ? (stats[stat.todayKey] || 0) : null;
+                const display = stat.value >= 1000 ? `${(stat.value / 1000).toFixed(1).replace(/\.0$/, '')}K` : stat.value.toLocaleString();
+                return (
+                  <div key={stat.label} data-testid={`stat-${stat.label.toLowerCase().replace(/\s+/g, '-')}`}>
+                    <div className="text-3xl md:text-4xl font-black text-white tabular-nums">
+                      {display}{stat.suffix}
+                    </div>
+                    <div className="text-sm text-slate-500 mt-1">{stat.label}</div>
+                    {todayCount > 0 && (
+                      <div className="text-[10px] text-emerald-400 mt-1 font-medium">+{todayCount} today</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-center text-[10px] text-slate-600 mt-4">Updated moments ago</p>
           </div>
         </section>
       )}
@@ -595,7 +605,7 @@ export default function Landing() {
           <p className="text-lg text-slate-400 mb-3">
             It takes less than 30 seconds. No editing needed. Completely free to start.
           </p>
-          <p className="text-sm text-slate-500 mb-8">People are creating viral videos every day — 12,000+ and growing</p>
+          <p className="text-sm text-slate-500 mb-8">Creators are making viral AI videos every day — and the library is growing fast</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <button
               onClick={goCreateFresh}
