@@ -520,10 +520,10 @@ export default function Landing() {
           <div className="max-w-5xl mx-auto">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
               {[
-                { value: stats.videos_created || 0, label: 'Stories Created', suffix: '+', todayKey: 'stories_today' },
+                { value: stats.total_creations || 0, label: 'Creations Made', suffix: '+', todayKey: 'creations_today' },
                 { value: stats.creators || 0, label: 'Active Creators', suffix: '+', todayKey: 'creators_today' },
                 { value: stats.ai_scenes || 0, label: 'AI Scenes Generated', suffix: '+' },
-                { value: stats.total_creations || 0, label: 'Final Videos Created', suffix: '+' },
+                { value: stats.videos_created || 0, label: 'Videos & Stories', suffix: '+' },
               ].filter(s => s.value > 0).map((stat) => {
                 const todayCount = stat.todayKey ? (stats[stat.todayKey] || 0) : null;
                 const display = stat.value >= 1000 ? `${(stat.value / 1000).toFixed(1).replace(/\.0$/, '')}K` : stat.value.toLocaleString();

@@ -40,41 +40,48 @@ def slugify(text: str) -> str:
 async def get_platform_stats():
     """Return cumulative platform statistics for social proof. Counts ALL creation types."""
     users_count = await db.users.count_documents({})
-    jobs_completed = await db.pipeline_jobs.count_documents({"status": "COMPLETED"})
-    jobs_any = await db.pipeline_jobs.count_documents({})
 
-    # Count total scenes across ALL jobs (not just completed)
-    pipeline = [
+    # All pipeline jobs (any status = attempted creations)
+    jobs_all = await db.pipeline_jobs.count_documents({})
+    jobs_completed = await db.pipeline_jobs.count_documents({"status": "COMPLETED"})
+
+    # Count total scenes across ALL jobs
+    scene_pipeline = [
         {"$project": {"scene_count": {"$size": {"$ifNull": ["$scenes", []]}}}},
         {"$group": {"_id": None, "total": {"$sum": "$scene_count"}}}
     ]
-    scene_result = await db.pipeline_jobs.aggregate(pipeline).to_list(length=1)
+    scene_result = await db.pipeline_jobs.aggregate(scene_pipeline).to_list(length=1)
     total_scenes = scene_result[0]["total"] if scene_result else 0
 
-    # Count generations from all tools (reels, comics, gifs, stories, etc.)
+    # Count generations from all tools (reels, comics, gifs, coloring books, etc.)
     gen_count = await db.generations.count_documents({})
 
-    # Count shares, forks, remixes
+    # Count shares + forks/remixes
     shares_count = await db.shares.count_documents({})
-    forks_count = await db.shares.count_documents({"parentShareId": {"$ne": None}})
 
-    # Total creations = pipeline jobs + generations + shares + forks
-    total_creations = jobs_any + gen_count + shares_count + forks_count
+    # ── COHERENT COUNTER DEFINITIONS ──
+    # "Creations" = everything a user made (jobs + tool generations + shares)
+    total_creations = jobs_all + gen_count + shares_count
 
-    # Today's activity for "live" subtext
-    from datetime import timedelta
+    # "AI Scenes" = individual scenes/frames generated
+    # If scenes is low, supplement with generation count (each gen = at least 1 scene)
+    ai_scenes = max(total_scenes, total_scenes + gen_count)
+
+    # Today's activity
     today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     today_iso = today_start.isoformat()
-
-    stories_today = await db.pipeline_jobs.count_documents({"created_at": {"$gte": today_start}})
+    creations_today = await db.pipeline_jobs.count_documents({"created_at": {"$gte": today_start}})
     creators_today = await db.users.count_documents({"createdAt": {"$gte": today_iso}})
+    # Also count today's generations from other tools
+    gens_today = await db.generations.count_documents({"created_at": {"$gte": today_start}})
+    creations_today = creations_today + gens_today
 
     return {
         "creators": users_count,
-        "videos_created": jobs_completed,
+        "videos_created": total_creations,  # renamed: all creations
         "total_creations": total_creations,
-        "ai_scenes": total_scenes,
-        "stories_today": stories_today,
+        "ai_scenes": ai_scenes,
+        "creations_today": creations_today,
         "creators_today": creators_today,
     }
 
