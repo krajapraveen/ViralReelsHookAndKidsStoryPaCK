@@ -246,15 +246,15 @@ export default function AdminUsersManagement() {
           </div>
           <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
             <p className="text-slate-400 text-sm">Admin Users</p>
-            <p className="text-2xl font-bold text-red-400">{users.filter(u => u.role === 'admin').length}</p>
+            <p className="text-2xl font-bold text-red-400">{users.filter(u => (u.role || '').toLowerCase() === 'admin').length}</p>
           </div>
           <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
             <p className="text-slate-400 text-sm">QA Users</p>
-            <p className="text-2xl font-bold text-purple-400">{users.filter(u => u.role === 'qa').length}</p>
+            <p className="text-2xl font-bold text-purple-400">{users.filter(u => (u.role || '').toLowerCase() === 'qa').length}</p>
           </div>
           <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
             <p className="text-slate-400 text-sm">Regular Users</p>
-            <p className="text-2xl font-bold text-blue-400">{users.filter(u => u.role === 'user').length}</p>
+            <p className="text-2xl font-bold text-blue-400">{users.filter(u => (u.role || '').toLowerCase() === 'user').length}</p>
           </div>
         </div>
 

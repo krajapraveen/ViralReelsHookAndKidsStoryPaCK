@@ -547,6 +547,7 @@ async def admin_create_user(
         raise HTTPException(status_code=500, detail="Failed to create user")
 
 
+@router.get("/users")
 @router.get("/users/list")
 @limiter.limit("60/minute")
 async def list_users(
@@ -1259,35 +1260,8 @@ async def get_alert_status():
 
 
 # =============================================================================
-# USER MANAGEMENT
+# USER MANAGEMENT (consolidated — see list_users at line ~550)
 # =============================================================================
-@router.get("/users")
-@router.get("/users/list")
-async def get_all_users(
-    page: int = 0,
-    size: int = 50,
-    role: Optional[str] = None,
-    user: dict = Depends(get_admin_user)
-):
-    """Get list of all users"""
-    skip = page * size
-    query = {}
-    if role:
-        query["role"] = role.upper()
-    
-    users = await db.users.find(
-        query,
-        {"_id": 0, "password": 0}
-    ).sort("createdAt", -1).skip(skip).limit(size).to_list(length=size)
-    
-    total = await db.users.count_documents(query)
-    
-    return {
-        "users": users,
-        "total": total,
-        "page": page,
-        "size": size
-    }
 
 
 @router.put("/users/{user_id}/credits")
