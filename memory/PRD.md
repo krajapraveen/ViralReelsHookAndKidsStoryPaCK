@@ -1,7 +1,7 @@
 # Visionary Suite — Product Requirements Document
 
 ## Original Problem Statement
-Evolve the platform from a standard AI content generator into a highly addictive "Story Multiplayer Engine" built on viral network effects. PRODUCT REQUIREMENTS: Prioritize consumption, zero-friction entry, and strict behavioral psychology.
+Evolve the platform from a standard AI content generator into a highly addictive "Story Multiplayer Engine" built on viral network effects. Prioritize consumption, zero-friction entry, and strict behavioral psychology.
 
 ## Production Domain
 - **Website**: https://www.visionary-suite.com
@@ -14,36 +14,52 @@ Evolve the platform from a standard AI content generator into a highly addictive
 - **Payments**: Cashfree
 - **Auth**: JWT + Google OAuth (Emergent-managed)
 - **AI**: OpenAI/Gemini/Sora via Emergent LLM Key
-- **Email**: Resend (Emergent-managed, DNS verification pending)
+- **Email**: Resend (Emergent-managed, DNS pending)
 
 ## What's Been Implemented
 
+### Landing CTR Optimization — A/B Round 2 (April 2026)
+- **3 new hero variants** replacing weak Round 1 copy:
+  - **A (Control)**: "Turn Any Story Into a Stunning AI Video" / CTA: "Create Free Video Now"
+  - **B (Zero Friction)**: "Create Viral AI Videos in 60 Seconds" / CTA: "Try It Free — No Signup"
+  - **C (Social Proof)**: "Kids Stories, Reels & Viral Videos — Instantly" / CTA: "Make My First Video"
+- **Variant-specific CTA text** — each variant has its own high-conversion CTA
+- **Updated trust line** — now includes real-time video count + "Ready in 60 seconds"
+- **A/B system updated** — seed function now auto-updates variants, 3-way split via deterministic hash
+- **Goal**: Raise landing CTR from 1.3% → 4%+
+
 ### Admin Panel Trust Recovery (April 2026)
-- **Fixed date range disconnection** — Growth tab now syncs with parent Executive Dashboard's date selector
-- **Fixed polling propagation** — Parent polling signal now triggers Growth tab refresh
-- **Added freshness badges** — LIVE/DELAYED/STALE indicators on all admin widgets
-- **Root cause**: Dashboard was showing real data, but UX defaulted to 3-day window on a low-traffic site, making everything look dead
-- **Verified**: All 18 admin APIs return 200, all 16 admin routes render, all metrics are real production data
+- **Fixed date range disconnection** — Growth tab syncs with parent Executive Dashboard
+- **Fixed polling propagation** — parent refresh signal triggers Growth re-fetch
+- **Added LIVE/DELAYED/STALE freshness badges** on all admin widgets
+- **All 18 admin APIs verified 200**, all 16 routes render, zero mock data
 
 ### SEO & Google Indexing (April 2026)
-- **Dynamic sitemap.xml** at `/api/public/sitemap.xml` — 125+ URLs with hardcoded production domain
-- **robots.txt** at `/api/public/robots.txt` — Allow/Disallow rules, sitemap exception
-- **JSON-LD structured data** — WebSite, Organization, SoftwareApplication schemas
-- **react-helmet-async** meta tags on Landing, Blog, Explore, Pricing
-- **GSC verified**: Sitemap accepted (33 pages discovered), homepage indexed, indexing requested for key pages
+- Dynamic sitemap.xml (125+ URLs), robots.txt, JSON-LD structured data
+- GSC: Sitemap accepted (33 pages discovered), homepage indexed
 
 ### Enterprise Protection Layer
-- Guardrail APIs, 4 Kill Switches, User Signals API
-- Draft Concurrency fix, XSS sanitization, R2 media proxy
-- 7 strict funnel tracking events with server-side deduplication
+- Guardrails, Kill Switches, User Signals, XSS sanitization, R2 proxy
 
-## Pending / Blocked
-- **Resend Domain Verification** — BLOCKED on user DNS action
+## Current Business Metrics (30-day)
+| Metric | Value | Status |
+|--------|-------|--------|
+| Landing Visits | 839 | Tracking |
+| CTA Clicks | 11 | 1.3% CTR — needs 4%+ |
+| Stories Created | 6 | Low volume |
+| Stories Shared | 38 | High share rate |
+| Share Opens | 78 | Good engagement |
+| Continuations | 15 | 19.2% cont. rate |
+
+## Priority Tasks
+1. (P0) Deploy Round 2 A/B + admin fixes to production
+2. (P0) Monitor A/B headline test — target 4%+ CTR
+3. (P0) Above-the-fold rebuild — autoplay demo, before/after, 1-click CTA
+4. (P0) Audit first-click path friction — minimize clicks to generation
 
 ## Backlog
-- (P0) Push live traffic monitoring
 - (P1) WebP/AVIF image optimization
-- (P1) Optimize thresholds based on traffic data
 - (P2) Category-specific AI hook selection
 - (P0.6) Auto-Recovery for FAILED_PERSISTENCE jobs
 - (P2) Replace asyncio.create_task with Celery
+- Resend Domain Verification (blocked on DNS)

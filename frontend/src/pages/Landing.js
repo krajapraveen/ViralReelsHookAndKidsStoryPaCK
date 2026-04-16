@@ -28,16 +28,25 @@ function _timeAgo(dateStr) {
 }
 
 // Hardcoded variant data — only headline/badge/subtitle differ
+// Round 2: Optimized for CTR (targeting 4%+)
 const HERO_VARIANTS = {
   headline_a: {
-    badge: 'Stories that stay with them',
-    heading: ['Create stories kids will', 'remember forever'],
-    subtitle: 'Create cinematic videos, reels, and stories with AI — no editing, no experience needed. Free to start.',
+    badge: 'No editing. No experience needed.',
+    heading: ['Turn Any Story Into a', 'Stunning AI Video'],
+    subtitle: 'Type a sentence. AI creates scenes, voiceover, and music. Download or share instantly.',
+    cta: 'Create Free Video Now',
   },
   headline_b: {
-    badge: 'No editing. No experience needed.',
-    heading: ['Create award-worthy', 'AI stories in minutes'],
-    subtitle: 'Type a sentence. AI creates scenes, voiceover, and music. Download or share instantly.',
+    badge: 'Free first video — no signup needed',
+    heading: ['Create Viral AI Videos', 'in 60 Seconds'],
+    subtitle: 'Kids stories, reels, and animations — just type your idea. AI does everything else.',
+    cta: 'Try It Free — No Signup',
+  },
+  headline_c: {
+    badge: 'Used by 800+ creators this month',
+    heading: ['Kids Stories, Reels &', 'Viral Videos — Instantly'],
+    subtitle: 'Type one sentence. Get a complete video with scenes, voice, and music. Share anywhere.',
+    cta: 'Make My First Video',
   },
 };
 
@@ -288,7 +297,7 @@ export default function Landing() {
               className="group h-14 px-8 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white font-bold text-base hover:shadow-[0_0_40px_-8px_rgba(139,92,246,0.5)] transition-all hover:scale-[1.02] flex items-center gap-2 pulse-glow"
               data-testid="hero-continue-btn"
             >
-              <Zap className="w-5 h-5" /> Create Your Story &amp; Take #1 Spot
+              <Zap className="w-5 h-5" /> {hero.cta || 'Create Free Video Now'}
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </button>
             <button
@@ -300,13 +309,13 @@ export default function Landing() {
               className="h-14 px-8 rounded-xl border border-white/10 bg-white/[0.03] text-white font-bold text-base hover:bg-white/[0.06] transition-all flex items-center gap-2"
               data-testid="hero-create-btn"
             >
-              <Play className="w-5 h-5 text-violet-400" /> Watch Examples
+              <Play className="w-5 h-5 text-violet-400" /> See Examples
             </button>
           </div>
 
-          {/* Trust line */}
+          {/* Trust line — urgency + social proof */}
           <p className="text-xs text-slate-500 mb-6 fade-up-3" data-testid="hero-trust-line">
-            No credit card required &bull; Free to start &bull; Compete for #1
+            Free to start &bull; No credit card &bull; Ready in 60 seconds &bull; {stats ? `${(stats.videos_created || 0).toLocaleString()}+ videos created` : 'Join 800+ creators'}
           </p>
 
           {/* ─── ALIVE SIGNALS ─── */}

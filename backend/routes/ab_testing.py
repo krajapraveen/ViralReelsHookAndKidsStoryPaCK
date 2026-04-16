@@ -409,7 +409,7 @@ async def smart_headline_route(
 INITIAL_EXPERIMENTS = [
     {
         "experiment_id": "hero_headline",
-        "name": "Hero Headline — Week 1 (A vs B)",
+        "name": "Hero Headline — Round 2 (A vs B vs C)",
         "primary_event": "experience_click",
         "secondary_event": "paywall_shown",
         "active": True,
@@ -417,22 +417,35 @@ INITIAL_EXPERIMENTS = [
         "variants": [
             {
                 "id": "headline_a",
-                "label": "Emotional (Control)",
+                "label": "Direct Value (Control)",
                 "is_control": True,
                 "data": {
-                    "heading": ["Create stories kids will", "remember forever"],
-                    "badge": "Stories that stay with them",
-                    "subtitle": "Create cinematic videos, reels, and stories with AI — no editing, no experience needed. Free to start.",
+                    "heading": ["Turn Any Story Into a", "Stunning AI Video"],
+                    "badge": "No editing. No experience needed.",
+                    "subtitle": "Type a sentence. AI creates scenes, voiceover, and music. Download or share instantly.",
+                    "cta": "Create Free Video Now",
                 },
             },
             {
                 "id": "headline_b",
-                "label": "Prestige (Challenger)",
+                "label": "Zero Friction (Challenger 1)",
                 "is_control": False,
                 "data": {
-                    "heading": ["Create award-worthy", "AI stories in minutes"],
-                    "badge": "No editing. No experience needed.",
-                    "subtitle": "Type a sentence. AI creates scenes, voiceover, and music. Download or share instantly.",
+                    "heading": ["Create Viral AI Videos", "in 60 Seconds"],
+                    "badge": "Free first video — no signup needed",
+                    "subtitle": "Kids stories, reels, and animations — just type your idea. AI does everything else.",
+                    "cta": "Try It Free — No Signup",
+                },
+            },
+            {
+                "id": "headline_c",
+                "label": "Social Proof (Challenger 2)",
+                "is_control": False,
+                "data": {
+                    "heading": ["Kids Stories, Reels &", "Viral Videos — Instantly"],
+                    "badge": "Used by 800+ creators this month",
+                    "subtitle": "Type one sentence. Get a complete video with scenes, voice, and music. Share anywhere.",
+                    "cta": "Make My First Video",
                 },
             },
         ],
@@ -542,14 +555,25 @@ INITIAL_EXPERIMENTS = [
 
 @router.post("/seed")
 async def seed_experiments():
-    """Seed initial experiments. Idempotent — skips existing."""
+    """Seed or update initial experiments. Updates existing experiments with latest variant configs."""
     seeded = []
+    updated = []
     for exp in INITIAL_EXPERIMENTS:
         existing = await db.ab_experiments.find_one({"experiment_id": exp["experiment_id"]})
         if not existing:
             await db.ab_experiments.insert_one(exp)
             seeded.append(exp["experiment_id"])
-    return {"seeded": seeded, "total_experiments": len(INITIAL_EXPERIMENTS)}
+        else:
+            # Update variants if changed (e.g., adding variant C)
+            existing_variant_ids = {v["id"] for v in existing.get("variants", [])}
+            new_variant_ids = {v["id"] for v in exp.get("variants", [])}
+            if existing_variant_ids != new_variant_ids:
+                await db.ab_experiments.update_one(
+                    {"experiment_id": exp["experiment_id"]},
+                    {"$set": {"variants": exp["variants"], "name": exp["name"]}}
+                )
+                updated.append(exp["experiment_id"])
+    return {"seeded": seeded, "updated": updated, "total_experiments": len(INITIAL_EXPERIMENTS)}
 
 
 # ─── HOOK ANALYTICS (Admin) ──────────────────────────────────────────────────
