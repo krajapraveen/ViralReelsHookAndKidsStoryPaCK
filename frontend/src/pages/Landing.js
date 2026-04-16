@@ -523,7 +523,6 @@ export default function Landing() {
                 { value: stats.total_creations || 0, label: 'Creations Made', suffix: '+', todayKey: 'creations_today' },
                 { value: stats.creators || 0, label: 'Active Creators', suffix: '+', todayKey: 'creators_today' },
                 { value: stats.ai_scenes || 0, label: 'AI Scenes Generated', suffix: '+' },
-                { value: stats.videos_created || 0, label: 'Videos & Stories', suffix: '+' },
               ].filter(s => s.value > 0).map((stat) => {
                 const todayCount = stat.todayKey ? (stats[stat.todayKey] || 0) : null;
                 const display = stat.value >= 1000 ? `${(stat.value / 1000).toFixed(1).replace(/\.0$/, '')}K` : stat.value.toLocaleString();
