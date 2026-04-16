@@ -52,7 +52,9 @@ export default function ReviewWall() {
       <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-3">Loved by creators worldwide</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-3">
+            {total >= 20 ? 'Loved by creators worldwide' : 'Rated highly by early creators'}
+          </h2>
           <div className="flex items-center justify-center gap-2 mb-2">
             <div className="flex items-center gap-0.5">
               {[1, 2, 3, 4, 5].map(s => (
@@ -67,7 +69,7 @@ export default function ReviewWall() {
               ))}
             </div>
             <span className="text-lg font-bold text-white">{avg}</span>
-            <span className="text-sm text-slate-500">/5 from {total} creator{total !== 1 ? 's' : ''}</span>
+            <span className="text-sm text-slate-500">/5 from {total} {total >= 20 ? 'creators' : 'reviews'}</span>
           </div>
           {todayCount > 0 && (
             <p className="text-[11px] text-emerald-400 font-medium">+{todayCount} new review{todayCount !== 1 ? 's' : ''} today</p>
