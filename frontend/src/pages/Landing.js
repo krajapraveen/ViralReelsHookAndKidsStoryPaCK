@@ -9,6 +9,7 @@ import axios from 'axios';
 import { getStaticCardImg, getAllStaticBanners } from '../data/staticBanners';
 import { trackFunnel } from '../utils/funnelTracker';
 import FounderAuthorityBlock from '../components/FounderAuthorityBlock';
+import ReviewWall from '../components/ReviewWall';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -595,6 +596,9 @@ export default function Landing() {
           </div>
         </section>
       )}
+
+      {/* ═══════ REVIEW WALL ═══════ */}
+      <ReviewWall />
 
       {/* ═══════ 7. FINAL CTA ═══════ */}
       <section className="py-20 px-4 border-t border-white/[0.04]" data-testid="final-cta">

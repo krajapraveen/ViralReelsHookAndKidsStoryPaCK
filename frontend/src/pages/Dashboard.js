@@ -10,6 +10,7 @@ import { setCdnBase } from '../utils/mediaUrl';
 import { safeMediaUrl } from '../components/SafeImage';
 import { sendFeedEvent, fetchMoreStories, updateScrollSpeed, getDynamicHookDelay, wasSkippedFast } from '../utils/feedTracker';
 import { startSession, endSession, trackAction } from '../utils/sessionTracker';
+import ReviewModal from '../components/ReviewModal';
 import {
   Play, ChevronRight, ChevronLeft, Sparkles, Zap,
   Flame, Clock, Search, Plus,
@@ -873,6 +874,27 @@ export default function Dashboard() {
   const isAdmin = isAdminUser();
   const isLoggedIn = !!localStorage.getItem('token');
 
+  // ── Review modal — trigger after value delivery ──
+  const [showReview, setShowReview] = useState(false);
+  useEffect(() => {
+    // Show review prompt after 2nd visit if user has generations and hasn't reviewed
+    const visitCount = parseInt(localStorage.getItem('dashboard_visits') || '0', 10) + 1;
+    localStorage.setItem('dashboard_visits', String(visitCount));
+    if (visitCount >= 3 && !localStorage.getItem('review_prompted')) {
+      // Check if user has reviewed
+      import('../utils/api').then(({ default: apiUtil }) => {
+        apiUtil.get('/api/reviews/my-review').then(r => {
+          if (!r.data?.has_review) {
+            setTimeout(() => {
+              setShowReview(true);
+              localStorage.setItem('review_prompted', 'true');
+            }, 8000); // 8s delay for non-intrusive timing
+          }
+        }).catch(() => {});
+      });
+    }
+  }, []);
+
   // ── Infinite scroll state ──
   const [extraStories, setExtraStories] = useState([]);
   const [scrollOffset, setScrollOffset] = useState(0);
@@ -1366,6 +1388,7 @@ export default function Dashboard() {
         @keyframes shimmer{100%{transform:translateX(200%)}}
         .safe-bottom{padding-bottom:env(safe-area-inset-bottom,0)}
       `}</style>
+      <ReviewModal open={showReview} onClose={() => setShowReview(false)} sourceEvent="dashboard_visit" />
     </div>
   );
 }

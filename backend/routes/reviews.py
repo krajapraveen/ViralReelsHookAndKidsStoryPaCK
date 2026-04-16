@@ -16,11 +16,13 @@ router = APIRouter(prefix="/reviews", tags=["reviews"])
 
 
 class ReviewSubmission(BaseModel):
-    name: str = Field(..., min_length=2, max_length=100)
+    name: str = Field(None, min_length=2, max_length=100)
     email: Optional[str] = None
     role: Optional[str] = Field(None, max_length=100)
     rating: int = Field(..., ge=1, le=5)
-    message: str = Field(..., min_length=10, max_length=1000)
+    message: Optional[str] = Field(None, max_length=1000)
+    comment: Optional[str] = Field(None, max_length=1000)
+    source_event: Optional[str] = None
 
 
 class ReviewApproval(BaseModel):
@@ -75,35 +77,89 @@ async def get_all_reviews():
 
 @router.post("/submit")
 async def submit_review(review: ReviewSubmission, user: dict = Depends(get_current_user)):
-    """Submit a new review (requires authentication)"""
+    """Submit a new review (requires authentication). Supports both full form and quick modal."""
     try:
-        review_id = str(uuid.uuid4())
-        
+        user_id = user.get("id") or user.get("sub")
+        user_name = review.name or user.get("name", "Creator")
+        review_message = review.message or review.comment or ""
+
+        # Check for existing review — allow update
+        existing = await db.user_reviews.find_one({"userId": user_id}, {"_id": 0, "id": 1})
+
         review_doc = {
-            "id": review_id,
-            "userId": user.get("id"),
-            "name": review.name,
+            "userId": user_id,
+            "name": user_name,
             "email": review.email or user.get("email"),
             "role": review.role,
             "rating": review.rating,
-            "message": review.message,
-            "approved": False,  # Requires admin approval
-            "createdAt": datetime.now(timezone.utc).isoformat(),
-            "updatedAt": datetime.now(timezone.utc).isoformat()
+            "message": review_message,
+            "approved": True,  # Auto-approve (moderation happens via admin reject)
+            "source_event": review.source_event,
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
         }
-        
-        await db.user_reviews.insert_one(review_doc)
-        
-        logger.info(f"New review submitted by user {user.get('id')}: {review_id}")
-        
-        return {
-            "success": True,
-            "message": "Thank you for your review! It will be visible after approval.",
-            "reviewId": review_id
-        }
+
+        if existing:
+            await db.user_reviews.update_one({"id": existing["id"]}, {"$set": review_doc})
+            return {"success": True, "message": "Review updated!", "reviewId": existing["id"], "updated": True}
+        else:
+            review_id = str(uuid.uuid4())
+            review_doc["id"] = review_id
+            review_doc["createdAt"] = datetime.now(timezone.utc).isoformat()
+            await db.user_reviews.insert_one(review_doc)
+            logger.info(f"New review submitted by user {user_id}: {review_id}")
+            return {"success": True, "message": "Thank you for your review!", "reviewId": review_id}
     except Exception as e:
         logger.error(f"Error submitting review: {e}")
         raise HTTPException(status_code=500, detail="Failed to submit review")
+
+
+
+@router.get("/my-review")
+async def get_my_review(user: dict = Depends(get_current_user)):
+    """Check if current user has already submitted a review."""
+    user_id = user.get("id") or user.get("sub")
+    review = await db.user_reviews.find_one(
+        {"userId": user_id},
+        {"_id": 0, "id": 1, "rating": 1, "message": 1, "createdAt": 1}
+    )
+    return {"has_review": review is not None, "review": review}
+
+
+@router.get("/public")
+async def get_public_reviews(limit: int = 12):
+    """Homepage wall — avg rating + recent approved reviews with comments."""
+    stats_pipeline = [
+        {"$match": {"approved": True}},
+        {"$group": {
+            "_id": None,
+            "avg_rating": {"$avg": "$rating"},
+            "total": {"$sum": 1},
+        }}
+    ]
+    stats_result = await db.user_reviews.aggregate(stats_pipeline).to_list(1)
+    avg = round(stats_result[0]["avg_rating"], 1) if stats_result else 0
+    total = stats_result[0]["total"] if stats_result else 0
+
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    today_count = await db.user_reviews.count_documents({"approved": True, "createdAt": {"$gte": today_start}})
+
+    reviews = await db.user_reviews.find(
+        {"approved": True, "message": {"$nin": [None, ""]}},
+        {"_id": 0, "id": 1, "rating": 1, "message": 1, "name": 1, "role": 1, "createdAt": 1}
+    ).sort("createdAt", -1).limit(limit).to_list(limit)
+
+    for r in reviews:
+        name = r.get("name", "Creator")
+        parts = name.split()
+        r["display_name"] = f"{parts[0]} {parts[1][0]}." if len(parts) >= 2 else parts[0] if parts else "Creator"
+        r["comment"] = r.pop("message", "")
+
+    return {
+        "avg_rating": avg,
+        "total_reviews": total,
+        "today_count": today_count,
+        "reviews": reviews,
+    }
 
 
 @router.get("/admin/pending")
