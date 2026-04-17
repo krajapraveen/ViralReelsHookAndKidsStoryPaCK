@@ -30,8 +30,35 @@ export default function StoryPreview() {
   const [showContinueOverlay, setShowContinueOverlay] = useState(false);
   const [videoTriggerActive, setVideoTriggerActive] = useState(false);
   const [videoEnded, setVideoEnded] = useState(false);
-  const [fullscreenMedia, setFullscreenMedia] = useState(null); // { src, type, poster }
+  const [fullscreenMedia, setFullscreenMedia] = useState(null);
   const audioRef = useRef(null);
+
+  // Gesture-safe fullscreen handler — must be called directly in click handler
+  // iOS Safari rejects fullscreen if called from useEffect/setTimeout
+  const handleExpandVideo = useCallback(async () => {
+    const video = videoPlayerRef.current;
+    if (video) {
+      try {
+        // iOS Safari: webkitEnterFullscreen on the video element itself
+        if (video.webkitEnterFullscreen) {
+          video.webkitEnterFullscreen();
+          return;
+        }
+        // Standard: requestFullscreen
+        if (video.requestFullscreen) {
+          await video.requestFullscreen();
+          try { await screen.orientation?.lock?.('landscape'); } catch (_) {}
+          return;
+        }
+      } catch (_) {}
+    }
+    // Fallback: CSS-rotated overlay
+    setFullscreenMedia({ src: preview?.final_video_url, type: 'video' });
+  }, [preview?.final_video_url]);
+
+  const handleExpandImage = useCallback((imageUrl) => {
+    setFullscreenMedia({ src: imageUrl, type: 'image' });
+  }, []);
   const videoPlayerRef = useRef(null);
 
   useEffect(() => {
@@ -274,14 +301,14 @@ export default function StoryPreview() {
                     onEnded={handleVideoEnded}
                     data-testid="story-video-player"
                   />
-                  {/* Expand / Fullscreen button */}
+                  {/* Expand / Fullscreen button — gesture-safe, calls fullscreen directly */}
                   <button
-                    onClick={() => setFullscreenMedia({ src: preview.final_video_url, type: 'video' })}
-                    className="absolute top-2 right-2 z-20 w-9 h-9 rounded-lg bg-black/60 border border-white/20 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+                    onClick={handleExpandVideo}
+                    className="absolute top-2 right-2 z-20 w-11 h-11 rounded-xl bg-black/60 border border-white/20 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
                     data-testid="video-expand-btn"
                     aria-label="Expand video"
                   >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4.5 h-4.5">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
                       <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
                     </svg>
                   </button>
@@ -343,12 +370,12 @@ export default function StoryPreview() {
                   {/* Expand scene image */}
                   {currentScene.image_url && (
                     <button
-                      onClick={() => setFullscreenMedia({ src: currentScene.image_url, type: 'image' })}
-                      className="absolute top-2 right-2 z-20 w-9 h-9 rounded-lg bg-black/60 border border-white/20 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+                      onClick={() => handleExpandImage(currentScene.image_url)}
+                      className="absolute top-2 right-2 z-20 w-11 h-11 rounded-xl bg-black/60 border border-white/20 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
                       data-testid="scene-expand-btn"
                       aria-label="Expand image"
                     >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4.5 h-4.5">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
                         <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
                       </svg>
                     </button>
