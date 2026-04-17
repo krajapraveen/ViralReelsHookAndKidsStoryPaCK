@@ -69,21 +69,19 @@ function BlogList() {
         <meta property="og:url" content="https://www.visionary-suite.com/blog" />
       </Helmet>
       {/* Header */}
-      <header className="bg-slate-900/80 backdrop-blur-sm border-b border-slate-700/50 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-white" />
+      <header className="bg-slate-900/80 backdrop-blur-sm border-b border-slate-700/50 sticky top-0 z-50 vs-page-header">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2.5 sm:py-4 flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2 min-w-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
-            <span className="text-xl font-bold text-white">Visionary Suite Blog</span>
+            <span className="text-sm sm:text-xl font-bold text-white truncate">Visionary Suite Blog</span>
           </Link>
-          <div className="flex gap-3">
-            <Link to="/signup">
-              <Button className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600">
-                Get Started Free
-              </Button>
-            </Link>
-          </div>
+          <Link to="/signup" className="flex-shrink-0 ml-2">
+            <Button size="sm" className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-xs sm:text-sm">
+              Get Started
+            </Button>
+          </Link>
         </div>
       </header>
 

@@ -536,25 +536,25 @@ export default function StoryEpisodeCreator() {
       )}
 
       {/* Header */}
-      <header className="border-b border-slate-800/50 bg-slate-900/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-4xl mx-auto px-4 py-4">
+      <header className="border-b border-slate-800/50 bg-slate-900/50 backdrop-blur-sm sticky top-0 z-50 vs-page-header">
+        <div className="max-w-4xl mx-auto px-3 sm:px-4 py-2.5 sm:py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link to="/app" className="text-slate-400 hover:text-white">
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0 vs-header-left">
+              <Link to="/app" className="text-slate-400 hover:text-white flex-shrink-0">
                 <ArrowLeft className="w-5 h-5" />
               </Link>
-              <div className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-                  <Film className="w-5 h-5 text-white" />
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
+                  <Film className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
-                <div>
-                  <h1 className="text-lg font-bold text-white">Story Episode Creator</h1>
-                  <p className="text-xs text-slate-400">Turn one idea into a binge-worthy mini series</p>
+                <div className="min-w-0">
+                  <h1 className="text-base sm:text-lg font-bold text-white truncate vs-header-title">Episode Creator</h1>
+                  <p className="text-xs text-slate-400 vs-header-subtitle">Turn one idea into a binge-worthy mini series</p>
                 </div>
               </div>
             </div>
             
-            <div className="flex items-center gap-2 bg-slate-800 rounded-lg px-4 py-2">
+            <div className="hidden sm:flex items-center gap-2 bg-slate-800 rounded-lg px-4 py-2">
               <Wallet className="w-4 h-4 text-purple-400" />
               <span className="font-bold text-white">{wallet.availableCredits}</span>
               <span className="text-xs text-slate-500">credits</span>
