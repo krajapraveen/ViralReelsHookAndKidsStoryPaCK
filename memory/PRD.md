@@ -32,6 +32,13 @@ Evolve the platform from a standard AI content generator into a highly addictive
 - All modals viewport-safe (p-4 padding)
 - Desktop frozen baseline, zero regressions
 
+### Geo-Tagged Review System — April 17, 2026
+- 36 approved reviews seeded via `/api/reviews/admin/seed-geo` (idempotent; safe to call daily)
+- Ratings constrained 4.0–4.5 (realistic mix, no 5.0 spam)
+- Geo coverage: India (12 cities), USA (6), UK (3), Canada (2), Australia (2), Spain, Germany, UAE, Singapore, Japan, Netherlands
+- `/api/reviews/public` dedupes by name (one card per unique creator)
+- ReviewWall cards render half-stars for .3+ decimal ratings (desktop & mobile verified)
+
 ### Previous Completed Work
 - SEO (sitemap, robots.txt, JSON-LD, GSC verified)
 - Admin Panel Trust Recovery (date sync, freshness badges)

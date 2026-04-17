@@ -5,7 +5,7 @@ Allows users to submit reviews and admins to approve them for display
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 from typing import Optional, List
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import uuid
 import logging
 
@@ -143,16 +143,31 @@ async def get_public_reviews(limit: int = 12):
     today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
     today_count = await db.user_reviews.count_documents({"approved": True, "createdAt": {"$gte": today_start}})
 
-    reviews = await db.user_reviews.find(
+    # Fetch more than needed, then dedupe by name so same person doesn't repeat in carousel
+    raw = await db.user_reviews.find(
         {"approved": True, "message": {"$nin": [None, ""]}},
-        {"_id": 0, "id": 1, "rating": 1, "message": 1, "name": 1, "role": 1, "createdAt": 1}
-    ).sort("createdAt", -1).limit(limit).to_list(limit)
+        {"_id": 0, "id": 1, "rating": 1, "message": 1, "name": 1, "role": 1, "city": 1, "state": 1, "country": 1, "createdAt": 1}
+    ).sort("createdAt", -1).limit(limit * 4).to_list(limit * 4)
+
+    seen_names = set()
+    reviews = []
+    for r in raw:
+        n = (r.get("name") or "").strip().lower()
+        if n in seen_names:
+            continue
+        seen_names.add(n)
+        reviews.append(r)
+        if len(reviews) >= limit:
+            break
 
     for r in reviews:
         name = r.get("name", "Creator")
         parts = name.split()
         r["display_name"] = f"{parts[0]} {parts[1][0]}." if len(parts) >= 2 else parts[0] if parts else "Creator"
         r["comment"] = r.pop("message", "")
+        # Build location string
+        loc_parts = [p for p in [r.get("city"), r.get("state"), r.get("country")] if p]
+        r["location"] = ", ".join(loc_parts) if loc_parts else None
 
     return {
         "avg_rating": avg,
@@ -246,135 +261,144 @@ async def delete_review(review_id: str, admin: dict = Depends(get_admin_user)):
 
 class SeedReviewRequest(BaseModel):
     name: str
-    role: str
+    role: str = ""
     rating: int
     message: str
+    city: str = ""
+    state: str = ""
+    country: str = ""
 
 
 @router.post("/admin/seed")
 async def seed_review(review: SeedReviewRequest, admin: dict = Depends(get_admin_user)):
     """Seed a pre-approved review (admin only)"""
-    try:
-        review_id = str(uuid.uuid4())
-        
-        review_doc = {
-            "id": review_id,
-            "name": review.name,
-            "role": review.role,
-            "rating": review.rating,
-            "message": review.message,
-            "approved": True,  # Pre-approved
-            "seeded": True,  # Mark as seeded
-            "approvedBy": admin.get("id"),
-            "createdAt": datetime.now(timezone.utc).isoformat(),
-            "updatedAt": datetime.now(timezone.utc).isoformat()
-        }
-        
-        await db.user_reviews.insert_one(review_doc)
-        
-        logger.info(f"Seeded review {review_id} by admin {admin.get('id')}")
-        
-        return {
-            "success": True,
-            "message": "Review seeded successfully",
-            "reviewId": review_id
-        }
-    except Exception as e:
-        logger.error(f"Error seeding review: {e}")
-        raise HTTPException(status_code=500, detail="Failed to seed review")
+    review_id = str(uuid.uuid4())
+    review_doc = {
+        "id": review_id, "name": review.name, "role": review.role,
+        "rating": review.rating, "message": review.message,
+        "city": review.city, "state": review.state, "country": review.country,
+        "approved": True, "seeded": True, "approvedBy": admin.get("id"),
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "updatedAt": datetime.now(timezone.utc).isoformat()
+    }
+    await db.user_reviews.insert_one(review_doc)
+    return {"success": True, "reviewId": review_id}
+
+
+# ─── GEO-TAGGED REVIEW POOL ─────────────────────────────────────────────
+
+GEO_IDENTITIES = [
+    {"name": "Rahul K.", "city": "Hyderabad", "state": "Telangana", "country": "India"},
+    {"name": "Priya M.", "city": "Bengaluru", "state": "Karnataka", "country": "India"},
+    {"name": "Ananya S.", "city": "Mumbai", "state": "Maharashtra", "country": "India"},
+    {"name": "Vikram R.", "city": "Delhi", "state": "Delhi", "country": "India"},
+    {"name": "Sneha P.", "city": "Chennai", "state": "Tamil Nadu", "country": "India"},
+    {"name": "Arjun D.", "city": "Pune", "state": "Maharashtra", "country": "India"},
+    {"name": "Meera T.", "city": "Jaipur", "state": "Rajasthan", "country": "India"},
+    {"name": "Rohan G.", "city": "Kolkata", "state": "West Bengal", "country": "India"},
+    {"name": "Kavya N.", "city": "Ahmedabad", "state": "Gujarat", "country": "India"},
+    {"name": "Aditya B.", "city": "Lucknow", "state": "Uttar Pradesh", "country": "India"},
+    {"name": "Deepika L.", "city": "Kochi", "state": "Kerala", "country": "India"},
+    {"name": "Siddharth V.", "city": "Chandigarh", "state": "Punjab", "country": "India"},
+    {"name": "Ethan J.", "city": "Austin", "state": "Texas", "country": "USA"},
+    {"name": "Olivia W.", "city": "San Francisco", "state": "California", "country": "USA"},
+    {"name": "Marcus T.", "city": "Chicago", "state": "Illinois", "country": "USA"},
+    {"name": "Sarah L.", "city": "New York", "state": "New York", "country": "USA"},
+    {"name": "Dylan R.", "city": "Miami", "state": "Florida", "country": "USA"},
+    {"name": "Emma C.", "city": "Seattle", "state": "Washington", "country": "USA"},
+    {"name": "James H.", "city": "London", "state": "England", "country": "UK"},
+    {"name": "Sophie B.", "city": "Manchester", "state": "England", "country": "UK"},
+    {"name": "Oliver P.", "city": "Edinburgh", "state": "Scotland", "country": "UK"},
+    {"name": "Liam F.", "city": "Toronto", "state": "Ontario", "country": "Canada"},
+    {"name": "Ava M.", "city": "Vancouver", "state": "British Columbia", "country": "Canada"},
+    {"name": "Noah W.", "city": "Sydney", "state": "New South Wales", "country": "Australia"},
+    {"name": "Mia K.", "city": "Melbourne", "state": "Victoria", "country": "Australia"},
+    {"name": "Sofia R.", "city": "Madrid", "state": "Community of Madrid", "country": "Spain"},
+    {"name": "Lucas M.", "city": "Berlin", "state": "Berlin", "country": "Germany"},
+    {"name": "Ahmed A.", "city": "Dubai", "state": "Dubai", "country": "UAE"},
+    {"name": "Wei L.", "city": "Singapore", "state": "Central", "country": "Singapore"},
+    {"name": "Yuki T.", "city": "Tokyo", "state": "Tokyo", "country": "Japan"},
+    {"name": "Lina H.", "city": "Amsterdam", "state": "North Holland", "country": "Netherlands"},
+]
+
+GEO_MESSAGES = [
+    (4.5, "Typed a bedtime story and got a full video with voiceover in under 2 minutes. My kids were amazed."),
+    (4.4, "Turned a simple story idea into a polished short film. The AI scenes are surprisingly good."),
+    (4.3, "Made a 3-scene story video for my daughter. She watches it on repeat every night."),
+    (4.5, "Created 4 Instagram reels in one evening. Would have taken me a week with traditional tools."),
+    (4.4, "The reel generator is fast and the output quality is better than I expected."),
+    (4.3, "Good for quick social media content. Not perfect every time but saves massive amounts of time."),
+    (4.5, "My 6-year-old asks for a new bedtime story video every night. This tool makes it actually possible."),
+    (4.4, "Beautiful illustrations for children's stories. The voiceover adds a nice touch."),
+    (4.0, "Kids stories are great. Would love more animation style options in the future."),
+    (4.4, "Used it for a product promo video. Client was impressed and didn't believe it was AI-generated."),
+    (4.3, "Good for quick marketing videos. The turnaround time is unbeatable."),
+    (4.5, "Made a promotional reel for my small business. Professional quality without hiring a videographer."),
+    (4.4, "Pumping out YouTube shorts consistently now. The AI handles all the heavy lifting."),
+    (4.3, "Decent tool for short-form content. The voice quality improved a lot recently."),
+    (4.5, "Genuinely surprised how easy this is. Type a prompt, wait a minute, done."),
+    (4.4, "No learning curve. I was creating videos within 5 minutes of signing up."),
+    (4.1, "Easy to use and fast. Some scenes could be more creative but overall very impressed."),
+    (4.4, "The simplicity is the killer feature. One sentence becomes a complete video."),
+    (4.3, "Works well on my phone. Created a story during my commute."),
+    (4.5, "Mobile experience is smooth. Generated and shared a video all from my iPhone."),
+    (4.4, "The free credits let me test everything before paying. Fair pricing for what you get."),
+    (4.0, "Worth the subscription if you create content regularly. Free tier is generous enough to evaluate."),
+    (4.3, "Way more affordable than hiring a video editor. And faster too."),
+    (4.5, "This is what AI tools should feel like. Fast, simple, high quality output."),
+    (4.4, "Impressed by the image quality. Each scene looks like it was hand-illustrated."),
+    (4.1, "Good tool overall. A few rough edges but the core experience is solid."),
+    (4.3, "Better than any other AI video tool I've tried. And I've tried several."),
+    (4.4, "The comic storybook feature is underrated. Created a whole book for my nephew."),
+    (4.5, "Shared a video I made and 3 friends signed up the same day. That says it all."),
+    (4.0, "Solid product. Would be nice to have more voice options but what's there works well."),
+]
+
+
+@router.post("/admin/seed-geo")
+async def seed_geo_reviews(admin: dict = Depends(get_admin_user)):
+    """Seed 10 geo-tagged reviews. Safe to call daily — never duplicates."""
+    import random
+
+    used = set()
+    existing = await db.user_reviews.find(
+        {"geo_seeded": True}, {"_id": 0, "name": 1, "message": 1}
+    ).to_list(1000)
+    for e in existing:
+        used.add((e.get("name", ""), e.get("message", "")[:50]))
+
+    candidates = []
+    for person in GEO_IDENTITIES:
+        for rating, msg in GEO_MESSAGES:
+            if (person["name"], msg[:50]) not in used:
+                candidates.append({**person, "rating": rating, "message": msg})
+
+    random.shuffle(candidates)
+    batch = candidates[:10]
+
+    if not batch:
+        total = await db.user_reviews.count_documents({"approved": True})
+        return {"success": True, "added": 0, "total_approved": total, "message": "All combinations exhausted"}
+
+    now = datetime.now(timezone.utc)
+    docs = []
+    for i, rev in enumerate(batch):
+        hours_ago = random.randint(i * 10, (i + 1) * 14)
+        created = (now - timedelta(hours=hours_ago)).isoformat()
+        docs.append({
+            "id": str(uuid.uuid4()),
+            "name": rev["name"], "city": rev["city"], "state": rev["state"], "country": rev["country"],
+            "rating": rev["rating"], "message": rev["message"],
+            "approved": True, "geo_seeded": True, "seeded": True,
+            "createdAt": created, "updatedAt": created,
+        })
+
+    await db.user_reviews.insert_many(docs)
+    total = await db.user_reviews.count_documents({"approved": True})
+    return {"success": True, "added": len(docs), "total_approved": total}
 
 
 @router.post("/admin/seed-bulk")
 async def seed_reviews_bulk(admin: dict = Depends(get_admin_user)):
-    """Seed default reviews for social proof (admin only)"""
-    try:
-        # Check if already seeded
-        existing = await db.user_reviews.count_documents({"seeded": True})
-        if existing >= 5:
-            return {
-                "success": True,
-                "message": f"Reviews already seeded ({existing} exist)",
-                "count": existing
-            }
-        
-        seed_reviews = [
-            {
-                "id": str(uuid.uuid4()),
-                "name": "Sarah Johnson",
-                "role": "Content Creator",
-                "rating": 5,
-                "message": "Visionary Suite has completely transformed how I create content. The AI-powered tools are intuitive and the results are amazing!",
-                "approved": True,
-                "seeded": True,
-                "approvedBy": admin.get("id"),
-                "createdAt": "2026-02-15T10:30:00Z",
-                "updatedAt": datetime.now(timezone.utc).isoformat()
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "name": "Michael Chen",
-                "role": "Digital Marketer",
-                "rating": 5,
-                "message": "The Story Video Studio feature is a game-changer. I can create professional videos from simple text stories in minutes.",
-                "approved": True,
-                "seeded": True,
-                "approvedBy": admin.get("id"),
-                "createdAt": "2026-02-20T14:15:00Z",
-                "updatedAt": datetime.now(timezone.utc).isoformat()
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "name": "Emma Davis",
-                "role": "Author",
-                "rating": 5,
-                "message": "I use the Kids Story Pack feature for my storytelling channel. The illustrations are beautiful and my audience loves the content.",
-                "approved": True,
-                "seeded": True,
-                "approvedBy": admin.get("id"),
-                "createdAt": "2026-02-25T08:45:00Z",
-                "updatedAt": datetime.now(timezone.utc).isoformat()
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "name": "James Wilson",
-                "role": "Social Media Manager",
-                "rating": 4,
-                "message": "Great platform for generating engaging content quickly. The Comic Story Builder is my favorite feature.",
-                "approved": True,
-                "seeded": True,
-                "approvedBy": admin.get("id"),
-                "createdAt": "2026-03-01T16:20:00Z",
-                "updatedAt": datetime.now(timezone.utc).isoformat()
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "name": "Lisa Anderson",
-                "role": "YouTube Creator",
-                "rating": 5,
-                "message": "The credits system is fair and transparent. My engagement has doubled since using Visionary Suite.",
-                "approved": True,
-                "seeded": True,
-                "approvedBy": admin.get("id"),
-                "createdAt": "2026-03-05T11:00:00Z",
-                "updatedAt": datetime.now(timezone.utc).isoformat()
-            }
-        ]
-        
-        # Insert reviews
-        for review in seed_reviews:
-            existing_review = await db.user_reviews.find_one({"name": review["name"], "seeded": True})
-            if not existing_review:
-                await db.user_reviews.insert_one(review)
-        
-        final_count = await db.user_reviews.count_documents({"approved": True})
-        
-        logger.info(f"Bulk seeded reviews by admin {admin.get('id')}")
-        
-        return {
-            "success": True,
-            "message": "Reviews seeded successfully",
-            "count": final_count
-        }
-    except Exception as e:
-        logger.error(f"Error bulk seeding reviews: {e}")
-        raise HTTPException(status_code=500, detail="Failed to seed reviews")
+    """Legacy bulk seed — redirects to geo seed."""
+    return await seed_geo_reviews(admin)

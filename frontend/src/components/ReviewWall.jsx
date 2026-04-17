@@ -87,9 +87,21 @@ export default function ReviewWall() {
                   data-testid={`review-card-${idx}`}
                 >
                   <div className="flex items-center gap-0.5 mb-3">
-                    {[1, 2, 3, 4, 5].map(s => (
-                      <Star key={s} className={`w-3.5 h-3.5 ${s <= review.rating ? 'text-amber-400 fill-amber-400' : 'text-slate-700'}`} />
-                    ))}
+                    {[1, 2, 3, 4, 5].map(s => {
+                      const r = review.rating || 0;
+                      const isFull = s <= Math.floor(r);
+                      const isHalf = !isFull && s === Math.floor(r) + 1 && r - Math.floor(r) >= 0.3;
+                      return (
+                        <Star
+                          key={s}
+                          className={`w-3.5 h-3.5 ${
+                            isFull ? 'text-amber-400 fill-amber-400' :
+                            isHalf ? 'text-amber-400 fill-amber-400/50' :
+                            'text-slate-700'
+                          }`}
+                        />
+                      );
+                    })}
                   </div>
                   <p className="text-sm text-slate-300 leading-relaxed mb-4 line-clamp-3">
                     &ldquo;{review.comment}&rdquo;
@@ -97,8 +109,8 @@ export default function ReviewWall() {
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="text-xs font-medium text-white">{review.display_name || 'Creator'}</span>
-                      {review.country && (
-                        <span className="text-[10px] text-slate-500 ml-1.5">{review.country}</span>
+                      {review.location && (
+                        <div className="text-[10px] text-slate-500 mt-0.5">{review.location}</div>
                       )}
                     </div>
                   </div>
