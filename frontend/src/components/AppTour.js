@@ -223,10 +223,14 @@ function TourOverlay() {
       
       {/* Tooltip */}
       <div
-        className={`absolute z-10 w-96 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-5 ${
+        className={`absolute z-10 w-[calc(100vw-24px)] sm:w-96 max-w-[384px] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-4 sm:p-5 ${
           isCentered ? 'transform -translate-x-1/2 -translate-y-1/2' : ''
         }`}
-        style={isCentered ? { top: '50%', left: '50%' } : position}
+        style={isCentered ? { top: '50%', left: '50%' } : {
+          ...position,
+          left: Math.max(12, Math.min((position?.left || 0), window.innerWidth - 396)),
+          top: Math.max(12, Math.min((position?.top || 0), window.innerHeight - 280)),
+        }}
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-3">

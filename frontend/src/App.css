@@ -1,3 +1,5 @@
+@import './styles/responsive.css';
+
 /* ============================================
    UNIFIED APP BACKGROUND - Production Styling
    Consistent with Landing Page
@@ -156,34 +158,4 @@ div[style*="z-index: 99"] > a[href*="emergent"] {
 /* Scrollbar styling inside protected content */
 .protected-content .scrollbar-hide::-webkit-scrollbar {
   display: none;
-}
-
-
-/* ── Mobile Video/Image Safety ── */
-video, img {
-  max-width: 100%;
-  height: auto;
-}
-
-video {
-  touch-action: manipulation;
-}
-
-/* ── Scrollbar Hide Utility ── */
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
-}
-
-/* ── Mobile Header Safety ── */
-@media (max-width: 640px) {
-  header h1 {
-    max-width: calc(100vw - 140px);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
 }

@@ -1,0 +1,260 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   VISIONARY SUITE — UNIVERSAL RESPONSIVE DESIGN SYSTEM
+   Built mobile-first. Desktop is frozen baseline.
+   Changes target <1024px breakpoints only.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. BREAKPOINT VARIABLES ──────────────────────────────────────────────
+   xs: 320px  (old phones)
+   sm: 375px  (iPhone standard)
+   md: 430px  (Pro Max / large phones)
+   lg: 768px  (tablets portrait)
+   xl: 1024px (tablets landscape / small laptop)
+   Tailwind handles these via config. These CSS vars are for custom rules.
+   ──────────────────────────────────────────────────────────────────────── */
+:root {
+  --vs-header-height: 56px;
+  --vs-header-height-mobile: 48px;
+  --vs-bottom-dock-height: 56px;
+  --vs-touch-target: 44px;
+  --vs-safe-top: env(safe-area-inset-top, 0px);
+  --vs-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --vs-safe-left: env(safe-area-inset-left, 0px);
+  --vs-safe-right: env(safe-area-inset-right, 0px);
+}
+
+/* ── 2. FLUID TYPOGRAPHY ──────────────────────────────────────────────────
+   Scales smoothly between mobile and desktop.
+   ──────────────────────────────────────────────────────────────────────── */
+.vs-text-hero {
+  font-size: clamp(1.75rem, 5vw, 4rem);
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.vs-text-h1 {
+  font-size: clamp(1.5rem, 3.5vw, 2.75rem);
+  line-height: 1.15;
+  font-weight: 700;
+}
+.vs-text-h2 {
+  font-size: clamp(1.125rem, 2.5vw, 1.75rem);
+  line-height: 1.25;
+  font-weight: 600;
+}
+.vs-text-body {
+  font-size: clamp(0.875rem, 1.4vw, 1.125rem);
+  line-height: 1.6;
+}
+.vs-text-caption {
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+/* ── 3. SAFE AREA HANDLING ────────────────────────────────────────────────
+   Respects iPhone notch, Dynamic Island, Safari bottom bar, gesture bar.
+   ──────────────────────────────────────────────────────────────────────── */
+.vs-safe-top {
+  padding-top: var(--vs-safe-top);
+}
+.vs-safe-bottom {
+  padding-bottom: max(var(--vs-safe-bottom), 12px);
+}
+.vs-safe-x {
+  padding-left: max(var(--vs-safe-left), 16px);
+  padding-right: max(var(--vs-safe-right), 16px);
+}
+
+/* ── 4. UNIVERSAL PAGE HEADER ─────────────────────────────────────────────
+   All page headers use this. Scoped to mobile <1024px.
+   Desktop headers remain as-is (frozen baseline).
+   ──────────────────────────────────────────────────────────────────────── */
+@media (max-width: 1023px) {
+  .vs-page-header {
+    padding: 10px 12px;
+    min-height: var(--vs-header-height-mobile);
+  }
+  .vs-page-header .vs-header-title {
+    font-size: 1rem;
+    max-width: calc(100vw - 140px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .vs-page-header .vs-header-subtitle {
+    display: none;
+  }
+  /* Reserve space for GlobalUserBar on right */
+  .vs-page-header .vs-header-left {
+    padding-right: 100px;
+    min-width: 0;
+  }
+}
+
+/* ── 5. VIEWPORT-SAFE MODALS ──────────────────────────────────────────────
+   All modals must stay within viewport on any device.
+   ──────────────────────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .vs-modal-content,
+  [data-testid*="modal"] > div:not([class*="inset-0"]),
+  .fixed.z-50 > div,
+  .fixed.z-\[100\] > div {
+    max-width: calc(100vw - 24px) !important;
+    max-height: calc(100vh - 48px) !important;
+    margin: 12px;
+  }
+}
+
+/* ── 6. TOUCH TARGETS ─────────────────────────────────────────────────────
+   All interactive elements minimum 44x44px on touch devices.
+   ──────────────────────────────────────────────────────────────────────── */
+@media (pointer: coarse) {
+  button, a, [role="button"], input[type="checkbox"], input[type="radio"],
+  select, .clickable {
+    min-height: var(--vs-touch-target);
+    min-width: var(--vs-touch-target);
+  }
+  /* Exception: inline text links and icon-only buttons with explicit small size */
+  a:not([class*="px-"]):not([class*="py-"]):not([class*="btn"]):not([class*="Button"]) {
+    min-height: auto;
+    min-width: auto;
+  }
+}
+
+/* ── 7. MEDIA SAFETY ──────────────────────────────────────────────────────
+   All images and videos contained within viewport.
+   ──────────────────────────────────────────────────────────────────────── */
+video, img {
+  max-width: 100%;
+  height: auto;
+}
+video {
+  touch-action: manipulation;
+  object-fit: contain;
+}
+/* Prevent image zoom weirdness on iOS */
+@media (max-width: 1023px) {
+  .vs-media-container {
+    overflow: hidden;
+    touch-action: manipulation;
+  }
+  .vs-media-container video,
+  .vs-media-container img {
+    width: 100%;
+    height: auto;
+    object-fit: contain;
+    -webkit-touch-callout: none;
+  }
+}
+
+/* ── 8. SCROLLBAR UTILITIES ───────────────────────────────────────────────
+   Hide scrollbars while keeping scroll functional.
+   ──────────────────────────────────────────────────────────────────────── */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── 9. MOBILE NAVIGATION / TAB BARS ─────────────────────────────────────
+   Horizontal tab bars that scroll cleanly on mobile.
+   ──────────────────────────────────────────────────────────────────────── */
+.vs-tabs {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 0.5rem;
+}
+.vs-tabs::-webkit-scrollbar {
+  display: none;
+}
+.vs-tabs > * {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* ── 10. BOTTOM DOCK SPACING ──────────────────────────────────────────────
+   Pages with bottom dock need extra padding to prevent content hiding.
+   ──────────────────────────────────────────────────────────────────────── */
+@media (max-width: 1023px) {
+  .vs-has-dock {
+    padding-bottom: calc(var(--vs-bottom-dock-height) + var(--vs-safe-bottom) + 16px);
+  }
+}
+
+/* ── 11. CARD GRID SYSTEM ─────────────────────────────────────────────────
+   Responsive card grids: 1 col phone → 2 tablet → 3-4 desktop.
+   ──────────────────────────────────────────────────────────────────────── */
+.vs-card-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 640px) {
+  .vs-card-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (min-width: 1024px) {
+  .vs-card-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (min-width: 1280px) {
+  .vs-card-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
+/* ── 12. UNIVERSAL SPACING SCALE ──────────────────────────────────────────
+   Consistent padding/margins using CSS variables.
+   ──────────────────────────────────────────────────────────────────────── */
+.vs-px {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+@media (min-width: 640px) {
+  .vs-px { padding-left: 24px; padding-right: 24px; }
+}
+@media (min-width: 1024px) {
+  .vs-px { padding-left: 32px; padding-right: 32px; }
+}
+
+/* ── 13. MOBILE-SPECIFIC HEADER FIXES ─────────────────────────────────────
+   Prevent title overflow collision with GlobalUserBar.
+   Applied globally to all sticky headers on mobile.
+   ──────────────────────────────────────────────────────────────────────── */
+@media (max-width: 639px) {
+  header h1, header .text-xl, header .text-lg {
+    max-width: calc(100vw - 160px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* Compact header padding on mobile */
+  header .py-4 {
+    padding-top: 0.625rem;
+    padding-bottom: 0.625rem;
+  }
+}
+
+/* ── 14. TOOLTIP / TOUR VIEWPORT SAFETY ───────────────────────────────────
+   Tooltips and tour popups stay within screen bounds.
+   ──────────────────────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  [data-testid="feature-tooltip"],
+  [data-testid="quick-start-guide"] > div,
+  .vs-tooltip {
+    max-width: calc(100vw - 24px) !important;
+    left: 12px !important;
+    right: 12px !important;
+    width: auto !important;
+  }
+}
+
+/* ── 15. FORM INPUTS ON MOBILE ────────────────────────────────────────────
+   Prevent iOS zoom on focus for inputs smaller than 16px.
+   ──────────────────────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}

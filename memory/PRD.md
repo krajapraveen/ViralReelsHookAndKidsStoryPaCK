@@ -1,75 +1,61 @@
 # Visionary Suite — Product Requirements Document
 
 ## Original Problem Statement
-Evolve the platform from a standard AI content generator into a highly addictive "Story Multiplayer Engine" built on viral network effects. Prioritize consumption, zero-friction entry, and strict behavioral psychology.
+Evolve the platform from a standard AI content generator into a highly addictive "Story Multiplayer Engine" built on viral network effects.
 
 ## Production Domain
 - **Website**: https://www.visionary-suite.com
 
-## Core Architecture
+## Architecture
 - Frontend: React (CRA) on port 3000
 - Backend: FastAPI on port 8001
 - Database: MongoDB
 - Storage: Cloudflare R2 (via boto3 proxy)
 - Payments: Cashfree
-- Auth: JWT + Google OAuth (Emergent-managed)
+- Auth: JWT + Google OAuth
 - AI: OpenAI/Gemini/Sora via Emergent LLM Key
-- Email: Resend (Emergent-managed, DNS pending)
 
 ## What's Been Implemented
 
-### Mobile P0 Rescue Sprint (April 2026)
-- Fixed GlobalUserBar — compact on mobile, no header collision
-- Fixed Profile page — credits hidden on mobile, tabs shortened with scroll
-- Fixed Studio header — subtitle hidden, title truncated, right-padding for bar
-- Fixed StoryPreview header — truncation, mobile padding
-- Fixed Support dock — hidden during generation/preview pages
-- Fixed Tour tooltip — viewport-bounded positioning
-- Fixed Video player — object-contain, touch-action:manipulation
-- Global CSS — max-width:100% on all img/video, mobile header truncation
+### Phase 1: Universal Responsive Framework (April 2026)
+- Created `/src/styles/responsive.css` — 15-module design system
+- Created `/src/components/PageHeader.jsx` — universal responsive header
+- Fluid typography with clamp() for hero/h1/h2/body
+- iOS safe area handling (notch, Dynamic Island, gesture bar)
+- Touch targets min 44x44px on coarse pointer devices
+- Viewport-safe modals on <768px
+- Video player: object-contain + touch-action:manipulation
+- Mobile header truncation, compact padding
+- Tab bars with horizontal scroll + scrollbar-hide
+- iOS input zoom prevention (16px font)
+- Support dock hidden during generation/preview
+- Tour/tooltip viewport-bounded positioning
+- Desktop frozen baseline — zero regressions
 
 ### Social Proof & Reviews (April 2026)
-- Homepage counter coherence fix (3 distinct metrics)
-- Review wall with real user reviews + avg rating
-- Post-value review modal (triggers after 3rd dashboard visit)
-- Review submission/moderation API
+- Homepage counters (645+ Creations, 39+ Creators, 1.2K+ Scenes)
+- Review wall with real user reviews
+- Post-value review modal
 
 ### Landing CTR Optimization (April 2026)
-- A/B Round 2 with 3 variants (Direct Value, Zero Friction, Social Proof)
+- A/B Round 2 with 3 variants
 - Variant-specific CTA text
-- Updated trust line with real metrics
 
 ### Admin Panel Trust Recovery (April 2026)
-- Date range sync across all sections
-- Polling propagation to Growth tab
-- LIVE/DELAYED/STALE freshness badges
+- Date range sync, polling propagation, freshness badges
 - User Management duplicate route fix
 
-### SEO & Google Indexing (April 2026)
-- Dynamic sitemap.xml (125+ URLs), robots.txt, JSON-LD structured data
-- GSC: Sitemap accepted (33 pages discovered), homepage indexed
-
-### Enterprise Protection Layer
-- Guardrails, Kill Switches, User Signals, XSS sanitization, R2 proxy
-
-## Current Business Metrics (30-day)
-| Metric | Value |
-|--------|-------|
-| Landing Visits | 839 |
-| CTA Clicks | 11 (1.3% CTR) |
-| Stories Created | 6 |
-| Shares | 38 |
-| Continuation Rate | 19.2% |
+### SEO (April 2026)
+- Dynamic sitemap.xml (125+ URLs), robots.txt, JSON-LD
 
 ## Priority Tasks
-1. Deploy full bundle to production
-2. Monitor A/B CTR after 500 sessions — target 4%+
-3. Continue mobile QA across all pages
-4. Push traffic aggressively
+1. Deploy all fixes to production
+2. Monitor A/B CTR after 500 sessions
+3. Phase 2: Premium Landing Page Rebuild
+4. Phase 3: Growth Flywheel Features
 
 ## Backlog
-- (P1) WebP/AVIF image optimization
-- (P2) Category-specific AI hook selection
-- (P0.6) Auto-Recovery for FAILED_PERSISTENCE jobs
-- (P2) Replace asyncio.create_task with Celery
-- Resend Domain Verification (blocked on DNS)
+- WebP/AVIF image optimization
+- Auto-Recovery for FAILED_PERSISTENCE jobs
+- Replace asyncio.create_task with Celery
+- Resend Domain Verification (DNS pending)

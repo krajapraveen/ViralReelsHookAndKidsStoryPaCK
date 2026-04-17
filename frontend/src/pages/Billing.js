@@ -229,13 +229,13 @@ export default function Billing() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950">
-      <header className="bg-slate-900/80 backdrop-blur-md border-b border-slate-700/50 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link to="/app"><Button variant="ghost" size="sm" className="text-slate-300 hover:text-white hover:bg-slate-800"><ArrowLeft className="w-4 h-4 mr-2" />Dashboard</Button></Link>
-            <div className="flex items-center gap-2"><Sparkles className="w-6 h-6 text-indigo-400" /><span className="text-xl font-bold text-white">Billing</span></div>
+      <header className="bg-slate-900/80 backdrop-blur-md border-b border-slate-700/50 sticky top-0 z-40 vs-page-header">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2.5 sm:py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0 vs-header-left">
+            <Link to="/app"><Button variant="ghost" size="sm" className="text-slate-300 hover:text-white hover:bg-slate-800 flex-shrink-0"><ArrowLeft className="w-4 h-4 sm:mr-2" /><span className="hidden sm:inline">Dashboard</span></Button></Link>
+            <div className="flex items-center gap-2 min-w-0"><Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-400 flex-shrink-0" /><span className="text-base sm:text-xl font-bold text-white truncate vs-header-title">Billing</span></div>
           </div>
-          <div className="flex items-center gap-2 bg-indigo-500/20 border border-indigo-500/30 rounded-full px-4 py-2"><Coins className="w-4 h-4 text-indigo-400" /><span className="font-semibold text-indigo-300">{credits} Credits</span></div>
+          <div className="hidden sm:flex items-center gap-2 bg-indigo-500/20 border border-indigo-500/30 rounded-full px-4 py-2"><Coins className="w-4 h-4 text-indigo-400" /><span className="font-semibold text-indigo-300">{credits} Credits</span></div>
         </div>
       </header>
 
