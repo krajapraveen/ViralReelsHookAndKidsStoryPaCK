@@ -139,8 +139,14 @@ export function ProductGuideProvider({ children }) {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     idleTimerRef.current = setTimeout(() => {
       if (progress && progress.guide_dismissed) return;
+      // Don't show stuck hint during active generation/processing
+      const generationActive = document.querySelector('[data-testid="generation-progress"], [data-testid="waiting-experience"], [data-testid="real-time-progress"]');
+      if (generationActive) return;
+      // Don't show if the target input doesn't exist in DOM
       const hint = STUCK_HINTS[location.pathname];
       if (hint) {
+        const targetInput = document.querySelector('[data-guide="story-input"], [data-guide="reel-input"]');
+        if (location.pathname.includes('story-video-studio') && !targetInput) return;
         setStuckMessage(hint);
         setShowStuckHint(true);
       }

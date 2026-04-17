@@ -102,8 +102,14 @@ export default function GuideAssistant() {
   }
 
   // Stuck hint — action-driven floating prompt
-  if (showStuckHint && stuckMessage) {
+  // GUARD: Never show during active generation/processing
+  const generationActive = typeof document !== 'undefined' && document.querySelector('[data-testid="generation-progress"], [data-testid="waiting-experience"], [data-testid="real-time-progress"]');
+  if (showStuckHint && stuckMessage && !generationActive) {
     const stuckTarget = getStuckTarget(location.pathname);
+    // Double-check: if target selector doesn't exist in DOM, don't show the hint
+    if (stuckTarget?.selector && !document.querySelector(stuckTarget.selector)) {
+      // Target doesn't exist — silently suppress
+    } else {
     return (
       <div
         className="fixed bottom-20 lg:bottom-24 right-4 z-[10000] animate-in slide-in-from-right-5 fade-in duration-300"
@@ -144,6 +150,7 @@ export default function GuideAssistant() {
         </div>
       </div>
     );
+    }
   }
 
   // Determine the action target for the current context
