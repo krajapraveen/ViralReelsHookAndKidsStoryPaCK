@@ -518,7 +518,7 @@ export default function Landing() {
       {stats && (
         <section className="border-y border-white/[0.04] py-10 px-4" data-testid="social-proof">
           <div className="max-w-5xl mx-auto">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+            <div className="grid grid-cols-3 gap-8 text-center">
               {[
                 { value: stats.total_creations || 0, label: 'Creations Made', suffix: '+', todayKey: 'creations_today' },
                 { value: stats.creators || 0, label: 'Active Creators', suffix: '+', todayKey: 'creators_today' },
@@ -543,6 +543,123 @@ export default function Landing() {
           </div>
         </section>
       )}
+
+      {/* ═══════ USE CASE RAILS (Netflix-style) ═══════ */}
+      <section className="py-16 px-4 border-t border-white/[0.04]" data-testid="use-cases">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-10">
+            <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-2">What will you create?</h2>
+            <p className="text-sm text-slate-400">One tool. Endless possibilities.</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3" data-testid="use-case-grid">
+            {[
+              { title: 'Kids Bedtime Stories', desc: 'Magical tales with soothing narration', icon: '🌙', path: '/app/bedtime-story-builder', color: 'from-indigo-500/20 to-violet-500/20', border: 'border-indigo-500/20' },
+              { title: 'Viral Instagram Reels', desc: 'Scroll-stopping hooks in seconds', icon: '🎬', path: '/app/reels', color: 'from-rose-500/20 to-pink-500/20', border: 'border-rose-500/20' },
+              { title: 'YouTube Shorts', desc: 'AI-powered short videos that grow', icon: '📺', path: '/app/story-video-studio', color: 'from-red-500/20 to-orange-500/20', border: 'border-red-500/20' },
+              { title: 'Comic Storybooks', desc: 'Illustrated stories panel by panel', icon: '📖', path: '/app/comic-storybook', color: 'from-amber-500/20 to-yellow-500/20', border: 'border-amber-500/20' },
+              { title: 'Business Promos', desc: 'Professional video ads fast', icon: '💼', path: '/app/story-video-studio', color: 'from-emerald-500/20 to-teal-500/20', border: 'border-emerald-500/20' },
+              { title: 'Photo to Comic', desc: 'Transform photos into comic panels', icon: '🖼️', path: '/app/photo-to-comic', color: 'from-cyan-500/20 to-blue-500/20', border: 'border-cyan-500/20' },
+              { title: 'GIF & Reaction Maker', desc: 'Shareable GIFs from any idea', icon: '✨', path: '/app/gif-maker', color: 'from-purple-500/20 to-fuchsia-500/20', border: 'border-purple-500/20' },
+              { title: 'Story Episodes', desc: 'Serialized stories with continuity', icon: '📚', path: '/app/story-episode-creator', color: 'from-sky-500/20 to-indigo-500/20', border: 'border-sky-500/20' },
+            ].map((uc) => (
+              <Link key={uc.title} to={uc.path} className={`group rounded-2xl border ${uc.border} bg-gradient-to-br ${uc.color} p-4 sm:p-5 hover:scale-[1.02] transition-all`} data-testid={`use-case-${uc.title.toLowerCase().replace(/\s+/g, '-')}`}>
+                <div className="text-2xl mb-3">{uc.icon}</div>
+                <h3 className="text-sm sm:text-base font-bold text-white mb-1 group-hover:text-violet-200 transition-colors">{uc.title}</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">{uc.desc}</p>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════ PAIN REMOVAL ═══════ */}
+      <section className="py-16 px-4 border-t border-white/[0.04]" data-testid="pain-removal">
+        <div className="max-w-4xl mx-auto text-center">
+          <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-3">Stop wasting hours editing</h2>
+          <p className="text-sm text-slate-400 mb-8 max-w-xl mx-auto">Traditional video creation requires scripts, voice recording, editing software, stock footage, and hours of work. Visionary Suite replaces all of that.</p>
+          <div className="grid sm:grid-cols-2 gap-3 max-w-2xl mx-auto mb-8">
+            {[
+              'No script writing needed',
+              'No voice recording required',
+              'No video editing software',
+              'No stock footage hunting',
+              'No design skills required',
+              'No complex software to learn',
+            ].map((pain) => (
+              <div key={pain} className="flex items-center gap-3 text-left px-4 py-3 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+                <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                  <Zap className="w-3 h-3 text-emerald-400" />
+                </div>
+                <span className="text-sm text-slate-300">{pain}</span>
+              </div>
+            ))}
+          </div>
+          <div className="inline-flex items-center gap-2 px-5 py-3 rounded-full bg-violet-500/10 border border-violet-500/20">
+            <Sparkles className="w-4 h-4 text-violet-400" />
+            <span className="text-sm font-bold text-white">One prompt → finished video</span>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════ PRICING TEASER ═══════ */}
+      <section className="py-16 px-4 border-t border-white/[0.04]" data-testid="pricing-teaser">
+        <div className="max-w-3xl mx-auto text-center">
+          <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-3">Start free. Upgrade when you love it.</h2>
+          <p className="text-sm text-slate-400 mb-8">Get 10 free credits to try everything. No credit card required.</p>
+          <div className="grid sm:grid-cols-2 gap-4 max-w-xl mx-auto mb-8">
+            <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6 text-left">
+              <div className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2">Free</div>
+              <div className="text-2xl font-black text-white mb-1">₹0</div>
+              <p className="text-xs text-slate-400 mb-4">10 credits to start</p>
+              <ul className="space-y-2 text-xs text-slate-300">
+                <li className="flex items-center gap-2"><Zap className="w-3 h-3 text-emerald-400" /> Create story videos</li>
+                <li className="flex items-center gap-2"><Zap className="w-3 h-3 text-emerald-400" /> All AI tools included</li>
+                <li className="flex items-center gap-2"><Zap className="w-3 h-3 text-emerald-400" /> Share & download</li>
+              </ul>
+            </div>
+            <div className="rounded-2xl border border-violet-500/30 bg-gradient-to-br from-violet-500/[0.08] to-rose-500/[0.06] p-6 text-left">
+              <div className="text-xs font-bold text-violet-400 uppercase tracking-wider mb-2">Pro</div>
+              <div className="text-2xl font-black text-white mb-1">₹149<span className="text-sm text-slate-400 font-normal">/week</span></div>
+              <p className="text-xs text-slate-400 mb-4">40 credits weekly</p>
+              <ul className="space-y-2 text-xs text-slate-300">
+                <li className="flex items-center gap-2"><Zap className="w-3 h-3 text-violet-400" /> Faster generation</li>
+                <li className="flex items-center gap-2"><Zap className="w-3 h-3 text-violet-400" /> Premium styles</li>
+                <li className="flex items-center gap-2"><Zap className="w-3 h-3 text-violet-400" /> Commercial usage</li>
+              </ul>
+            </div>
+          </div>
+          <Link to="/pricing">
+            <button className="text-sm text-violet-400 hover:text-violet-300 font-medium transition-colors" data-testid="pricing-see-all">
+              See all plans <ArrowRight className="w-3.5 h-3.5 inline ml-1" />
+            </button>
+          </Link>
+        </div>
+      </section>
+
+      {/* ═══════ FAQ ═══════ */}
+      <section className="py-16 px-4 border-t border-white/[0.04]" data-testid="faq-section">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight text-center mb-10">Frequently asked questions</h2>
+          <div className="space-y-3" data-testid="faq-list">
+            {[
+              { q: 'Is it really free to try?', a: 'Yes. You get 10 free credits when you sign up — no credit card needed. That\'s enough to create your first video.' },
+              { q: 'How long does it take to create a video?', a: 'Usually about 60 seconds. You type a prompt, and AI handles scenes, images, voiceover, and music automatically.' },
+              { q: 'Do I need editing skills?', a: 'Not at all. Visionary Suite is designed for non-technical creators. Type one sentence and get a complete video.' },
+              { q: 'Can I use videos for business?', a: 'Paid plans include commercial usage rights. You can use generated videos for social media, marketing, and content.' },
+              { q: 'Can I cancel anytime?', a: 'Yes. All subscriptions can be canceled instantly from your billing page. No lock-ins, no hidden fees.' },
+              { q: 'What types of content can I create?', a: 'Story videos, Instagram reels, bedtime stories, comic storybooks, GIFs, photo-to-comic conversions, and much more.' },
+            ].map((item, idx) => (
+              <details key={idx} className="group rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden" data-testid={`faq-${idx}`}>
+                <summary className="cursor-pointer px-5 py-4 text-sm font-medium text-white flex items-center justify-between list-none">
+                  {item.q}
+                  <ChevronRight className="w-4 h-4 text-slate-500 group-open:rotate-90 transition-transform flex-shrink-0 ml-2" />
+                </summary>
+                <div className="px-5 pb-4 text-sm text-slate-400 leading-relaxed">{item.a}</div>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* ═══════ 5. HOW IT WORKS — 3 STEPS ═══════ */}
       <section className="py-16 px-4" data-testid="how-it-works">

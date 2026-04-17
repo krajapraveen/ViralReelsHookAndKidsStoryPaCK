@@ -13,6 +13,8 @@ import { trackLoop } from '../utils/growthTracker';
 import api from '../utils/api';
 import EntitledDownloadButton from '../components/EntitledDownloadButton';
 import { useMediaEntitlement } from '../contexts/MediaEntitlementContext';
+import ShareButtons from '../components/ShareButtons';
+import SmartUpgradePrompt from '../components/SmartUpgradePrompt';
 import { ProtectedContentContainer as ProtectedContent } from '../components/ProtectedContent';
 
 export default function StoryPreview() {
@@ -559,6 +561,19 @@ export default function StoryPreview() {
           </div>
         </div>
       </main>
+
+      {/* Share + Upgrade prompts */}
+      {preview.status === 'COMPLETED' && (
+        <>
+          <div className="max-w-7xl mx-auto px-4 pb-4">
+            <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4" data-testid="preview-share-section">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Share this creation</p>
+              <ShareButtons url={`${window.location.origin}/v/${preview.slug || jobId}`} title={preview.title} />
+            </div>
+          </div>
+          <SmartUpgradePrompt trigger="generation_complete" />
+        </>
+      )}
     </ProtectedContent>
   );
 }
