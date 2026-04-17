@@ -1,0 +1,132 @@
+/* ═══════════════════════════════════════════════════════════════
+   FULLSCREEN MEDIA VIEWER — CSS
+   Native fullscreen + landscape rotation fallback for iOS Safari
+   ═══════════════════════════════════════════════════════════════ */
+
+.fsm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  background: rgba(0, 0, 0, 0.96);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
+}
+
+.fsm-close {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 8px) + 12px);
+  right: 16px;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.fsm-rotate-hint {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 8px) + 12px);
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+  z-index: 10;
+  animation: fsmFadeOut 4s ease-out forwards;
+  animation-delay: 2s;
+}
+
+.fsm-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.fsm-video,
+.fsm-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  touch-action: manipulation;
+}
+
+.fsm-video {
+  width: 100%;
+  height: 100%;
+  background: black;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   iOS PORTRAIT FALLBACK — CSS-rotate video to landscape
+   when device is in portrait and Screen Orientation API fails.
+   This gives YouTube-like landscape viewing without device rotation.
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) and (orientation: portrait) {
+  .fsm-video-mode .fsm-content {
+    /* Rotate the entire content container 90deg */
+    transform: rotate(90deg);
+    transform-origin: center center;
+    /* Swap width/height so landscape video fills screen */
+    width: 100vh;
+    height: 100vw;
+    /* Center after rotation */
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    margin-top: -50vw;
+    margin-left: -50vh;
+  }
+
+  .fsm-video-mode .fsm-video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  /* Rotate close button to stay accessible */
+  .fsm-video-mode .fsm-close {
+    transform: rotate(-90deg);
+    top: 16px;
+    right: calc(env(safe-area-inset-top, 8px) + 12px);
+  }
+
+  /* Hide rotate hint when already rotated */
+  .fsm-video-mode .fsm-rotate-hint {
+    display: none;
+  }
+}
+
+/* When device IS landscape, no rotation needed */
+@media (orientation: landscape) {
+  .fsm-video-mode .fsm-content {
+    transform: none;
+    width: 100%;
+    height: 100%;
+    position: relative;
+    top: auto;
+    left: auto;
+    margin: 0;
+  }
+}
+
+@keyframes fsmFadeOut {
+  0%, 80% { opacity: 1; }
+  100% { opacity: 0; pointer-events: none; }
+}

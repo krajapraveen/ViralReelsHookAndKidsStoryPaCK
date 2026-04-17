@@ -1,22 +1,17 @@
 import React, { useEffect, useRef, useCallback } from 'react';
 import { X, RotateCw } from 'lucide-react';
+import './fullscreenMediaViewer.css';
 
 /**
- * Fullscreen media viewer — modal overlay for immersive video/image viewing.
- * Works on iOS Safari + Android Chrome without native fullscreen API dependency.
- * 
- * Props:
- *  - src: string (video or image URL)
- *  - type: 'video' | 'image' (default: auto-detect)
- *  - poster: string (video poster image)
- *  - onClose: () => void
- *  - open: boolean
+ * Fullscreen media viewer with native landscape video support.
+ * Videos: attempts native fullscreen + orientation lock → CSS rotate fallback.
+ * Images: contained overlay, no rotation.
  */
 export default function FullscreenMediaViewer({ src, type, poster, onClose, open }) {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
+  const nativeFullscreenRef = useRef(false);
 
-  // Detect type from URL if not provided
   const mediaType = type || (src && /\.(mp4|webm|mov|avi|mkv)/i.test(src) ? 'video' : 'image');
 
   // Lock body scroll when open
@@ -31,6 +26,80 @@ export default function FullscreenMediaViewer({ src, type, poster, onClose, open
     };
   }, [open]);
 
+  // For VIDEO: attempt native fullscreen + orientation lock
+  useEffect(() => {
+    if (!open || mediaType !== 'video') return;
+
+    const enterFullscreen = async () => {
+      const video = videoRef.current;
+      if (!video) return;
+
+      // Try native fullscreen on the video element
+      try {
+        if (video.requestFullscreen) {
+          await video.requestFullscreen();
+          nativeFullscreenRef.current = true;
+        } else if (video.webkitEnterFullscreen) {
+          // iOS Safari — this gives native fullscreen player
+          video.webkitEnterFullscreen();
+          nativeFullscreenRef.current = true;
+        }
+      } catch (e) {
+        nativeFullscreenRef.current = false;
+      }
+
+      // Try orientation lock to landscape
+      try {
+        if (screen.orientation && screen.orientation.lock) {
+          await screen.orientation.lock('landscape');
+        }
+      } catch (e) {
+        // Most mobile browsers restrict this — CSS fallback handles it
+      }
+    };
+
+    // Small delay to let the modal mount and video element appear
+    const timer = setTimeout(enterFullscreen, 300);
+    return () => clearTimeout(timer);
+  }, [open, mediaType]);
+
+  // Cleanup on close
+  useEffect(() => {
+    if (open) return;
+    return () => {
+      // Unlock orientation
+      try {
+        if (screen.orientation && screen.orientation.unlock) {
+          screen.orientation.unlock();
+        }
+      } catch (e) {}
+      // Exit native fullscreen if active
+      try {
+        if (document.fullscreenElement) {
+          document.exitFullscreen();
+        }
+      } catch (e) {}
+      nativeFullscreenRef.current = false;
+    };
+  }, [open]);
+
+  // Listen for native fullscreen exit → close our modal too
+  useEffect(() => {
+    if (!open || mediaType !== 'video') return;
+    const handler = () => {
+      if (!document.fullscreenElement && nativeFullscreenRef.current) {
+        nativeFullscreenRef.current = false;
+        onClose();
+      }
+    };
+    document.addEventListener('fullscreenchange', handler);
+    document.addEventListener('webkitfullscreenchange', handler);
+    return () => {
+      document.removeEventListener('fullscreenchange', handler);
+      document.removeEventListener('webkitfullscreenchange', handler);
+    };
+  }, [open, mediaType, onClose]);
+
   // Close on Escape
   useEffect(() => {
     if (!open) return;
@@ -39,9 +108,20 @@ export default function FullscreenMediaViewer({ src, type, poster, onClose, open
     return () => window.removeEventListener('keydown', handler);
   }, [open, onClose]);
 
-  // Close on backdrop click (not on media)
   const handleBackdropClick = useCallback((e) => {
     if (e.target === containerRef.current) onClose();
+  }, [onClose]);
+
+  const handleClose = useCallback(() => {
+    // Exit native fullscreen first
+    try {
+      if (document.fullscreenElement) document.exitFullscreen();
+    } catch (e) {}
+    try {
+      if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock();
+    } catch (e) {}
+    nativeFullscreenRef.current = false;
+    onClose();
   }, [onClose]);
 
   if (!open || !src) return null;
@@ -49,39 +129,29 @@ export default function FullscreenMediaViewer({ src, type, poster, onClose, open
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 z-[10010] bg-black/95 flex items-center justify-center"
-      style={{
-        paddingTop: 'env(safe-area-inset-top, 0px)',
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-        paddingLeft: 'env(safe-area-inset-left, 0px)',
-        paddingRight: 'env(safe-area-inset-right, 0px)',
-      }}
+      className={`fsm-overlay ${mediaType === 'video' ? 'fsm-video-mode' : ''}`}
       onClick={handleBackdropClick}
       data-testid="fullscreen-media-viewer"
     >
       {/* Close button */}
       <button
-        onClick={onClose}
-        className="absolute top-3 right-3 z-[10011] w-10 h-10 rounded-full bg-black/60 border border-white/20 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
-        style={{ marginTop: 'env(safe-area-inset-top, 8px)' }}
+        onClick={handleClose}
+        className="fsm-close"
         data-testid="fullscreen-close-btn"
       >
         <X className="w-5 h-5" />
       </button>
 
-      {/* Rotate hint — show briefly for landscape content in portrait mode */}
-      <div className="absolute top-3 left-3 z-[10011] flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/60 border border-white/10 text-white/60 text-[10px] animate-in fade-in duration-500"
-        style={{ marginTop: 'env(safe-area-inset-top, 8px)', animationDelay: '1s', animationFillMode: 'both' }}
-      >
-        <RotateCw className="w-3 h-3" />
-        Rotate for best view
-      </div>
+      {/* Rotate hint for video */}
+      {mediaType === 'video' && (
+        <div className="fsm-rotate-hint">
+          <RotateCw className="w-3 h-3" />
+          Rotate for best view
+        </div>
+      )}
 
-      {/* Media container — hard-bounded to viewport */}
-      <div
-        className="w-full h-full flex items-center justify-center p-2"
-        style={{ maxWidth: '100vw', maxHeight: '100dvh', touchAction: 'manipulation' }}
-      >
+      {/* Media container */}
+      <div className="fsm-content" onClick={(e) => e.stopPropagation()}>
         {mediaType === 'video' ? (
           <video
             ref={videoRef}
@@ -91,24 +161,14 @@ export default function FullscreenMediaViewer({ src, type, poster, onClose, open
             autoPlay
             playsInline
             controlsList="nodownload noplaybackrate"
-            className="max-w-full max-h-full rounded-lg"
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain',
-              touchAction: 'manipulation',
-            }}
+            className="fsm-video"
             data-testid="fullscreen-video"
           />
         ) : (
           <img
             src={src}
             alt="Full view"
-            className="max-w-full max-h-full rounded-lg"
-            style={{
-              objectFit: 'contain',
-              touchAction: 'manipulation',
-            }}
+            className="fsm-image"
             data-testid="fullscreen-image"
           />
         )}
