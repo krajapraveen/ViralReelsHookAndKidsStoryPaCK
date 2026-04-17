@@ -15,6 +15,7 @@ import EntitledDownloadButton from '../components/EntitledDownloadButton';
 import { useMediaEntitlement } from '../contexts/MediaEntitlementContext';
 import ShareButtons from '../components/ShareButtons';
 import SmartUpgradePrompt from '../components/SmartUpgradePrompt';
+import FullscreenMediaViewer from '../components/FullscreenMediaViewer';
 import { ProtectedContentContainer as ProtectedContent } from '../components/ProtectedContent';
 
 export default function StoryPreview() {
@@ -29,6 +30,7 @@ export default function StoryPreview() {
   const [showContinueOverlay, setShowContinueOverlay] = useState(false);
   const [videoTriggerActive, setVideoTriggerActive] = useState(false);
   const [videoEnded, setVideoEnded] = useState(false);
+  const [fullscreenMedia, setFullscreenMedia] = useState(null); // { src, type, poster }
   const audioRef = useRef(null);
   const videoPlayerRef = useRef(null);
 
@@ -272,6 +274,17 @@ export default function StoryPreview() {
                     onEnded={handleVideoEnded}
                     data-testid="story-video-player"
                   />
+                  {/* Expand / Fullscreen button */}
+                  <button
+                    onClick={() => setFullscreenMedia({ src: preview.final_video_url, type: 'video' })}
+                    className="absolute top-2 right-2 z-20 w-9 h-9 rounded-lg bg-black/60 border border-white/20 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+                    data-testid="video-expand-btn"
+                    aria-label="Expand video"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4.5 h-4.5">
+                      <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                    </svg>
+                  </button>
                   {/* Trigger zone: cliffhanger text fades in during last 2s */}
                   {videoTriggerActive && !videoEnded && (preview.trigger_text || preview.cliffhanger) && (
                     <div className="absolute inset-0 pointer-events-none flex items-end justify-center pb-16 z-10"
@@ -327,6 +340,19 @@ export default function StoryPreview() {
                     className="w-full h-full"
                     data-testid={`scene-image-${activeScene}`}
                   />
+                  {/* Expand scene image */}
+                  {currentScene.image_url && (
+                    <button
+                      onClick={() => setFullscreenMedia({ src: currentScene.image_url, type: 'image' })}
+                      className="absolute top-2 right-2 z-20 w-9 h-9 rounded-lg bg-black/60 border border-white/20 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+                      data-testid="scene-expand-btn"
+                      aria-label="Expand image"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4.5 h-4.5">
+                        <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                      </svg>
+                    </button>
+                  )}
 
                   {/* Scene Navigation Overlay */}
                   <div className="absolute inset-y-0 left-0 flex items-center pl-2">
@@ -574,6 +600,12 @@ export default function StoryPreview() {
             </div>
           </div>
           <SmartUpgradePrompt trigger="generation_complete" />
+          <FullscreenMediaViewer
+            src={fullscreenMedia?.src}
+            type={fullscreenMedia?.type}
+            open={!!fullscreenMedia}
+            onClose={() => setFullscreenMedia(null)}
+          />
         </>
       )}
     </ProtectedContent>
