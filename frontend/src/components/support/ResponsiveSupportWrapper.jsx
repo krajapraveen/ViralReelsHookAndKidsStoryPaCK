@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import useViewport from '../../hooks/useViewport';
 import SupportDock from './SupportDock';
 import SupportBottomSheet from './SupportBottomSheet';
@@ -8,7 +9,8 @@ import FeedbackWidget from '../FeedbackWidget';
 
 export default function ResponsiveSupportWrapper() {
   const { isDesktop } = useViewport();
-  const [activeSheet, setActiveSheet] = useState(null); // 'chat' | 'support' | null
+  const location = useLocation();
+  const [activeSheet, setActiveSheet] = useState(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   const handleOpenChat = useCallback(() => setActiveSheet('chat'), []);
@@ -19,8 +21,14 @@ export default function ResponsiveSupportWrapper() {
   }, []);
   const handleCloseSheet = useCallback(() => setActiveSheet(null), []);
 
+  // Hide dock during generation, preview, and fullscreen pages
+  const path = location.pathname;
+  const hideDock = path.includes('story-video-studio') ||
+    path.includes('story-preview') ||
+    path.includes('story-viewer') ||
+    path.includes('experience');
+
   if (isDesktop) {
-    // Desktop: keep floating widgets as-is
     return (
       <>
         <AIChatbot />
@@ -33,12 +41,13 @@ export default function ResponsiveSupportWrapper() {
   // Mobile / Tablet: dock + bottom sheet pattern
   return (
     <>
-      {/* Support Dock — always visible at bottom */}
-      <SupportDock
-        onOpenChat={handleOpenChat}
-        onOpenSupport={handleOpenSupport}
-        onOpenFeedback={handleOpenFeedback}
-      />
+      {!hideDock && (
+        <SupportDock
+          onOpenChat={handleOpenChat}
+          onOpenSupport={handleOpenSupport}
+          onOpenFeedback={handleOpenFeedback}
+        />
+      )}
 
       {/* AI Chatbot in bottom sheet */}
       <SupportBottomSheet

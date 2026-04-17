@@ -26,19 +26,19 @@ export default function GlobalUserBar() {
   };
 
   return (
-    <div className={`fixed ${isAdmin ? 'top-[52px]' : 'top-0'} right-0 z-[10002] p-3 sm:p-4`} data-testid="global-user-bar">
-      <div className="relative flex items-center gap-2">
+    <div className={`fixed ${isAdmin ? 'top-[52px]' : 'top-0'} right-0 z-[10002] p-2 sm:p-3`} data-testid="global-user-bar">
+      <div className="relative flex items-center gap-1.5 sm:gap-2">
         <NotificationBell />
         <button
           onClick={() => setOpen(prev => !prev)}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-black/60 backdrop-blur-xl hover:bg-white/10 transition-colors"
+          className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-full border border-white/10 bg-black/60 backdrop-blur-xl hover:bg-white/10 transition-colors"
           data-testid="user-menu-toggle"
           aria-label="User menu"
         >
-          <Zap className="w-3.5 h-3.5 text-amber-400" />
-          <span className="text-xs font-medium text-white">{credits >= 99999 ? '∞' : (credits ?? '...')}</span>
-          <div className="w-7 h-7 rounded-full bg-indigo-500/30 border border-indigo-500/40 flex items-center justify-center">
-            <User className="w-3.5 h-3.5 text-indigo-300" />
+          <Zap className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400" />
+          <span className="text-[11px] sm:text-xs font-medium text-white">{credits >= 99999 ? '∞' : (credits ?? '...')}</span>
+          <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-indigo-500/30 border border-indigo-500/40 flex items-center justify-center">
+            <User className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-indigo-300" />
           </div>
         </button>
 

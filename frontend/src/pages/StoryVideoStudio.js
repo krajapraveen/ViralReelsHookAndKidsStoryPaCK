@@ -1148,19 +1148,19 @@ export default function StoryVideoStudio() {
       )}
       {/* Header */}
       <header className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-lg border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="max-w-7xl mx-auto px-4 py-3 sm:py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0 pr-20 sm:pr-0">
             <Link to="/app">
-              <Button variant="ghost" size="icon" className="text-white">
+              <Button variant="ghost" size="icon" className="text-white flex-shrink-0">
                 <ArrowLeft className="w-5 h-5" />
               </Button>
             </Link>
-            <div>
-              <h1 className="text-xl font-bold text-white flex items-center gap-2">
-                <Film className="w-6 h-6 text-purple-400" />
-                Story → Video Studio
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-xl font-bold text-white flex items-center gap-2 truncate">
+                <Film className="w-5 h-5 sm:w-6 sm:h-6 text-purple-400 flex-shrink-0" />
+                <span className="truncate">Story Video Studio</span>
               </h1>
-              <p className="text-sm text-slate-400">Transform stories into videos with AI</p>
+              <p className="text-xs sm:text-sm text-slate-400 hidden sm:block">Transform stories into videos with AI</p>
             </div>
           </div>
           

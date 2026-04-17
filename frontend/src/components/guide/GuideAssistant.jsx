@@ -338,8 +338,13 @@ function FeatureTooltip({ guide, step, stepIdx, totalSteps, onNext, onDismiss, o
     <>
       <div className="fixed inset-0 bg-black/30 z-[9990]" onClick={onDismiss} />
       <div
-        className="fixed z-[10000] w-[300px] bg-slate-900 border border-indigo-500/40 rounded-2xl shadow-2xl p-4 animate-in fade-in slide-in-from-bottom-2 duration-200"
-        style={{ top: Math.min(pos.top, window.innerHeight - 220), left: Math.max(8, pos.left) }}
+        className="fixed z-[10000] bg-slate-900 border border-indigo-500/40 rounded-2xl shadow-2xl p-4 animate-in fade-in slide-in-from-bottom-2 duration-200"
+        style={{
+          top: Math.min(pos.top, window.innerHeight - 220),
+          left: Math.max(12, Math.min(pos.left, window.innerWidth - 312)),
+          width: Math.min(300, window.innerWidth - 24),
+          maxWidth: 'calc(100vw - 24px)',
+        }}
         data-testid="feature-tooltip"
       >
         <div className="flex items-center justify-between mb-2">

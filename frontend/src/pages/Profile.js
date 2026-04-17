@@ -248,20 +248,20 @@ export default function Profile() {
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-lg border-b border-white/10">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="max-w-6xl mx-auto px-4 py-3 sm:py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             <Link to="/app">
-              <Button variant="ghost" size="icon" className="text-white">
+              <Button variant="ghost" size="icon" className="text-white flex-shrink-0">
                 <ArrowLeft className="w-5 h-5" />
               </Button>
             </Link>
-            <h1 className="text-xl font-bold text-white flex items-center gap-2">
-              <User className="w-6 h-6 text-purple-400" />
-              My Profile
+            <h1 className="text-base sm:text-xl font-bold text-white flex items-center gap-2 truncate">
+              <User className="w-5 h-5 sm:w-6 sm:h-6 text-purple-400 flex-shrink-0" />
+              <span className="truncate">My Profile</span>
             </h1>
           </div>
           <div className="flex items-center gap-2">
-            <div className="px-3 py-1 bg-purple-500/20 rounded-full flex items-center gap-2">
+            <div className="hidden sm:flex px-3 py-1 bg-purple-500/20 rounded-full items-center gap-2">
               <Sparkles className="w-4 h-4 text-purple-400" />
               <span className="text-purple-400 font-medium">{user?.credits || 0} Credits</span>
             </div>
@@ -290,22 +290,22 @@ export default function Profile() {
 
       <main className="max-w-6xl mx-auto px-4 py-8">
         {/* Tab Navigation */}
-        <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
+        <div className="flex gap-2 mb-8 overflow-x-auto pb-2 scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
           {[
             { id: 'space', label: 'My Space', icon: Folder },
             { id: 'jobs', label: 'My Jobs', icon: Briefcase },
-            { id: 'profile', label: 'Profile Settings', icon: User },
+            { id: 'profile', label: 'Profile', icon: User },
             { id: 'security', label: 'Security', icon: Shield },
-            { id: 'notifications', label: 'Notifications', icon: Bell }
+            { id: 'notifications', label: 'Alerts', icon: Bell }
           ].map(tab => (
             <Button
               key={tab.id}
               variant={activeTab === tab.id ? 'default' : 'ghost'}
               onClick={() => setActiveTab(tab.id)}
-              className={activeTab === tab.id ? 'bg-purple-600' : 'text-slate-400'}
+              className={`flex-shrink-0 whitespace-nowrap text-xs sm:text-sm ${activeTab === tab.id ? 'bg-purple-600' : 'text-slate-400'}`}
               data-testid={`tab-${tab.id}`}
             >
-              <tab.icon className="w-4 h-4 mr-2" />
+              <tab.icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
               {tab.label}
             </Button>
           ))}

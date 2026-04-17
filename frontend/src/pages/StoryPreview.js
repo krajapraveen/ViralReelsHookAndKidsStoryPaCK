@@ -155,23 +155,23 @@ export default function StoryPreview() {
     <ProtectedContent className="min-h-screen bg-gradient-to-b from-slate-950 via-[#0a0f1f] to-slate-950">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-lg border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="max-w-7xl mx-auto px-4 py-3 sm:py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0 pr-24 sm:pr-32">
             <Link to="/app">
-              <Button variant="ghost" size="icon" className="text-white">
+              <Button variant="ghost" size="icon" className="text-white flex-shrink-0">
                 <ArrowLeft className="w-5 h-5" />
               </Button>
             </Link>
-            <div>
-              <h1 className="text-xl font-bold text-white" data-testid="preview-title">
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-xl font-bold text-white truncate" data-testid="preview-title">
                 {preview.title || 'Story Preview'}
               </h1>
-              <div className="flex items-center gap-3 text-sm">
+              <div className="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm">
                 <span className={statusColor} data-testid="preview-status">
                   {preview.status === 'COMPLETED' ? 'Ready' : preview.status === 'PARTIAL' ? 'Assets Available' : preview.status}
                 </span>
                 <span className="text-slate-500">
-                  {preview.scenes_with_images}/{preview.total_scenes} images
+                  {preview.scenes_with_images}/{preview.total_scenes} img
                 </span>
                 <span className="text-slate-500">
                   {preview.scenes_with_audio}/{preview.total_scenes} audio
@@ -253,7 +253,7 @@ export default function StoryPreview() {
           <div className="lg:col-span-2 space-y-4">
             {/* Immersive Video Player — CTA synchronized to tension peak */}
             {preview.final_video_url && (
-              <div className="relative rounded-xl overflow-hidden border border-slate-700/50 bg-black" data-testid="video-player-section">
+              <div className="relative rounded-xl overflow-hidden border border-slate-700/50 bg-black" data-testid="video-player-section" style={{ touchAction: 'manipulation' }}>
                 <div className="relative aspect-video">
                   <video
                     ref={videoPlayerRef}
@@ -262,7 +262,8 @@ export default function StoryPreview() {
                     controlsList="nodownload noplaybackrate"
                     disablePictureInPicture
                     playsInline
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain"
+                    style={{ maxWidth: '100%', maxHeight: '100%', touchAction: 'manipulation' }}
                     onTimeUpdate={handleVideoTimeUpdate}
                     onEnded={handleVideoEnded}
                     data-testid="story-video-player"
