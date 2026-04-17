@@ -32,6 +32,23 @@ Evolve the platform from a standard AI content generator into a highly addictive
 - All modals viewport-safe (p-4 padding)
 - Desktop frozen baseline, zero regressions
 
+### Auto Freshness Engine — April 17, 2026
+- Background scheduler loop in `reviews.py` — runs hourly, seeds once per UTC day (min 20h gap)
+- Wired into `server.py` startup via `asyncio.create_task(review_scheduler_loop())`
+- Config stored in `review_scheduler_config` collection (singleton): `enabled`, `daily_count` (1-50), `last_run_at`, `last_run_added`
+- Admin endpoints:
+  - `GET /api/reviews/admin/scheduler` — status + stats (total, today, avg rating)
+  - `POST /api/reviews/admin/scheduler/config` — toggle enabled + set daily_count
+  - `POST /api/reviews/admin/scheduler/run-now` — manual trigger
+  - `GET /api/reviews/admin/list` — paginated list with approved filter
+  - `DELETE /api/reviews/admin/{id}` — remove bad entries
+- Admin UI: `/app/admin` → Reviews tab (`ReviewFreshnessSection.jsx`)
+  - Status hero (RUNNING/PAUSED) + Pause / Run now buttons
+  - 4 stat cards (Total Approved, Today, Avg Rating, Daily Count)
+  - Daily seed count editor
+  - Recent reviews list with Approved/Pending/All filter + AUTO badge + delete
+- Avg rating held at 4.4 (target band 4.2–4.4 maintained)
+
 ### Geo-Tagged Review System — April 17, 2026
 - 36 approved reviews seeded via `/api/reviews/admin/seed-geo` (idempotent; safe to call daily)
 - Ratings constrained 4.0–4.5 (realistic mix, no 5.0 spam)

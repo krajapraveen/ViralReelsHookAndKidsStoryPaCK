@@ -8,6 +8,7 @@ from typing import Optional, List
 from datetime import datetime, timezone, timedelta
 import uuid
 import logging
+import asyncio
 
 from shared import db, get_current_user, get_admin_user
 
@@ -402,3 +403,188 @@ async def seed_geo_reviews(admin: dict = Depends(get_admin_user)):
 async def seed_reviews_bulk(admin: dict = Depends(get_admin_user)):
     """Legacy bulk seed — redirects to geo seed."""
     return await seed_geo_reviews(admin)
+
+
+# ─── AUTO FRESHNESS ENGINE ──────────────────────────────────────────────
+# Adds ~10 new geo-tagged reviews daily. Keeps "+N new reviews today"
+# counter always fresh. Admin-controlled (toggle / daily_count / run-now).
+
+SCHEDULER_CONFIG_ID = "review_scheduler_singleton"
+
+
+async def _get_scheduler_config():
+    """Return scheduler config doc, creating defaults if missing."""
+    doc = await db.review_scheduler_config.find_one({"id": SCHEDULER_CONFIG_ID}, {"_id": 0})
+    if not doc:
+        doc = {
+            "id": SCHEDULER_CONFIG_ID,
+            "enabled": True,
+            "daily_count": 10,
+            "last_run_at": None,
+            "last_run_added": 0,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.review_scheduler_config.insert_one({**doc})
+    doc.pop("_id", None)
+    return doc
+
+
+async def _seed_n_reviews(n: int) -> int:
+    """Insert up to n unique geo-tagged reviews. Returns count inserted."""
+    import random
+
+    used = set()
+    existing = await db.user_reviews.find(
+        {"geo_seeded": True}, {"_id": 0, "name": 1, "message": 1}
+    ).to_list(5000)
+    for e in existing:
+        used.add((e.get("name", ""), e.get("message", "")[:50]))
+
+    candidates = []
+    for person in GEO_IDENTITIES:
+        for rating, msg in GEO_MESSAGES:
+            if (person["name"], msg[:50]) not in used:
+                candidates.append({**person, "rating": rating, "message": msg})
+
+    random.shuffle(candidates)
+    batch = candidates[:n]
+    if not batch:
+        return 0
+
+    now = datetime.now(timezone.utc)
+    docs = []
+    for i, rev in enumerate(batch):
+        # Spread timestamps across past ~6 hours so they look organic
+        minutes_ago = random.randint(i * 20, (i + 1) * 30)
+        created = (now - timedelta(minutes=minutes_ago)).isoformat()
+        docs.append({
+            "id": str(uuid.uuid4()),
+            "name": rev["name"], "city": rev["city"], "state": rev["state"], "country": rev["country"],
+            "rating": rev["rating"], "message": rev["message"],
+            "approved": True, "geo_seeded": True, "seeded": True,
+            "createdAt": created, "updatedAt": created,
+        })
+    await db.user_reviews.insert_many(docs)
+    return len(docs)
+
+
+async def run_daily_freshness_seed():
+    """Run one daily batch. Called by scheduler loop."""
+    config = await _get_scheduler_config()
+    if not config.get("enabled", True):
+        return {"ran": False, "reason": "disabled"}
+
+    n = int(config.get("daily_count", 10))
+    added = await _seed_n_reviews(n)
+    await db.review_scheduler_config.update_one(
+        {"id": SCHEDULER_CONFIG_ID},
+        {"$set": {
+            "last_run_at": datetime.now(timezone.utc).isoformat(),
+            "last_run_added": added,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }},
+    )
+    logger.info(f"[ReviewScheduler] Daily seed added {added} reviews")
+    return {"ran": True, "added": added}
+
+
+async def review_scheduler_loop():
+    """Background loop — wakes every 60min, runs once per UTC day."""
+    await asyncio.sleep(30)  # Let app boot
+    logger.info("[ReviewScheduler] Loop started")
+    while True:
+        try:
+            config = await _get_scheduler_config()
+            if config.get("enabled", True):
+                last = config.get("last_run_at")
+                should_run = True
+                if last:
+                    try:
+                        last_dt = datetime.fromisoformat(last.replace("Z", "+00:00"))
+                        hours_since = (datetime.now(timezone.utc) - last_dt).total_seconds() / 3600
+                        should_run = hours_since >= 20  # Min 20h between runs
+                    except Exception:
+                        should_run = True
+                if should_run:
+                    await run_daily_freshness_seed()
+        except Exception as e:
+            logger.error(f"[ReviewScheduler] Loop error: {e}")
+        await asyncio.sleep(3600)  # Check hourly
+
+
+# ─── Admin Scheduler Endpoints ──────────────────────────────────────────
+
+class SchedulerConfigUpdate(BaseModel):
+    enabled: Optional[bool] = None
+    daily_count: Optional[int] = Field(None, ge=1, le=50)
+
+
+@router.get("/admin/scheduler")
+async def get_scheduler_status(admin: dict = Depends(get_admin_user)):
+    """Get current Auto Freshness Engine status + recent stats."""
+    config = await _get_scheduler_config()
+    total_approved = await db.user_reviews.count_documents({"approved": True})
+
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    today_count = await db.user_reviews.count_documents({"approved": True, "createdAt": {"$gte": today_start}})
+
+    # Avg rating
+    pipeline = [
+        {"$match": {"approved": True}},
+        {"$group": {"_id": None, "avg": {"$avg": "$rating"}}}
+    ]
+    avg_result = await db.user_reviews.aggregate(pipeline).to_list(1)
+    avg_rating = round(avg_result[0]["avg"], 2) if avg_result else 0
+
+    return {
+        "enabled": config.get("enabled", True),
+        "daily_count": config.get("daily_count", 10),
+        "last_run_at": config.get("last_run_at"),
+        "last_run_added": config.get("last_run_added", 0),
+        "total_approved": total_approved,
+        "today_count": today_count,
+        "avg_rating": avg_rating,
+    }
+
+
+@router.post("/admin/scheduler/config")
+async def update_scheduler_config(update: SchedulerConfigUpdate, admin: dict = Depends(get_admin_user)):
+    """Update scheduler config (enabled flag + daily count)."""
+    await _get_scheduler_config()  # Ensure exists
+    updates = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    if update.enabled is not None:
+        updates["enabled"] = update.enabled
+    if update.daily_count is not None:
+        updates["daily_count"] = update.daily_count
+    await db.review_scheduler_config.update_one(
+        {"id": SCHEDULER_CONFIG_ID}, {"$set": updates}
+    )
+    logger.info(f"[ReviewScheduler] Config updated by admin {admin.get('id')}: {updates}")
+    config = await _get_scheduler_config()
+    return {"success": True, "config": {k: v for k, v in config.items() if k != "id"}}
+
+
+@router.post("/admin/scheduler/run-now")
+async def scheduler_run_now(admin: dict = Depends(get_admin_user)):
+    """Manually trigger one seed batch immediately."""
+    result = await run_daily_freshness_seed()
+    return {"success": True, **result}
+
+
+@router.get("/admin/list")
+async def admin_list_reviews(
+    admin: dict = Depends(get_admin_user),
+    approved: Optional[bool] = None,
+    limit: int = 50,
+    skip: int = 0,
+):
+    """Paginated admin list with optional approval filter."""
+    query = {}
+    if approved is not None:
+        query["approved"] = approved
+    total = await db.user_reviews.count_documents(query)
+    reviews = await db.user_reviews.find(
+        query, {"_id": 0}
+    ).sort("createdAt", -1).skip(skip).limit(limit).to_list(limit)
+    return {"success": True, "total": total, "reviews": reviews}

@@ -7,10 +7,11 @@ import {
   Users, Eye, Activity, FileText, DollarSign, Star, RefreshCw,
   AlertTriangle, TrendingUp, Zap, Shield, Heart, BookOpen,
   Film, Clock, Server, Database, BarChart3,
-  CheckCircle, XCircle, MinusCircle, Radio, Gift, Target, Share2, Camera, Palette, Flame
+  CheckCircle, XCircle, MinusCircle, Radio, Gift, Target, Share2, Camera, Palette, Flame, MessageSquare
 } from 'lucide-react';
 import SafetyPlayground from './SafetyPlayground';
 import GrowthDashboard from './GrowthDashboard';
+import ReviewFreshnessSection from '../components/admin/ReviewFreshnessSection';
 
 // ─── Widget State System ─────────────────────────────────────────────────────
 // Every widget has: LOADING | READY | EMPTY | ERROR | STALE
@@ -712,6 +713,7 @@ export default function AdminDashboard() {
     { id: 'hook_ab', label: 'Hook A/B', icon: Target },
     { id: 'ab_testing', label: 'A/B Tests', icon: Zap },
     { id: 'leaderboard', label: 'Leaderboard', icon: Star },
+    { id: 'reviews', label: 'Reviews', icon: MessageSquare },
     { id: 'viral_readiness', label: 'Viral Readiness', icon: Flame },
     { id: 'reliability', label: 'Reliability', icon: Server },
     { id: 'series', label: 'Story Intelligence', icon: BookOpen },
@@ -1575,6 +1577,9 @@ export default function AdminDashboard() {
             </div>
           </WidgetState>
         )}
+
+        {/* ═══ REVIEWS — AUTO FRESHNESS ENGINE ═══ */}
+        {section === 'reviews' && <ReviewFreshnessSection />}
 
         {/* ═══ COMIC HEALTH (P1.5-D) ═══ */}
         {section === 'comic_health' && (

@@ -1245,6 +1245,14 @@ async def startup():
         except Exception as e:
             logger.warning(f"Worker system initialization warning: {e}")
     asyncio.create_task(_delayed_worker_system())
+
+    # Auto Freshness Engine — daily geo-tagged review seeding
+    try:
+        from routes.reviews import review_scheduler_loop
+        asyncio.create_task(review_scheduler_loop())
+        logger.info("[ReviewScheduler] Auto Freshness Engine scheduled")
+    except Exception as e:
+        logger.warning(f"Review scheduler startup warning: {e}")
     
     # Initialize download expiry service
     try:
