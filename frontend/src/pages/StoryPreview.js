@@ -183,31 +183,33 @@ export default function StoryPreview() {
           </div>
 
           {/* Actions — Continue is PRIMARY */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
             <Button
               onClick={handleContinueStory}
-              className="bg-gradient-to-r from-violet-600 to-rose-600 hover:opacity-90 text-white font-bold shadow-lg shadow-violet-500/20"
+              className="bg-gradient-to-r from-violet-600 to-rose-600 hover:opacity-90 text-white font-bold shadow-lg shadow-violet-500/20 text-xs sm:text-sm h-8 sm:h-10 px-2.5 sm:px-4"
+              size="sm"
               data-testid="header-continue-btn"
             >
-              <Play className="w-4 h-4 mr-2" />
-              What Happens Next?
+              <Play className="w-3.5 h-3.5 sm:mr-2" />
+              <span className="hidden sm:inline">What Happens Next?</span>
             </Button>
             {preview.scenes?.some(s => s.image_url) && (
               <Button
                 onClick={() => { setShowExport(!showExport); if (!showExport) trackEvent('export_started'); }}
                 variant="outline"
-                className={`border-slate-600 text-slate-300 hover:bg-slate-800 ${showExport ? 'bg-slate-800' : ''}`}
+                size="sm"
+                className={`border-slate-600 text-slate-300 hover:bg-slate-800 hidden sm:flex ${showExport ? 'bg-slate-800' : ''}`}
                 data-testid="browser-export-toggle-btn"
               >
-                <Film className="w-4 h-4 mr-2" />
-                {showExport ? 'Hide Export' : 'Export'}
+                <Film className="w-4 h-4 sm:mr-2" />
+                <span className="hidden md:inline">{showExport ? 'Hide Export' : 'Export'}</span>
               </Button>
             )}
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8 vs-safe-bottom">
         {/* Browser Video Export Panel */}
         {showExport && (
           <div className="mb-6 animate-in fade-in slide-in-from-top-2">
@@ -400,9 +402,9 @@ export default function StoryPreview() {
                 </div>
 
                 {/* Scene Info */}
-                <div className="p-5 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-white" data-testid="scene-title">
+                <div className="p-3 sm:p-5 space-y-2 sm:space-y-3">
+                  <div className="flex items-start sm:items-center justify-between gap-2">
+                    <h3 className="text-sm sm:text-lg font-semibold text-white" data-testid="scene-title">
                       Scene {currentScene.scene_number}: {currentScene.title}
                     </h3>
                     {currentScene.audio_url && (
@@ -422,7 +424,7 @@ export default function StoryPreview() {
                     )}
                   </div>
 
-                  <p className="text-slate-300 leading-relaxed" data-testid="scene-narration">
+                  <p className="text-sm sm:text-base text-slate-300 leading-relaxed" data-testid="scene-narration">
                     {currentScene.narration_text}
                   </p>
 
