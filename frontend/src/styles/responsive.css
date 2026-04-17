@@ -258,3 +258,59 @@ video {
     font-size: 16px !important;
   }
 }
+
+
+/* ── 16. HORIZONTAL OVERFLOW PREVENTION ───────────────────────────────────
+   Prevent any element from causing horizontal scroll on mobile.
+   ──────────────────────────────────────────────────────────────────────── */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* ── 17. BADGE / PILL RESPONSIVE ──────────────────────────────────────────
+   Badges and pills scale down on small screens.
+   ──────────────────────────────────────────────────────────────────────── */
+@media (max-width: 639px) {
+  .vs-badge, [class*="rounded-full"][class*="px-"] {
+    font-size: 0.7rem;
+  }
+}
+
+/* ── 18. PRICING CARD GRID ────────────────────────────────────────────────
+   Billing pricing cards: 1 col phone, 2 tablet, 4 desktop.
+   ──────────────────────────────────────────────────────────────────────── */
+.vs-pricing-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 640px) {
+  .vs-pricing-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (min-width: 1024px) {
+  .vs-pricing-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
+/* ── 19. GENERATION PROGRESS RESPONSIVE ───────────────────────────────────
+   Progress UI must be clean and centered on all devices.
+   ──────────────────────────────────────────────────────────────────────── */
+@media (max-width: 639px) {
+  [data-testid="waiting-experience"],
+  [data-testid="generation-progress"] {
+    padding: 1rem;
+  }
+  [data-testid="waiting-experience"] h3,
+  [data-testid="generation-progress"] h3 {
+    font-size: 1rem;
+  }
+}
+
+/* ── 20. EMPTY / ERROR STATES ─────────────────────────────────────────────
+   Error and empty states must be readable and centered on all devices.
+   ──────────────────────────────────────────────────────────────────────── */
+@media (max-width: 639px) {
+  [data-testid*="error"], [data-testid*="empty"] {
+    padding: 1.5rem 1rem;
+  }
+}

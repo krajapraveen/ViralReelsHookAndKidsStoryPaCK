@@ -45,7 +45,7 @@ export default function ReviewModal({ open, onClose, sourceEvent }) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm" data-testid="review-modal">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" data-testid="review-modal">
       <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-md mx-4 relative">
         <button onClick={onClose} className="absolute top-4 right-4 text-slate-500 hover:text-white" data-testid="review-close">
           <X className="w-5 h-5" />

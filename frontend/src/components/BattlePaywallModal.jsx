@@ -156,7 +156,7 @@ export default function BattlePaywallModal({ open, onClose, onSuccess, trigger =
   const copy = TRIGGER_COPY[trigger] || TRIGGER_COPY.enter_battle;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm" data-testid="battle-paywall-modal">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" data-testid="battle-paywall-modal">
       <div className="bg-[#0c0c14] border border-white/10 rounded-2xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="relative px-6 pt-6 pb-4">

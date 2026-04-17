@@ -37,7 +37,7 @@ export function LoginInterstitial() {
   if (!visible || !chain) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm" data-testid="login-interstitial">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" data-testid="login-interstitial">
       <div className="w-full max-w-md mx-4 rounded-2xl border border-indigo-500/30 bg-slate-900 overflow-hidden shadow-2xl shadow-indigo-500/10 animate-in fade-in zoom-in-95 duration-300">
         <div className="relative h-40 overflow-hidden">
           <SafeImage

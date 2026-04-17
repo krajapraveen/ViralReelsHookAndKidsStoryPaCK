@@ -16,7 +16,7 @@ export function RewardModal({ reward, seriesId, onClaim, onDismiss, claiming }) 
   if (!reward) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" data-testid="reward-modal">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" data-testid="reward-modal">
       <div className="w-full max-w-md mx-4 bg-slate-900 border border-slate-700/50 rounded-2xl overflow-hidden shadow-2xl">
         {/* Header glow */}
         <div className="relative bg-gradient-to-b from-amber-500/10 to-transparent pt-10 pb-6 px-6 text-center">

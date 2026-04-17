@@ -81,7 +81,7 @@ export default function QuickStartGuide({ onDismiss }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm" data-testid="quick-start-guide">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" data-testid="quick-start-guide">
       <div className="w-full max-w-lg mx-4 bg-slate-900 border border-slate-700/50 rounded-2xl overflow-hidden shadow-2xl">
         {/* Close */}
         <div className="flex justify-end p-3 pb-0">
