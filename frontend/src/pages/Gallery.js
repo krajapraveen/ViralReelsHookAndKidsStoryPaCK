@@ -511,31 +511,59 @@ export default function Gallery() {
   const isLoggedIn = !!localStorage.getItem('token');
 
   useEffect(() => {
-    loadGallery();
+    const ac = new AbortController();
+    loadGallery(ac.signal);
     if (isLoggedIn) loadUserFeed();
     trackPageView({ source_page: '/explore', origin: 'direct' });
+    return () => ac.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => { loadExplore(); }, [activeFilter, exploreSort]);
 
-  const loadGallery = async () => {
+  const loadGallery = async (signal, retry = 0) => {
     setLoading(true);
     setLoadError(false);
+    // Fire independently — one failure doesn't nuke the whole gallery
+    const endpoints = [
+      `${API_URL}/api/gallery/featured`,
+      `${API_URL}/api/gallery/rails`,
+      `${API_URL}/api/gallery/explore?sort=trending&limit=24`,
+    ];
     try {
-      const [f, r, e] = await Promise.all([
-        fetch(`${API_URL}/api/gallery/featured`).then(r => r.json()),
-        fetch(`${API_URL}/api/gallery/rails`).then(r => r.json()),
-        fetch(`${API_URL}/api/gallery/explore?sort=trending&limit=24`).then(r => r.json()),
-      ]);
-      setFeatured(f.featured || []);
-      setRails(r.rails || []);
-      setExploreItems(e.items || []);
+      const results = await Promise.allSettled(
+        endpoints.map(u => fetch(u, { signal }).then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      );
+
+      // If aborted (component unmounted / navigated away), exit silently
+      if (signal?.aborted) return;
+
+      const [f, r, e] = results;
+      if (f.status === 'fulfilled') setFeatured(f.value.featured || []);
+      if (r.status === 'fulfilled') setRails(r.value.rails || []);
+      if (e.status === 'fulfilled') setExploreItems(e.value.items || []);
+
+      // If ALL three failed, show error + retry once
+      const allFailed = results.every(x => x.status === 'rejected');
+      if (allFailed) {
+        if (retry < 1) {
+          setTimeout(() => loadGallery(signal, retry + 1), 1200);
+          return;
+        }
+        setLoadError(true);
+        toast.error('Failed to load gallery. Check your connection and retry.');
+      }
     } catch (err) {
+      if (err?.name === 'AbortError' || signal?.aborted) return; // swallow aborts
       console.error('Gallery load:', err);
+      if (retry < 1) {
+        setTimeout(() => loadGallery(signal, retry + 1), 1200);
+        return;
+      }
       setLoadError(true);
       toast.error('Failed to load gallery. Check your connection and retry.');
     }
-    finally { setLoading(false); }
+    finally { if (!signal?.aborted) setLoading(false); }
   };
 
   const loadUserFeed = async () => {
