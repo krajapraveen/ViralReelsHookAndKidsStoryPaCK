@@ -1259,6 +1259,14 @@ async def startup():
         logger.info("[ReviewScheduler] Auto Freshness Engine scheduled")
     except Exception as e:
         logger.warning(f"Review scheduler startup warning: {e}")
+
+    # Referral credit expiry loop (runs every 6h, expires referral/purchase-bonus credits)
+    try:
+        from routes.referrals import referral_expiry_loop
+        asyncio.create_task(referral_expiry_loop())
+        logger.info("[Referrals] Expiry loop scheduled")
+    except Exception as e:
+        logger.warning(f"Referral expiry loop startup warning: {e}")
     
     # Initialize download expiry service
     try:

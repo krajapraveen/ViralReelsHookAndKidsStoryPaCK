@@ -32,7 +32,50 @@ Evolve the platform from a standard AI content generator into a highly addictive
 - All modals viewport-safe (p-4 padding)
 - Desktop frozen baseline, zero regressions
 
-### Referral Bonus Program — "Invite & Earn 300 Credits" — April 22, 2026
+### Referral Economy Rebalance (monetization hardening) — April 22, 2026
+
+**Tier matrix (replaces unlimited 300 flat model):**
+| Tier | Credits/ref | Monthly cap | Max/month | Purchase bonus |
+|---|---|---|---|---|
+| FREE | 150 | 2 | 300 | +200 |
+| PAID | 300 | 5 | 1,500 | +500 |
+| PREMIUM | 500 | 10 | 5,000 | +700 |
+
+**Key logic:**
+- Tier resolved from `users.plan_type` + `subscription_status`
+- Monthly counters reset on month boundary (UTC `YYYY-MM` key)
+- `_compute_cap_state(user_id)` returns tier, credits_per_ref, cap, monthly_used, monthly_credits, remaining, cap_reached
+- `_grant_reward` now returns `{granted, credits, reason, tier}` — blocks with `CAP_REACHED`
+- Cap hits tracked per profile (`monthly_cap_hits`)
+
+**Purchase bonus hook:**
+- `grant_referral_purchase_bonus(user_id, amount)` called from `process_payment_success` in subscriptions.py
+- 30-day purchase window from referral creation
+- Idempotent per attribution (`type: PURCHASE_BONUS`)
+- Updates `paid_referral_conversions` counter
+
+**Credit expiry:**
+- Referral rewards expire after 45 days
+- Purchase bonuses expire after 60 days
+- Background sweep every 6h (`referral_expiry_loop`)
+- Manual trigger: `POST /api/referrals/admin/run-expiry-sweep`
+- On expiry: deducts unused credits from balance, creates REFERRAL_EXPIRY ledger entry, flips reward to EXPIRED
+
+**Ledger:** `source_type`, `expires_at`, `source_user_id`, `referral_id`, `reward_id` fields added
+
+**User dashboard:**
+- Tier badge (FREE/PAID/PREMIUM) with Crown/Zap icons
+- Monthly progress card: `1 / 10 referrals used` + progress bar
+- Upsell banners contextual by tier (cap_reached → Upgrade CTA · FREE → unlock bigger rewards · PAID → Go Annual)
+- Expiry disclosure: "Referral credits expire 45d, purchase bonuses 60d. Purchased credits never expire."
+
+**Admin dashboard (/app/admin/referrals):**
+- New Monetization Health card: Credits Issued This Month, Purchase Bonuses, Referred Paid Users, Expired Credits Total, Cap Hits by Tier
+- Run expiry sweep button
+- Tier matrix summary displayed
+- Force grant purchase bonus: `POST /api/referrals/admin/grant-purchase-bonus/{user_id}`
+
+### Referral Bonus Program — "Invite & Earn" — April 22, 2026 (baseline)
 
 **Backend (`/app/backend/routes/referrals.py`):**
 - Collections: `referral_profiles`, `referral_attributions`, `referral_events`, `referral_rewards`

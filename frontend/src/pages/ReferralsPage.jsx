@@ -1,9 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import {
   Gift, Copy, Check, Users, Loader2, TrendingUp,
   MessageCircle, Mail, Send, Twitter, Sparkles, ArrowRight,
+  Crown, Zap, Lock,
 } from 'lucide-react';
 
 const SHARE_MESSAGE =
@@ -70,14 +72,20 @@ export default function ReferralsPage() {
             style={{ background: 'radial-gradient(ellipse 60% 50% at 100% 0%, rgba(168,85,247,0.14), transparent 60%)' }}
           />
           <div className="relative">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-500/20 border border-violet-500/30 text-[11px] tracking-[0.12em] text-violet-200 font-semibold mb-4">
-              <Gift className="w-3 h-3" /> INVITE & EARN
+            <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-500/20 border border-violet-500/30 text-[11px] tracking-[0.12em] text-violet-200 font-semibold">
+                <Gift className="w-3 h-3" /> INVITE & EARN
+              </div>
+              <TierBadge tier={data?.cap_state?.tier || 'FREE'} />
             </div>
             <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-3">
-              Invite Friends. Earn {data?.reward_credits || 300} Credits.
+              Invite Friends. Earn {data?.cap_state?.credits_per_ref || 150} Credits.
             </h1>
             <p className="text-slate-300/90 leading-relaxed max-w-2xl">
-              When someone joins with your invite link and creates their first project, you automatically earn {data?.reward_credits || 300} free credits. No limit. No catch.
+              When someone joins with your invite link and creates their first project, you automatically earn {data?.cap_state?.credits_per_ref || 150} free credits.{' '}
+              {(data?.cap_state?.tier || 'FREE') !== 'FREE' && (
+                <span className="text-emerald-300">If they purchase a paid plan within 30 days, you earn an extra +{data?.cap_state?.purchase_bonus || 200} credits.</span>
+              )}
             </p>
 
             {/* Link + copy */}
@@ -104,6 +112,9 @@ export default function ReferralsPage() {
             </div>
           </div>
         </div>
+
+        {/* Monthly progress + upsell */}
+        <MonthlyTierCard cap={data?.cap_state} tiers={data?.reward_tiers} />
 
         {/* Stats grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
@@ -233,7 +244,7 @@ function StatusPill({ status, reason }) {
     VERIFIED: { label: 'Verified', cls: 'bg-blue-500/10 text-blue-300 border-blue-500/30' },
     ACTIVATED: { label: 'Activated', cls: 'bg-blue-500/10 text-blue-300 border-blue-500/30' },
     QUALIFIED: { label: 'Qualified', cls: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' },
-    REWARDED: { label: '+300 awarded', cls: 'bg-emerald-500/20 text-emerald-200 border-emerald-500/40' },
+    REWARDED: { label: 'Rewarded', cls: 'bg-emerald-500/20 text-emerald-200 border-emerald-500/40' },
     REJECTED: { label: reason === 'SELF_REFERRAL' ? 'Self-ref blocked' : 'Not eligible', cls: 'bg-slate-700/40 text-slate-500 border-slate-700' },
   };
   const p = map[status] || { label: status, cls: 'bg-slate-800 text-slate-400 border-slate-700' };
@@ -241,5 +252,122 @@ function StatusPill({ status, reason }) {
     <span className={`inline-flex items-center text-[10px] px-2 py-0.5 rounded border ${p.cls}`}>
       {p.label}
     </span>
+  );
+}
+
+// ─── Tier UI ────────────────────────────────────────────────────────────
+
+function TierBadge({ tier }) {
+  const map = {
+    FREE: { icon: Gift, label: 'Free Tier', cls: 'bg-slate-800/60 text-slate-300 border-slate-700' },
+    PAID: { icon: Zap, label: 'Paid Tier', cls: 'bg-indigo-500/15 text-indigo-200 border-indigo-500/40' },
+    PREMIUM: { icon: Crown, label: 'Premium Tier', cls: 'bg-gradient-to-r from-amber-500/20 to-rose-500/20 text-amber-200 border-amber-500/40' },
+  };
+  const p = map[tier] || map.FREE;
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full border font-semibold ${p.cls}`} data-testid={`tier-badge-${tier}`}>
+      <p.icon className="w-3 h-3" /> {p.label}
+    </span>
+  );
+}
+
+function MonthlyTierCard({ cap, tiers }) {
+  if (!cap) return null;
+  const pct = cap.cap > 0 ? Math.min(100, (cap.monthly_used / cap.cap) * 100) : 0;
+  const remaining = cap.remaining ?? 0;
+
+  const nextTier = cap.tier === 'FREE' ? 'PAID' : cap.tier === 'PAID' ? 'PREMIUM' : null;
+  const next = nextTier ? tiers?.[nextTier] : null;
+
+  return (
+    <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 md:p-6 mb-6" data-testid="monthly-tier-card">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.12em] text-slate-500 mb-1">Monthly Progress</p>
+          <p className="text-xl font-bold text-white" data-testid="monthly-progress-label">
+            {cap.monthly_used} / {cap.cap} referrals used
+          </p>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {cap.monthly_credits} credits earned this month
+            {cap.max_monthly_credits && ` · max ${cap.max_monthly_credits} / mo`}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] uppercase tracking-[0.12em] text-slate-500 mb-1">Remaining</p>
+          <p className={`text-2xl font-bold ${remaining === 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+            {remaining}
+          </p>
+        </div>
+      </div>
+      <div className="h-2 bg-slate-800 rounded-full overflow-hidden mb-3">
+        <div
+          className="h-full bg-gradient-to-r from-violet-500 to-rose-500 transition-all"
+          style={{ width: `${pct}%` }}
+          data-testid="progress-bar"
+        />
+      </div>
+      {cap.cap_reached ? (
+        <div className="mt-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3" data-testid="cap-reached-banner">
+          <Lock className="w-4 h-4 text-amber-300 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-200">You reached this month's {cap.tier.toLowerCase()} referral limit.</p>
+            <p className="text-xs text-amber-100/70 mt-0.5">
+              {nextTier
+                ? `Upgrade to continue earning rewards — ${next.credits} credits per referral on ${nextTier} tier.`
+                : 'Caps reset on the 1st of each month.'}
+            </p>
+          </div>
+          {nextTier && (
+            <Link
+              to="/pricing"
+              className="shrink-0 inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-400 text-black hover:bg-amber-300 transition-colors"
+              data-testid="upsell-cta-cap"
+            >
+              Upgrade <ArrowRight className="w-3 h-3" />
+            </Link>
+          )}
+        </div>
+      ) : cap.tier === 'FREE' ? (
+        <div className="mt-4 p-4 rounded-xl bg-violet-500/[0.06] border border-violet-500/30 flex items-center gap-3 flex-wrap" data-testid="upsell-free-banner">
+          <Crown className="w-4 h-4 text-violet-300 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-white">Unlock bigger referral rewards</p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Upgrade your plan to earn {next?.credits || 300} credits per referral instead of {cap.credits_per_ref}.
+            </p>
+          </div>
+          <Link
+            to="/pricing"
+            className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-white text-black hover:bg-slate-100 transition-colors"
+            data-testid="upsell-cta-free"
+          >
+            Upgrade <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
+      ) : cap.tier === 'PAID' ? (
+        <div className="mt-4 p-4 rounded-xl bg-amber-500/[0.06] border border-amber-500/30 flex items-center gap-3 flex-wrap" data-testid="upsell-paid-banner">
+          <Crown className="w-4 h-4 text-amber-300 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-white">Go Annual — earn 500 per referral</p>
+            <p className="text-xs text-slate-400 mt-0.5">Top tier unlocks 10 referrals/month, 5,000 max credits, and +700 purchase bonuses.</p>
+          </div>
+          <Link
+            to="/pricing"
+            className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-400 text-black hover:bg-amber-300 transition-colors"
+            data-testid="upsell-cta-paid"
+          >
+            Go Annual <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
+      ) : (
+        <div className="mt-4 p-3 rounded-xl bg-emerald-500/[0.05] border border-emerald-500/20 flex items-center gap-2">
+          <Crown className="w-4 h-4 text-amber-300" />
+          <p className="text-sm text-emerald-200 font-medium">Top tier unlocked — earn 500 credits per qualified referral.</p>
+        </div>
+      )}
+      <p className="text-[10px] text-slate-600 mt-3 leading-relaxed">
+        Referral credits expire 45 days after granting. Purchase bonuses expire after 60 days. Purchased credits never expire.
+      </p>
+    </div>
   );
 }

@@ -78,6 +78,51 @@ export default function AdminReferrals() {
           <Stat icon={TrendingUp} label="Conv Rate" value={`${overview?.conversion_rate ?? 0}%`} color="slate" testId="stat-conv-rate" />
         </div>
 
+        {/* Monetization hardening stats */}
+        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 mb-6" data-testid="monetization-card">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-4">Monetization Health</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <MonetStat label="Credits Issued This Month" value={overview?.credits_issued_this_month ?? 0} testId="stat-credits-mtd" />
+            <MonetStat label="Purchase Bonuses" value={overview?.purchase_bonuses_granted ?? 0} testId="stat-purchase-bonuses" />
+            <MonetStat label="Referred Paid Users" value={overview?.referred_paid_users ?? 0} testId="stat-referred-paid" />
+            <MonetStat label="Expired Credits Total" value={overview?.expired_credits_sum ?? 0} testId="stat-expired-sum" />
+          </div>
+          {overview?.cap_hits_by_tier && Object.keys(overview.cap_hits_by_tier).length > 0 && (
+            <div className="mt-4 pt-4 border-t border-slate-800">
+              <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Cap Hits This Month (by tier)</p>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(overview.cap_hits_by_tier).map(([tier, hits]) => (
+                  <span key={tier} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-300">
+                    {tier}: {hits} hits
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="mt-4 pt-4 border-t border-slate-800 flex items-center gap-3 flex-wrap">
+            <button
+              onClick={async () => {
+                try {
+                  const { data } = await api.post('/api/referrals/admin/run-expiry-sweep');
+                  toast.success(`${data.expired_count} rewards expired`);
+                  load();
+                } catch (_) { toast.error('Sweep failed'); }
+              }}
+              className="inline-flex items-center gap-1 text-[11px] px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700"
+              data-testid="run-sweep-btn"
+            >
+              <RefreshCw className="w-3 h-3" /> Run expiry sweep
+            </button>
+            {overview?.reward_tiers && (
+              <div className="text-[10px] text-slate-500">
+                FREE: {overview.reward_tiers.FREE.credits}c/ref · {overview.reward_tiers.FREE.cap} cap
+                &nbsp;·&nbsp; PAID: {overview.reward_tiers.PAID.credits}c · {overview.reward_tiers.PAID.cap} cap
+                &nbsp;·&nbsp; PREMIUM: {overview.reward_tiers.PREMIUM.credits}c · {overview.reward_tiers.PREMIUM.cap} cap
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Top referrers */}
         <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 mb-6">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
@@ -212,4 +257,13 @@ function StatusPill({ status }) {
   };
   const cls = map[status] || 'bg-slate-800 text-slate-400 border-slate-700';
   return <span className={`inline-block text-[10px] px-2 py-0.5 rounded border ${cls}`}>{status}</span>;
+}
+
+function MonetStat({ label, value, testId }) {
+  return (
+    <div className="rounded-lg bg-slate-800/40 border border-slate-800 p-3" data-testid={testId}>
+      <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">{label}</p>
+      <p className="text-xl font-bold text-white">{typeof value === 'number' ? value.toLocaleString() : value}</p>
+    </div>
+  );
 }

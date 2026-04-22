@@ -621,6 +621,13 @@ async def process_payment_success(order_id: str, customer_id: str, amount: float
                 "createdAt": datetime.now(timezone.utc).isoformat()
             })
 
+        # Trigger referral purchase bonus (idempotent)
+        try:
+            from routes.referrals import grant_referral_purchase_bonus
+            await grant_referral_purchase_bonus(payment.get("userId"), float(amount or 0))
+        except Exception as ref_err:
+            logger.warning(f"[payment] Referral bonus hook failed: {ref_err}")
+
 
 async def process_refund(order_id: str, refund_id: str):
     """Process refund - revoke credits or cancel subscription"""
