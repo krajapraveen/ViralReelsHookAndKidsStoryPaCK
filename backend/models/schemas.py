@@ -14,6 +14,7 @@ class UserCreate(BaseModel):
     captcha_token: Optional[str] = None
     fingerprint: Optional[dict] = None
     phone_number: Optional[str] = None
+    referral_code: Optional[str] = None  # Attribution from invite link
 
 
 class UserLogin(BaseModel):

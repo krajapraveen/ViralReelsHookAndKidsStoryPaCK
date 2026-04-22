@@ -75,6 +75,7 @@ const NAV_GROUPS = [
     items: [
       { path: '/app/admin/security', label: 'Security Dashboard', icon: Shield },
       { path: '/app/admin/security-reports', label: 'Vulnerability Reports', icon: Shield },
+      { path: '/app/admin/referrals', label: 'Referral Program', icon: Users },
       { path: '/app/admin/anti-abuse', label: 'Anti-Abuse', icon: AlertTriangle },
       { path: '/app/admin/audit-logs', label: 'Audit Logs', icon: FileText },
     ],

@@ -32,6 +32,35 @@ Evolve the platform from a standard AI content generator into a highly addictive
 - All modals viewport-safe (p-4 padding)
 - Desktop frozen baseline, zero regressions
 
+### Referral Bonus Program — "Invite & Earn 300 Credits" — April 22, 2026
+
+**Backend (`/app/backend/routes/referrals.py`):**
+- Collections: `referral_profiles`, `referral_attributions`, `referral_events`, `referral_rewards`
+- Signup hook in `auth.py` — `UserCreate.referral_code` attaches on register
+- Fraud: self-referral, same IP, same device fingerprint, disposable email → REJECTED with reason
+- Qualification: New user signup + verified + first COMPLETED pipeline_job OR ready story → 300 credits auto-granted
+- Idempotent — `referral_rewards.attribution_id` uniqueness
+- Streak: +500 bonus every 3 valid referrals
+- Attribution window: 30 days
+- Admin can APPROVE/REJECT/REVERSE (reverse deducts credits + creates ledger entry)
+
+**APIs (9):**
+- `POST /api/referrals/click` — public click tracking
+- `GET /api/referrals/lookup/:code` — public code validation
+- `GET /api/referrals/me` — user dashboard payload (profile + attributions + rewards + share_url)
+- `POST /api/referrals/qualify` — idempotent qualification trigger (dashboard calls on load)
+- `GET /api/referrals/admin/overview` — stats (top referrers, credits granted, conversion rate)
+- `GET /api/referrals/admin/attributions?status=...`
+- `POST /api/referrals/admin/review` — admin approve/reject/reverse
+
+**Frontend:**
+- `/refer?code=XXX` — public invite landing (premium dark, persists code to localStorage)
+- `/app/referrals` (also `/dashboard/referrals`) — user dashboard with hero + invite link + copy + WhatsApp/Email/Telegram/X share + stats + how-it-works + attribution table
+- `/app/admin/referrals` — admin overview with 8 stats + top referrers + attribution list with approve/reject/reverse
+- Dashboard "Invite & Earn" card linking to `/app/referrals`
+- Signup form captures `ref_code` (localStorage + URL ?ref=), sends in register payload
+- AdminLayout sidebar: "Referral Program" under Security group
+
 ### VDP (Vulnerability Disclosure Program) — April 22, 2026
 
 **Backend (`/app/backend/routes/security_vdp.py`):**

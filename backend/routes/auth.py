@@ -394,7 +394,22 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
         # Send welcome email in background
         from services.welcome_email_service import send_welcome_email
         background_tasks.add_task(send_welcome_email, clean_email, clean_name, 50)
-        
+
+        # ── Referral attribution ──
+        if data.referral_code:
+            try:
+                from routes.referrals import attach_referral_on_signup
+                fp_str = str(data.fingerprint) if data.fingerprint else None
+                await attach_referral_on_signup(
+                    new_user_id=user_id,
+                    new_email=clean_email,
+                    referral_code=data.referral_code,
+                    ip_address=ip_address,
+                    fingerprint=fp_str,
+                )
+            except Exception as ref_err:
+                logger.warning(f"Referral attribution failed: {ref_err}")
+
         token = create_token(user_id, user["role"])
         
         logger.info(f"New user registered: {clean_email} from IP: {ip_address} - 50 credits")

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Film, Coins, TrendingUp, CheckCircle, AlertCircle, Clock, Activity, Loader2, RefreshCw } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Film, Coins, TrendingUp, CheckCircle, AlertCircle, Clock, Activity, Loader2, RefreshCw, Gift, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 
 const api = {
@@ -137,13 +138,35 @@ export default function UserDashboardPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard icon={Film} label="Total Creations" value={stats?.total ?? 0} color="bg-purple-500/20" />
           <StatCard icon={Coins} label="Credits" value={stats?.credits ?? 'N/A'} color="bg-amber-500/20" />
           <StatCard icon={CheckCircle} label="Success Rate" value={`${stats?.successRate ?? 0}%`} color="bg-emerald-500/20"
             subtitle={`${stats?.completed ?? 0} completed, ${stats?.failed ?? 0} failed`} />
           <StatCard icon={Activity} label="In Progress" value={stats?.processing ?? 0} color="bg-blue-500/20" />
         </div>
+
+        {/* Invite & Earn card */}
+        <Link
+          to="/app/referrals"
+          className="block mb-8 relative rounded-2xl border border-violet-500/20 bg-gradient-to-r from-violet-500/[0.08] to-rose-500/[0.06] p-5 hover:border-violet-500/40 transition-colors overflow-hidden group"
+          data-testid="dashboard-invite-card"
+        >
+          <div className="absolute inset-0 pointer-events-none opacity-60" style={{ background: 'radial-gradient(ellipse 60% 50% at 100% 0%, rgba(168,85,247,0.12), transparent 60%)' }} />
+          <div className="relative flex items-center gap-4 flex-wrap">
+            <div className="w-11 h-11 rounded-xl bg-violet-500/20 border border-violet-500/40 flex items-center justify-center shrink-0">
+              <Gift className="w-5 h-5 text-violet-300" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] tracking-[0.12em] text-violet-300/90 font-semibold uppercase mb-0.5">Invite & Earn</p>
+              <h3 className="text-lg font-bold text-white">Invite Friends. Earn 300 Credits.</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Share your invite link. When friends create their first project, you earn 300 credits.</p>
+            </div>
+            <span className="inline-flex items-center gap-1 text-sm font-medium text-violet-300 group-hover:text-violet-200">
+              Get your link <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+            </span>
+          </div>
+        </Link>
 
         {/* Two column layout */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

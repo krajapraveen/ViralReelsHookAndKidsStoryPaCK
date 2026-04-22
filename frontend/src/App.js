@@ -53,6 +53,9 @@ const SecurityReportPage = lazy(() => import('./pages/SecurityReportPage'));
 const SecurityReportSubmittedPage = lazy(() => import('./pages/SecurityReportSubmittedPage'));
 const AdminSecurityReports = lazy(() => import('./pages/AdminSecurityReports'));
 const AdminSecurityReportDetail = lazy(() => import('./pages/AdminSecurityReportDetail'));
+const ReferLanding = lazy(() => import('./pages/ReferLanding'));
+const ReferralsPage = lazy(() => import('./pages/ReferralsPage'));
+const AdminReferrals = lazy(() => import('./pages/AdminReferrals'));
 const Blog = lazy(() => import('./pages/Blog'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
@@ -310,6 +313,9 @@ function App() {
         <Route path="/security/report" element={<L><SecurityReportPage /></L>} />
         <Route path="/security/report/submitted" element={<L><SecurityReportSubmittedPage /></L>} />
 
+        {/* ═══ REFERRALS ═══ */}
+        <Route path="/refer" element={<L><ReferLanding /></L>} />
+
         {/* ═══ CORE APP — Dashboard eager, rest lazy ═══ */}
         <Route path="/app" element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} />
         <Route path="/app/story-video-studio" element={<L><ErrorBoundary><StoryVideoPipeline /></ErrorBoundary></L>} />
@@ -328,6 +334,8 @@ function App() {
         <Route path="/app/browse" element={isAuthenticated ? <L><BrowsePage /></L> : <Navigate to="/login" />} />
         <Route path="/app/characters" element={isAuthenticated ? <L><CharacterLibrary /></L> : <Navigate to="/login" />} />
         <Route path="/app/dashboard" element={isAuthenticated ? <L><UserDashboardPage /></L> : <Navigate to="/login" />} />
+        <Route path="/app/referrals" element={isAuthenticated ? <L><ReferralsPage /></L> : <Navigate to="/login" />} />
+        <Route path="/dashboard/referrals" element={isAuthenticated ? <L><ReferralsPage /></L> : <Navigate to="/login" />} />
 
         {/* ═══ CREATOR TOOLS ═══ */}
         <Route path="/app/reels" element={isAuthenticated ? <L><ReelGenerator /></L> : <Navigate to="/login" />} />
@@ -410,6 +418,7 @@ function App() {
           <Route path="users" element={<L><AdminUsersManagement /></L>} />
           <Route path="security-reports" element={<L><AdminSecurityReports /></L>} />
           <Route path="security-reports/:report_id" element={<L><AdminSecurityReportDetail /></L>} />
+          <Route path="referrals" element={<L><AdminReferrals /></L>} />
           <Route path="self-healing" element={<L><SelfHealingDashboard /></L>} />
           <Route path="ttfd-analytics" element={<L><TTFDDashboard /></L>} />
           <Route path="user-analytics" element={<L><UserAnalyticsDashboard /></L>} />

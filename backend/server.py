@@ -534,6 +534,9 @@ api_router.include_router(reviews_router)
 from routes.security_vdp import router as security_vdp_router
 api_router.include_router(security_vdp_router)
 
+from routes.referrals import router as referrals_router
+api_router.include_router(referrals_router)
+
 # Watermark Service for Social Sharing
 from routes.watermark import router as watermark_router
 api_router.include_router(watermark_router)

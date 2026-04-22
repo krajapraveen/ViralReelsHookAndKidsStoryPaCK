@@ -215,13 +215,36 @@ export default function Signup({ setAuth }) {
         console.warn('Fingerprint collection failed:', e);
       }
       
+      // Capture referral code from localStorage (set by /refer page) or URL ?ref=
+      let refCode = null;
+      try {
+        refCode = localStorage.getItem('ref_code');
+        const urlRef = new URLSearchParams(window.location.search).get('ref');
+        if (urlRef) refCode = urlRef;
+        // Referral codes expire after 30 days
+        const setAt = Number(localStorage.getItem('ref_code_set_at') || 0);
+        if (refCode && setAt && (Date.now() - setAt) > 30 * 24 * 3600 * 1000) {
+          refCode = null;
+          localStorage.removeItem('ref_code');
+          localStorage.removeItem('ref_code_set_at');
+        }
+      } catch (_) { /* ignore */ }
+
       const response = await authAPI.register({ 
         name: name.trim(), 
         email: email.trim().toLowerCase(), 
         password,
         captcha_token: captchaToken,
-        fingerprint: fingerprint
+        fingerprint: fingerprint,
+        referral_code: refCode,
       });
+      // Clear referral code once consumed
+      try {
+        if (refCode) {
+          localStorage.removeItem('ref_code');
+          localStorage.removeItem('ref_code_set_at');
+        }
+      } catch (_) {}
       localStorage.setItem('token', response.data.token);
       setAuth(true);
       
