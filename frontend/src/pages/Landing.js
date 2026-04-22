@@ -837,6 +837,10 @@ export default function Landing() {
                   <span className="text-sm text-slate-400 group-hover:text-white transition-colors font-medium">Cookie Policy</span>
                   <p className="text-[11px] text-slate-600 leading-snug mt-0.5">How we use cookies to improve your experience and performance.</p>
                 </Link>
+                <Link to="/security" className="block group" data-testid="footer-security-link">
+                  <span className="text-sm text-slate-400 group-hover:text-white transition-colors font-medium">Security</span>
+                  <p className="text-[11px] text-slate-600 leading-snug mt-0.5">Responsible disclosure program. Report a vulnerability privately.</p>
+                </Link>
               </div>
             </div>
           </div>

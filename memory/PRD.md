@@ -32,6 +32,33 @@ Evolve the platform from a standard AI content generator into a highly addictive
 - All modals viewport-safe (p-4 padding)
 - Desktop frozen baseline, zero regressions
 
+### VDP (Vulnerability Disclosure Program) — April 22, 2026
+
+**Backend (`/app/backend/routes/security_vdp.py`):**
+- Public: `POST /api/security/report` (consent + rate-limit + spam + honeypot + auto-ack email + admin alert)
+- Public: `POST /api/security/attachment/upload` (R2, png/jpg/pdf/txt, 10MB, 3 files max, private)
+- Public: `GET /api/security/claim/:token` (reward claim link for non-account reporters)
+- Admin: `GET /api/security/admin/reports` (filters: status, severity, category, reward, search)
+- Admin: `GET /api/security/admin/reports/stats` (dashboard metrics)
+- Admin: `GET /api/security/admin/reports/:id` (full detail + events + notes + presigned attachments)
+- Admin: `PATCH /api/security/admin/reports/:id` (status, severity override, owner, duplicate, resolution)
+- Admin: `POST /api/security/admin/reports/:id/notes` (internal notes)
+- Admin: `POST /api/security/admin/reports/:id/grant-reward` (tier: LOW=100, MED=300, HIGH=700, CRIT=1500; auto creates user credit ledger entry OR claim link)
+- Admin: `POST /api/security/admin/reports/:id/reject-reward`
+
+**Collections:** `security_reports`, `security_report_events`, `security_report_notes`, `security_reward_claims`, `vdp_counters` (monotonic VSR-YYYY-NNNNNN)
+
+**Anti-abuse:** 3 submissions/IP/24h · honeypot · spam phrase heuristic · disposable email detection · consent enforcement · `html.escape` on body in admin email · allowed-ext whitelist · presigned 10-min attachment URLs
+
+**Frontend:**
+- `/security` — Stripe/Linear-grade dark trust page (hero + live health card + 4-metric strip + 3 principles + scope split + timeline + rewards + FAQ + final CTA)
+- `/security/report` — Premium single-column form (3 sections, drag+drop upload, honeypot, inline validation)
+- `/security/report/submitted` — Success page with tracking ID
+- `/app/admin/security-reports` — List view with stats, filters, status/severity/reward chips
+- `/app/admin/security-reports/:id` — Detail page with body, attachments, timeline, notes, status controls, severity override, owner, duplicate link, resolution summary, reward grant/reject UI
+- Global footer "Security" link (Landing page)
+- AdminLayout sidebar: "Vulnerability Reports" under Security
+
 ### Auto Freshness Engine — April 17, 2026
 - Background scheduler loop in `reviews.py` — runs hourly, seeds once per UTC day (min 20h gap)
 - Wired into `server.py` startup via `asyncio.create_task(review_scheduler_loop())`

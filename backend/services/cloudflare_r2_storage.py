@@ -42,7 +42,8 @@ ASSET_PATHS = {
     "voice": "audio/voices",
     "video": "videos",
     "music": "audio/music",
-    "thumbnail": "thumbnails"
+    "thumbnail": "thumbnails",
+    "security_report": "security-reports"
 }
 
 # Cache durations by asset type (in seconds)
@@ -52,7 +53,8 @@ CACHE_DURATIONS = {
     "voice": 31536000,      # 1 year
     "video": 31536000,      # 1 year - final videos are immutable
     "music": 31536000,      # 1 year
-    "thumbnail": 86400      # 1 day - thumbnails might change
+    "thumbnail": 86400,      # 1 day - thumbnails might change
+    "security_report": 86400  # 1 day - private attachments
 }
 
 

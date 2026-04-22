@@ -48,6 +48,11 @@ const Pricing = lazy(() => import('./pages/Pricing'));
 const Contact = lazy(() => import('./pages/Contact'));
 const Reviews = lazy(() => import('./pages/Reviews'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
+const SecurityPage = lazy(() => import('./pages/SecurityPage'));
+const SecurityReportPage = lazy(() => import('./pages/SecurityReportPage'));
+const SecurityReportSubmittedPage = lazy(() => import('./pages/SecurityReportSubmittedPage'));
+const AdminSecurityReports = lazy(() => import('./pages/AdminSecurityReports'));
+const AdminSecurityReportDetail = lazy(() => import('./pages/AdminSecurityReportDetail'));
 const Blog = lazy(() => import('./pages/Blog'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
@@ -300,6 +305,11 @@ function App() {
         <Route path="/terms" element={<L><TermsOfService /></L>} />
         <Route path="/terms-of-service" element={<L><TermsOfService /></L>} />
 
+        {/* ═══ SECURITY / VDP ═══ */}
+        <Route path="/security" element={<L><SecurityPage /></L>} />
+        <Route path="/security/report" element={<L><SecurityReportPage /></L>} />
+        <Route path="/security/report/submitted" element={<L><SecurityReportSubmittedPage /></L>} />
+
         {/* ═══ CORE APP — Dashboard eager, rest lazy ═══ */}
         <Route path="/app" element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} />
         <Route path="/app/story-video-studio" element={<L><ErrorBoundary><StoryVideoPipeline /></ErrorBoundary></L>} />
@@ -398,6 +408,8 @@ function App() {
           <Route path="performance" element={<L><AdminMonitoring /></L>} />
           <Route path="login-activity" element={<L><AdminLoginActivity /></L>} />
           <Route path="users" element={<L><AdminUsersManagement /></L>} />
+          <Route path="security-reports" element={<L><AdminSecurityReports /></L>} />
+          <Route path="security-reports/:report_id" element={<L><AdminSecurityReportDetail /></L>} />
           <Route path="self-healing" element={<L><SelfHealingDashboard /></L>} />
           <Route path="ttfd-analytics" element={<L><TTFDDashboard /></L>} />
           <Route path="user-analytics" element={<L><UserAnalyticsDashboard /></L>} />
