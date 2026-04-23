@@ -41,6 +41,7 @@ class CreatePipelineRequest(BaseModel):
     age_group: str = Field(default="kids_5_8")
     voice_preset: str = Field(default="narrator_warm")
     include_watermark: bool = Field(default=True)
+    pacing_mode: str = Field(default="auto", description="auto|kids|action|emotional|cinematic — drives Visual Delight motion/fades/ducking")
     parent_video_id: Optional[str] = Field(default=None, description="ID of remixed video")
 
 
@@ -492,6 +493,7 @@ async def create_pipeline(
             voice_preset=request.voice_preset,
             include_watermark=request.include_watermark,
             user_plan=user_plan,
+            pacing_mode=request.pacing_mode,
             **extra_kwargs,
         )
     except ValueError as e:

@@ -1,0 +1,48 @@
+{
+  "started_at": "2026-04-23T14:55:39.263949Z",
+  "api_base": "http://localhost:8001",
+  "cases": [
+    {
+      "slug": "kids",
+      "title": "The Rainbow Bunny's Wiggle Party",
+      "pacing_mode": "kids",
+      "animation_style": "cartoon_2d",
+      "submitted_at": "2026-04-23T14:55:39.263963Z",
+      "job_id": "427f0ca2-c27e-4db3-ae71-70659d22afae",
+      "credits_charged": 15,
+      "estimated_scenes": 6,
+      "final_status": "FAILED",
+      "error": "Job interrupted by server restart. Credits refunded.",
+      "output_url": null,
+      "render_path": null,
+      "total_scenes_emitted": 6,
+      "motion_plan": null,
+      "pacing_profile_used": "kids",
+      "timing": {},
+      "validation_failures": [],
+      "diagnostics": {},
+      "wall_clock_sec": 42.66
+    },
+    {
+      "slug": "action",
+      "title": "The Warrior's Last Sprint",
+      "pacing_mode": "action",
+      "animation_style": "comic_book",
+      "submitted_at": "2026-04-23T14:56:21.920604Z",
+      "error": "create failed: timed out"
+    },
+    {
+      "slug": "emotional",
+      "title": "A Letter from Grandmother",
+      "pacing_mode": "emotional",
+      "animation_style": "watercolor",
+      "submitted_at": "2026-04-23T14:57:21.976507Z",
+      "job_id": "d439d29a-99b0-45e4-bf3d-31ef08a389a4",
+      "credits_charged": 20,
+      "estimated_scenes": 8,
+      "final_status": "TIMEOUT",
+      "wall_clock_sec": 680.25
+    }
+  ],
+  "finished_at": "2026-04-23T15:08:42.228560Z"
+}

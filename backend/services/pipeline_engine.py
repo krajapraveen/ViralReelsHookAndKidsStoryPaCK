@@ -58,8 +58,8 @@ STAGE_CONFIG = {
     "scenes":  {"max_retries": 3, "backoff": [2, 4, 8], "timeout": 90,  "retriable_on_timeout": True},
     "images":  {"max_retries": 2, "backoff": [3, 6],    "timeout": 300, "retriable_on_timeout": True},
     "voices":  {"max_retries": 2, "backoff": [3, 6],    "timeout": 180, "retriable_on_timeout": True},
-    "render":  {"max_retries": 3, "backoff": [2, 4, 8], "timeout": 300, "retriable_on_timeout": True},
-    "upload":  {"max_retries": 3, "backoff": [2, 4, 8], "timeout": 60,  "retriable_on_timeout": True},
+    "render":  {"max_retries": 2, "backoff": [3, 6],    "timeout": 600, "retriable_on_timeout": True},
+    "upload":  {"max_retries": 3, "backoff": [2, 4, 8], "timeout": 120,  "retriable_on_timeout": True},
 }
 
 # ─── RENDER SETTINGS (production-safe fast defaults) ─────────────────────────
@@ -90,14 +90,146 @@ MOTION_PATTERNS = [
     "pan_up",        # Slow pan upward
 ]
 
-def _build_ken_burns_filter(scene_idx: int, dur: float, w: int, h: int, fps: int) -> tuple:
+# ─── CINEMATIC MOTION PACK — Visual Delight Sprint Phase 1 ──────────────────
+# Eased progress curves so motion feels *authored*, not robotic.
+# All expressions use {F} as a placeholder for total_frames.
+CINEMATIC_MOTION_PACK = {
+    # Wonder / Emotional
+    "dolly_reveal": {
+        "z": "1 + 0.22*(1-pow(1-on/{F},2))",
+        "x": "iw/2 - (iw/zoom/2)",
+        "y": "ih*0.55 - (ih/zoom/2) - (ih*0.04)*(on/{F})",
+    },
+    "slow_zoom_in": {
+        "z": "1 + 0.18*(1-pow(1-on/{F},3))",
+        "x": "iw/2 - (iw/zoom/2)",
+        "y": "ih/2 - (ih/zoom/2)",
+    },
+    "parallax_drift": {
+        "z": "1.12 + 0.06*(on/{F})",
+        "x": "iw*0.5 - (iw/zoom/2) + (iw*0.06)*(1-pow(1-on/{F},2)) - (iw*0.03)",
+        "y": "ih*0.5 - (ih/zoom/2) - (ih*0.025)*(on/{F})",
+    },
+    "hold_then_push": {
+        "z": "if(lt(on,0.4*{F}), 1.05, 1.05 + 0.18*((on-0.4*{F})/(0.6*{F})))",
+        "x": "iw/2 - (iw/zoom/2)",
+        "y": "ih/2 - (ih/zoom/2)",
+    },
+    # Action / Adventure
+    "dolly_push": {
+        "z": "1.02 + 0.28*pow(on/{F},2)",
+        "x": "iw/2 - (iw/zoom/2)",
+        "y": "ih/2 - (ih/zoom/2)",
+    },
+    "pan_sweep_right": {
+        "z": "1.18",
+        "x": "(iw*0.22)*(1-pow(1-on/{F},2))",
+        "y": "ih/2 - (ih/zoom/2)",
+    },
+    "pan_sweep_left": {
+        "z": "1.18",
+        "x": "(iw*0.22)*(1 - (1-pow(1-on/{F},2)))",
+        "y": "ih/2 - (ih/zoom/2)",
+    },
+    "impact_zoom": {
+        "z": "1.08 + 0.22*pow(on/{F},3)",
+        "x": "iw*0.55 - (iw/zoom/2)",
+        "y": "ih*0.45 - (ih/zoom/2)",
+    },
+    # Kids / Whimsical
+    "zoom_in_wonder": {
+        "z": "1 + 0.20*(1-pow(1-on/{F},2))",
+        "x": "iw*0.55 - (iw/zoom/2)",
+        "y": "ih*0.40 - (ih/zoom/2)",
+    },
+    "pan_right_bright": {
+        "z": "1.15 + 0.05*sin(on/{F}*PI)",
+        "x": "(iw*0.16)*(on/{F})",
+        "y": "ih/2 - (ih/zoom/2)",
+    },
+    "zoom_out_reveal": {
+        "z": "1.28 - 0.22*(1-pow(1-on/{F},2))",
+        "x": "iw/2 - (iw/zoom/2)",
+        "y": "ih/2 - (ih/zoom/2)",
+    },
+}
+
+PACING_PROFILES = {
+    "kids":      {"name": "kids",      "motion_set": ["zoom_in_wonder","pan_right_bright","parallax_drift","zoom_out_reveal","dolly_reveal","zoom_in_wonder"], "duration_mult": 1.00, "first_bonus": 0.40, "last_bonus": 0.60, "fade_in": 0.25, "fade_out": 0.35, "intro_fade": 0.45, "outro_fade": 0.65},
+    "action":    {"name": "action",    "motion_set": ["dolly_push","pan_sweep_right","impact_zoom","pan_sweep_left","dolly_push","impact_zoom"],                "duration_mult": 0.88, "first_bonus": 0.15, "last_bonus": 0.50, "fade_in": 0.10, "fade_out": 0.12, "intro_fade": 0.20, "outro_fade": 0.55},
+    "emotional": {"name": "emotional", "motion_set": ["dolly_reveal","slow_zoom_in","parallax_drift","hold_then_push","slow_zoom_in","dolly_reveal"],            "duration_mult": 1.15, "first_bonus": 0.55, "last_bonus": 0.85, "fade_in": 0.40, "fade_out": 0.55, "intro_fade": 0.70, "outro_fade": 1.00},
+    "cinematic": {"name": "cinematic", "motion_set": ["dolly_reveal","hold_then_push","parallax_drift","slow_zoom_in","pan_sweep_right","dolly_reveal"],         "duration_mult": 1.08, "first_bonus": 0.45, "last_bonus": 0.75, "fade_in": 0.30, "fade_out": 0.45, "intro_fade": 0.55, "outro_fade": 0.90},
+    "auto":      {"name": "auto",      "motion_set": ["dolly_reveal","slow_zoom_in","parallax_drift","pan_sweep_right","zoom_in_wonder","hold_then_push"],       "duration_mult": 1.00, "first_bonus": 0.30, "last_bonus": 0.55, "fade_in": 0.22, "fade_out": 0.30, "intro_fade": 0.40, "outro_fade": 0.70},
+}
+
+_PACING_KEYWORDS = {
+    "kids":      ["bunny","puppy","kitten","giggle","tickle","magical","fairy","unicorn","silly","playground","mommy","daddy","rainbow","wiggle","bedtime"],
+    "action":    ["chase","explode","battle","fight","race","escape","crash","ambush","storm","warrior","sword","pursuit","danger","hunted","sprint"],
+    "emotional": ["tear","goodbye","love","remember","lost","heart","grandmother","grandfather","mourn","hope","forgive","reunion","whisper","promise","embrace"],
+}
+
+def _resolve_pacing(pacing_mode: str, story_text: str, animation_style: str) -> dict:
+    mode = (pacing_mode or "auto").lower().strip()
+    if mode in PACING_PROFILES and mode != "auto":
+        return PACING_PROFILES[mode]
+    style_l = (animation_style or "").lower()
+    if "cinematic" in style_l or "noir" in style_l:
+        return PACING_PROFILES["cinematic"]
+    text_l = (story_text or "").lower()
+    if text_l:
+        scores = {g: sum(1 for kw in kws if kw in text_l) for g, kws in _PACING_KEYWORDS.items()}
+        best = max(scores, key=scores.get) if scores else None
+        if best and scores[best] >= 2:
+            return PACING_PROFILES[best]
+    return PACING_PROFILES["auto"]
+
+def _pick_motion(scene_idx: int, total: int, pacing: dict) -> str:
+    ms = pacing["motion_set"]
+    if scene_idx == 0:
+        return ms[0]
+    if scene_idx == total - 1 and total > 1:
+        for preferred in ("hold_then_push", "zoom_out_reveal", "dolly_push", "dolly_reveal"):
+            if preferred in ms:
+                return preferred
+    return ms[scene_idx % len(ms)]
+
+def _apply_pacing_duration(scene_idx: int, total: int, base_dur: float, pacing: dict) -> float:
+    d = base_dur * pacing["duration_mult"]
+    if scene_idx == 0:
+        d += pacing["first_bonus"]
+    if scene_idx == total - 1 and total > 1:
+        d += pacing["last_bonus"]
+    return max(2.0, min(14.0, d))
+
+def _build_cinematic_filter(scene_idx: int, total: int, dur: float, w: int, h: int, fps: int, pacing: dict) -> tuple:
     """
-    Build zoompan filter for Ken Burns effect.
-    Returns (source_width, source_height, filter_string).
-    Source is scaled 1.5x larger to give zoompan headroom for panning/zooming.
+    Build cinematic zoompan filter using Pacing Profile's motion_set.
+    Returns (source_width, source_height, filter_string, motion_name).
     """
     total_frames = max(int(dur * fps), fps * 2)
-    # Scale source 1.5x larger for headroom
+    F = total_frames
+    src_w = int(w * 1.5)
+    src_h = int(h * 1.5)
+    
+    motion_name = _pick_motion(scene_idx, total, pacing)
+    spec = CINEMATIC_MOTION_PACK.get(motion_name)
+    if spec:
+        z = spec["z"].replace("{F}", str(F))
+        x = spec["x"].replace("{F}", str(F))
+        y = spec["y"].replace("{F}", str(F))
+        zp = (f"zoompan=z='{z}':x='{x}':y='{y}':"
+              f"d={F}:s={w}x{h}:fps={fps}")
+    else:
+        # Legacy fallback
+        zp = (f"zoompan=z='min(1+0.15*on/{F},1.15)'"
+              f":x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
+              f":d={F}:s={w}x{h}:fps={fps}")
+    
+    return src_w, src_h, zp, motion_name
+
+def _build_ken_burns_filter(scene_idx: int, dur: float, w: int, h: int, fps: int) -> tuple:
+    """Legacy wrapper — kept for back-compat with any external callers."""
+    total_frames = max(int(dur * fps), fps * 2)
     src_w = int(w * 1.5)
     src_h = int(h * 1.5)
 
@@ -232,9 +364,11 @@ async def create_pipeline_job(
     include_watermark: bool = True,
     user_plan: str = "free",
     degraded_max_scenes: int = 0,
+    pacing_mode: str = "auto",
 ) -> dict:
     """Create a new pipeline job with credit reservation and plan-based scene limits.
-    If degraded_max_scenes > 0, it overrides plan limits (graceful degradation under load)."""
+    If degraded_max_scenes > 0, it overrides plan limits (graceful degradation under load).
+    pacing_mode: auto|kids|action|emotional|cinematic — drives Visual Delight motion/fades."""
 
     ok, msg = check_copyright(story_text)
     if not ok:
@@ -312,7 +446,7 @@ async def create_pipeline_job(
 
     # Build stage tracking
     stages = {}
-    for stage_name in STAGES:
+    for stage_name in list(STAGES) + list(ADMIN_STAGES):
         stages[stage_name] = {
             "status": StageStatus.PENDING,
             "started_at": None,
@@ -347,6 +481,7 @@ async def create_pipeline_job(
         "voice_preset": voice_preset,
         "voice_config": voice,
         "include_watermark": apply_watermark,
+        "pacing_mode": (pacing_mode or "auto").lower().strip(),
         "estimated_scenes": estimated_scenes,
         "plan_scene_limit": plan_max,
         "credits_charged": credit_cost,
@@ -1322,7 +1457,7 @@ async def run_stage_render(job: dict) -> dict:
 
         logger.info(f"[RENDER {job_id[:8]}] Assets ready: {len(valid_scenes)}/{total_scenes} scenes, download {dl_ms}ms")
 
-        # ── Phase 2: Single FFmpeg encode ─────────────────────────────────
+        # ── Phase 2: Single FFmpeg encode (Cinematic Delight pipeline) ────
         await update_job(job_id, {
             "progress": 82,
             "current_step": f"Rendering final video ({len(valid_scenes)} scenes)..."
@@ -1330,30 +1465,59 @@ async def run_stage_render(job: dict) -> dict:
 
         encode_start = time.time()
         n = len(valid_scenes)
+        
+        # Resolve pacing profile (Visual Delight Phase 1)
+        pacing = _resolve_pacing(
+            pacing_mode=job.get("pacing_mode") or "auto",
+            story_text=job.get("story_text") or "",
+            animation_style=job.get("animation_style") or "",
+        )
+        logger.info(f"[RENDER {job_id[:8]}] Pacing profile: {pacing['name']}")
 
         # Build FFmpeg inputs: alternating -loop 1 -t <dur> -i <image>, -i <audio>
         inputs = []
         filter_parts = []
         total_duration = 0.0
+        motion_plan = []  # for logging
 
         for i, sn in enumerate(valid_scenes):
-            dur = durations[sn] + 0.3  # small buffer for sync
+            base_audio_dur = durations[sn]
+            # Apply pacing-driven scene duration envelope (holds, breaths, ending beat)
+            paced_dur = _apply_pacing_duration(i, n, base_audio_dur, pacing)
+            # Critical: never cut audio mid-sentence; always hold ≥ audio + 0.2s breathing
+            dur = max(paced_dur, base_audio_dur + 0.2)
             total_duration += dur
-            v_idx = i * 2      # image input index (0, 2, 4, ...)
-            a_idx = i * 2 + 1  # audio input index (1, 3, 5, ...)
+            v_idx = i * 2
+            a_idx = i * 2 + 1
 
-            inputs.extend(["-loop", "1", "-t", f"{dur:.2f}", "-i", image_paths[sn]])
+            # Input: finite image loop (-t caps image decoder output).
+            # Video filter chain then trims to exact paced duration to guarantee sync.
+            inputs.extend(["-loop", "1", "-t", f"{dur:.3f}", "-i", image_paths[sn]])
             inputs.extend(["-i", audio_paths[sn]])
 
-            # Ken Burns motion filter: scale image 1.5x, then zoompan for dynamic motion
-            src_w, src_h, zoompan_filter = _build_ken_burns_filter(
-                scene_idx=i, dur=dur, w=RENDER_WIDTH, h=RENDER_HEIGHT, fps=RENDER_FPS
+            src_w, src_h, zoompan_filter, motion_name = _build_cinematic_filter(
+                scene_idx=i, total=n, dur=dur, w=RENDER_WIDTH, h=RENDER_HEIGHT, fps=RENDER_FPS, pacing=pacing
             )
+            motion_plan.append(motion_name)
+            
+            # Per-scene fade timing (cinematic intro/outro emphasis)
+            is_first = (i == 0)
+            is_last = (i == n - 1 and n > 1)
+            v_fade_in = pacing["intro_fade"] if is_first else pacing["fade_in"]
+            v_fade_out = pacing["outro_fade"] if is_last else pacing["fade_out"]
+            if v_fade_in + v_fade_out > dur * 0.8:
+                v_fade_in = dur * 0.2
+                v_fade_out = dur * 0.2
+            v_fade_out_start = max(0.0, dur - v_fade_out)
+            
             filter_parts.append(
                 f"[{v_idx}:v]scale={src_w}:{src_h}:"
                 f"force_original_aspect_ratio=decrease,"
                 f"pad={src_w}:{src_h}:(ow-iw)/2:(oh-ih)/2:black,"
                 f"{zoompan_filter},"
+                f"trim=duration={dur:.3f},setpts=PTS-STARTPTS,"
+                f"fade=t=in:st=0:d={v_fade_in:.3f},"
+                f"fade=t=out:st={v_fade_out_start:.3f}:d={v_fade_out:.3f},"
                 f"setsar=1[v{i}]"
             )
 
@@ -1361,11 +1525,24 @@ async def run_stage_render(job: dict) -> dict:
         v_concat = ''.join(f'[v{i}]' for i in range(n))
         filter_parts.append(f"{v_concat}concat=n={n}:v=1:a=0[vout]")
 
-        # Concat all audio streams (resample for consistency)
+        # Audio streams: resample + pad-to-scene-dur + fades (matches video length exactly)
         a_filters = []
-        for i in range(n):
+        for i, sn in enumerate(valid_scenes):
             a_idx = i * 2 + 1
-            a_filters.append(f"[{a_idx}:a]aresample=44100[a{i}]")
+            base_audio_dur = durations[sn]
+            paced_dur = _apply_pacing_duration(i, n, base_audio_dur, pacing)
+            scene_dur = max(paced_dur, base_audio_dur + 0.2)
+            af_in = min(0.20, pacing["fade_in"])
+            af_out = min(0.25, pacing["fade_out"])
+            fade_out_start = max(0.0, scene_dur - af_out)
+            # apad pads audio with silence; atrim caps to exact scene length so A/V stay in lockstep
+            a_filters.append(
+                f"[{a_idx}:a]aresample=44100,apad,atrim=duration={scene_dur:.3f},"
+                f"asetpts=PTS-STARTPTS,"
+                f"afade=t=in:st=0:d={af_in:.3f},"
+                f"afade=t=out:st={fade_out_start:.3f}:d={af_out:.3f}"
+                f"[a{i}]"
+            )
         filter_parts.extend(a_filters)
 
         a_concat = ''.join(f'[a{i}]' for i in range(n))
@@ -1395,15 +1572,23 @@ async def run_stage_render(job: dict) -> dict:
             "-crf", str(RENDER_CRF),
             "-r", str(RENDER_FPS),
             "-threads", str(RENDER_THREADS),
-            "-c:a", "aac", "-b:a", "96k",
+            # Safari/iOS-safe audio encoding
+            "-c:a", "aac",
+            "-profile:a", "aac_low",
+            "-b:a", "128k",
+            "-ar", "44100",
+            "-ac", "2",
             "-pix_fmt", "yuv420p",
             "-movflags", "+faststart",
             final_path,
         ]
 
-        logger.info(f"[RENDER {job_id[:8]}] Running single-pass FFmpeg encode: "
-                     f"{n} scenes, {RENDER_WIDTH}x{RENDER_HEIGHT}, {RENDER_FPS}fps, "
-                     f"{RENDER_PRESET}, CRF {RENDER_CRF}, total_dur={total_duration:.1f}s")
+        logger.info(
+            f"[RENDER {job_id[:8]}] Cinematic encode: "
+            f"pacing={pacing['name']} motions={motion_plan} "
+            f"{n} scenes, {RENDER_WIDTH}x{RENDER_HEIGHT}@{RENDER_FPS}fps, "
+            f"preset={RENDER_PRESET} crf={RENDER_CRF} total_dur={total_duration:.1f}s"
+        )
 
         # Execute with real-time progress monitoring
         encode_timeout = max(300, n * 60)  # generous for Ken Burns motion encoding
@@ -1474,7 +1659,13 @@ async def run_stage_upload(job: dict) -> dict:
                 ok, public_url, key = await r2.upload_file_multipart(render_path, "video", job_id, filename)
                 if ok and public_url:
                     logger.info(f"[UPLOAD {job_id[:8]}] R2 upload OK on attempt {attempt+1}: {public_url[:60]}")
-                    await update_job(job_id, {"progress": 98, "current_step": "Upload complete, finalizing..."})
+                    await update_job(job_id, {
+                        "progress": 98,
+                        "current_step": "Upload complete, finalizing...",
+                        "output_url": public_url,
+                        "storage_type": "r2",
+                        "r2_key": key,
+                    })
                     return {"url": public_url, "storage": "r2", "verified": True}
                 else:
                     logger.warning(f"[UPLOAD {job_id[:8]}] R2 upload returned ok={ok} url={public_url}")
@@ -1486,7 +1677,12 @@ async def run_stage_upload(job: dict) -> dict:
     # Fallback to local storage
     logger.warning(f"[UPLOAD {job_id[:8]}] All R2 uploads failed, using local storage")
     local_url = f"/api/generated/videos/{filename}"
-    await update_job(job_id, {"progress": 98, "current_step": "Upload complete (local), finalizing..."})
+    await update_job(job_id, {
+        "progress": 98,
+        "current_step": "Upload complete (local), finalizing...",
+        "output_url": local_url,
+        "storage_type": "local",
+    })
     return {"url": local_url, "storage": "local", "verified": True}
 
 
@@ -1496,9 +1692,11 @@ STAGE_RUNNERS = {
     "scenes": run_stage_scenes,
     "images": run_stage_images,
     "voices": run_stage_voices,
+    "render": run_stage_render,
+    "upload": run_stage_upload,
 }
 
-# Admin-only runners (not in normal flow)
+# Admin-only runners (kept for back-compat with any external callers)
 ADMIN_STAGE_RUNNERS = {
     "render": run_stage_render,
     "upload": run_stage_upload,
@@ -1509,12 +1707,16 @@ STAGE_PROGRESS = {
     "scenes": (5, 30),
     "images": (30, 65),
     "voices": (65, 95),
+    "render": (80, 95),
+    "upload": (95, 99),
 }
 
 STAGE_LABELS = {
     "scenes": "Step 1/2: Writing your story scenes...",
     "images": "Step 2/2: Generating images & audio...",
     "voices": "Step 2/2: Generating images & audio...",
+    "render": "Rendering cinematic video...",
+    "upload": "Publishing your story...",
 }
 
 # Average stage durations (ms) for time estimates, updated from real timing data
@@ -1745,6 +1947,32 @@ async def execute_pipeline(job_id: str):
             "progress": 80,
             "current_step": "Voice generation failed — creating silent video...",
         })
+
+    # ─── RENDER STAGE (single-pass cinematic encode) ──────────────────────────
+    # This was previously missing from the orchestrator — jobs would be packaged
+    # with no video file, causing the validation gate to fail with NO_RENDER_PATH.
+    # Visual Delight sprint (Apr 2026): invoke render stage here so every job
+    # produces a real MP4 with cinematic motion + pacing + Safari-safe encode.
+    render_ok = await _run_stage("render")
+    if not render_ok:
+        logger.error(f"[PIPE {job_id[:8]}] Render stage failed — job cannot complete")
+        await update_job(job_id, {
+            "status": "FAILED",
+            "error": "Video render failed",
+            "current_step": "Failed at render stage",
+            "completed_at": datetime.now(timezone.utc),
+            "timing": timing,
+        })
+        await refund_credits(job)
+        await _ws_broadcast(job_id, job.get("user_id", ""), "render", 0,
+                            "Video render failed", status="failed")
+        return
+
+    # Upload rendered MP4 to R2 (non-blocking best-effort)
+    try:
+        await _run_stage("upload")
+    except Exception as up_err:
+        logger.warning(f"[PIPE {job_id[:8]}] Upload stage warning (non-blocking): {up_err}")
 
     # ─── ALL ASSET STAGES COMPLETE — Generate manifest + ZIP ─────────────────
     job = await get_job(job_id)

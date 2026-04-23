@@ -1,0 +1,141 @@
+{
+  "KIDS": {
+    "job_id": "427f0ca2-c27e-4db3-ae71-70659d22afae",
+    "title": "The Rainbow Bunny's Wiggle Party",
+    "pacing_mode": "kids",
+    "status": "COMPLETED",
+    "scenes": 6,
+    "render_path": "/app/backend/static/generated/videos/pipe_video_427f0ca2-c27.mp4",
+    "output_url": "",
+    "probe": {
+      "duration": "31.83s",
+      "video": "h264(Constrained Baseline) 0x31637661",
+      "audio": "aac(LC) 44100Hz stereo",
+      "faststart": true,
+      "size_mb": 8.34
+    },
+    "timing_ms": {
+      "scenes_ms": 41110,
+      "voices_ms": 32842,
+      "images_ms": 298306,
+      "parallel_ms": 298329,
+      "render_ms": 6062,
+      "upload_ms": 3604,
+      "total_ms": 352958
+    },
+    "diagnostics": {
+      "render_path_present": true,
+      "output_url_present": false,
+      "audio_stream_present": true,
+      "duration_sec": 31.83,
+      "min_duration_sec": 20,
+      "expected_scenes": 6,
+      "scenes_rendered": 6,
+      "scenes_voiced": 6
+    }
+  },
+  "ACTION": {
+    "job_id": "a900b109-46f1-482c-8431-dd64d8fcd445",
+    "title": "The Warrior's Last Sprint",
+    "pacing_mode": "action",
+    "status": "COMPLETED",
+    "scenes": 8,
+    "render_path": "/app/backend/static/generated/videos/pipe_video_a900b109-46f.mp4",
+    "output_url": "",
+    "probe": {
+      "duration": "41.67s",
+      "video": "h264(Constrained Baseline) 0x31637661",
+      "audio": "aac(LC) 44100Hz stereo",
+      "faststart": true,
+      "size_mb": 10.47
+    },
+    "timing_ms": {
+      "scenes_ms": 49845,
+      "images_ms": 177903,
+      "voices_ms": 178614,
+      "parallel_ms": 178619,
+      "render_ms": 4792,
+      "upload_ms": 44669,
+      "total_ms": 396428
+    },
+    "diagnostics": {
+      "render_path_present": true,
+      "output_url_present": false,
+      "audio_stream_present": true,
+      "duration_sec": 41.67,
+      "min_duration_sec": 40,
+      "expected_scenes": 8,
+      "scenes_rendered": 8,
+      "scenes_voiced": 8
+    }
+  },
+  "ACTION2": {
+    "job_id": "ee4f6e41-2f50-4770-9e12-2d99628a7575",
+    "title": "The Warrior's Last Sprint",
+    "pacing_mode": "action",
+    "status": "COMPLETED",
+    "scenes": 8,
+    "render_path": "/app/backend/static/generated/videos/pipe_video_ee4f6e41-2f5.mp4",
+    "output_url": "",
+    "probe": {
+      "duration": "41.67s",
+      "video": "h264(Constrained Baseline) 0x31637661",
+      "audio": "aac(LC) 44100Hz stereo",
+      "faststart": true,
+      "size_mb": 11.2
+    },
+    "timing_ms": {
+      "voices_ms": 91808,
+      "images_ms": 180297,
+      "parallel_ms": 180301,
+      "render_ms": 6040,
+      "upload_ms": 3867,
+      "total_ms": 431495
+    },
+    "diagnostics": {
+      "render_path_present": true,
+      "output_url_present": false,
+      "audio_stream_present": true,
+      "duration_sec": 41.67,
+      "min_duration_sec": 40,
+      "expected_scenes": 8,
+      "scenes_rendered": 8,
+      "scenes_voiced": 8
+    }
+  },
+  "EMOTIONAL": {
+    "job_id": "d439d29a-99b0-45e4-bf3d-31ef08a389a4",
+    "title": "A Letter from Grandmother",
+    "pacing_mode": "emotional",
+    "status": "COMPLETED",
+    "scenes": 8,
+    "render_path": "/app/backend/static/generated/videos/pipe_video_d439d29a-99b.mp4",
+    "output_url": "",
+    "probe": {
+      "duration": "47.40s",
+      "video": "h264(Constrained Baseline) 0x31637661",
+      "audio": "aac(LC) 44100Hz stereo",
+      "faststart": true,
+      "size_mb": 7.19
+    },
+    "timing_ms": {
+      "scenes_ms": 39031,
+      "images_ms": 181168,
+      "voices_ms": 84133,
+      "parallel_ms": 183045,
+      "render_ms": 4613,
+      "upload_ms": 5900,
+      "total_ms": 236352
+    },
+    "diagnostics": {
+      "render_path_present": true,
+      "output_url_present": false,
+      "audio_stream_present": true,
+      "duration_sec": 47.4,
+      "min_duration_sec": 40,
+      "expected_scenes": 8,
+      "scenes_rendered": 8,
+      "scenes_voiced": 8
+    }
+  }
+}

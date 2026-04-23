@@ -220,3 +220,78 @@ Evolve the platform from a standard AI content generator into a highly addictive
 - WebP/AVIF image optimization
 - Auto-Recovery for FAILED_PERSISTENCE
 - Celery job queue migration
+
+## Visual Delight Sprint Phase 1 — April 23, 2026
+**Status**: SHIPPED + VERIFIED (3 test stories rendered + probed)
+
+### Root cause fixed
+The pipeline orchestrator was never invoking the `render` stage — STAGES list only
+ran scenes/images/voices, then went straight to packaging/validation. The validation
+gate would detect `NO_RENDER_PATH` and fail the job. This is the real reason users
+complained about "3–5s static slideshows with missing audio" — there was no video
+being produced at all, and the storypack ZIP was the only asset users ever saw.
+Fix: wired `_run_stage("render")` and `_run_stage("upload")` after voices complete
+in `execute_pipeline`; added render/upload to STAGES dict, STAGE_RUNNERS, STAGE_PROGRESS,
+STAGE_LABELS.
+
+### Cinematic Motion Pack (`pipeline_engine.py`)
+Eased progress curves replace linear Ken Burns. 11 motion profiles live in
+`CINEMATIC_MOTION_PACK`:
+- Wonder/Emotional: `dolly_reveal`, `slow_zoom_in`, `parallax_drift`, `hold_then_push`
+- Action: `dolly_push`, `pan_sweep_right`, `pan_sweep_left`, `impact_zoom`
+- Kids: `zoom_in_wonder`, `pan_right_bright`, `zoom_out_reveal`
+
+### Pacing Engine
+5 pacing profiles (`kids`, `action`, `emotional`, `cinematic`, `auto`) control
+motion selection + per-scene duration envelope + fade timing + (future) BGM ducking.
+Opening scene gets extra breath, closing scene gets ending beat. Auto-detection
+from story text keywords when `pacing_mode="auto"`.
+
+### Safari audio fix (faststart + AAC-LC)
+Final encode now emits:
+- `-movflags +faststart` (moov atom at head for streaming)
+- `-profile:a aac_low` (LC profile — broad iOS/Safari compat)
+- `-ar 44100 -ac 2` (stereo 44.1kHz — no mono edge-cases)
+- Bumped `-b:a 96k` → `128k`
+Verified in all 3 test outputs: moov at byte 36, AAC (LC) 44.1kHz stereo.
+
+### Pipeline duration bug fixed
+`-loop 1 -t dur -i` + zoompan `d=N` was producing 18-minute outputs (zoompan
+emits `d` output frames per input frame, image loop feeds many). Added
+`trim=duration={dur},setpts=PTS-STARTPTS` after zoompan to cap scene video length.
+Audio chain now uses `apad,atrim=duration={dur}` to keep A/V in lockstep.
+
+### Per-scene audio + video fades
+Every segment has `fade=t=in` / `fade=t=out` with pacing-driven durations
+(e.g., emotional uses 0.4s fades + 0.7s intro + 1.0s outro; action uses 0.1s fades).
+Audio fades (`afade`) mirror video fades for silky transitions.
+
+### API changes
+- New request field `pacing_mode` on `POST /api/pipeline/create` and
+  `POST /api/video/assemble`. Values: `auto | kids | action | emotional | cinematic`.
+  Default `auto` with keyword heuristic.
+- Job document now stores `pacing_mode` + `motion_plan` for observability.
+
+### Files changed
+- `backend/services/pipeline_engine.py` — motion pack, pacing engine, render stage wiring, duration fix, Safari flags
+- `backend/services/optimized_video_renderer.py` — same motion pack, pacing, sidechain audio ducking, faststart remux, AAC-LC
+- `backend/routes/pipeline_routes.py` — `pacing_mode` in `CreatePipelineRequest`
+- `backend/routes/story_video_generation.py` — `pacing_mode` in `VideoAssemblyRequest`
+- `backend/tests/visual_delight_smoke.py` — 3-story smoke test harness
+
+### Smoke-test proof (Apr 23, 2026 @ 15:01 UTC)
+| Genre | Pacing | Scenes | Duration | Size | Motion plan | FastStart | Audio |
+|-|-|-|-|-|-|-|-|
+| Kids (Rainbow Bunny) | kids | 6 | 31.83s | 8.3MB | zoom_in_wonder, pan_right_bright, parallax_drift, zoom_out_reveal, dolly_reveal, zoom_out_reveal | ✅ | AAC-LC 44.1k st |
+| Action (Warrior's Last Sprint) | action | 8 | 41.67s | 10.5MB | dolly_push, pan_sweep_right, impact_zoom, pan_sweep_left, dolly_push, impact_zoom, dolly_push, dolly_push | ✅ | AAC-LC 44.1k st |
+| Emotional (Letter from Grandmother) | emotional | 8 | 47.40s | 7.2MB | dolly_reveal, slow_zoom_in, parallax_drift, hold_then_push, slow_zoom_in, dolly_reveal, slow_zoom_in, hold_then_push | ✅ | AAC-LC 44.1k st |
+
+Encode wall-clock: 4.6–6.1s per job (single-pass filter_complex).
+
+### Not yet shipped (Phase 2 backlog)
+- Ambient effects (particles, smoke, rain, glow)
+- Character life cycles (blink, idle sway, mouth movement)
+- True crossfade transitions (xfade filter between scenes)
+- BGM integration into the pipeline_engine path (currently only in legacy
+  optimized_video_renderer)
+

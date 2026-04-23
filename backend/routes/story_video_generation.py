@@ -85,6 +85,7 @@ class VideoAssemblyRequest(BaseModel):
     background_music_id: Optional[str] = None
     music_volume: float = 0.3  # 0.0 to 1.0
     animation_style: str = "auto"  # auto, zoom_in, zoom_out, pan_left, pan_right, ken_burns
+    pacing_mode: str = "auto"  # auto | kids | action | emotional | cinematic — drives motion/fades/ducking
     idempotency_key: Optional[str] = None
 
 class MusicTrack(BaseModel):
@@ -1567,6 +1568,7 @@ async def assemble_video(
     await db.render_jobs.insert_one(render_job)
     
     # Start background rendering using optimized renderer
+    story_text_for_pacing = project.get("story_text") or project.get("story") or ""
     background_tasks.add_task(
         render_video_optimized,
         job_id,
@@ -1577,7 +1579,9 @@ async def assemble_video(
         request.background_music_id,
         request.music_volume,
         user_id,
-        request.animation_style
+        request.animation_style,
+        request.pacing_mode,
+        story_text_for_pacing
     )
     
     return {
@@ -1600,7 +1604,9 @@ async def render_video_optimized(
     background_music_id: Optional[str],
     music_volume: float,
     user_id: str,
-    animation_style: str = "auto"
+    animation_style: str = "auto",
+    pacing_mode: str = "auto",
+    story_text: str = ""
 ):
     """Use the optimized video renderer for faster processing"""
     from services.optimized_video_renderer import get_optimized_renderer
@@ -1616,7 +1622,9 @@ async def render_video_optimized(
         background_music_id=background_music_id,
         music_volume=music_volume,
         user_id=user_id,
-        animation_style=animation_style
+        animation_style=animation_style,
+        pacing_mode=pacing_mode,
+        story_text=story_text
     )
     
     if success:
