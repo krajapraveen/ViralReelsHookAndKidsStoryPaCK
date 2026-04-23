@@ -1171,6 +1171,8 @@ async def get_story_for_viewer(story_id: str, current_user: dict = Depends(get_o
             "output_url": job.get("output_url"),
             "thumbnail_url": job.get("thumbnail_url"),
             "animation_style": job.get("animation_style"),
+            "pacing_mode": job.get("pacing_mode"),
+            "reaction_category": job.get("reaction_category"),
             "episode_number": job.get("episode_number"),
             "scene_progress": scene_progress,
             # Multiplayer fields

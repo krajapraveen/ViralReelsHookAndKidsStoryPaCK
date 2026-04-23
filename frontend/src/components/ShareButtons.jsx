@@ -1,6 +1,7 @@
 import React from 'react';
 import { Share2, Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
+import { trackFunnel } from '../utils/funnelTracker';
 
 /**
  * One-tap share buttons — WhatsApp, Instagram, X, Facebook, Copy Link.
@@ -10,13 +11,23 @@ import { toast } from 'sonner';
  *  - url: string (share URL)
  *  - title: string (share text)
  *  - compact: boolean (smaller buttons for inline use)
+ *  - storyId: string (optional — for analytics tagging)
+ *  - category: string (optional — reaction category for dashboard segmentation)
  */
-export default function ShareButtons({ url, title = '', compact = false }) {
+export default function ShareButtons({ url, title = '', compact = false, storyId = null, category = null }) {
   const [copied, setCopied] = React.useState(false);
   const shareUrl = url || window.location.href;
   const shareText = title ? `${title} — Made with Visionary Suite` : 'Check out this AI-generated story!';
   const encodedUrl = encodeURIComponent(shareUrl);
   const encodedText = encodeURIComponent(shareText);
+
+  const logShare = (channel) => {
+    try {
+      trackFunnel('cta_share_clicked', {
+        meta: { channel, story_id: storyId, category, url: shareUrl },
+      });
+    } catch (_) { /* analytics never blocks UX */ }
+  };
 
   const handleCopy = async () => {
     try {
@@ -24,6 +35,7 @@ export default function ShareButtons({ url, title = '', compact = false }) {
       setCopied(true);
       toast.success('Link copied!');
       setTimeout(() => setCopied(false), 2000);
+      logShare('copy_link');
     } catch {
       toast.error('Failed to copy');
     }
@@ -33,6 +45,7 @@ export default function ShareButtons({ url, title = '', compact = false }) {
     if (navigator.share) {
       try {
         await navigator.share({ title: shareText, url: shareUrl });
+        logShare('native');
       } catch { /* user cancelled */ }
     }
   };
@@ -94,6 +107,7 @@ export default function ShareButtons({ url, title = '', compact = false }) {
           href={ch.href}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={() => logShare(ch.name.toLowerCase())}
           className={`${btnSize} rounded-xl border ${ch.color} font-medium flex items-center justify-center transition-colors`}
           data-testid={`share-${ch.name.toLowerCase()}`}
         >

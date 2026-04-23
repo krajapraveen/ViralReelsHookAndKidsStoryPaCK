@@ -13,6 +13,7 @@ import { trackFunnel } from '../utils/funnelTracker';
 import ContinuationModal from '../components/ContinuationModal';
 import BattlePulse from '../components/BattlePulse';
 import BattlePaywallModal from '../components/BattlePaywallModal';
+import ShareButtons from '../components/ShareButtons';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 
 /**
@@ -286,20 +287,45 @@ export default function StoryViewerPage() {
               className="w-full h-full object-contain"
               onPlay={() => {
                 setPlaying(true);
-                trackFunnel('watch_started', { meta: { story_id: resolvedJobId } });
+                trackFunnel('watch_started', {
+                  meta: {
+                    story_id: resolvedJobId,
+                    category: job?.reaction_category || job?.pacing_mode || null,
+                  },
+                });
               }}
               onPause={() => setPlaying(false)}
               onTimeUpdate={() => {
                 if (!videoRef.current) return;
-                const pct = (videoRef.current.currentTime / videoRef.current.duration) * 100;
-                if (pct >= 50 && !videoRef.current._tracked50) {
-                  videoRef.current._tracked50 = true;
-                  trackFunnel('watch_completed_50', { meta: { story_id: resolvedJobId } });
+                const v = videoRef.current;
+                if (!v.duration || isNaN(v.duration)) return;
+                const pct = (v.currentTime / v.duration) * 100;
+                const storyMeta = {
+                  story_id: resolvedJobId,
+                  category: job?.reaction_category || job?.pacing_mode || null,
+                  duration_sec: Math.round(v.duration),
+                };
+                if (pct >= 25 && !v._tracked25) {
+                  v._tracked25 = true;
+                  trackFunnel('watch_completed_25', { meta: storyMeta });
+                }
+                if (pct >= 50 && !v._tracked50) {
+                  v._tracked50 = true;
+                  trackFunnel('watch_completed_50', { meta: storyMeta });
+                }
+                if (pct >= 75 && !v._tracked75) {
+                  v._tracked75 = true;
+                  trackFunnel('watch_completed_75', { meta: storyMeta });
                 }
               }}
               onEnded={() => {
                 setPlaying(false);
-                trackFunnel('watch_completed_100', { meta: { story_id: resolvedJobId } });
+                trackFunnel('watch_completed_100', {
+                  meta: {
+                    story_id: resolvedJobId,
+                    category: job?.reaction_category || job?.pacing_mode || null,
+                  },
+                });
                 // Auto-play next with countdown
                 if (nextEpisode) {
                   startAutoPlayCountdown(nextEpisode);
@@ -470,6 +496,19 @@ export default function StoryViewerPage() {
               Share
             </button>
           </div>
+
+          {/* ═══ ONE-TAP SHARE ROW (WhatsApp / X / Facebook / Copy) ═══ */}
+          {hasVideo && (
+            <div className="mt-3" data-testid="viewer-share-row">
+              <ShareButtons
+                url={`${window.location.origin}/share/${resolvedJobId}`}
+                title={title}
+                compact
+                storyId={resolvedJobId}
+                category={job?.reaction_category || job?.pacing_mode || null}
+              />
+            </div>
+          )}
 
           {/* ═══ VIRAL SHARE PROMPT — aggressive when winning, ego-driven ═══ */}
           {continuationType === 'branch' && (

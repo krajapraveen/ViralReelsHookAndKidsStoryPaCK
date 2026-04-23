@@ -654,6 +654,8 @@ async def get_pipeline_status(job_id: str, current_user: dict = Depends(get_curr
             "fallback": fallback_data,
             "has_recoverable_assets": has_raw_assets or bool(fallback_data),
             "crash_logs": job.get("crash_logs", [])[-3:],
+            "pacing_mode": job.get("pacing_mode"),
+            "reaction_category": job.get("reaction_category"),
         },
     }
 

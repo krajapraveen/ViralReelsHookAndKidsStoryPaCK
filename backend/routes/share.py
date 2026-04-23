@@ -196,22 +196,26 @@ async def get_share_data(share_id: str, request: Request):
     video_url = None
     thumbnail_url = share.get("thumbnailUrl")
     animation_style = None
+    pacing_mode = None
+    reaction_category = None
     gen_id = share.get("generationId")
     if gen_id:
         job = await db.story_engine_jobs.find_one(
             {"job_id": gen_id},
-            {"_id": 0, "output_url": 1, "thumbnail_url": 1, "animation_style": 1, "style_id": 1}
+            {"_id": 0, "output_url": 1, "thumbnail_url": 1, "animation_style": 1, "style_id": 1, "pacing_mode": 1, "reaction_category": 1}
         )
         if not job:
             job = await db.pipeline_jobs.find_one(
                 {"job_id": gen_id},
-                {"_id": 0, "output_url": 1, "thumbnail_url": 1, "animation_style": 1}
+                {"_id": 0, "output_url": 1, "thumbnail_url": 1, "animation_style": 1, "pacing_mode": 1, "reaction_category": 1}
             )
         if job:
             video_url = job.get("output_url")
             if not thumbnail_url:
                 thumbnail_url = job.get("thumbnail_url")
             animation_style = job.get("animation_style") or job.get("style_id")
+            pacing_mode = job.get("pacing_mode")
+            reaction_category = job.get("reaction_category")
 
     return {
         "success": True,
@@ -222,6 +226,9 @@ async def get_share_data(share_id: str, request: Request):
         "thumbnailUrl": thumbnail_url,
         "videoUrl": video_url,
         "animationStyle": animation_style,
+        "pacing_mode": pacing_mode,
+        "reaction_category": reaction_category,
+        "generationId": gen_id,
         "views": share["views"] + 1,
         "createdAt": share["createdAt"],
         "forks": fork_count,

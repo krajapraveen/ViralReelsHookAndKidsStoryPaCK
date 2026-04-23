@@ -332,3 +332,75 @@ Backend obsession paused for 48 hours. Next priorities:
 - P1 Best-output public gallery (surface top creations)
 - Tech debt: unify the two renderer paths (pipeline_engine vs optimized_video_renderer) into one
 
+## Audience Truth Sprint — April 23, 2026
+**Status**: SHIPPED (backend + frontend + dashboard verified end-to-end)
+
+Founder directive: *"Stop building, start distributing. Watch what people naturally choose."*
+Sprint goal: give the platform the instruments to capture reactions on the 10 public test videos.
+
+### 1. Video-progress events (25/50/75/100)
+- New funnel steps: `watch_completed_25`, `watch_completed_75` (50 + 100 already existed)
+- `StoryViewerPage.jsx` + `SharePage.jsx` both fire `onPlay / onTimeUpdate / onEnded`
+  with story_id + category metadata
+- Events flow into existing `funnel_events` collection (no schema change needed)
+
+### 2. One-tap share row
+- `ShareButtons.jsx` (WhatsApp / X / Facebook / Copy / native) now fires
+  `cta_share_clicked` with `{channel, story_id, category}` metadata on every click
+- Rendered visibly in `StoryViewerPage.jsx` + `SharePage.jsx` (founder wanted
+  "visible share buttons on each output" — no hidden modals)
+
+### 3. `reaction_category` tagging
+- Added `reaction_category` field to `pipeline_jobs` docs
+- Backfilled the 10 test stories with their category slug
+  (kids_bedtime, funny_cat, emotional_mother, horror_short, motivational_comeback,
+  fantasy_magic, breakup_revenge, school_nostalgia, baby_animal_rescue, billionaire_success)
+- `/api/pipeline/status/:jobId` and `/api/share/:shareId` + `/api/stories/viewer/:jobId`
+  now expose `reaction_category` so the viewer can stamp it on every event
+
+### 4. Founder Reaction Dashboard
+- New endpoint: `GET /api/funnel/reaction-dashboard?days=30&category=optional` (admin-only)
+- Returns: per-video rows (plays, 25/50/75/100, completion %, hold-rate 50/75,
+  share clicks, regen clicks), category rollups, and 4 leaderboards:
+  **top_finished, top_shared, top_hold_rate, top_regen**
+- Unique-by-session counting — one viewer completing a video = 1 play, not N events
+- New page: `/app/admin/reactions` (AdminReactions.jsx) — filterable by days + category,
+  color-coded completion cells, clickable R2 links
+
+### Smoke verification (Apr 23, 2026 @ 18:30 UTC)
+Seeded events for 3 stories → endpoint returned:
+```
+video_count: 3
+horror_short   plays=3  100% completion  shares=3  ← leads top_shared
+funny_cat      plays=3  100% completion  shares=0
+emotional_mother plays=3 100% completion shares=0
+```
+Leaderboards, category rollups, and filter-by-category all functioning.
+
+### Files changed
+- `backend/routes/funnel_tracking.py` — `watch_completed_25/75` steps + `reaction-dashboard` endpoint
+- `backend/routes/share.py` — expose `pacing_mode` + `reaction_category` on share payload
+- `backend/routes/pipeline_routes.py` — expose `reaction_category` on status
+- `backend/routes/story_multiplayer.py` — expose `pacing_mode` + `reaction_category` on viewer
+- `frontend/src/components/ShareButtons.jsx` — fire `cta_share_clicked` per channel
+- `frontend/src/utils/funnelTracker.js` — read story_id from `extra.meta.story_id` fallback
+- `frontend/src/pages/StoryViewerPage.jsx` — 25/75 tracking + ShareButtons row
+- `frontend/src/pages/SharePage.jsx` — full 25/50/75/100 tracking + ShareButtons row
+- `frontend/src/pages/AdminReactions.jsx` — new page with leaderboards + tables
+- `frontend/src/App.js` — lazy import + `/app/admin/reactions` route
+
+### What founder can now do without another sprint
+1. Share any of the 10 R2 URLs on WhatsApp/Telegram/Reddit
+2. When viewers hit play, the pipeline captures 25/50/75/100 + shares + regens
+3. Open `/app/admin/reactions` → see which story leads in completion, shares, holds, regens
+4. Filter by category (e.g., just horror) to compare within a cohort
+5. Tighten or kill categories based on actual audience data
+
+### Next Action Items (backlog unchanged but pruned)
+- **Founder task (primary)**: distribute 10 videos, come back with data
+- **P1 (after data)**: thumbnail engine (click-optimized first frame, 1 frame per story)
+- **P1 (after data)**: 9:16 + 1:1 export formats (requires render pipeline fork)
+- **P1**: ambient music on all paths + genre-matched sound beds (wire BGM in pipeline_engine)
+- **P2**: unify the two renderer paths (pipeline_engine vs optimized_video_renderer)
+- **P2**: best-output public gallery surfacing top creations from reaction dashboard
+

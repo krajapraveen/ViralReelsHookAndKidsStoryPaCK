@@ -9,6 +9,7 @@ import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import api from '../utils/api';
 import ViralMomentumBadge from '../components/ViralMomentumBadge';
+import ShareButtons from '../components/ShareButtons';
 import { trackFunnel } from '../utils/funnelTracker';
 
 function timeAgo(dateStr) {
@@ -274,6 +275,25 @@ export default function SharePage() {
                   loop
                   playsInline
                   controls
+                  onPlay={() => {
+                    try {
+                      trackFunnel('watch_started', { source_page: 'share_page', meta: { story_id: data.generationId, share_id: shareId, category: data.reaction_category || data.pacing_mode || null } });
+                    } catch (_) {}
+                  }}
+                  onTimeUpdate={(e) => {
+                    const v = e.currentTarget;
+                    if (!v.duration || isNaN(v.duration)) return;
+                    const pct = (v.currentTime / v.duration) * 100;
+                    const meta = { story_id: data.generationId, share_id: shareId, category: data.reaction_category || data.pacing_mode || null };
+                    if (pct >= 25 && !v._tracked25) { v._tracked25 = true; trackFunnel('watch_completed_25', { source_page: 'share_page', meta }); }
+                    if (pct >= 50 && !v._tracked50) { v._tracked50 = true; trackFunnel('watch_completed_50', { source_page: 'share_page', meta }); }
+                    if (pct >= 75 && !v._tracked75) { v._tracked75 = true; trackFunnel('watch_completed_75', { source_page: 'share_page', meta }); }
+                  }}
+                  onEnded={() => {
+                    try {
+                      trackFunnel('watch_completed_100', { source_page: 'share_page', meta: { story_id: data.generationId, share_id: shareId, category: data.reaction_category || data.pacing_mode || null } });
+                    } catch (_) {}
+                  }}
                   className="w-full aspect-video object-contain bg-black"
                   data-testid="video-player"
                 />
@@ -289,6 +309,17 @@ export default function SharePage() {
               {data.title || 'This AI video will surprise you'}
             </h1>
             <p className="text-sm text-slate-400 mb-4 fade-up-d1">Made in seconds using AI</p>
+
+            {/* One-tap share row — the money shot for viral growth */}
+            <div className="mb-5 fade-up-d1" data-testid="share-page-share-buttons">
+              <ShareButtons
+                url={typeof window !== 'undefined' ? window.location.href : ''}
+                title={data.title}
+                compact
+                storyId={data.generationId}
+                category={data.reaction_category || data.pacing_mode || null}
+              />
+            </div>
 
             {/* Chain depth indicator — show when this is a remix */}
             {data.parentShareId && (

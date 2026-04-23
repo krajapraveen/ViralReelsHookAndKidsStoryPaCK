@@ -54,7 +54,9 @@ FUNNEL_STEPS = [
     "story_viewed",
     "story_card_clicked",
     "watch_started",
+    "watch_completed_25",
     "watch_completed_50",
+    "watch_completed_75",
     "watch_completed_100",
     "cta_clicked",
     "remix_clicked",
@@ -249,4 +251,164 @@ async def get_funnel_metrics(
         "device_breakdown": device_breakdown,
         "source_breakdown": source_breakdown,
         "paywall_micro_funnel": paywall_funnel,
+    }
+
+
+
+@router.get("/reaction-dashboard")
+async def reaction_dashboard(
+    user: dict = Depends(get_admin_user),
+    days: int = Query(30, ge=1, le=90),
+    category: Optional[str] = Query(None, description="Filter by reaction_category/pacing_mode"),
+):
+    """
+    Founder Reaction Dashboard — per-video + per-category engagement aggregate.
+
+    Answers the founder's 4 questions for the 10-story reaction run:
+      1. Which one did viewers finish watching?    → completion_pct (100% / play)
+      2. Which one did viewers share?              → share_clicks
+      3. Which one made them feel something?      → hold_rate (50–100% completion)
+      4. Would they generate their own?           → regen_clicks (remix/create from viewer)
+
+    Returns per-video rows sorted by each leaderboard, plus category rollups.
+    """
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+    # Step 1: count events per (story_id, event_name). Unique by session.
+    # story_id is stored at TOP LEVEL on the event (funnelTracker extracts from extra.story_id
+    # or extra.meta.story_id). meta.category is set by the caller for segmentation.
+    match_stage = {"timestamp": {"$gte": cutoff}, "story_id": {"$ne": None}}
+    if category:
+        match_stage["meta.category"] = category
+
+    pipe = [
+        {"$match": match_stage},
+        {"$group": {
+            "_id": {"story_id": "$story_id", "step": "$step", "session": "$session_id"},
+        }},
+        {"$group": {
+            "_id": {"story_id": "$_id.story_id", "step": "$_id.step"},
+            "unique_sessions": {"$sum": 1},
+        }},
+    ]
+
+    event_counts = {}  # story_id -> {step: unique_sessions}
+    async for doc in db.funnel_events.aggregate(pipe):
+        sid = doc["_id"]["story_id"]
+        st = doc["_id"]["step"]
+        event_counts.setdefault(sid, {})[st] = doc["unique_sessions"]
+
+    story_ids = list(event_counts.keys())
+    if not story_ids:
+        return {
+            "success": True,
+            "period_days": days,
+            "filter_category": category,
+            "videos": [],
+            "category_rollups": [],
+            "leaderboards": {"top_finished": [], "top_shared": [], "top_hold_rate": [], "top_regen": []},
+        }
+
+    # Step 2: resolve job metadata
+    jobs = {}
+    async for j in db.pipeline_jobs.find(
+        {"job_id": {"$in": story_ids}},
+        {"_id": 0, "job_id": 1, "title": 1, "slug": 1, "pacing_mode": 1, "reaction_category": 1,
+         "animation_style": 1, "output_url": 1, "estimated_scenes": 1}
+    ):
+        jobs[j["job_id"]] = j
+
+    # Step 3: build per-video rows
+    videos = []
+    for sid in story_ids:
+        ec = event_counts[sid]
+        job = jobs.get(sid, {})
+        plays = ec.get("watch_started", 0)
+        if plays == 0:
+            # fall back to 25% as "started" proxy if onPlay didn't fire
+            plays = ec.get("watch_completed_25", 0)
+        p25 = ec.get("watch_completed_25", 0)
+        p50 = ec.get("watch_completed_50", 0)
+        p75 = ec.get("watch_completed_75", 0)
+        p100 = ec.get("watch_completed_100", 0)
+        # Precise share clicks (one event per click, with channel metadata)
+        precise_shares = ec.get("cta_share_clicked", 0)
+        regens = ec.get("create_clicked", 0) + ec.get("remix_clicked", 0)
+
+        def _pct(n, d):
+            return round((n / d) * 100, 1) if d > 0 else 0.0
+
+        videos.append({
+            "story_id": sid,
+            "title": job.get("title") or sid[:12],
+            "slug": job.get("slug"),
+            "category": job.get("reaction_category") or job.get("pacing_mode") or "unknown",
+            "animation_style": job.get("animation_style"),
+            "scenes": job.get("estimated_scenes"),
+            "output_url": job.get("output_url"),
+            "plays": plays,
+            "progress_25": p25,
+            "progress_50": p50,
+            "progress_75": p75,
+            "completions_100": p100,
+            "completion_pct": _pct(p100, plays),
+            "hold_rate_50": _pct(p50, plays),     # % who held past 50%
+            "hold_rate_75": _pct(p75, plays),     # % who held past 75%
+            "share_clicks": precise_shares,
+            "share_per_play": _pct(precise_shares, plays),
+            "regen_clicks": regens,
+            "regen_per_play": _pct(regens, plays),
+        })
+
+    # Step 4: category rollups
+    from collections import defaultdict
+    cat_agg = defaultdict(lambda: {
+        "plays": 0, "progress_25": 0, "progress_50": 0, "progress_75": 0,
+        "completions_100": 0, "share_clicks": 0, "regen_clicks": 0, "video_count": 0,
+    })
+    for v in videos:
+        c = v["category"]
+        cat_agg[c]["plays"] += v["plays"]
+        cat_agg[c]["progress_25"] += v["progress_25"]
+        cat_agg[c]["progress_50"] += v["progress_50"]
+        cat_agg[c]["progress_75"] += v["progress_75"]
+        cat_agg[c]["completions_100"] += v["completions_100"]
+        cat_agg[c]["share_clicks"] += v["share_clicks"]
+        cat_agg[c]["regen_clicks"] += v["regen_clicks"]
+        cat_agg[c]["video_count"] += 1
+    category_rollups = []
+    for c, d in cat_agg.items():
+        plays = d["plays"] or 1  # prevent div by zero
+        category_rollups.append({
+            "category": c,
+            "videos": d["video_count"],
+            "plays": d["plays"],
+            "completion_pct": round(d["completions_100"] / plays * 100, 1) if d["plays"] else 0.0,
+            "hold_rate_50": round(d["progress_50"] / plays * 100, 1) if d["plays"] else 0.0,
+            "share_per_play": round(d["share_clicks"] / plays * 100, 1) if d["plays"] else 0.0,
+            "regen_per_play": round(d["regen_clicks"] / plays * 100, 1) if d["plays"] else 0.0,
+            "share_clicks": d["share_clicks"],
+            "regen_clicks": d["regen_clicks"],
+        })
+    category_rollups.sort(key=lambda r: r["plays"], reverse=True)
+
+    # Step 5: leaderboards (top 5 each)
+    def _top(key, n=5):
+        return sorted([v for v in videos if v["plays"] > 0], key=lambda x: x[key], reverse=True)[:n]
+
+    leaderboards = {
+        "top_finished": _top("completion_pct"),
+        "top_shared": _top("share_clicks"),
+        "top_hold_rate": _top("hold_rate_50"),
+        "top_regen": _top("regen_clicks"),
+    }
+
+    return {
+        "success": True,
+        "period_days": days,
+        "filter_category": category,
+        "video_count": len(videos),
+        "videos": sorted(videos, key=lambda v: v["plays"], reverse=True),
+        "category_rollups": category_rollups,
+        "leaderboards": leaderboards,
     }

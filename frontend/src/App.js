@@ -56,6 +56,7 @@ const AdminSecurityReportDetail = lazy(() => import('./pages/AdminSecurityReport
 const ReferLanding = lazy(() => import('./pages/ReferLanding'));
 const ReferralsPage = lazy(() => import('./pages/ReferralsPage'));
 const AdminReferrals = lazy(() => import('./pages/AdminReferrals'));
+const AdminReactions = lazy(() => import('./pages/AdminReactions'));
 const Blog = lazy(() => import('./pages/Blog'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
@@ -419,6 +420,7 @@ function App() {
           <Route path="security-reports" element={<L><AdminSecurityReports /></L>} />
           <Route path="security-reports/:report_id" element={<L><AdminSecurityReportDetail /></L>} />
           <Route path="referrals" element={<L><AdminReferrals /></L>} />
+          <Route path="reactions" element={<L><AdminReactions /></L>} />
           <Route path="self-healing" element={<L><SelfHealingDashboard /></L>} />
           <Route path="ttfd-analytics" element={<L><TTFDDashboard /></L>} />
           <Route path="user-analytics" element={<L><UserAnalyticsDashboard /></L>} />
