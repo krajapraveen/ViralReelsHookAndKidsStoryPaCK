@@ -39,6 +39,33 @@ async def _ws_broadcast(job_id, user_id, stage, progress, message, status="runni
 STATIC_DIR = Path("/app/backend/static/generated")
 STATIC_DIR.mkdir(parents=True, exist_ok=True)
 
+# ─── FFmpeg availability guard ───────────────────────────────────────────────
+# This environment ships ffmpeg as a bundled binary inside imageio_ffmpeg.
+# Container restarts sometimes strip /usr/local/bin symlinks. Ensure ffmpeg
+# is on PATH at import time so every subprocess.run(['ffmpeg', ...]) works.
+def _ensure_ffmpeg_on_path():
+    try:
+        if shutil.which("ffmpeg") and shutil.which("ffprobe"):
+            return
+        import imageio_ffmpeg
+        ff = imageio_ffmpeg.get_ffmpeg_exe()
+        if os.path.exists(ff):
+            for tgt in ("/usr/local/bin/ffmpeg", "/usr/local/bin/ffprobe"):
+                try:
+                    if not os.path.exists(tgt):
+                        os.symlink(ff, tgt)
+                except (PermissionError, FileExistsError, OSError) as e:
+                    logger.warning(f"[FFMPEG] Could not symlink {tgt}: {e}")
+            # Also inject PATH for good measure
+            bin_dir = os.path.dirname(ff)
+            if bin_dir not in os.environ.get("PATH", ""):
+                os.environ["PATH"] = bin_dir + ":" + os.environ.get("PATH", "")
+            logger.info(f"[FFMPEG] Linked imageio_ffmpeg → /usr/local/bin/ffmpeg")
+    except Exception as e:
+        logger.error(f"[FFMPEG] ensure_on_path failed: {e}")
+
+_ensure_ffmpeg_on_path()
+
 # ─── STAGE DEFINITIONS ──────────────────────────────────────────────────────
 
 class StageStatus(str, Enum):

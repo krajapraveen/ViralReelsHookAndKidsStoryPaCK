@@ -295,3 +295,40 @@ Encode wall-clock: 4.6–6.1s per job (single-pass filter_complex).
 - BGM integration into the pipeline_engine path (currently only in legacy
   optimized_video_renderer)
 
+## 10-Story Output Reaction Run — April 23, 2026
+After sprint sign-off, founder requested 10 public stories to gauge reaction.
+All 10 completed end-to-end via the live pipeline. Render stage wiring +
+cinematic motion pack + pacing engine + Safari-safe encode all verified in prod.
+
+| Category | Pacing | Scenes | Duration | Size | R2 URL |
+|-|-|-|-|-|-|
+| kids_bedtime | kids | 4 | 21.4s | 3.1 MB | pipe_video_e4a8a7b0 |
+| funny_cat | kids | 6 | 31.8s | 8.2 MB | pipe_video_1350f629 |
+| emotional_mother | emotional | 8 | 47.4s | 7.5 MB | pipe_video_6f0fe0ae |
+| horror_short | cinematic | 8 | 92.7s | 23.2 MB | pipe_video_96e0d526 |
+| motivational_comeback | cinematic | 8 | 44.5s | 5.7 MB | pipe_video_1f693380 |
+| fantasy_magic | cinematic | 8 | 44.5s | 6.3 MB | pipe_video_f6678659 |
+| breakup_revenge | emotional | 8 | 47.4s | 8.3 MB | pipe_video_43c73b40 |
+| school_nostalgia | emotional | 8 | 47.4s | 14.3 MB | pipe_video_f5e5fb6c |
+| baby_animal_rescue | emotional | 6 | 35.9s | 5.8 MB | pipe_video_debc7985 |
+| billionaire_success | cinematic | 8 | 44.5s | 5.7 MB | pipe_video_b249b943 |
+
+All outputs: `+faststart=true`, `AAC-LC 44.1kHz stereo`, `H.264 yuv420p`.
+Emotional pacing (1.15× mult) vs. action/cinematic → visible difference in duration.
+
+### FFmpeg availability self-healing (pipeline_engine.py)
+Added `_ensure_ffmpeg_on_path()` at module import. Container restarts strip
+`/usr/local/bin/ffmpeg` symlinks; the helper re-creates them from
+`imageio_ffmpeg.get_ffmpeg_exe()` so every subprocess call survives restarts.
+Without this, job cohorts would fail silently with `FileNotFoundError: 'ffmpeg'`.
+
+### Next sprint focus (per founder directive)
+Backend obsession paused for 48 hours. Next priorities:
+- P1 Output Quality: stronger story prompts (hooks, suspense, endings)
+- P1 Shareability: 9:16 vertical + 1:1 square export modes
+- P1 Thumbnail engine (click-optimized first frame)
+- P1 Ambient music on all paths + genre-matched sound beds
+- P1 Viewer retention analytics (play %, 25/50/100%, share %, regen %)
+- P1 Best-output public gallery (surface top creations)
+- Tech debt: unify the two renderer paths (pipeline_engine vs optimized_video_renderer) into one
+
