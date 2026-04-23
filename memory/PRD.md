@@ -32,6 +32,42 @@ Evolve the platform from a standard AI content generator into a highly addictive
 - All modals viewport-safe (p-4 padding)
 - Desktop frozen baseline, zero regressions
 
+### Pipeline Reliability + Quality — April 22, 2026
+
+**P0 Reliability (guardrails):**
+- `pipeline_engine.py` — pre-COMPLETED validation block:
+  - Probes final `render_path` with ffmpeg, extracts duration + audio stream presence
+  - FAILS job with structured `validation_failures` array (NO_RENDER_PATH, RENDER_FILE_MISSING, DURATION_TOO_SHORT, NO_AUDIO_STREAM, PROBE_FAILED, JOB_DOC_MISSING)
+  - On fail: auto-refunds `credit_cost` to user + creates `PIPELINE_REFUND` ledger entry
+  - Stores `diagnostics` dict on job (duration_sec, audio_stream_present, scenes_rendered/voiced, min_duration_sec)
+  - Fresh-message WS push: "Generation failed — credits refunded. Please try again."
+- `routes/pipeline_admin.py` (new):
+  - `GET /api/admin/pipeline/diagnostics?limit=N` — per-job health + summary
+  - `POST /api/admin/pipeline/cleanup-false-completed` — retroactive fix (executed: 8 jobs flipped)
+
+**P1 Quality (dynamic scenes):**
+- `PLAN_SCENE_LIMITS` raised `3/4/5/6` → `6/8/10` (matching spec)
+- Dynamic scene sizing by story length: <400 chars = 6 scenes, <1200 = 8, else 10
+- Scenes must pass plan-tier ceiling (free=6, paid=8, premium=10)
+
+**P1 Quality (Character Bible — 2-pass prompt):**
+- Pass 1: dedicated LLM call builds locked JSON bible: characters (name/age/hair/face/clothing/body/props/palette) + setting (environment/time/palette)
+- Bible compressed into `bible_text` injected verbatim into scene generation system prompt
+- Bible stored on job doc for future reference/debug
+- Scene generator told: "use LOCKED descriptions verbatim in EVERY scene"
+
+**Audit Before/After:**
+- False completed jobs: 8 → **0**
+- Scene count default: 3 → **6 (free), 8 (paid), 10 (premium)**
+- Duration minimum enforced: **20s (short) / 40s (long+)**
+- Audio validation: **now required for COMPLETED**
+
+### Deferred to next session (out of this sprint's scope)
+- True motion video-gen (Sora-2/Veo-3) — needs cost model
+- Parallax layers + blinking + particle motion in renderer
+- Lip-sync animation
+- Safari-specific codec audit (needs device repro)
+
 ### Referral Economy Rebalance (monetization hardening) — April 22, 2026
 
 **Tier matrix (replaces unlimited 300 flat model):**

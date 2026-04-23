@@ -136,19 +136,20 @@ def _build_ken_burns_filter(scene_idx: int, dur: float, w: int, h: int, fps: int
 
 # ─── PLAN-BASED SCENE LIMITS ─────────────────────────────────────────────────
 # Controls cost exposure: fewer scenes = less compute = lower cost
+# Raised Apr 2026 to ship full story experience (was 3/4/5/6 — teaser length)
 PLAN_SCENE_LIMITS = {
-    "free": 3,
-    "starter": 4,
-    "weekly": 4,
-    "monthly": 4,
-    "creator": 4,
-    "quarterly": 5,
-    "yearly": 5,
-    "pro": 6,
-    "premium": 6,
-    "enterprise": 6,
-    "admin": 6,
-    "demo": 6,
+    "free": 6,
+    "starter": 8,
+    "weekly": 8,
+    "monthly": 8,
+    "creator": 8,
+    "quarterly": 10,
+    "yearly": 10,
+    "pro": 10,
+    "premium": 10,
+    "enterprise": 10,
+    "admin": 10,
+    "demo": 10,
 }
 
 PAID_PLANS = frozenset([
@@ -258,7 +259,15 @@ async def create_pipeline_job(
     age_max = age["max_scenes"]
     effective_max = min(plan_max, age_max)
 
-    estimated_scenes = min(effective_max, max(3, len(story_text) // 500))
+    # Dynamic scene sizing — short=6, medium=8, long=10 per P1 spec (Apr 2026)
+    story_length = len(story_text)
+    if story_length < 400:
+        base_scenes = 6
+    elif story_length < 1200:
+        base_scenes = 8
+    else:
+        base_scenes = 10
+    estimated_scenes = min(effective_max, max(6, base_scenes))
 
     if estimated_scenes <= 3:
         credit_cost = CREDIT_COSTS["small"]
@@ -549,16 +558,79 @@ async def run_stage_scenes(job: dict) -> dict:
     age = job.get("age_config", {})
     max_scenes = job.get("estimated_scenes", 5)
 
+    # ─── PASS 1: GENERATE LOCKED CHARACTER BIBLE (Apr 2026 P1) ──────────
+    # Once per story. Used as consistent anchor for every scene prompt.
+    bible_chat = LlmChat(
+        api_key=api_key,
+        session_id=f"bible_{job['job_id'][:8]}",
+        system_message="""You are a character design lead for an animated story.
+Extract a CHARACTER BIBLE from the story — a locked reference sheet that must be reused identically in every scene.
+
+Return ONLY a JSON object:
+{
+  "characters": [
+    {
+      "name": "...",
+      "age": "... (e.g., 'young girl, age 8')",
+      "hair": "... (exact color, length, style)",
+      "face": "... (eye color, skin tone, distinguishing features)",
+      "clothing": "... (specific colors, style, accessories)",
+      "body": "... (build, height)",
+      "props": "... (anything held or carried, if any)",
+      "palette": "... (dominant colors: e.g., 'emerald green and gold')"
+    }
+  ],
+  "setting": {
+    "environment": "... (primary location type)",
+    "time_period": "... (era/time of day)",
+    "palette": "... (environmental color scheme)"
+  }
+}
+
+CRITICAL: These descriptions LOCK the look. They will be injected verbatim into every scene image prompt.
+Be SPECIFIC and CONSISTENT. Avoid vague terms like 'pretty hair' — use 'long wavy auburn hair to the waist'.""",
+    )
+    bible_chat.with_model("openai", "gpt-4o-mini")
+    try:
+        bible_response = await bible_chat.send_message(
+            UserMessage(text=f"Extract the character bible from this story:\n\n{job['story_text'][:3000]}\n\nReturn JSON only:")
+        )
+        bible_json = re.search(r'\{[\s\S]*\}', bible_response)
+        character_bible = json.loads(bible_json.group()) if bible_json else {}
+    except Exception as e:
+        logger.warning(f"[PIPE {job['job_id'][:8]}] Character bible generation failed: {e}")
+        character_bible = {}
+
+    # Build a compact "locked descriptor" string to inject into every scene
+    bible_text = ""
+    if character_bible.get("characters"):
+        parts = []
+        for c in character_bible["characters"][:4]:  # max 4 main chars
+            parts.append(
+                f"{c.get('name', 'character')}: {c.get('age', '')}, {c.get('hair', '')}, "
+                f"{c.get('face', '')}, wearing {c.get('clothing', '')}, {c.get('body', '')}"
+                + (f", carrying {c['props']}" if c.get('props') else "")
+            )
+        bible_text = "LOCKED CHARACTER DESCRIPTIONS (reuse verbatim in every scene): " + " | ".join(parts)
+    if character_bible.get("setting"):
+        s = character_bible["setting"]
+        bible_text += f"\nLOCKED SETTING: {s.get('environment', '')}, {s.get('time_period', '')}, palette {s.get('palette', '')}"
+
+    # Store the bible on the job doc for later use (image renderer can also inject it)
+    await update_job(job["job_id"], {"character_bible": character_bible, "bible_text": bible_text})
+
     chat = LlmChat(
         api_key=api_key,
         session_id=f"pipe_{job['job_id'][:8]}",
         system_message=f"""You are a visual storyboard director creating {max_scenes} scenes for an animated story.
 Style: {style.get('name', 'Cartoon')}. Target audience: {age.get('name', 'Kids')}.
 
+{bible_text}
+
 CRITICAL RULES FOR CHARACTER CONSISTENCY:
-1. First, define each main character with EXACT physical details (hair color/style, eye color, skin tone, outfit, body build, distinguishing features).
-2. REPEAT these exact character descriptions in EVERY scene's visual_prompt. Never omit character details.
-3. Use the SAME clothing and colors across all scenes unless the story explicitly changes them.
+1. Use the LOCKED CHARACTER DESCRIPTIONS above verbatim in EVERY scene's visual_prompt.
+2. Never change hair, clothing, face, or body between scenes unless the story explicitly demands it.
+3. Preserve the LOCKED SETTING palette across all scenes.
 
 CRITICAL RULES FOR MOTION & CINEMATIC QUALITY:
 1. Every visual_prompt must include a specific ACTION (walking, running, reaching, turning, jumping, gesturing).
@@ -578,8 +650,8 @@ NEVER end with a happy resolution or "and they lived happily ever after". Always
 Return ONLY a JSON array. Each scene object:
 {{"scene_number":N,"title":"...","narration_text":"...","visual_prompt":"...","characters":"..."}}
 
-The "characters" field must contain the full physical description of all characters in that scene.
-The "visual_prompt" must include: character descriptions + action + camera angle + emotion + lighting.
+The "characters" field must contain the LOCKED descriptions verbatim.
+The "visual_prompt" must start with the LOCKED character descriptions, then add: action + camera angle + emotion + lighting.
 Keep narration vivid and engaging.""",
     )
     chat.with_model("openai", "gpt-4o-mini")
@@ -1718,6 +1790,97 @@ async def execute_pipeline(job_id: str):
     # Determine preview URL for the completed job
     preview_path = f"/app/story-preview/{job_id}"
 
+    # ─── P0 RELIABILITY VALIDATION (Apr 2026) ────────────────────────────
+    # Block false COMPLETED states. Audit job's rendered output before success.
+    fresh_job = await db.pipeline_jobs.find_one({"job_id": job_id}, {"_id": 0})
+    validation_failures = []
+    diagnostics = {
+        "render_path_present": False,
+        "output_url_present": False,
+        "audio_stream_present": False,
+        "duration_sec": 0,
+        "min_duration_sec": 20,  # short-story minimum
+        "expected_scenes": fresh_job.get("estimated_scenes", 0) if fresh_job else 0,
+        "scenes_rendered": 0,
+        "scenes_voiced": 0,
+    }
+    if fresh_job:
+        diagnostics["render_path_present"] = bool(fresh_job.get("render_path"))
+        diagnostics["output_url_present"] = bool(fresh_job.get("output_url"))
+        diagnostics["scenes_rendered"] = len(fresh_job.get("scene_images") or {})
+        diagnostics["scenes_voiced"] = len(fresh_job.get("scene_voices") or {})
+
+        # 1. render_path MUST exist
+        render_path = fresh_job.get("render_path")
+        if not render_path:
+            validation_failures.append("NO_RENDER_PATH")
+        elif not os.path.exists(render_path):
+            validation_failures.append("RENDER_FILE_MISSING")
+        else:
+            # Probe via ffmpeg
+            try:
+                import imageio_ffmpeg
+                import subprocess
+                ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+                probe = subprocess.run(
+                    [ffmpeg_exe, "-i", render_path], capture_output=True, text=True, timeout=15
+                )
+                probe_out = probe.stderr  # ffmpeg writes metadata to stderr
+                # Duration
+                import re as _re
+                m = _re.search(r"Duration:\s*(\d+):(\d+):(\d+\.\d+)", probe_out)
+                if m:
+                    h, mm, ss = int(m.group(1)), int(m.group(2)), float(m.group(3))
+                    diagnostics["duration_sec"] = round(h * 3600 + mm * 60 + ss, 2)
+                # Audio stream
+                if "Audio:" in probe_out:
+                    diagnostics["audio_stream_present"] = True
+                # Min duration
+                min_dur = 20 if diagnostics["expected_scenes"] <= 6 else 40
+                diagnostics["min_duration_sec"] = min_dur
+                if diagnostics["duration_sec"] < min_dur:
+                    validation_failures.append(f"DURATION_TOO_SHORT ({diagnostics['duration_sec']}s < {min_dur}s)")
+                if not diagnostics["audio_stream_present"]:
+                    validation_failures.append("NO_AUDIO_STREAM")
+            except Exception as probe_err:
+                logger.warning(f"[PIPE {job_id[:8]}] Probe failed: {probe_err}")
+                validation_failures.append(f"PROBE_FAILED: {str(probe_err)[:80]}")
+    else:
+        validation_failures.append("JOB_DOC_MISSING")
+
+    if validation_failures:
+        # FAIL the job + refund credits + log diagnostics (no fake COMPLETED)
+        logger.error(f"[PIPE {job_id[:8]}] VALIDATION FAILED: {validation_failures} | diag={diagnostics}")
+        credits_to_refund = int((fresh_job or {}).get("credit_cost", 0))
+        user_id = (fresh_job or {}).get("user_id", "")
+        try:
+            if credits_to_refund > 0 and user_id:
+                await db.users.update_one({"id": user_id}, {"$inc": {"credits": credits_to_refund}})
+                await db.credit_ledger.insert_one({
+                    "id": str(uuid.uuid4()),
+                    "userId": user_id,
+                    "amount": credits_to_refund,
+                    "type": "PIPELINE_REFUND",
+                    "description": f"Auto-refund for failed validation on job {job_id[:8]}: {','.join(validation_failures[:3])}",
+                    "createdAt": datetime.now(timezone.utc).isoformat(),
+                })
+        except Exception as refund_err:
+            logger.error(f"[PIPE {job_id[:8]}] Refund failed: {refund_err}")
+        await update_job(job_id, {
+            "status": "FAILED",
+            "progress": 0,
+            "current_step": "Generation failed — credits refunded. Please try again.",
+            "failed_at": datetime.now(timezone.utc),
+            "failure_reason": "VALIDATION_FAILED",
+            "validation_failures": validation_failures,
+            "diagnostics": diagnostics,
+            "credits_refunded": credits_to_refund,
+            **ttfd_final,
+        })
+        await _ws_broadcast(job_id, user_id, "failed", 0,
+                            "Generation failed — credits refunded. Please try again.", status="failed")
+        return {"job_id": job_id, "status": "FAILED", "validation_failures": validation_failures, "diagnostics": diagnostics}
+
     await update_job(job_id, {
         "status": "COMPLETED",
         "progress": 100,
@@ -1725,6 +1888,7 @@ async def execute_pipeline(job_id: str):
         "completed_at": datetime.now(timezone.utc),
         "timing": timing,
         "preview_path": preview_path,
+        "diagnostics": diagnostics,
         **ttfd_final,
     })
 
