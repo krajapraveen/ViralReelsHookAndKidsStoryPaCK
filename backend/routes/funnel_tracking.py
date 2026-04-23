@@ -331,6 +331,9 @@ async def reaction_dashboard(
         p50 = ec.get("watch_completed_50", 0)
         p75 = ec.get("watch_completed_75", 0)
         p100 = ec.get("watch_completed_100", 0)
+        # Unique viewers = widest reasonable funnel top. Captures passive impressions
+        # on public share pages (autoplay-muted may not fire onPlay on Safari/iOS).
+        unique_viewers = max(plays, p25)
         # Precise share clicks (one event per click, with channel metadata)
         precise_shares = ec.get("cta_share_clicked", 0)
         regens = ec.get("create_clicked", 0) + ec.get("remix_clicked", 0)
@@ -347,6 +350,7 @@ async def reaction_dashboard(
             "scenes": job.get("estimated_scenes"),
             "output_url": job.get("output_url"),
             "plays": plays,
+            "unique_viewers": unique_viewers,
             "progress_25": p25,
             "progress_50": p50,
             "progress_75": p75,
@@ -356,6 +360,9 @@ async def reaction_dashboard(
             "hold_rate_75": _pct(p75, plays),     # % who held past 75%
             "share_clicks": precise_shares,
             "share_per_play": _pct(precise_shares, plays),
+            # NORTH STAR METRIC (per founder directive Apr 23):
+            # shares / unique viewers → the single best signal for public distribution health.
+            "view_to_share_rate": _pct(precise_shares, unique_viewers),
             "regen_clicks": regens,
             "regen_per_play": _pct(regens, plays),
         })
@@ -363,12 +370,13 @@ async def reaction_dashboard(
     # Step 4: category rollups
     from collections import defaultdict
     cat_agg = defaultdict(lambda: {
-        "plays": 0, "progress_25": 0, "progress_50": 0, "progress_75": 0,
+        "plays": 0, "unique_viewers": 0, "progress_25": 0, "progress_50": 0, "progress_75": 0,
         "completions_100": 0, "share_clicks": 0, "regen_clicks": 0, "video_count": 0,
     })
     for v in videos:
         c = v["category"]
         cat_agg[c]["plays"] += v["plays"]
+        cat_agg[c]["unique_viewers"] += v["unique_viewers"]
         cat_agg[c]["progress_25"] += v["progress_25"]
         cat_agg[c]["progress_50"] += v["progress_50"]
         cat_agg[c]["progress_75"] += v["progress_75"]
@@ -379,28 +387,48 @@ async def reaction_dashboard(
     category_rollups = []
     for c, d in cat_agg.items():
         plays = d["plays"] or 1  # prevent div by zero
+        viewers = d["unique_viewers"] or 1
         category_rollups.append({
             "category": c,
             "videos": d["video_count"],
             "plays": d["plays"],
+            "unique_viewers": d["unique_viewers"],
             "completion_pct": round(d["completions_100"] / plays * 100, 1) if d["plays"] else 0.0,
             "hold_rate_50": round(d["progress_50"] / plays * 100, 1) if d["plays"] else 0.0,
             "share_per_play": round(d["share_clicks"] / plays * 100, 1) if d["plays"] else 0.0,
+            # NORTH STAR: view-to-share rate (founder directive Apr 23)
+            "view_to_share_rate": round(d["share_clicks"] / viewers * 100, 1) if d["unique_viewers"] else 0.0,
             "regen_per_play": round(d["regen_clicks"] / plays * 100, 1) if d["plays"] else 0.0,
             "share_clicks": d["share_clicks"],
             "regen_clicks": d["regen_clicks"],
         })
-    category_rollups.sort(key=lambda r: r["plays"], reverse=True)
+    # Sort categories by the north-star metric, then by volume (tiebreak)
+    category_rollups.sort(key=lambda r: (r["view_to_share_rate"], r["unique_viewers"]), reverse=True)
 
     # Step 5: leaderboards (top 5 each)
-    def _top(key, n=5):
-        return sorted([v for v in videos if v["plays"] > 0], key=lambda x: x[key], reverse=True)[:n]
+    def _top(key, n=5, min_plays=1):
+        return sorted(
+            [v for v in videos if v["plays"] >= min_plays],
+            key=lambda x: x[key],
+            reverse=True,
+        )[:n]
 
     leaderboards = {
+        # NORTH STAR: lead with view-to-share rate
+        "top_view_to_share": _top("view_to_share_rate"),
         "top_finished": _top("completion_pct"),
         "top_shared": _top("share_clicks"),
         "top_hold_rate": _top("hold_rate_50"),
         "top_regen": _top("regen_clicks"),
+    }
+
+    # Global north-star aggregate (all videos in window)
+    total_viewers = sum(v["unique_viewers"] for v in videos)
+    total_shares = sum(v["share_clicks"] for v in videos)
+    north_star = {
+        "view_to_share_rate": round(total_shares / total_viewers * 100, 2) if total_viewers else 0.0,
+        "total_unique_viewers": total_viewers,
+        "total_share_clicks": total_shares,
     }
 
     return {
@@ -408,6 +436,7 @@ async def reaction_dashboard(
         "period_days": days,
         "filter_category": category,
         "video_count": len(videos),
+        "north_star": north_star,
         "videos": sorted(videos, key=lambda v: v["plays"], reverse=True),
         "category_rollups": category_rollups,
         "leaderboards": leaderboards,

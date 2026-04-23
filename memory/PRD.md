@@ -404,3 +404,26 @@ Leaderboards, category rollups, and filter-by-category all functioning.
 - **P2**: unify the two renderer paths (pipeline_engine vs optimized_video_renderer)
 - **P2**: best-output public gallery surfacing top creations from reaction dashboard
 
+## North-Star Metric — April 23, 2026
+**Status**: SHIPPED (verified end-to-end on public ingress)
+
+Per founder's audience-truth directive, added **View → Share Rate** as the single
+most important distribution health metric.
+
+- Definition: `cta_share_clicked` (unique sessions) ÷ `unique_viewers`
+- `unique_viewers` = `max(watch_started sessions, watch_completed_25 sessions)` —
+  resilient to iOS/Safari autoplay-muted edge-cases where `onPlay` may not fire
+- Per-video: `view_to_share_rate` field on every row
+- Per-category: `view_to_share_rate` in `category_rollups`; categories now sort
+  by this metric instead of raw plays
+- Global: `north_star` block at the top of the response
+  (`{view_to_share_rate, total_unique_viewers, total_share_clicks}`)
+- New leaderboard: `top_view_to_share` (first item returned), rendered as the
+  starred/featured leaderboard in the UI
+- Color thresholds in UI: ≥10% emerald (goldmine), 2–10% amber, &lt;2% muted (reconsider)
+
+Smoke-test confirmation (Apr 23, 18:45 UTC):
+- Global north-star rendered: 33.33% V→S (3 shares ÷ 9 viewers)
+- Horror short correctly leads with 100% V→S rate
+- No other metrics added — scope kept tight per directive
+

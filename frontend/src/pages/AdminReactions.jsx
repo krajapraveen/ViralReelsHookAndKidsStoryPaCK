@@ -99,19 +99,45 @@ export default function AdminReactions() {
 
         {data && data.video_count > 0 && (
           <>
+            {/* ═══ NORTH STAR HERO ═══ */}
+            <section
+              className="mb-6 rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-950/60 via-slate-950 to-slate-950 p-6"
+              data-testid="reactions-north-star"
+            >
+              <div className="flex items-center justify-between gap-6 flex-wrap">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-emerald-400/90 font-bold mb-1">
+                    North-Star Metric · View → Share Rate
+                  </p>
+                  <p className="text-xs text-slate-400 max-w-md">
+                    The single best signal for public distribution health. Target: ≥10% = goldmine; &lt;2% = reconsider distribution channel or creative.
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-5xl font-black text-emerald-300 tabular-nums leading-none" data-testid="reactions-north-star-rate">
+                    {data.north_star?.view_to_share_rate ?? 0}%
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {data.north_star?.total_share_clicks ?? 0} shares ÷ {data.north_star?.total_unique_viewers ?? 0} viewers
+                  </p>
+                </div>
+              </div>
+            </section>
+
             {/* Category rollups */}
             <section className="mb-8" data-testid="reactions-categories">
-              <h2 className="text-lg font-semibold mb-3 text-slate-200">Categories by plays</h2>
+              <h2 className="text-lg font-semibold mb-3 text-slate-200">Categories by View→Share rate</h2>
               <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/50">
                 <table className="w-full text-sm">
                   <thead className="bg-slate-900/80 text-xs uppercase tracking-wide text-slate-400">
                     <tr>
                       <th className="px-4 py-3 text-left">Category</th>
                       <th className="px-4 py-3 text-right">Videos</th>
+                      <th className="px-4 py-3 text-right">Viewers</th>
                       <th className="px-4 py-3 text-right">Plays</th>
+                      <th className="px-4 py-3 text-right text-emerald-300">View→Share %</th>
                       <th className="px-4 py-3 text-right">Completion %</th>
                       <th className="px-4 py-3 text-right">Hold 50% %</th>
-                      <th className="px-4 py-3 text-right">Share / play %</th>
                       <th className="px-4 py-3 text-right">Regen / play %</th>
                     </tr>
                   </thead>
@@ -120,10 +146,15 @@ export default function AdminReactions() {
                       <tr key={c.category} data-testid={`reactions-category-row-${c.category}`}>
                         <td className="px-4 py-3 font-medium text-violet-300">{c.category}</td>
                         <td className="px-4 py-3 text-right">{c.videos}</td>
+                        <td className="px-4 py-3 text-right">{c.unique_viewers}</td>
                         <td className="px-4 py-3 text-right">{c.plays}</td>
+                        <td className="px-4 py-3 text-right font-bold">
+                          <span className={c.view_to_share_rate >= 10 ? 'text-emerald-300' : c.view_to_share_rate >= 2 ? 'text-amber-300' : 'text-slate-500'}>
+                            {c.view_to_share_rate}%
+                          </span>
+                        </td>
                         <td className="px-4 py-3 text-right">{c.completion_pct}%</td>
                         <td className="px-4 py-3 text-right">{c.hold_rate_50}%</td>
-                        <td className="px-4 py-3 text-right text-emerald-300">{c.share_per_play}%</td>
                         <td className="px-4 py-3 text-right text-amber-300">{c.regen_per_play}%</td>
                       </tr>
                     ))}
@@ -134,6 +165,14 @@ export default function AdminReactions() {
 
             {/* Leaderboards */}
             <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+              <Leaderboard
+                title="⭐ Best view→share rate (NORTH STAR)"
+                icon={<Flame className="w-4 h-4 text-emerald-400" />}
+                rows={data.leaderboards.top_view_to_share}
+                metric="view_to_share_rate"
+                metricFormat={(v) => `${v}%`}
+                testId="leaderboard-view-to-share"
+              />
               <Leaderboard
                 title="Top finished (completion %)"
                 icon={<Trophy className="w-4 h-4 text-amber-400" />}
@@ -177,7 +216,9 @@ export default function AdminReactions() {
                     <tr>
                       <th className="px-4 py-3 text-left">Title</th>
                       <th className="px-4 py-3 text-left">Category</th>
+                      <th className="px-4 py-3 text-right">Viewers</th>
                       <th className="px-4 py-3 text-right">Plays</th>
+                      <th className="px-4 py-3 text-right text-emerald-300">V→S %</th>
                       <th className="px-4 py-3 text-right">25%</th>
                       <th className="px-4 py-3 text-right">50%</th>
                       <th className="px-4 py-3 text-right">75%</th>
@@ -193,7 +234,13 @@ export default function AdminReactions() {
                       <tr key={v.story_id} data-testid={`reactions-row-${v.story_id.slice(0, 8)}`}>
                         <td className="px-4 py-3 font-medium text-white/90 max-w-[280px] truncate">{v.title}</td>
                         <td className="px-4 py-3 text-violet-300 text-xs">{v.category}</td>
+                        <td className="px-4 py-3 text-right">{v.unique_viewers}</td>
                         <td className="px-4 py-3 text-right">{v.plays}</td>
+                        <td className="px-4 py-3 text-right font-bold">
+                          <span className={v.view_to_share_rate >= 10 ? 'text-emerald-300' : v.view_to_share_rate >= 2 ? 'text-amber-300' : 'text-slate-500'}>
+                            {v.view_to_share_rate}%
+                          </span>
+                        </td>
                         <td className="px-4 py-3 text-right">{v.progress_25}</td>
                         <td className="px-4 py-3 text-right">{v.progress_50}</td>
                         <td className="px-4 py-3 text-right">{v.progress_75}</td>
