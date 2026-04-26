@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import ActionHelpButton from '../utils/ActionHelpButton';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
@@ -2752,9 +2751,6 @@ export default function StoryVideoStudio() {
         tone={shareModalData?.tone}
         conflict={shareModalData?.conflict}
       />
-
-      {/* P0 Floating "What should I do?" helper — instant guide on demand */}
-      <ActionHelpButton actionId="story_video" />
     </div>
   );
 }

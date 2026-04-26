@@ -7,6 +7,7 @@ import { Progress } from '../components/ui/progress';
 import { SafeImage } from '../components/SafeImage';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import ActionHelpButton from '../utils/ActionHelpButton';
 import {
   ArrowLeft, Wand2, Loader2, Film, Image, Mic, CheckCircle,
   Play, Download, RefreshCw, AlertCircle, Clock, Coins,
@@ -1217,6 +1218,9 @@ function StoryVideoPipelineInner() {
             <button onClick={handleNewVideo} className="vs-btn-secondary h-8 px-3 text-xs" data-testid="new-video-header-btn">
               <Sparkles className="w-3.5 h-3.5" /> New
             </button>
+          )}
+          {phase === 'input' && (
+            <ActionHelpButton actionId="story_video" />
           )}
         </div>
       </header>
