@@ -754,3 +754,74 @@ Smoke-test confirmation (Apr 23, 18:45 UTC):
 🧪 Testing: testing_agent_v3_fork iteration 526 — 18/18 backend tests passed,
    100% frontend verified, P0+P1 no regression.
 
+
+─────────────────────────────────────────────────────────
+[2026-04-26] P1.7 PAYMENT CHOKE-POINT TELEMETRY — SHIPPED
+─────────────────────────────────────────────────────────
+✅ 3 new metrics on /api/funnel/revenue-conversion
+   • login_redirect_dropoff_pct — % of checkout_started that never load /login
+   • cashfree_opened_pct — % of payment_started that opened the SDK modal
+   • cashfree_success_pct — % of SDK opens that completed payment
+   • cashfree_dropoff_pct (bonus, derived from open vs success)
+
+✅ Login.js now fires login_page_loaded with meta.paid_intent flag
+   when ?from=experience — powers the login_redirect_dropoff_pct math.
+
+✅ Billing.js now fires:
+   • cashfree_checkout_opened (right before cashfree.checkout())
+   • cashfree_checkout_failed (when SDK returns non-cancel error)
+
+✅ Checkout Exit-Intent Survey
+   • New /app/frontend/src/pages/CheckoutExitSurvey.jsx (5 options:
+     price / payment_failed / needed_more_trust / just_browsing / other)
+   • Triggered ONCE per session (sessionStorage flag) on:
+     – /billing?from=experience without orderId
+     – Cashfree returns user-cancel
+     – Cashfree returns non-cancel error
+     – Verify endpoint returns unsuccessful
+   • POST /api/funnel/checkout-exit-survey persists to db.checkout_exit_surveys
+     + mirrors a checkout_exit_survey_submitted funnel event
+   • GET /api/funnel/checkout-exit-survey-summary for admin rollup
+
+✅ Session Replay Lite
+   • New GET /api/funnel/paid-funnel-sessions admin endpoint
+   • Returns last 20 sessions that hit video_reward_preview_cta_clicked
+     with full chronological event timeline (capped at 80 events / session)
+   • Each session shows outcome: paid | abandoned | intent_only
+     plus device, browser, country
+   • Admin panel renders collapsible cards — founder can manually replay
+     20 paid-intent sessions in <30 minutes
+
+✅ Admin Dashboard /admin/activation gains:
+   • 4 Cashfree choke-point cards (login dropoff / opened / success / dropoff)
+   • 'Why they left checkout' panel with answer breakdown + free-text quotes
+   • 'Paid-intent sessions — manual replay' collapsible event timelines
+
+📊 Live at ship (last 90d):
+   landing 504 → completed 351 → video_cta 6 → checkout 1 → paid 3
+   story→video CTA: 1.7%  · video_cta→checkout: 16.7% (1/6)  · ₹17.26/100
+   login_redirect_dropoff: 100% (instrumentation just turned on, will normalize)
+   cashfree_opened: 0%, cashfree_success: 0% (no new traffic through SDK yet)
+
+📁 Files Changed:
+   • backend/routes/funnel_tracking.py (V8 steps + 3 endpoints + extended metrics)
+   • frontend/src/pages/CheckoutExitSurvey.jsx (NEW, 165 lines)
+   • frontend/src/pages/Billing.js (exit survey trigger + cashfree events)
+   • frontend/src/pages/Login.js (login_page_loaded paid_intent flag)
+   • frontend/src/pages/AdminActivation.jsx (4 cards + 2 panels)
+
+🧪 Testing: testing_agent_v3_fork iteration 527 — 29/29 backend tests passed,
+   100% frontend verified, all P0+P1 features confirmed no regression.
+
+─── 72-HOUR DECISION CHECKLIST ───
+  IF video_cta_to_checkout rises but checkout_to_payment stays low
+    → Cashfree UX or trust issue. Watch cashfree_dropoff_pct.
+  IF cashfree_dropoff_pct > 40%
+    → switch to Razorpay or add UPI-only mode (Indian audience).
+  IF login_redirect_dropoff_pct > 30%
+    → users abandon at the auth wall. Test inline magic-link signup.
+  IF top exit reason = price
+    → A/B ₹19 vs ₹29 vs ₹49.
+  IF top exit reason = needed_more_trust
+    → ship testimonials, real video samples, parent quotes.
+
