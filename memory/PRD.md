@@ -980,3 +980,28 @@ Founder directive: NO new features, NO new components. Microcopy only.
    ✓ No leftover JS widgets loading at FAB level
    ✓ Premium uncluttered interface restored
 
+
+─────────────────────────────────────────────────────────
+[2026-04-26] HELP-LINK SHIPPED — discreet text only, zero chrome
+─────────────────────────────────────────────────────────
+✅ Profile dropdown (GlobalUserBar):
+   • New 'Help' text link (no icon) → /help (existing UserManual page)
+   • New 'Support' text link (no icon) → /contact (existing Contact page)
+   • Both data-testid=menu-help and menu-support
+   • Subtle slate-400 → white-on-hover, no pulse, no badge
+
+✅ Landing footer — Company column:
+   • New 'Help' text link in footer (data-testid=footer-help-link)
+   • Sits beside Pricing / Blog / Contact
+
+🧪 Verified: dropdown shows both text links, /help routes correctly,
+   footer-help-link present on landing.
+
+📁 Files Changed:
+   • frontend/src/components/GlobalUserBar.jsx (+6 lines)
+   • frontend/src/pages/Landing.js (+4 lines, footer Help link)
+
+🎯 Discipline: zero new components, zero new icons, zero new routes
+   (UserManual at /help and Contact at /contact already existed).
+   Pure information-architecture surfacing.
+

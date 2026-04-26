@@ -56,6 +56,13 @@ export default function GlobalUserBar() {
                 <Settings className="w-4 h-4" /> Settings
               </button>
               <div className="h-px bg-white/5 my-1" />
+              <button onClick={() => { setOpen(false); navigate('/help'); }} className="w-full text-left px-4 py-2.5 text-sm text-slate-400 hover:bg-white/5 hover:text-white transition-colors" data-testid="menu-help">
+                Help
+              </button>
+              <button onClick={() => { setOpen(false); navigate('/contact'); }} className="w-full text-left px-4 py-2.5 text-sm text-slate-400 hover:bg-white/5 hover:text-white transition-colors" data-testid="menu-support">
+                Support
+              </button>
+              <div className="h-px bg-white/5 my-1" />
               <button onClick={handleLogout} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors" data-testid="menu-logout">
                 <LogOut className="w-4 h-4" /> Logout
               </button>

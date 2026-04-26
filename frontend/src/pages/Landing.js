@@ -829,6 +829,10 @@ export default function Landing() {
                   <span className="text-sm text-slate-400 group-hover:text-white transition-colors font-medium">Blog</span>
                   <p className="text-[11px] text-slate-600 leading-snug mt-0.5">Learn how to create viral content, tell better stories, and grow faster with AI.</p>
                 </Link>
+                <Link to="/help" className="block group" data-testid="footer-help-link">
+                  <span className="text-sm text-slate-400 group-hover:text-white transition-colors font-medium">Help</span>
+                  <p className="text-[11px] text-slate-600 leading-snug mt-0.5">Quick guides on how Story to Video, Remix, Continue and Battle work.</p>
+                </Link>
                 <div className="block">
                   <span className="text-sm text-slate-400 font-medium">Contact</span>
                   <p className="text-[11px] text-slate-600 leading-snug mt-0.5">Have questions or ideas? We'd love to hear from you.</p>
