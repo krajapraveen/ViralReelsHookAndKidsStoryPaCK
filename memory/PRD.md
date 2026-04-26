@@ -854,3 +854,27 @@ Founder directive: NO new features, NO new components. Microcopy only.
 🎯 Discipline win: zero new components, zero new endpoints, zero new state.
    Three strings shipped for measurable trust lift on the existing funnel.
 
+
+─────────────────────────────────────────────────────────
+[2026-04-26] WA-LINK SHIPPED — distribution measurement
+─────────────────────────────────────────────────────────
+✅ /app/admin/share-links — minimal share-link generator
+   • Channels: WhatsApp DM, WhatsApp Group, Instagram, Telegram, SMS, Personal
+   • Audiences: parents / family / school / creators / colleagues / other
+   • Angles: curious / bedtime / reaction / gift / demo (each pre-fills a 
+     human, non-jargon copy line)
+   • Auto-fills utm_source, utm_medium, utm_campaign, utm_content
+   • Three actions: Copy link / Copy full message / Open in WhatsApp deep-link
+   • Default landing: /experience (skips landing-page friction since founder
+     is sending DMs to people he's already pitched in chat)
+
+✅ Existing funnelTracker auto-captures the UTMs into traffic_source +
+   utm_source + utm_campaign on every event — zero new backend work needed.
+
+📁 Files Changed:
+   • frontend/src/pages/AdminShareLinks.jsx (NEW, 245 lines)
+   • frontend/src/App.js (+1 lazy import, +1 route)
+
+🧪 Testing: Smoke verified — link generates correctly, WA deep-link opens
+   wa.me with pre-filled message, channel switch updates UTMs in real time.
+

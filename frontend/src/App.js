@@ -60,6 +60,7 @@ const ReferralsPage = lazy(() => import('./pages/ReferralsPage'));
 const AdminReferrals = lazy(() => import('./pages/AdminReferrals'));
 const AdminReactions = lazy(() => import('./pages/AdminReactions'));
 const AdminActivation = lazy(() => import('./pages/AdminActivation'));
+const AdminShareLinks = lazy(() => import('./pages/AdminShareLinks'));
 const Blog = lazy(() => import('./pages/Blog'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
@@ -428,6 +429,7 @@ function App() {
           <Route path="referrals" element={<L><AdminReferrals /></L>} />
           <Route path="reactions" element={<L><AdminReactions /></L>} />
           <Route path="activation" element={<L><AdminActivation /></L>} />
+          <Route path="share-links" element={<L><AdminShareLinks /></L>} />
           <Route path="self-healing" element={<L><SelfHealingDashboard /></L>} />
           <Route path="ttfd-analytics" element={<L><TTFDDashboard /></L>} />
           <Route path="user-analytics" element={<L><UserAnalyticsDashboard /></L>} />
