@@ -424,6 +424,15 @@ export default function Login({ setAuth }) {
             </div>
             <h2 className="text-3xl font-bold text-white mb-2">Welcome Back</h2>
             <p className="text-slate-400">Login to continue creating</p>
+            {searchParams.get('from') === 'experience' && (
+              <div
+                className="mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-medium"
+                data-testid="login-paid-intent-microcopy"
+              >
+                <Sparkles className="w-3 h-3" />
+                One quick step to create your video securely
+              </div>
+            )}
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5" data-testid="login-form">

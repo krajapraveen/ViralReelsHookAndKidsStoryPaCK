@@ -91,7 +91,11 @@ export default function CheckoutExitSurvey({ open, onClose }) {
           <h2 className="text-xl font-bold text-white mb-1" data-testid="ces-headline">
             Anything stop you today?
           </h2>
-          <p className="text-slate-500 text-xs">One tap. We'll fix what's broken.</p>
+          <p className="text-emerald-300/90 text-xs flex items-center gap-1.5 mt-1" data-testid="ces-comfort">
+            <span aria-hidden="true">✨</span>
+            Your story is still ready whenever you are
+          </p>
+          <p className="text-slate-500 text-xs mt-2">One tap. We'll fix what's broken.</p>
         </div>
 
         <div className="px-6 pb-3 space-y-2">

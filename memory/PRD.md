@@ -825,3 +825,32 @@ Smoke-test confirmation (Apr 23, 18:45 UTC):
   IF top exit reason = needed_more_trust
     → ship testimonials, real video samples, parent quotes.
 
+
+─────────────────────────────────────────────────────────
+[2026-04-26] P1.7 MICROCOPY ONLY — discipline ship (no new builds)
+─────────────────────────────────────────────────────────
+Founder directive: NO new features, NO new components. Microcopy only.
+
+✅ Pre-login reassurance (only on /login?from=experience):
+   'One quick step to create your video securely'
+   • Emerald pill, conditional render — direct users only see it
+   • data-testid=login-paid-intent-microcopy
+
+✅ Pre-Cashfree trust line (under every Buy / Subscribe button):
+   'Secure payment · Takes under 20 seconds'
+   • Renders on subscriptions AND credit packs grids
+   • data-testid=buy-{id}-trust / buy-pack-{id}-trust
+
+✅ Post-fail comfort line (CheckoutExitSurvey headline):
+   'Your story is still ready whenever you are ✨'
+   • Above the 'Anything stop you today?' question
+   • data-testid=ces-comfort
+
+📁 Files Changed (microcopy only — no new components):
+   • frontend/src/pages/Login.js (12 lines added — conditional render block)
+   • frontend/src/pages/Billing.js (8 lines added — 2× trust line)
+   • frontend/src/pages/CheckoutExitSurvey.jsx (4 lines added — comfort line)
+
+🎯 Discipline win: zero new components, zero new endpoints, zero new state.
+   Three strings shipped for measurable trust lift on the existing funnel.
+

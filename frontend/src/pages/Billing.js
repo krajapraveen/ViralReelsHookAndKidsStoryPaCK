@@ -340,6 +340,9 @@ export default function Billing() {
                 >
                   {loading[product.id] ? 'Processing...' : 'Subscribe'}
                 </Button>
+                <p className="mt-2 text-center text-[11px] text-emerald-300/80 flex items-center justify-center gap-1" data-testid={`buy-${product.id}-trust`}>
+                  <Check className="w-3 h-3" /> Secure payment · Takes under 20 seconds
+                </p>
               </div>
             ))}
           </div>
@@ -369,6 +372,9 @@ export default function Billing() {
                 >
                   {loading[product.id] ? 'Processing...' : 'Buy Now'}
                 </Button>
+                <p className="mt-2 text-center text-[11px] text-emerald-300/80 flex items-center justify-center gap-1" data-testid={`buy-pack-${product.id}-trust`}>
+                  <Check className="w-3 h-3" /> Secure payment · Takes under 20 seconds
+                </p>
               </div>
             ))}
           </div>
