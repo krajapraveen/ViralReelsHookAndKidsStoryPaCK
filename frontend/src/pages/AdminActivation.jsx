@@ -3,7 +3,7 @@ import api from '../utils/api';
 import { toast } from 'sonner';
 import {
   RefreshCw, AlertOctagon, Activity, Smartphone, Monitor, Globe2,
-  ChevronRight, AlertTriangle, Gauge, IndianRupee, MousePointerClick, ShoppingCart, CreditCard, Share2,
+  ChevronRight, AlertTriangle, Gauge, IndianRupee, MousePointerClick, ShoppingCart, CreditCard, Share2, Sparkles,
 } from 'lucide-react';
 
 /**
@@ -20,6 +20,7 @@ import {
 export default function AdminActivation() {
   const [data, setData] = useState(null);
   const [revenue, setRevenue] = useState(null);
+  const [survey, setSurvey] = useState(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(7);
   const [deviceFilter, setDeviceFilter] = useState('');
@@ -31,12 +32,14 @@ export default function AdminActivation() {
       const qs = new URLSearchParams({ days: String(days) });
       if (deviceFilter) qs.set('device_type', deviceFilter);
       if (browserFilter) qs.set('browser', browserFilter);
-      const [funnelRes, revRes] = await Promise.all([
+      const [funnelRes, revRes, surveyRes] = await Promise.all([
         api.get(`/api/funnel/activation-funnel?${qs.toString()}`),
         api.get(`/api/funnel/revenue-conversion?days=${days}`).catch(() => ({ data: null })),
+        api.get(`/api/funnel/purchase-survey-summary?days=${days}`).catch(() => ({ data: null })),
       ]);
       setData(funnelRes.data);
       setRevenue(revRes?.data || null);
+      setSurvey(surveyRes?.data || null);
     } catch (e) {
       toast.error(e?.response?.data?.detail || 'Failed to load activation funnel');
     } finally {
@@ -221,6 +224,42 @@ export default function AdminActivation() {
                         </tbody>
                       </table>
                     </div>
+                  </div>
+                )}
+
+                {/* P1.6 Purchase Survey — voice of the buyer */}
+                {survey && (survey.total_responses > 0 || survey.recent_notes?.length > 0) && (
+                  <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-950/15 p-4" data-testid="purchase-survey-summary">
+                    <h3 className="text-xs font-semibold text-emerald-200 uppercase tracking-wider mb-3 flex items-center gap-2">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                      What made buyers buy ({survey.total_responses})
+                    </h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3">
+                      {survey.by_answer.map((a, i) => (
+                        <div key={a.answer} className="rounded-lg border border-emerald-500/15 bg-black/20 p-2.5" data-testid={`ps-answer-${a.answer}`}>
+                          <p className="text-[10px] uppercase tracking-wider text-emerald-300/80">
+                            {i === 0 && '★ '}{a.answer.replace('_', ' ')}
+                          </p>
+                          <p className="text-lg font-bold text-white tabular-nums">{a.pct}%</p>
+                          <p className="text-[10px] text-slate-500">{a.count} replies</p>
+                        </div>
+                      ))}
+                    </div>
+                    {survey.recent_notes && survey.recent_notes.length > 0 && (
+                      <details className="text-xs">
+                        <summary className="text-slate-400 cursor-pointer hover:text-white">
+                          {survey.recent_notes.length} recent notes →
+                        </summary>
+                        <div className="mt-2 space-y-1.5 max-h-40 overflow-y-auto">
+                          {survey.recent_notes.map((n, idx) => (
+                            <p key={idx} className="text-slate-400 italic border-l border-emerald-500/30 pl-2">
+                              <span className="text-emerald-400/70 not-italic mr-1">[{n.answer}]</span>
+                              "{n.note}"
+                            </p>
+                          ))}
+                        </div>
+                      </details>
+                    )}
                   </div>
                 )}
               </section>

@@ -14,6 +14,7 @@ import { initActivationSentinel } from './utils/activationSentinel';
 import CookieConsent from './components/CookieConsent';
 import PushPrompt from './components/PushPrompt';
 import useSessionTracker from './utils/useSessionTracker';
+import { PurchaseSurveyMount } from './pages/PurchaseSurvey';
 import './App.css';
 
 // ═══ CRITICAL PATH — Eager imports (landing, auth, dashboard) ═══
@@ -278,6 +279,7 @@ function App() {
         return null;
       })()}
       {isAuthenticated && <GlobalUserBar />}
+      <PurchaseSurveyMount />
       <Suspense fallback={<PageLoader />}>
       <Routes>
         {/* ═══ PUBLIC — Eager loaded ═══ */}

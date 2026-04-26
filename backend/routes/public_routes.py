@@ -34,6 +34,42 @@ def slugify(text: str) -> str:
     return text[:80].strip('-')
 
 
+
+# ─── P1.6 SOCIAL PROOF (real data only — no fake numbers) ───────────────────
+
+@router.get("/social-proof")
+async def social_proof_for_video_cta():
+    """
+    Returns a single short social-proof line for the post-personalization
+    Video CTA. Founder rule: NO fake numbers. If real volume is too low,
+    return a non-numeric fallback so the dashboard shows honesty.
+
+    Threshold: ≥100 video stories rendered in the trailing 7 days.
+    """
+    try:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+        completed_video_count = await db.pipeline_jobs.count_documents({
+            "status": "COMPLETED",
+            "created_at": {"$gte": cutoff.isoformat()},
+        })
+    except Exception:
+        completed_video_count = 0
+
+    THRESHOLD = 100
+    if completed_video_count >= THRESHOLD:
+        return {
+            "kind": "count",
+            "label": f"{completed_video_count:,} story videos created this week",
+            "count": completed_video_count,
+        }
+    return {
+        "kind": "qualitative",
+        "label": "Popular with parents tonight",
+        "count": completed_video_count,
+    }
+
+
+
 # ─── PLATFORM STATS (Real Data — Cumulative Lifetime) ──────────────────────────────────────────
 
 @router.get("/stats")

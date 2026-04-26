@@ -7,6 +7,7 @@ import api, { paymentAPI, creditAPI } from '../utils/api';
 import HelpGuide from '../components/HelpGuide';
 import analytics from '../utils/analytics';
 import { trackFunnel } from '../utils/funnelTracker';
+import { triggerPurchaseSurvey } from './PurchaseSurvey';
 
 export default function Billing() {
   const [products, setProducts] = useState([]);
@@ -59,6 +60,8 @@ export default function Billing() {
           if (res.data.success) {
             toast.success(`Payment successful! ${res.data.creditsAdded} credits added.`);
             trackFunnel('payment_success', { source_page: 'billing_return', meta: { order_id: orderId } });
+            // P1.6 — fire post-payment micro-survey (one-question, one-tap).
+            triggerPurchaseSurvey({ orderId, plan: null });
           } else {
             toast.info(res.data.message || 'Payment is being processed.');
           }
@@ -149,6 +152,8 @@ export default function Billing() {
                 });
                 analytics.trackFunnelComplete('main_conversion');
                 trackFunnel('payment_success', { source_page: 'billing', plan_selected: productId, meta: { order_id: response.data.orderId } });
+                // P1.6 — fire post-payment micro-survey (one-question, one-tap).
+                triggerPurchaseSurvey({ orderId: response.data.orderId, plan: productId });
                 toast.success(`Payment successful! ${verifyRes.data.creditsAdded} credits added to your account.`);
                 fetchData();
               } else {

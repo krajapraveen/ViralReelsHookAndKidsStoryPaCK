@@ -1,6 +1,20 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Zap, Captions, Music2, Sparkles, Loader2 } from 'lucide-react';
+import { X, Zap, Sparkles, Clock, ShieldCheck, Users, Captions } from 'lucide-react';
 import { trackFunnel } from '../utils/funnelTracker';
+
+const API = process.env.REACT_APP_BACKEND_URL;
+
+// Situational urgency — purely time-based copy. NO fake countdowns.
+function getSituationalUrgency() {
+  const now = new Date();
+  const hour = now.getHours();
+  const day = now.getDay(); // 0 = Sun
+  if (hour >= 19 && hour < 23) return "Make tonight's bedtime story unforgettable";
+  if (hour >= 23 || hour < 6) return "Tuck them in with their own story";
+  if (hour >= 6 && hour < 11) return "Start the morning with a magical story";
+  if (day === 0 || day === 6) return "Perfect for a weekend afternoon";
+  return "Worth telling. Worth keeping.";
+}
 
 /**
  * P1.2 Visual Reward Preview — show what they're paying for BEFORE the paywall.
@@ -24,8 +38,10 @@ export default function VideoRewardPreview({
   priceLabel = '₹29',
 }) {
   const [eta, setEta] = useState(45);
+  const [socialProof, setSocialProof] = useState(null);
   const intervalRef = useRef(null);
   const subtitleHook = (storyText || '').split('\n').filter(p => p.trim())[0]?.slice(0, 110) || storyTitle || '';
+  const urgency = useRef(getSituationalUrgency()).current;
 
   useEffect(() => {
     if (!open) return;
@@ -38,8 +54,15 @@ export default function VideoRewardPreview({
     intervalRef.current = setInterval(() => {
       setEta(prev => (prev > 1 ? prev - 1 : prev));
     }, 1000);
+    // Fetch real social proof — fallback if low volume.
+    if (!socialProof) {
+      fetch(`${API}/api/public/social-proof`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d?.label) setSocialProof(d); })
+        .catch(() => {});
+    }
     return () => clearInterval(intervalRef.current);
-  }, [open, storyId, source, priceLabel]);
+  }, [open, storyId, source, priceLabel, socialProof]);
 
   if (!open) return null;
 
@@ -124,29 +147,18 @@ export default function VideoRewardPreview({
           </div>
         </div>
 
-        {/* ── Reward summary row ─────────────────────────────────────── */}
-        <div className="px-5 pt-4 pb-3 grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-lg border border-white/5 bg-white/[0.02] py-2">
-            <Music2 className="w-4 h-4 text-violet-400 mx-auto mb-0.5" />
-            <p className="text-[10px] text-slate-400 leading-tight">Cinematic music</p>
+        {/* ── Social proof (real or qualitative) ─────────────────────── */}
+        {socialProof && (
+          <div className="px-5 pt-4 pb-1 text-center" data-testid="vrp-social-proof" data-kind={socialProof.kind}>
+            <span className="inline-flex items-center gap-1.5 text-amber-300 text-xs font-medium">
+              <Users className="w-3.5 h-3.5" />
+              {socialProof.label}
+            </span>
           </div>
-          <div className="rounded-lg border border-white/5 bg-white/[0.02] py-2">
-            <Captions className="w-4 h-4 text-amber-300 mx-auto mb-0.5" />
-            <p className="text-[10px] text-slate-400 leading-tight">Burned-in captions</p>
-          </div>
-          <div className="rounded-lg border border-white/5 bg-white/[0.02] py-2">
-            <Sparkles className="w-4 h-4 text-emerald-300 mx-auto mb-0.5" />
-            <p className="text-[10px] text-slate-400 leading-tight">9:16 + 1:1 export</p>
-          </div>
-        </div>
+        )}
 
         {/* ── ETA + CTA ─────────────────────────────────────────────── */}
-        <div className="px-5 pt-1 pb-5 sm:pb-5" style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}>
-          <div className="flex items-center justify-center gap-1.5 mb-3 text-emerald-300 text-xs">
-            <Loader2 className="w-3 h-3 animate-spin" />
-            <span data-testid="vrp-eta">Ready in ~{eta}s after you confirm</span>
-          </div>
-
+        <div className="px-5 pt-3 pb-5 sm:pb-5" style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}>
           <button
             onClick={handlePrimary}
             className="w-full py-4 px-5 rounded-xl font-bold text-white text-base flex items-center justify-center gap-2.5 vrp-cta active:scale-[0.98] transition-transform"
@@ -155,9 +167,22 @@ export default function VideoRewardPreview({
             <Zap className="w-5 h-5" />
             Make My Video — {priceLabel}
           </button>
-          <p className="text-center text-slate-500 text-[11px] mt-2">
-            Instant access · Cancel anytime · Watermark-free
-          </p>
+
+          {/* Trust + Urgency micro-block (P1.6 — strictly 3 lines, no clutter) */}
+          <div className="mt-3 space-y-1.5 text-center" data-testid="vrp-trust-block">
+            <p className="text-emerald-300 text-[12px] flex items-center justify-center gap-1.5" data-testid="vrp-speed">
+              <Clock className="w-3 h-3" />
+              <span data-testid="vrp-eta">Ready in under {eta} seconds</span>
+            </p>
+            <p className="text-slate-400 text-[12px] flex items-center justify-center gap-1.5" data-testid="vrp-risk-reversal">
+              <ShieldCheck className="w-3 h-3 text-emerald-400/70" />
+              <span>Not happy? Regenerate free.</span>
+            </p>
+            <p className="text-amber-200/80 text-[12px] flex items-center justify-center gap-1.5" data-testid="vrp-urgency">
+              <Sparkles className="w-3 h-3" />
+              <span>{urgency}</span>
+            </p>
+          </div>
         </div>
       </div>
 

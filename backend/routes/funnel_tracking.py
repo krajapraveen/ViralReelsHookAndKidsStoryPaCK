@@ -128,6 +128,10 @@ FUNNEL_STEPS = [
     "video_reward_preview_shown",       # Visual reward overlay opened
     "video_reward_preview_cta_clicked", # User confirmed intent → checkout
     "video_reward_preview_dismissed",
+    # ═══ V7 — P1.6 Trust + Urgency (Apr 26, 2026) ═══
+    "purchase_survey_shown",            # Post-payment 1-question modal shown
+    "purchase_survey_submitted",        # User answered the survey
+    "purchase_survey_dismissed",        # User closed without answering
 ]
 
 
@@ -849,3 +853,107 @@ async def revenue_conversion(
         "metrics": metrics,
         "video_cta_variants": video_cta_variants,
     }
+
+
+# ─── P1.6 PURCHASE SURVEY ─────────────────────────────────────────────────
+
+@router.post("/purchase-survey")
+async def purchase_survey(request: Request):
+    """
+    Single-question post-payment survey. Founder spec: 'What made you buy today?'
+    Choices: preview / price / story / needed_now / other (+ optional free-text).
+
+    Stores in `purchase_surveys` collection AND fires a funnel event for the
+    activation dashboard. Anonymous-friendly: tracks via session_id; user_id
+    auto-extracted from JWT when present.
+    """
+    body = await request.json()
+    answer = (body.get("answer") or "").strip().lower()
+    note = (body.get("note") or "").strip()
+    session_id = body.get("session_id") or str(uuid.uuid4())
+    order_id = body.get("order_id")
+    plan = body.get("plan")
+
+    VALID = {"preview", "price", "story", "needed_now", "other"}
+    if answer not in VALID:
+        return {"success": False, "error": f"answer must be one of {sorted(VALID)}"}
+
+    user_id = None
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        try:
+            from shared import verify_token
+            token_data = verify_token(auth_header.split(" ")[1])
+            user_id = token_data.get("sub")
+        except Exception:
+            pass
+
+    record = {
+        "session_id": session_id,
+        "user_id": user_id,
+        "answer": answer,
+        "note": note[:500],
+        "order_id": order_id,
+        "plan": plan,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "user_agent": request.headers.get("user-agent", "")[:200],
+    }
+
+    try:
+        await db.purchase_surveys.insert_one(record)
+    except Exception as e:
+        logger.warning(f"purchase_survey insert failed: {e}")
+
+    # Mirror to funnel for dashboard rollups
+    try:
+        await db.funnel_events.insert_one({
+            "step": "purchase_survey_submitted",
+            "event": "purchase_survey_submitted",
+            "session_id": session_id,
+            "user_id": user_id,
+            "timestamp": record["timestamp"],
+            "meta": {"answer": answer, "plan": plan, "order_id": order_id, "has_note": bool(note)},
+        })
+    except Exception:
+        pass
+
+    return {"success": True}
+
+
+@router.get("/purchase-survey-summary")
+async def purchase_survey_summary(
+    user: dict = Depends(get_admin_user),
+    days: int = Query(30, ge=1, le=365),
+):
+    """Admin rollup of post-payment survey answers — drives copy decisions."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    pipe = [
+        {"$match": {"timestamp": {"$gte": cutoff}}},
+        {"$group": {"_id": "$answer", "count": {"$sum": 1}}},
+        {"$project": {"answer": "$_id", "_id": 0, "count": 1}},
+    ]
+    by_answer = []
+    total = 0
+    async for d in db.purchase_surveys.aggregate(pipe):
+        by_answer.append(d)
+        total += d["count"]
+    by_answer.sort(key=lambda r: r["count"], reverse=True)
+    for r in by_answer:
+        r["pct"] = round((r["count"] / total) * 100, 1) if total else 0.0
+
+    notes = []
+    cursor = db.purchase_surveys.find(
+        {"timestamp": {"$gte": cutoff}, "note": {"$ne": ""}},
+        {"_id": 0, "answer": 1, "note": 1, "timestamp": 1, "plan": 1},
+    ).sort("timestamp", -1).limit(40)
+    async for d in cursor:
+        notes.append(d)
+
+    return {
+        "success": True,
+        "period_days": days,
+        "total_responses": total,
+        "by_answer": by_answer,
+        "recent_notes": notes,
+    }
+
