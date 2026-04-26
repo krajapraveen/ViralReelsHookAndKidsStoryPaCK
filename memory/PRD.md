@@ -878,3 +878,56 @@ Founder directive: NO new features, NO new components. Microcopy only.
 🧪 Testing: Smoke verified — link generates correctly, WA deep-link opens
    wa.me with pre-filled message, channel switch updates UTMs in real time.
 
+
+─────────────────────────────────────────────────────────
+[2026-04-26] P0 IN-PRODUCT GUIDED EXPERIENCE — SHIPPED
+─────────────────────────────────────────────────────────
+✅ Universal guide component drives ALL 4 actions from one config table
+   /app/frontend/src/utils/ActionGuide.jsx (370 lines)
+   • Right-side drawer on desktop, bottom sheet on mobile
+   • Each guide includes: meaning, 5-step flow, best practices, after-click,
+     expected result, mistakes-to-avoid, motivation pill, primary CTA
+   • 'Best Choice' label on every guide:
+     - Story to Video → Best for completed videos
+     - Remix → Best for growth & reach
+     - Continue Story → Best for retention
+     - Battle → Best for visibility
+
+✅ useActionGuide(actionId) hook with runWithGuide(callback) pattern:
+   • First-time → opens guide; primary CTA fires the callback
+   • Returning users (localStorage.guide_seen_{actionId}) → callback fires
+     immediately
+   • 'Don't show again' checkbox + 'Skip' button
+   • <ActionGuideMount /> mounted globally in App.js
+
+✅ /app/frontend/src/utils/ActionHelpButton.jsx — 'What should I do?'
+   helper. Inline mode (default) for headers/toolbars, floating mode
+   for fixed bottom-right pill. Used in Story Video Studio header.
+
+✅ Wired into 4 entry points:
+   • InstantStoryExperience handleVideo (story_video) + handleContinueStory (continue)
+   • Dashboard HeroSection Enter Battle (battle), Create Later/Start (story_video)
+   • Dashboard FeaturedWinnerHero handleRemix (remix)
+   • StoryBattlePage handleEnterBattle (battle)
+   • StoryVideoPipeline header (story_video, on demand via help button)
+
+✅ Best Choice badge live on Dashboard hero 'Enter Battle' (Best for reach)
+
+✅ 7 new telemetry events live in backend FUNNEL_STEPS V9:
+   guide_opened · guide_completed · skipped_guide
+   started_after_guide · remix_after_guide · continue_after_guide · battle_after_guide
+
+📁 Files Changed:
+   • backend/routes/funnel_tracking.py (+9 events whitelist)
+   • frontend/src/utils/ActionGuide.jsx (NEW 370 lines)
+   • frontend/src/utils/ActionHelpButton.jsx (NEW 60 lines)
+   • frontend/src/App.js (mount ActionGuideMount)
+   • frontend/src/pages/InstantStoryExperience.jsx (wrap 2 CTAs)
+   • frontend/src/pages/Dashboard.js (wrap 4 CTAs + Best Choice badge)
+   • frontend/src/pages/StoryBattlePage.jsx (wrap Enter Battle)
+   • frontend/src/pages/StoryVideoPipeline.js (mount help button in header)
+
+🧪 Testing: testing_agent_v3_fork iteration 528 (13/13 backend, 8/9 frontend)
+   + iteration 529 (5/5 frontend confirmation pass after ActionHelpButton fix).
+   Total: 100% pass, all P0+P1 features confirmed no regression.
+
