@@ -641,3 +641,66 @@ Smoke-test confirmation (Apr 23, 18:45 UTC):
 🧪 Testing: testing_agent_v3_fork iteration 524 — 14/14 backend tests passed,
    all frontend P0 features verified.
 
+
+─────────────────────────────────────────────────────────
+[2026-04-26] P1 REVENUE CONVERSION SPRINT — Tests 1.1, 1.2, 1.5 SHIPPED
+─────────────────────────────────────────────────────────
+✅ Test #1.1 — Outcome-Led Video CTA Copy A/B (5 variants)
+   • VIDEO_CTA_VARIANTS in InstantStoryExperience: control / cinematic /
+     kids_reel / one_tap / bring_alive
+   • Sticky session assignment via sessionStorage.video_cta_variant
+   • Impression fires on first Continue (engaged user)
+   • Click fires cta_video_clicked with variant_id + label in meta
+
+✅ Test #1.2 — Visual Reward Preview Before Paywall
+   • New /app/frontend/src/pages/VideoRewardPreview.jsx
+   • Ken Burns animated thumbnail + 8-bar music waveform + caption fade
+   • '₹29' price shown upfront on every CTA
+   • Burned-in subtitle preview from story text
+   • Reward chips: Cinematic music / Burned-in captions / 9:16 + 1:1 export
+   • '~45s after you confirm' countdown
+   • Big gradient red CTA: 'Make My Video — ₹29'
+   • Trust line: 'Instant access · Cancel anytime · Watermark-free'
+   • Fires video_reward_preview_shown / _cta_clicked / _dismissed
+
+✅ Test #1.5 — Always-on Sticky Video CTA
+   • Desktop: floating pill bottom-right after first Continue
+   • Mobile: chip in existing bottom action bar shows '₹29' inline
+   • Both use ist-video-cta gradient (amber→rose→pink)
+   • Hidden when reward preview or paywall is open
+
+📊 New Backend Metrics — GET /api/funnel/revenue-conversion
+   Strict 5 metrics for the founder's 72h focus:
+     1. story_completed_to_video_cta_pct
+     2. video_cta_to_checkout_pct
+     3. checkout_to_payment_pct
+     4. share_pct
+     5. revenue_per_100_visitors
+   + video_cta_variants[] leaderboard (impressions, clicks, CTR, intent_confirm,
+     click_to_checkout) for the P1.1 A/B test
+
+📊 Admin Dashboard
+   /admin/activation now opens with the Revenue Conversion Panel at top:
+   5 colour-coded metric cards (violet/amber/emerald/cyan/rose) +
+   variant leaderboard table with ★ on the winner
+
+📊 Baseline Snapshot (last 30d, before today's UX changes go live):
+   landing 500 → completed 350 → video_cta 2 → checkout 0 → paid 3
+   story→video CTA: 0.6% · share: 2.3% · ₹17.4/100 visitors
+
+📁 Files Changed:
+   • backend/routes/funnel_tracking.py (+115 lines, new revenue endpoint)
+   • frontend/src/pages/VideoRewardPreview.jsx (new, 215 lines)
+   • frontend/src/pages/InstantStoryExperience.jsx (CTA A/B + sticky + reward)
+   • frontend/src/pages/AdminActivation.jsx (Revenue Conversion Panel)
+
+🧪 Testing: testing_agent_v3_fork iteration 525 — 13/13 backend tests passed,
+   100% frontend P1 features verified, P0 features confirmed no regression.
+
+─── 72-HOUR METRICS TO WATCH (founder lock-in) ───
+  story_completed → video_cta_click %    (target: 0.6% → 8%+)
+  video_cta_click → checkout_started %   (target: 0% → 30%+)
+  checkout_started → payment_success %   (target: 0% → 25%+)
+  share_pct                              (target: 2.3% → 10%+)
+  revenue_per_100_visitors              (target: ₹17 → ₹150+)
+
