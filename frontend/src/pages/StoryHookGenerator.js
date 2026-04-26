@@ -310,7 +310,7 @@ const StoryHookGenerator = () => {
       </div>
       
       {/* Help Guide */}
-      <HelpGuide pageId="story-hook-generator" />
+      {/* HelpGuide removed Apr 26 2026 — P0 UI cleanup */}
     </div>
   );
 };

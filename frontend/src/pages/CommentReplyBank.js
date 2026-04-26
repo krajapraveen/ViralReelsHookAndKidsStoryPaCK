@@ -421,7 +421,7 @@ export default function CommentReplyBank() {
         </div>
       </div>
       
-      <HelpGuide pageId="comment-reply-bank" />
+      {/* HelpGuide removed Apr 26 2026 — P0 UI cleanup */}
     </div>
   );
 }

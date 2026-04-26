@@ -12,7 +12,9 @@ import { ErrorBoundary } from './components/recovery';
 import AppTour, { TourProvider } from './components/AppTour';
 import { initActivationSentinel } from './utils/activationSentinel';
 import CookieConsent from './components/CookieConsent';
-import PushPrompt from './components/PushPrompt';
+// P0 UI Cleanup (Apr 2026): floating support clutter removed by founder directive.
+// PushPrompt / GuideAssistant / ResponsiveSupportWrapper imports retired.
+// One manual-trigger drawer remains via ActionGuideMount.
 import useSessionTracker from './utils/useSessionTracker';
 import { PurchaseSurveyMount } from './pages/PurchaseSurvey';
 import { ActionGuideMount } from './utils/ActionGuide';
@@ -30,8 +32,9 @@ import JourneyProgressBar from './components/guide/JourneyProgressBar';
 import FirstActionOverlay from './components/guide/FirstActionOverlay';
 import PostValueOverlay from './components/guide/PostValueOverlay';
 import { UpgradeModal } from './components/UpgradeModal';
-import ResponsiveSupportWrapper from './components/support/ResponsiveSupportWrapper';
-import GuideAssistant from './components/guide/GuideAssistant';
+// Removed Apr 26 2026 (P0 UI cleanup): ResponsiveSupportWrapper, GuideAssistant.
+// Floating support widgets / launchers cause clutter and reduce premium feel.
+// Replacement is contextual inline help via ActionGuide.
 
 // ═══ ROUTE-LEVEL LAZY LOADING — Everything else loaded on demand ═══
 const PageLoader = () => (
@@ -466,14 +469,14 @@ function App() {
       </Routes>
       </Suspense>
 
-      <ResponsiveSupportWrapper />
-      {isAuthenticated && <GuideAssistant />}
+      {/* P0 UI Cleanup Apr 26 2026 — removed: <ResponsiveSupportWrapper />,
+          <GuideAssistant />, <PushPrompt />. Founder directive: zero floating
+          support clutter. One manual-trigger drawer remains via ActionGuideMount. */}
       {isAuthenticated && <FirstActionOverlay />}
       {isAuthenticated && <PostValueOverlay onTriggerPaywall={triggerPaywall} />}
       <UpgradeModal open={paywallOpen} onClose={() => setPaywallOpen(false)} reason={paywallReason} triggerSource="app" />
       <CookieConsent />
     </ContentProtectionWrapper>
-    {isAuthenticated && <PushPrompt />}
     </ProductGuideProvider>
     </FeedbackProvider>
     </TourProvider>

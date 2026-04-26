@@ -383,8 +383,7 @@ export default function Billing() {
       </div>
       
       {/* Help Guide */}
-      <HelpGuide pageId="billing" />
-
+      {/* HelpGuide removed Apr 26 2026 — P0 UI cleanup */}
       {/* P1.7 Checkout Exit-Intent Survey */}
       <CheckoutExitSurvey
         open={showExitSurvey}

@@ -340,7 +340,7 @@ const OfferGenerator = () => {
       </div>
       
       {/* Help Guide */}
-      <HelpGuide pageId="offer-generator" />
+      {/* HelpGuide removed Apr 26 2026 — P0 UI cleanup */}
     </div>
   );
 };

@@ -563,7 +563,7 @@ export default function InstagramBioGenerator() {
         </div>
       </div>
       
-      <HelpGuide pageId="social-bio-generator" />
+      {/* HelpGuide removed Apr 26 2026 — P0 UI cleanup */}
     </div>
   );
 }

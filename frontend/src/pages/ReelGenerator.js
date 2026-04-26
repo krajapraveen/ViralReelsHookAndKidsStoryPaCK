@@ -1103,7 +1103,7 @@ export default function ReelGenerator() {
         </div>
       </div>
 
-      <HelpGuide pageId="reel-generator" />
+      {/* HelpGuide removed Apr 26 2026 — P0 UI cleanup */}
       <RatingModal isOpen={showRatingModal} onClose={() => setShowRatingModal(false)} featureKey="reel_generator" relatedRequestId={lastGenerationId} onSubmitSuccess={() => setShowRatingModal(false)} />
       {showUpsellModal && <UpsellModal isOpen={showUpsellModal} credits={credits} onClose={() => setShowUpsellModal(false)} />}
     </div>

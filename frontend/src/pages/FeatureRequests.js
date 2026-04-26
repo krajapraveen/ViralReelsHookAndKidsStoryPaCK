@@ -251,7 +251,7 @@ export default function FeatureRequests() {
       </div>
       
       {/* Help Guide */}
-      <HelpGuide pageId="feature-requests" />
+      {/* HelpGuide removed Apr 26 2026 — P0 UI cleanup */}
     </div>
   );
 }

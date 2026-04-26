@@ -382,7 +382,7 @@ export default function AdminMonitoring() {
       </main>
       
       {/* Help Guide */}
-      <HelpGuide pageId="admin-monitoring" />
+      {/* HelpGuide removed Apr 26 2026 — P0 UI cleanup */}
     </div>
   );
 }

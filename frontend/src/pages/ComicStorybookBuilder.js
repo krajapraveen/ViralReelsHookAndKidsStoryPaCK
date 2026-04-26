@@ -2002,7 +2002,7 @@ export default function ComicStorybookBuilder() {
       )}
       
       {/* Help Guide */}
-      <HelpGuide pageId="comic-storybook" />
+      {/* HelpGuide removed Apr 26 2026 — P0 UI cleanup */}
     </div>
   );
 }

@@ -463,7 +463,7 @@ export default function ToneSwitcher() {
       </main>
       
       {/* Help Guide */}
-      <HelpGuide pageId="tone-switcher" />
+      {/* HelpGuide removed Apr 26 2026 — P0 UI cleanup */}
     </div>
   );
 }

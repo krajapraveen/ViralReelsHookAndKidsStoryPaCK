@@ -740,7 +740,7 @@ export default function Profile() {
         )}
       </main>
 
-      <HelpGuide pageId="profile" />
+      {/* HelpGuide removed Apr 26 2026 — P0 UI cleanup */}
     </div>
   );
 }

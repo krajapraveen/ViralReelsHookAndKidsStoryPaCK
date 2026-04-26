@@ -931,3 +931,52 @@ Founder directive: NO new features, NO new components. Microcopy only.
    + iteration 529 (5/5 frontend confirmation pass after ActionHelpButton fix).
    Total: 100% pass, all P0+P1 features confirmed no regression.
 
+
+─────────────────────────────────────────────────────────
+[2026-04-26] P0 GLOBAL UI CLEANUP — FLOATING WIDGETS PURGED
+─────────────────────────────────────────────────────────
+✅ Removed from App.js (global mounts):
+   • <ResponsiveSupportWrapper /> — killed FeedbackWidget (green msg+),
+     LiveChatWidget (teal chat), AIChatbot, SupportDock + bottom sheets
+   • <GuideAssistant /> — killed purple ? FAB
+   • <PushPrompt /> — killed bell prompt overlay
+   Imports of all 3 components retired with comment trail.
+
+✅ Removed from 18 pages: <HelpGuide pageId=... />
+   ToneSwitcher, ReelGenerator, StoryHookGenerator, CreatorTools,
+   CommentReplyBank, ComicStorybookBuilder, ChallengeGenerator,
+   Billing, CaptionRewriterPro, OfferGenerator, AdminMonitoring,
+   AnalyticsDashboard, Profile, StoryGenerator, History,
+   InstagramBioGenerator, FeatureRequests, ColoringBook
+   Replaced with /* HelpGuide removed Apr 26 2026 — P0 UI cleanup */ stub
+   so future devs can locate the deletions.
+
+✅ Visual verification (6 pages, /admin auth flow):
+   landing · experience · dashboard · billing · story-video-studio · profile
+   ALL → 0 floating helpguide / feedback / live-chat / guide-assistant /
+   support-dock / ai-chatbot / push-prompt / fixed-bottom buttons.
+
+✅ Sole survivor (founder-approved):
+   • <ActionGuideMount /> — manual-trigger drawer, no auto-popup, no FAB
+   • <ActionHelpButton /> on Studio header (inline mode, in toolbar)
+
+✅ Untouched (not founder-flagged, intentional):
+   • Emergent platform script (assets.emergent.sh/scripts/emergent-main.js)
+     — required for platform deployment / preview features. Production
+     www.visionary-suite.com unaffected since visual-edit scripts gate
+     on iframe context.
+
+📁 Files Changed:
+   • frontend/src/App.js — 3 imports removed, 3 mounts removed
+   • 18 page files — 1 line each replaced with comment stub
+
+🧪 Verification: 6-page Playwright audit returned 0 floating widgets across
+   landing, experience (logged-out), dashboard, billing, profile (logged-in)
+   + only 1 inline action-help-button on Story Video Studio header.
+
+📊 Acceptance criteria met:
+   ✓ Zero floating icons visible anywhere
+   ✓ Zero overlap on mobile (cookie banner remains, that's policy not clutter)
+   ✓ No leftover JS widgets loading at FAB level
+   ✓ Premium uncluttered interface restored
+

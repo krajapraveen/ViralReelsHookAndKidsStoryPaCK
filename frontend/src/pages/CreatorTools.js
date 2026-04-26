@@ -1132,7 +1132,7 @@ export default function CreatorTools() {
       </div>
       
       {/* Help Guide */}
-      <HelpGuide pageId="creator-tools" activeTab={activeTab} />
+      {/* HelpGuide removed Apr 26 2026 — P0 UI cleanup */}
     </div>
   );
 }

@@ -609,7 +609,7 @@ export default function CaptionRewriterPro() {
       </main>
       
       {/* Help Guide */}
-      <HelpGuide pageId="caption-rewriter" />
+      {/* HelpGuide removed Apr 26 2026 — P0 UI cleanup */}
     </div>
   );
 }

@@ -1047,7 +1047,7 @@ export default function StoryGenerator() {
       </div>
       
       {/* Help Guide */}
-      <HelpGuide pageId="story-generator" />
+      {/* HelpGuide removed Apr 26 2026 — P0 UI cleanup */}
     </div>
   );
 }

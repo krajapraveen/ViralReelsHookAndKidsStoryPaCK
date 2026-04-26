@@ -1085,7 +1085,7 @@ export default function ColoringBookGenerator() {
       </main>
       
       {/* Help Guide */}
-      <HelpGuide pageId="coloring-book" />
+      {/* HelpGuide removed Apr 26 2026 — P0 UI cleanup */}
     </div>
   );
 }

@@ -145,7 +145,7 @@ export default function AnalyticsDashboard() {
       </main>
       
       {/* Help Guide */}
-      <HelpGuide pageId="analytics" />
+      {/* HelpGuide removed Apr 26 2026 — P0 UI cleanup */}
     </div>
   );
 }

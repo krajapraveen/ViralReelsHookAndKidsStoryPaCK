@@ -462,7 +462,7 @@ export default function History() {
       </Dialog>
       
       {/* Help Guide */}
-      <HelpGuide pageId="history" />
+      {/* HelpGuide removed Apr 26 2026 — P0 UI cleanup */}
     </div>
   );
 }

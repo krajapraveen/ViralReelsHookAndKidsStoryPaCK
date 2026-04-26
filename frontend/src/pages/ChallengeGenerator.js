@@ -437,7 +437,7 @@ export default function ChallengeGenerator() {
       </main>
       
       {/* Help Guide */}
-      <HelpGuide pageId="challenge-generator" />
+      {/* HelpGuide removed Apr 26 2026 — P0 UI cleanup */}
     </div>
   );
 }
