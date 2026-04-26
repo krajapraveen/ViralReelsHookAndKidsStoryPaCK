@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import analytics from '../utils/analytics';
 import { useRecaptcha } from '../hooks/useRecaptcha';
 import { linkSessionToUser } from '../utils/growthAnalytics';
+import { trackFunnel } from '../utils/funnelTracker';
+import { markActivated } from '../utils/activationSentinel';
 import { useGoogleLogin } from '@react-oauth/google';
 
 export default function Login({ setAuth }) {
@@ -38,7 +40,15 @@ export default function Login({ setAuth }) {
     link.rel = 'prefetch';
     link.href = '/app';
     document.head.appendChild(link);
+    // Canonical activation funnel — login page mounted = signup_modal_opened
+    try {
+      trackFunnel('signup_modal_opened', {
+        source_page: 'login',
+        meta: { from: searchParams.get('from') || 'direct', return: searchParams.get('return') },
+      });
+    } catch (_) { /* noop */ }
     return () => document.head.removeChild(link);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Focus email input when modal opens
@@ -135,6 +145,14 @@ export default function Login({ setAuth }) {
     
     setLoading(true);
 
+    // Canonical activation funnel event — user submitted credentials
+    try {
+      trackFunnel('signup_started', {
+        source_page: 'login',
+        meta: { method: 'email', from: searchParams.get('from') || 'direct' },
+      });
+    } catch (_) { /* never block auth */ }
+
     try {
       // Get reCAPTCHA token (always execute, backend enforces only after 3 failures)
       let captchaToken = '';
@@ -158,6 +176,14 @@ export default function Login({ setAuth }) {
         // Link anonymous session events to this user
         linkSessionToUser(response.data.user.id);
       }
+      // Canonical activation funnel — successful auth
+      try {
+        trackFunnel('signup_success', {
+          source_page: 'login',
+          meta: { method: 'email', user_id: response.data.user?.id },
+        });
+        markActivated();
+      } catch (_) { /* never block auth */ }
       setAuth(true);
       toast.success('Login successful!');
       // Priority: 1) URL ?return= param (from 401 redirect), 2) localStorage remix_return_url, 3) /app
@@ -172,6 +198,13 @@ export default function Login({ setAuth }) {
     } catch (error) {
       const status = error.response?.status;
       const message = error.response?.data?.detail || '';
+      // Canonical activation funnel — failed auth
+      try {
+        trackFunnel('signup_failed', {
+          source_page: 'login',
+          meta: { method: 'email', status, error: String(message).slice(0, 200) },
+        });
+      } catch (_) { /* noop */ }
       
       // Handle account lockout (HTTP 423)
       if (status === 423) {
@@ -278,6 +311,18 @@ export default function Login({ setAuth }) {
         analytics.setUserId(user.id);
         linkSessionToUser(user.id);
       }
+      // P0 activation funnel — canonical events
+      try {
+        trackFunnel('google_signin_success', {
+          source_page: 'login',
+          meta: { user_id: user?.id, returning: !!user?.created_at },
+        });
+        trackFunnel('signup_success', {
+          source_page: 'login',
+          meta: { method: 'google', user_id: user?.id },
+        });
+        markActivated();
+      } catch (_) { /* never block auth */ }
       setAuth(true);
       const returnParam = searchParams.get('return');
       const returnUrl = returnParam || localStorage.getItem('remix_return_url');
@@ -290,19 +335,51 @@ export default function Login({ setAuth }) {
     } catch (error) {
       const msg = error?.response?.data?.detail || 'Google sign-in failed. Please try again.';
       toast.error(msg);
+      try {
+        trackFunnel('google_signin_failed', {
+          source_page: 'login',
+          meta: { error: String(msg).slice(0, 200), status: error?.response?.status },
+        });
+      } catch (_) { /* noop */ }
       setGoogleLoading(false);
     }
   };
 
   const googleLogin = useGoogleLogin({
     onSuccess: handleGoogleSuccess,
-    onError: () => { setGoogleClicking(false); toast.error('Google sign-in failed. Please try again.'); },
-    onNonOAuthError: () => { setGoogleClicking(false); toast.error('Google sign-in was cancelled.'); },
+    onError: (err) => {
+      setGoogleClicking(false);
+      toast.error('Google sign-in failed. Please try again.');
+      try {
+        trackFunnel('google_signin_failed', {
+          source_page: 'login',
+          meta: { error: String(err?.error || err?.message || 'oauth_error').slice(0, 200) },
+        });
+      } catch (_) { /* noop */ }
+    },
+    onNonOAuthError: (err) => {
+      setGoogleClicking(false);
+      toast.error('Google sign-in was cancelled.');
+      try {
+        // Detect popup-blocker vs user-closed
+        const type = err?.type === 'popup_failed_to_open' ? 'google_popup_blocked' : 'google_popup_closed';
+        trackFunnel(type, {
+          source_page: 'login',
+          meta: { type: err?.type || 'unknown' },
+        });
+      } catch (_) { /* noop */ }
+    },
   });
 
   const handleGoogleClick = () => {
     if (googleClicking || googleLoading) return;
     setGoogleClicking(true);
+    try {
+      trackFunnel('google_signin_clicked', {
+        source_page: 'login',
+        meta: { from: searchParams.get('from') || 'direct' },
+      });
+    } catch (_) { /* noop */ }
     googleLogin();
   };
 

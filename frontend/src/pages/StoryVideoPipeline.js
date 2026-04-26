@@ -848,9 +848,28 @@ function StoryVideoPipelineInner() {
             clearAllTimeouts();
             setPhase('postgen');
             trackFunnel('generation_completed', { story_id: jid, meta: { status: j.status } });
+            // Canonical activation funnel — story complete (founder spec)
+            try {
+              trackFunnel('story_generation_completed', {
+                source_page: 'studio',
+                story_id: jid,
+                meta: { status: j.status, has_video: !!j.output_url },
+              });
+              if (typeof window !== 'undefined' && typeof window.__markActivated__ === 'function') {
+                window.__markActivated__();
+              }
+            } catch (_) { /* noop */ }
             await validateAndResolve(jid, j);
           } else if (j.status === 'FAILED') {
             clearAllTimeouts();
+            // Canonical activation funnel — generation failed
+            try {
+              trackFunnel('story_generation_failed', {
+                source_page: 'studio',
+                story_id: jid,
+                meta: { error: j.error || 'unknown', view_mode: j.view_mode },
+              });
+            } catch (_) { /* noop */ }
             // Use server-authoritative view_mode
             if (j.view_mode === 'failed_recovery') {
               setPhase('failed_recovery');
@@ -952,6 +971,20 @@ function StoryVideoPipelineInner() {
 
     createLockRef.current = true;
     setSubmitting(true);
+
+    // Canonical activation funnel — prompt submitted (founder spec Apr 2026)
+    try {
+      trackFunnel('prompt_submitted', {
+        source_page: 'studio',
+        meta: {
+          length: storyText.trim().length,
+          has_title: !!title.trim(),
+          animation_style: animStyle,
+          quality_mode: qualityMode,
+        },
+      });
+    } catch (_) { /* never block create */ }
+
     try {
       const payload = {
         title: title.trim(),
@@ -978,6 +1011,18 @@ function StoryVideoPipelineInner() {
         setPhase('processing');
         setFormError('');
         dispatchPostGen({ type: 'RESET' });
+
+        // Canonical activation funnel — story generation kicked off
+        try {
+          trackFunnel('story_generation_started', {
+            source_page: 'studio',
+            meta: { job_id: res.data.job_id, is_guest: !!res.data.is_guest },
+          });
+          // Mark this session as "activated" so beforeunload won't fire session_abandoned
+          if (typeof window !== 'undefined' && typeof window.__markActivated__ === 'function') {
+            window.__markActivated__();
+          }
+        } catch (_) { /* never block UX */ }
 
         // Capture reuse info for status display
         if (res.data.reuse_mode && res.data.reuse_mode !== 'fresh') {
@@ -1604,7 +1649,27 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
 
             <div>
               <label className="text-sm font-medium text-[var(--vs-text-secondary)] mb-1 block">Story Text <span className="text-[var(--vs-error)]">*</span></label>
-              <Textarea value={storyText} onChange={e => setStoryText(e.target.value)}
+              <Textarea value={storyText} onChange={e => {
+                  setStoryText(e.target.value);
+                  // Canonical activation funnel — first keystroke
+                  if (!typingStartedRef.current && e.target.value.length > 0) {
+                    typingStartedRef.current = true;
+                    try {
+                      trackFunnel('prompt_started_typing', {
+                        source_page: 'studio',
+                        meta: { source: isFreshSession ? 'fresh' : 'return' },
+                      });
+                    } catch (_) { /* noop */ }
+                  }
+                }}
+                onFocus={() => {
+                  try {
+                    trackFunnel('prompt_input_focused', {
+                      source_page: 'studio',
+                      meta: { has_text: storyText.length > 0 },
+                    });
+                  } catch (_) { /* noop */ }
+                }}
                 placeholder="Write your story here... (minimum 50 characters)" rows={8}
                 className="bg-[var(--vs-bg-panel)] border-[var(--vs-border)] text-white resize-none focus:border-[var(--vs-primary-from)]" data-testid="story-textarea" />
               <div className="flex justify-between mt-1">

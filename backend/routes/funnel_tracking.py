@@ -89,6 +89,48 @@ FUNNEL_STEPS = [
     "battle_enter_clicked",
     "session_started",
     "session_ended",
+    # ═══ V4 — P0 Activation Funnel (Apr 2026 — exact founder names) ═══
+    "landing_cta_clicked",
+    "signup_modal_opened",
+    "signup_started",
+    "signup_success",
+    "signup_failed",
+    "google_signin_clicked",
+    "google_signin_success",
+    "google_signin_failed",
+    "google_popup_closed",
+    "google_popup_blocked",
+    "dashboard_loaded",
+    "prompt_input_focused",
+    "prompt_started_typing",
+    "prompt_submitted",
+    "story_generation_completed",
+    "story_generation_failed",
+    "continue_story_clicked",
+    "checkout_started",
+    "session_abandoned",
+    "auth_redirect_loop_detected",
+    # ═══ V4 — Frontend error intelligence ═══
+    "uncaught_js_error",
+    "api_4xx",
+    "api_5xx",
+    "spinner_over_8_seconds",
+    "rage_click_detected",
+    "double_click_detected",
+]
+
+
+# Canonical activation-funnel ordering (founder spec). Used by /activation-funnel
+# for stage-by-stage drop-off analysis. NOT the full ALLOWED_STEPS list.
+ACTIVATION_FUNNEL_ORDER = [
+    ("landing_view",                "Landing"),
+    ("landing_cta_clicked",         "CTA Clicked"),
+    ("signup_modal_opened",         "Signup Opened"),
+    ("signup_success",              "Signup Success"),
+    ("dashboard_loaded",            "Dashboard Loaded"),
+    ("prompt_submitted",            "Prompt Submitted"),
+    ("story_generation_started",    "Story Started"),
+    ("story_generation_completed",  "Story Completed"),
 ]
 
 
@@ -117,8 +159,42 @@ async def track_funnel_event(request: Request):
     ctx = body.get("context", {})
     ua = request.headers.get("user-agent", "")
 
+    # Detect browser + device from UA (lightweight, no external deps)
+    def _detect_browser(ua_str: str) -> str:
+        ua_l = ua_str.lower()
+        if "edg/" in ua_l:
+            return "edge"
+        if "chrome/" in ua_l and "safari/" in ua_l:
+            return "chrome"
+        if "firefox/" in ua_l:
+            return "firefox"
+        if "safari/" in ua_l and "version/" in ua_l:
+            return "safari"
+        if "opera" in ua_l or "opr/" in ua_l:
+            return "opera"
+        return "other"
+
+    def _detect_device(ua_str: str) -> str:
+        ua_l = ua_str.lower()
+        if any(x in ua_l for x in ["iphone", "android", "ipod", "blackberry", "iemobile"]):
+            return "mobile"
+        if "ipad" in ua_l or ("tablet" in ua_l and "mobile" not in ua_l):
+            return "tablet"
+        return "desktop"
+
+    browser = ctx.get("browser") or _detect_browser(ua)
+    device_type = ctx.get("device_type") or _detect_device(ua)
+
+    # Country from CF-IPCountry / X-Country headers (Cloudflare/ingress hints)
+    country = (
+        request.headers.get("cf-ipcountry")
+        or request.headers.get("x-country")
+        or ctx.get("country")
+        or "unknown"
+    )
+
     # Server-side dedup: critical once-per-session events
-    DEDUP_EVENTS = {"session_started", "session_ended", "typing_started"}
+    DEDUP_EVENTS = {"session_started", "session_ended", "typing_started", "dashboard_loaded"}
     if step in DEDUP_EVENTS:
         existing = await db.funnel_events.find_one(
             {"session_id": session_id, "step": step}, {"_id": 1}
@@ -138,8 +214,16 @@ async def track_funnel_event(request: Request):
         "plan_shown": ctx.get("plan_shown"),
         "plan_selected": ctx.get("plan_selected"),
         "device": ctx.get("device", "unknown"),
-        "device_type": ctx.get("device_type", "unknown"),
+        "device_type": device_type,
+        "browser": browser,
+        "country": country,
         "traffic_source": ctx.get("traffic_source", "unknown"),
+        "utm_source": ctx.get("utm_source"),
+        "utm_campaign": ctx.get("utm_campaign"),
+        "utm_medium": ctx.get("utm_medium"),
+        "page": ctx.get("page", ctx.get("source_page", "unknown")),
+        "variant_seen": ctx.get("variant_seen"),
+        "time_since_landing_ms": ctx.get("time_since_landing_ms"),
         "story_id": ctx.get("story_id"),
         "battle_id": ctx.get("battle_id"),
         "has_preview": ctx.get("has_preview"),
@@ -441,3 +525,153 @@ async def reaction_dashboard(
         "category_rollups": category_rollups,
         "leaderboards": leaderboards,
     }
+
+
+@router.get("/activation-funnel")
+async def activation_funnel(
+    user: dict = Depends(get_admin_user),
+    days: int = Query(7, ge=1, le=90),
+    device_type: Optional[str] = Query(None, description="mobile|desktop|tablet"),
+    browser: Optional[str] = Query(None),
+    utm_source: Optional[str] = Query(None),
+):
+    """
+    P0 ACTIVATION FUNNEL — exact stage-by-stage drop-off for the founder's
+    8-stage activation chain. Returns conversion %, median time per step,
+    mobile/desktop split, browser split, top-exit step, and error counts.
+    """
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    base_match = {"timestamp": {"$gte": cutoff}}
+    if device_type:
+        base_match["device_type"] = device_type
+    if browser:
+        base_match["browser"] = browser
+    if utm_source:
+        base_match["utm_source"] = utm_source
+
+    funnel_steps = [s for s, _ in ACTIVATION_FUNNEL_ORDER]
+    pipe = [
+        {"$match": {**base_match, "step": {"$in": funnel_steps}}},
+        {"$sort": {"timestamp": 1}},
+        {"$group": {
+            "_id": {"session": "$session_id", "step": "$step"},
+            "ts": {"$first": "$timestamp"},
+            "device_type": {"$first": "$device_type"},
+            "browser": {"$first": "$browser"},
+            "country": {"$first": "$country"},
+        }},
+    ]
+    session_timelines: dict = {}
+    async for d in db.funnel_events.aggregate(pipe):
+        sid = d["_id"]["session"]
+        st = d["_id"]["step"]
+        node = session_timelines.setdefault(sid, {"steps": {}, "device_type": d.get("device_type"),
+                                                  "browser": d.get("browser"), "country": d.get("country")})
+        node["steps"][st] = d["ts"]
+
+    stages = []
+    prev_count = None
+    for i, (step, label) in enumerate(ACTIVATION_FUNNEL_ORDER):
+        sessions_at_stage = [s for s in session_timelines.values() if step in s["steps"]]
+        count = len(sessions_at_stage)
+        if i == 0:
+            conv_pct = 100.0
+        else:
+            conv_pct = round((count / prev_count) * 100, 1) if prev_count else 0.0
+        prev_count = count
+
+        median_to_next_ms = None
+        if i < len(ACTIVATION_FUNNEL_ORDER) - 1:
+            next_step = ACTIVATION_FUNNEL_ORDER[i + 1][0]
+            deltas = []
+            for sess in session_timelines.values():
+                a = sess["steps"].get(step)
+                b = sess["steps"].get(next_step)
+                if a and b and b > a:
+                    try:
+                        ta = datetime.fromisoformat(a)
+                        tb = datetime.fromisoformat(b)
+                        deltas.append((tb - ta).total_seconds() * 1000)
+                    except Exception:
+                        pass
+            if deltas:
+                deltas.sort()
+                median_to_next_ms = int(deltas[len(deltas) // 2])
+
+        mobile = sum(1 for s in sessions_at_stage if s.get("device_type") == "mobile")
+        desktop = sum(1 for s in sessions_at_stage if s.get("device_type") == "desktop")
+        tablet = sum(1 for s in sessions_at_stage if s.get("device_type") == "tablet")
+
+        stages.append({
+            "step": step,
+            "label": label,
+            "sessions": count,
+            "conversion_from_prev_pct": conv_pct,
+            "median_to_next_ms": median_to_next_ms,
+            "mobile": mobile,
+            "desktop": desktop,
+            "tablet": tablet,
+        })
+
+    top_exit = None
+    biggest_drop = 0
+    for i in range(len(stages) - 1):
+        drop = stages[i]["sessions"] - stages[i + 1]["sessions"]
+        if drop > biggest_drop:
+            biggest_drop = drop
+            top_exit = {
+                "after_step": stages[i]["label"],
+                "drop_count": drop,
+                "drop_pct": round((drop / stages[i]["sessions"]) * 100, 1) if stages[i]["sessions"] else 0.0,
+            }
+
+    browser_split: dict = {}
+    for sess in session_timelines.values():
+        if "landing_view" in sess["steps"]:
+            b = sess.get("browser") or "unknown"
+            browser_split[b] = browser_split.get(b, 0) + 1
+    browser_split_sorted = sorted(
+        [{"browser": k, "sessions": v} for k, v in browser_split.items()],
+        key=lambda r: r["sessions"], reverse=True,
+    )
+
+    country_split: dict = {}
+    for sess in session_timelines.values():
+        if "landing_view" in sess["steps"]:
+            c = sess.get("country") or "unknown"
+            country_split[c] = country_split.get(c, 0) + 1
+    country_split_sorted = sorted(
+        [{"country": k, "sessions": v} for k, v in country_split.items()],
+        key=lambda r: r["sessions"], reverse=True,
+    )[:10]
+
+    error_events = [
+        "uncaught_js_error", "api_4xx", "api_5xx",
+        "spinner_over_8_seconds", "rage_click_detected", "double_click_detected",
+        "google_popup_blocked", "google_popup_closed", "auth_redirect_loop_detected",
+        "google_signin_failed", "signup_failed",
+    ]
+    err_pipe = [
+        {"$match": {**base_match, "step": {"$in": error_events}}},
+        {"$group": {"_id": "$step", "count": {"$sum": 1},
+                    "sessions": {"$addToSet": "$session_id"}}},
+        {"$project": {"step": "$_id", "_id": 0, "count": 1,
+                      "unique_sessions": {"$size": "$sessions"}}},
+    ]
+    error_breakdown = []
+    async for d in db.funnel_events.aggregate(err_pipe):
+        error_breakdown.append(d)
+    error_breakdown.sort(key=lambda r: r["count"], reverse=True)
+
+    return {
+        "success": True,
+        "period_days": days,
+        "filter": {"device_type": device_type, "browser": browser, "utm_source": utm_source},
+        "stages": stages,
+        "top_exit_step": top_exit,
+        "browser_split": browser_split_sorted,
+        "country_split": country_split_sorted,
+        "error_breakdown": error_breakdown,
+        "total_sessions_seen": len(session_timelines),
+    }
+

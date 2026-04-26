@@ -197,10 +197,20 @@ export default function Landing() {
 
   const startFromHook = (hook) => {
     localStorage.setItem('onboarding_prompt', hook.prompt);
+    trackFunnel('landing_cta_clicked', {
+      source_page: 'landing',
+      meta: { action: 'hook', hook_id: hook.id, prompt: hook.prompt.slice(0, 80) },
+    });
     navigate('/experience?source=landing&theme=' + encodeURIComponent(hook.prompt));
   };
 
   const goCreateFresh = () => {
+    // Canonical activation funnel event (founder spec Apr 2026)
+    trackFunnel('landing_cta_clicked', {
+      source_page: 'landing',
+      meta: { action: 'create_fresh', cta_position: 'primary' },
+    });
+    // Keep legacy event for back-compat with existing dashboards
     trackFunnel('first_action_click', { source_page: 'landing', meta: { action: 'create_fresh' } });
     navigate('/experience?source=landing');
   };

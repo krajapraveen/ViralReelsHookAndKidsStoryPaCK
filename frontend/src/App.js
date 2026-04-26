@@ -10,6 +10,7 @@ import { ContentProtectionWrapper } from './components/ContentProtectionWrapper'
 import GlobalUserBar from './components/GlobalUserBar';
 import { ErrorBoundary } from './components/recovery';
 import AppTour, { TourProvider } from './components/AppTour';
+import { initActivationSentinel } from './utils/activationSentinel';
 import CookieConsent from './components/CookieConsent';
 import PushPrompt from './components/PushPrompt';
 import useSessionTracker from './utils/useSessionTracker';
@@ -57,6 +58,7 @@ const ReferLanding = lazy(() => import('./pages/ReferLanding'));
 const ReferralsPage = lazy(() => import('./pages/ReferralsPage'));
 const AdminReferrals = lazy(() => import('./pages/AdminReferrals'));
 const AdminReactions = lazy(() => import('./pages/AdminReactions'));
+const AdminActivation = lazy(() => import('./pages/AdminActivation'));
 const Blog = lazy(() => import('./pages/Blog'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
@@ -234,6 +236,8 @@ function App() {
     const token = localStorage.getItem('token');
     if (token) setIsAuthenticated(true);
     setLoading(false);
+    // P0 activation sentinel — global error & UX failure detector
+    try { initActivationSentinel(); } catch (_) { /* never block app boot */ }
   }, []);
 
   if (loading) {
@@ -421,6 +425,7 @@ function App() {
           <Route path="security-reports/:report_id" element={<L><AdminSecurityReportDetail /></L>} />
           <Route path="referrals" element={<L><AdminReferrals /></L>} />
           <Route path="reactions" element={<L><AdminReactions /></L>} />
+          <Route path="activation" element={<L><AdminActivation /></L>} />
           <Route path="self-healing" element={<L><SelfHealingDashboard /></L>} />
           <Route path="ttfd-analytics" element={<L><TTFDDashboard /></L>} />
           <Route path="user-analytics" element={<L><UserAnalyticsDashboard /></L>} />

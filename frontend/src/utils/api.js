@@ -50,6 +50,8 @@ api.interceptors.request.use((config) => {
   if (config.data instanceof FormData) {
     delete config.headers['Content-Type'];
   }
+  // Capture request-start timestamp for duration tracking
+  config.metadata = { startTs: Date.now() };
   return config;
 });
 
@@ -64,9 +66,30 @@ api.interceptors.response.use(
         { duration: 4000, id: 'safety-rewrite-notice' }
       );
     }
+    // Activation sentinel: surface slow successes as spinner_over_8s signal
+    try {
+      const dur = Date.now() - (response.config?.metadata?.startTs || Date.now());
+      if (dur > 8000 && response.config?.url && !response.config.url.includes('/funnel/')) {
+        // Lazy import to avoid circular dep
+        import('./activationSentinel').then((mod) => {
+          mod.reportApiResponse({ status: response.status, url: response.config.url, durationMs: dur });
+        }).catch(() => {});
+      }
+    } catch (_) { /* never break UX */ }
     return response;
   },
   (error) => {
+    // Activation sentinel — log 4xx/5xx + slow failures (skip self-tracking endpoints)
+    try {
+      const dur = Date.now() - (error.config?.metadata?.startTs || Date.now());
+      const url = error.config?.url || '';
+      const status = error.response?.status || 0;
+      if (!url.includes('/funnel/')) {
+        import('./activationSentinel').then((mod) => {
+          mod.reportApiResponse({ status, url, durationMs: dur });
+        }).catch(() => {});
+      }
+    } catch (_) { /* noop */ }
     if (error.response?.status === 401) {
       // Don't redirect for open-access pages (growth funnel) or auth endpoints
       const path = window.location.pathname;

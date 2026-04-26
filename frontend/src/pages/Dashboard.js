@@ -877,6 +877,14 @@ export default function Dashboard() {
   // ── Review modal — trigger after value delivery ──
   const [showReview, setShowReview] = useState(false);
   useEffect(() => {
+    // Canonical activation funnel — dashboard mount
+    try {
+      trackFunnel('dashboard_loaded', {
+        source_page: 'dashboard',
+        meta: { authed: !!localStorage.getItem('token') },
+      });
+    } catch (_) { /* noop */ }
+
     // Show review prompt after 2nd visit if user has generations and hasn't reviewed
     const visitCount = parseInt(localStorage.getItem('dashboard_visits') || '0', 10) + 1;
     localStorage.setItem('dashboard_visits', String(visitCount));

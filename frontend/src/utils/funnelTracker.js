@@ -89,21 +89,68 @@ function getTrafficSource() {
   return src;
 }
 
+// Cache the landing arrival time so every subsequent event carries time_since_landing_ms
+const LANDING_TS_KEY = 'landing_ts_ms';
+function getLandingTs() {
+  let ts = sessionStorage.getItem(LANDING_TS_KEY);
+  if (!ts) {
+    ts = String(Date.now());
+    sessionStorage.setItem(LANDING_TS_KEY, ts);
+  }
+  return Number(ts);
+}
+
+// Cache UTM params on first hit so they're attached to every event in the session
+const UTM_KEY = 'utm_cache_v1';
+function getUtm() {
+  const cached = sessionStorage.getItem(UTM_KEY);
+  if (cached) {
+    try { return JSON.parse(cached); } catch (_) { /* fallthrough */ }
+  }
+  const params = new URLSearchParams(window.location.search);
+  const utm = {
+    utm_source: params.get('utm_source'),
+    utm_campaign: params.get('utm_campaign'),
+    utm_medium: params.get('utm_medium'),
+  };
+  sessionStorage.setItem(UTM_KEY, JSON.stringify(utm));
+  return utm;
+}
+
+// Lightweight browser detection (server also detects from UA — this is a hint)
+function getBrowser() {
+  const ua = navigator.userAgent.toLowerCase();
+  if (ua.includes('edg/')) return 'edge';
+  if (ua.includes('chrome/') && ua.includes('safari/')) return 'chrome';
+  if (ua.includes('firefox/')) return 'firefox';
+  if (ua.includes('safari/') && ua.includes('version/')) return 'safari';
+  if (ua.includes('opera') || ua.includes('opr/')) return 'opera';
+  return 'other';
+}
+
 /**
  * Fire a funnel event with full segmentation.
  * @param {string} step - Event name
  * @param {object} extra - { story_id, battle_id, has_preview, source_page, meta, ... }
  */
 export function trackFunnel(step, extra = {}) {
+  const utm = getUtm();
   const payload = {
     step,
     session_id: getSessionId(),
     user_id: getUserId(),
     context: {
       source_page: extra.source_page || inferSourcePage(),
+      page: extra.page || (typeof window !== 'undefined' ? window.location.pathname : null),
       generation_count: extra.generation_count ?? getGenerationCount(),
       device_type: getDevice(),
+      browser: getBrowser(),
       traffic_source: getTrafficSource(),
+      utm_source: extra.utm_source || utm.utm_source,
+      utm_campaign: extra.utm_campaign || utm.utm_campaign,
+      utm_medium: extra.utm_medium || utm.utm_medium,
+      time_since_landing_ms: Date.now() - getLandingTs(),
+      variant_seen: extra.variant_seen || null,
       story_id: extra.story_id || extra.data?.story_id || extra.meta?.story_id || null,
       battle_id: extra.battle_id || extra.data?.root_id || extra.meta?.battle_id || null,
       has_preview: extra.has_preview ?? null,
