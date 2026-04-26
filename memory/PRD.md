@@ -582,3 +582,62 @@ Smoke-test confirmation (Apr 23, 18:45 UTC):
 - Horror short correctly leads with 100% V→S rate
 - No other metrics added — scope kept tight per directive
 
+
+─────────────────────────────────────────────────────────
+[2026-04-26] P0 ACTIVATION REMEDIATION — Tasks 4-7 SHIPPED
+─────────────────────────────────────────────────────────
+✅ Task #4 — Instant Demo Hybrid (no signup gate before wow)
+   • InstantStoryExperience: phase initial state 'demo' with lazy useState demoStory
+   • Demo story paints on first render frame (zero loading spinner gap)
+   • Personalized story generates in background, swaps in via fade transition
+   • Hard signup gate retained ONLY at intent (Save/Share/Download/Continue Part 3+)
+   • Verified: cta_to_first_paint p50 = 339ms (22% of 1500ms budget)
+
+✅ Task #5 — Speed SLA Instrumentation
+   • emitSpeedSla(event, elapsed_ms) helper in InstantStoryExperience
+   • Events: cta_to_first_paint (≤1500ms), cta_to_wow (≤3000ms), teaser_ready (≤5000ms)
+   • Each emit fires speed_sla_met OR speed_sla_breached for breach tracking
+   • Backend /api/funnel/activation-funnel returns speed_sla[] with p50/p95/breach_pct
+   • Admin Activation Dashboard renders new SLA panel with green/amber/red ring states
+
+✅ Task #6 — Mobile-First
+   • Added viewport-fit=cover to index.html
+   • InstantStoryExperience root uses min-h-[100dvh] (iOS Safari URL-bar safe)
+   • Hero image: loading=eager, fetchpriority=high, decoding=async
+   • Sticky bottom CTA already uses env(safe-area-inset-bottom)
+   • Verified on 390x844 (iPhone) — sticky CTA visible & reachable
+
+✅ Task #7 — A/B Winner Rollout 90/10
+   • Added traffic_weights field {headline_b: 0.90, headline_a: 0.05, headline_c: 0.05}
+   • New assign_variant_weighted() — deterministic md5 hashing into weighted bucket
+   • smart-route returns weighted_rollout when no source-specific winner
+   • server.py boot now force-syncs traffic_weights every restart
+   • Landing.js: bumped cache key to ab_hero_variant_id_v2 (forces re-pull),
+     default = headline_b for instant render
+   • Verified: 92% headline_b across 50 random sessions
+
+✅ Funnel Canonical Rewrite
+   • ACTIVATION_FUNNEL_ORDER now matches reality of instant-demo flow:
+     landing_view → landing_cta_clicked → demo_viewed → story_generated_success
+     → continue_clicked → cta_video_clicked
+   • Old funnel asked for signup_modal/dashboard/prompt — those don't exist anymore
+   • New view reveals real activation: 68% of demo viewers reach personalized story,
+     98.6% click Continue once personalized
+
+📊 Funnel Snapshot at ship (last 30d):
+   landing_view: 484 → demo_viewed: 513 → story_generated_success: 349
+   → continue_clicked: 344 → cta_video_clicked: 2
+   Top exit: still 'Landing' (old data) — re-snapshot after 24-48h of new flow.
+
+📁 Files Changed:
+   • backend/routes/funnel_tracking.py
+   • backend/routes/ab_testing.py
+   • backend/server.py
+   • frontend/src/pages/InstantStoryExperience.jsx
+   • frontend/src/pages/Landing.js
+   • frontend/src/pages/AdminActivation.jsx
+   • frontend/public/index.html
+
+🧪 Testing: testing_agent_v3_fork iteration 524 — 14/14 backend tests passed,
+   all frontend P0 features verified.
+
