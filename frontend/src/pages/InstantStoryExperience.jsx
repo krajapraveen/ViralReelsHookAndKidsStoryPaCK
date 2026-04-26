@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Sparkles, Play, Share2, Film, RefreshCw, Loader2, CheckCircle, ChevronDown, Zap, BookOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import { trackFunnel } from '../utils/funnelTracker';
+import { useActionGuide } from '../utils/ActionGuide';
 import StoryPaywall from './StoryPaywall';
 import VideoRewardPreview from './VideoRewardPreview';
 
@@ -155,6 +156,9 @@ export default function InstantStoryExperience() {
   // Has user clicked Continue at least once? Drives sticky footer (P1.5).
   const hasContinuedRef = useRef(false);
   const videoCtaImpressionFiredRef = useRef(false);
+  // P0 Action Guides (Story-to-Video, Continue, Remix) — first-time onboarding
+  const continueGuide = useActionGuide('continue');
+  const videoGuide = useActionGuide('story_video');
 
   const source = searchParams.get('source') || 'landing';
   const sourceTitle = searchParams.get('title') || '';
@@ -343,7 +347,7 @@ export default function InstantStoryExperience() {
   }, [latestText, activeStory?.title, source]);
 
   // ─── Continue Button Handler ───────────────────────────────────
-  const handleContinueStory = useCallback(() => {
+  const _runContinueIntent = useCallback(() => {
     const nextPart = partNumber + 1;
     hasContinuedRef.current = true;
 
@@ -383,8 +387,13 @@ export default function InstantStoryExperience() {
     }
   }, [partNumber, generateContinuation, activeStory?.story_id, source, paywallViewCount, allowFreeView, videoCtaVariant]);
 
+  const handleContinueStory = useCallback(() => {
+    // P0 — first-time guide before continuation generation
+    continueGuide.runWithGuide(_runContinueIntent);
+  }, [continueGuide, _runContinueIntent]);
+
   // ─── Other Handlers ────────────────────────────────────────────
-  const handleVideo = () => {
+  const _runVideoIntent = () => {
     // P1.1 — fire CTA click with variant
     try {
       trackFunnel('cta_video_clicked', {
@@ -400,6 +409,10 @@ export default function InstantStoryExperience() {
     // P1.2 — show visual reward preview FIRST (motion + captions + waveform + ETA)
     // BEFORE asking for login/payment. This converts curiosity into intent.
     setShowVideoReward(true);
+  };
+  const handleVideo = () => {
+    // P0 — first-time guide before the reward preview, then continue.
+    videoGuide.runWithGuide(_runVideoIntent);
   };
 
   const proceedToVideoCheckout = () => {

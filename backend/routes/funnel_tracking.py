@@ -139,6 +139,14 @@ FUNNEL_STEPS = [
     "checkout_exit_survey_shown",       # Returned to billing without payment
     "checkout_exit_survey_submitted",
     "checkout_exit_survey_dismissed",
+    # ═══ V9 — P0 In-Product Guided Experience (Apr 26, 2026) ═══
+    "guide_opened",                     # ActionGuide drawer opened
+    "guide_completed",                  # User confirmed primary CTA
+    "skipped_guide",                    # Closed without confirming
+    "started_after_guide",              # Story-to-Video CTA after guide
+    "remix_after_guide",                # Remix CTA after guide
+    "continue_after_guide",             # Continue CTA after guide
+    "battle_after_guide",               # Battle CTA after guide
 ]
 
 

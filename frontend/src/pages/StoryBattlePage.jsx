@@ -8,6 +8,7 @@ import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import api from '../utils/api';
 import { trackFunnel } from '../utils/funnelTracker';
+import { useActionGuide } from '../utils/ActionGuide';
 import ContinuationModal from '../components/ContinuationModal';
 import BattlePulse from '../components/BattlePulse';
 import BattlePaywallModal from '../components/BattlePaywallModal';
@@ -34,6 +35,7 @@ export default function StoryBattlePage() {
   const [paywallTrigger, setPaywallTrigger] = useState('enter_battle');
   const returnTriggerRef = useRef(null);
   const returnTracked = useRef(false);
+  const battleGuide = useActionGuide('battle');
 
   const fetchBattle = useCallback(async () => {
     if (!storyId) return;
@@ -84,17 +86,20 @@ export default function StoryBattlePage() {
 
   // Enter battle with paywall check
   const handleEnterBattle = async (trigger = 'enter_battle') => {
-    try {
-      const res = await api.get('/api/stories/battle-entry-status');
-      if (res.data?.needs_payment) {
-        setPaywallTrigger(trigger);
-        setShowPaywall(true);
-        return;
-      }
-    } catch {}
-    trackFunnel('cta_clicked', { meta: { type: 'enter_battle', source: 'watch_page' }, story_id: storyId, battle_id: rootId });
-    trackFunnel('entered_battle', { story_id: storyId, battle_id: rootId });
-    setContinuationMode('branch');
+    // P0 — first-time guide for the Battle action.
+    battleGuide.runWithGuide(async () => {
+      try {
+        const res = await api.get('/api/stories/battle-entry-status');
+        if (res.data?.needs_payment) {
+          setPaywallTrigger(trigger);
+          setShowPaywall(true);
+          return;
+        }
+      } catch {}
+      trackFunnel('cta_clicked', { meta: { type: 'enter_battle', source: 'watch_page' }, story_id: storyId, battle_id: rootId });
+      trackFunnel('entered_battle', { story_id: storyId, battle_id: rootId });
+      setContinuationMode('branch');
+    });
   };
 
   if (loading) {

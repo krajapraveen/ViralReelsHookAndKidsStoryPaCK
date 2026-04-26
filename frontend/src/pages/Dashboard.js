@@ -6,6 +6,7 @@ import axios from 'axios';
 import { toast } from 'sonner';
 import { trackLoop } from '../utils/growthTracker';
 import { trackFunnel } from '../utils/funnelTracker';
+import { useActionGuide } from '../utils/ActionGuide';
 import { setCdnBase } from '../utils/mediaUrl';
 import { safeMediaUrl } from '../components/SafeImage';
 import { sendFeedEvent, fetchMoreStories, updateScrollSpeed, getDynamicHookDelay, wasSkippedFast } from '../utils/feedTracker';
@@ -124,6 +125,14 @@ function HeroSection({ stories, navigate }) {
   const [paused, setPaused] = useState(false);
   const timerRef = useRef(null);
 
+  // P0 Action Guides — first-time onboarding for the 4 hero CTAs.
+  const battleGuide = useActionGuide('battle');
+  const remixGuide = useActionGuide('remix');
+  const videoGuide = useActionGuide('story_video');
+  // (remixGuide is consumed by FeaturedWinnerHero; kept here so the hook
+  // suite is consistent — useful when we later wire a remix CTA on this hero.)
+  void remixGuide;
+
   const heroStories = stories.length > 0 ? stories.slice(0, 5) : [];
   const current = heroStories[activeIdx] || {};
   const hasHero = heroStories.length > 0;
@@ -190,24 +199,31 @@ function HeroSection({ stories, navigate }) {
                 <Play className="w-4 h-4 fill-white mr-2" /> Watch Now
               </button>
               <button onClick={() => {
-                if (!current.job_id || current.is_seed) { navigate('/app/story-video-studio', { state: { freshSession: true } }); return; }
-                trackFunnel('cta_clicked', { meta: { type: 'enter_battle', source: 'hero', story_id: current.job_id } });
-                navigate('/app/story-video-studio', {
-                  state: {
-                    prompt: current.story_text || current.hook_text || '',
-                    remixFrom: { title: current.title, job_id: current.job_id },
-                    source_surface: 'hero_remix',
-                    isRemix: true,
-                  },
-                });
+                const run = () => {
+                  if (!current.job_id || current.is_seed) { navigate('/app/story-video-studio', { state: { freshSession: true } }); return; }
+                  trackFunnel('cta_clicked', { meta: { type: 'enter_battle', source: 'hero', story_id: current.job_id } });
+                  navigate('/app/story-video-studio', {
+                    state: {
+                      prompt: current.story_text || current.hook_text || '',
+                      remixFrom: { title: current.title, job_id: current.job_id },
+                      source_surface: 'hero_remix',
+                      isRemix: true,
+                    },
+                  });
+                };
+                battleGuide.runWithGuide(run);
               }}
                 className="inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm sm:text-base font-semibold text-white bg-white/10 backdrop-blur-md border border-white/15 hover:bg-white/15 transition-colors duration-200"
                 data-testid="hero-remix-btn">
                 <Swords className="w-4 h-4 mr-2" /> Enter Battle
+                <span className="ml-2 text-[10px] font-bold uppercase tracking-widest text-rose-300/90 bg-rose-500/15 px-1.5 py-0.5 rounded">Best for reach</span>
               </button>
               <button onClick={() => {
-                trackFunnel('cta_clicked', { meta: { type: 'create_later', source: 'hero' } });
-                navigate('/app/story-video-studio', { state: { freshSession: true } });
+                const run = () => {
+                  trackFunnel('cta_clicked', { meta: { type: 'create_later', source: 'hero' } });
+                  navigate('/app/story-video-studio', { state: { freshSession: true } });
+                };
+                videoGuide.runWithGuide(run);
               }}
                 className="inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-xs text-white/50 hover:text-white/70 transition-colors duration-200"
                 data-testid="hero-create-btn">
@@ -223,7 +239,9 @@ function HeroSection({ stories, navigate }) {
             <h1 className="max-w-3xl text-white font-extrabold tracking-tight text-2xl sm:text-4xl lg:text-5xl leading-tight drop-shadow-[0_2px_12px_rgba(0,0,0,0.45)]" data-testid="hero-title">Every Story is Waiting for You</h1>
             <p className="mt-3 max-w-2xl text-white/85 text-sm sm:text-base leading-relaxed">Worlds half-built. Characters mid-sentence. Pick any story and decide what happens next.</p>
             <div className="mt-5">
-              <button onClick={() => navigate('/app/story-video-studio', { state: { freshSession: true } })}
+              <button onClick={() => {
+                videoGuide.runWithGuide(() => navigate('/app/story-video-studio', { state: { freshSession: true } }));
+              }}
                 className="inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm sm:text-base font-bold text-white bg-gradient-to-r from-[#6C5CE7] to-[#00C2FF] shadow-[0_0_24px_rgba(0,194,255,0.28)] hover:scale-[1.02] transition-transform duration-200"
                 data-testid="hero-create-btn">
                 <Play className="w-4 h-4 fill-white mr-2" /> Start a Story
@@ -696,9 +714,9 @@ function PersonalizedHero({ metrics, viralStats, navigate }) {
    Must feel aspirational, not like a regular card.
    Graceful fallback when no winner exists.
    ═══════════════════════════════════════════════════════════════════ */
-function FeaturedWinnerHero({ winner, navigate }) {
-  const sectionRef = useRef(null);
+function FeaturedWinnerHero({ winner, navigate }) {  const sectionRef = useRef(null);
   const impressionFired = useRef(false);
+  const remixGuide = useActionGuide('remix');
 
   useEffect(() => {
     const el = sectionRef.current;
@@ -723,8 +741,11 @@ function FeaturedWinnerHero({ winner, navigate }) {
       job_id: winner.job_id,
       title: winner.title,
     });
-    navigate('/app/story-video-studio', {
-      state: { prompt: '', remixFrom: { title: winner.title, job_id: winner.job_id }, source_surface: 'hero_winner' },
+    // P0 — first-time guide before navigating to studio with remix prefill.
+    remixGuide.runWithGuide(() => {
+      navigate('/app/story-video-studio', {
+        state: { prompt: '', remixFrom: { title: winner.title, job_id: winner.job_id }, source_surface: 'hero_winner' },
+      });
     });
   };
 
