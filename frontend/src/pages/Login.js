@@ -41,10 +41,17 @@ export default function Login({ setAuth }) {
     link.href = '/app';
     document.head.appendChild(link);
     // Canonical activation funnel — login page mounted = signup_modal_opened
+    const fromParam = searchParams.get('from') || 'direct';
     try {
       trackFunnel('signup_modal_opened', {
         source_page: 'login',
-        meta: { from: searchParams.get('from') || 'direct', return: searchParams.get('return') },
+        meta: { from: fromParam, return: searchParams.get('return') },
+      });
+      // P1.7 — login_page_loaded with from=experience marks the post-checkout
+      // intent funnel. Powers login_redirect_dropoff_pct.
+      trackFunnel('login_page_loaded', {
+        source_page: 'login',
+        meta: { from: fromParam, paid_intent: fromParam === 'experience' },
       });
     } catch (_) { /* noop */ }
     return () => document.head.removeChild(link);

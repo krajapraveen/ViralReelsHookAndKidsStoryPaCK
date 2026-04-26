@@ -21,6 +21,8 @@ export default function AdminActivation() {
   const [data, setData] = useState(null);
   const [revenue, setRevenue] = useState(null);
   const [survey, setSurvey] = useState(null);
+  const [paidSessions, setPaidSessions] = useState(null);
+  const [exitSurvey, setExitSurvey] = useState(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(7);
   const [deviceFilter, setDeviceFilter] = useState('');
@@ -32,14 +34,18 @@ export default function AdminActivation() {
       const qs = new URLSearchParams({ days: String(days) });
       if (deviceFilter) qs.set('device_type', deviceFilter);
       if (browserFilter) qs.set('browser', browserFilter);
-      const [funnelRes, revRes, surveyRes] = await Promise.all([
+      const [funnelRes, revRes, surveyRes, paidSessionsRes, exitSurveyRes] = await Promise.all([
         api.get(`/api/funnel/activation-funnel?${qs.toString()}`),
         api.get(`/api/funnel/revenue-conversion?days=${days}`).catch(() => ({ data: null })),
         api.get(`/api/funnel/purchase-survey-summary?days=${days}`).catch(() => ({ data: null })),
+        api.get(`/api/funnel/paid-funnel-sessions?days=${days}&limit=20`).catch(() => ({ data: null })),
+        api.get(`/api/funnel/checkout-exit-survey-summary?days=${days}`).catch(() => ({ data: null })),
       ]);
       setData(funnelRes.data);
       setRevenue(revRes?.data || null);
       setSurvey(surveyRes?.data || null);
+      setPaidSessions(paidSessionsRes?.data || null);
+      setExitSurvey(exitSurveyRes?.data || null);
     } catch (e) {
       toast.error(e?.response?.data?.detail || 'Failed to load activation funnel');
     } finally {
@@ -190,6 +196,58 @@ export default function AdminActivation() {
                   </div>
                 </div>
 
+                {/* P1.7 Cashfree Choke-Point Cards */}
+                <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3" data-testid="cashfree-choke-cards">
+                  <div className="rounded-2xl border border-rose-500/30 bg-rose-950/20 p-4" data-testid="revcon-login-dropoff">
+                    <div className="flex items-center gap-2 mb-2 text-rose-300">
+                      <AlertOctagon className="w-3.5 h-3.5" />
+                      <span className="text-[10px] uppercase tracking-wider">Login Drop-off</span>
+                    </div>
+                    <p className="text-2xl font-bold text-white tabular-nums">
+                      {revenue.metrics?.login_redirect_dropoff_pct ?? 0}%
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      checkout → /login mount
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-amber-500/30 bg-amber-950/20 p-4" data-testid="revcon-cashfree-opened">
+                    <div className="flex items-center gap-2 mb-2 text-amber-300">
+                      <CreditCard className="w-3.5 h-3.5" />
+                      <span className="text-[10px] uppercase tracking-wider">Cashfree Opened</span>
+                    </div>
+                    <p className="text-2xl font-bold text-white tabular-nums">
+                      {revenue.metrics?.cashfree_opened_pct ?? 0}%
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      payment_started → SDK opened
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-4" data-testid="revcon-cashfree-success">
+                    <div className="flex items-center gap-2 mb-2 text-emerald-300">
+                      <CreditCard className="w-3.5 h-3.5" />
+                      <span className="text-[10px] uppercase tracking-wider">Cashfree Success</span>
+                    </div>
+                    <p className="text-2xl font-bold text-white tabular-nums">
+                      {revenue.metrics?.cashfree_success_pct ?? 0}%
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      SDK opened → paid
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-700 bg-slate-900/60 p-4" data-testid="revcon-cashfree-dropoff">
+                    <div className="flex items-center gap-2 mb-2 text-slate-300">
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      <span className="text-[10px] uppercase tracking-wider">Cashfree Drop-off</span>
+                    </div>
+                    <p className="text-2xl font-bold text-white tabular-nums">
+                      {revenue.metrics?.cashfree_dropoff_pct ?? 0}%
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      {revenue.totals?.cashfree_fail_sessions || 0} fails / {revenue.totals?.cashfree_open_sessions || 0} opens
+                    </p>
+                  </div>
+                </div>
+
                 {/* CTA copy A/B leaderboard */}
                 {revenue.video_cta_variants && revenue.video_cta_variants.length > 0 && (
                   <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4" data-testid="video-cta-variants-table">
@@ -260,6 +318,83 @@ export default function AdminActivation() {
                         </div>
                       </details>
                     )}
+                  </div>
+                )}
+
+                {/* P1.7 Checkout Exit Survey Summary */}
+                {exitSurvey && exitSurvey.total_responses > 0 && (
+                  <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-950/15 p-4" data-testid="checkout-exit-survey-summary">
+                    <h3 className="text-xs font-semibold text-amber-200 uppercase tracking-wider mb-3 flex items-center gap-2">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                      Why they left checkout ({exitSurvey.total_responses})
+                    </h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3">
+                      {exitSurvey.by_answer.map((a, i) => (
+                        <div key={a.answer} className="rounded-lg border border-amber-500/15 bg-black/20 p-2.5" data-testid={`ces-answer-${a.answer}`}>
+                          <p className="text-[10px] uppercase tracking-wider text-amber-300/80">
+                            {i === 0 && '★ '}{a.answer.replace('_', ' ')}
+                          </p>
+                          <p className="text-lg font-bold text-white tabular-nums">{a.pct}%</p>
+                          <p className="text-[10px] text-slate-500">{a.count} replies</p>
+                        </div>
+                      ))}
+                    </div>
+                    {exitSurvey.recent_notes && exitSurvey.recent_notes.length > 0 && (
+                      <details className="text-xs">
+                        <summary className="text-slate-400 cursor-pointer hover:text-white">
+                          {exitSurvey.recent_notes.length} recent objections →
+                        </summary>
+                        <div className="mt-2 space-y-1.5 max-h-40 overflow-y-auto">
+                          {exitSurvey.recent_notes.map((n, idx) => (
+                            <p key={idx} className="text-slate-400 italic border-l border-amber-500/30 pl-2">
+                              <span className="text-amber-400/70 not-italic mr-1">[{n.answer}]</span>
+                              "{n.note}"
+                            </p>
+                          ))}
+                        </div>
+                      </details>
+                    )}
+                  </div>
+                )}
+
+                {/* P1.7 Paid-funnel sessions (session-replay-lite) */}
+                {paidSessions && paidSessions.sessions && paidSessions.sessions.length > 0 && (
+                  <div className="mt-4 rounded-2xl border border-violet-500/20 bg-violet-950/15 p-4" data-testid="paid-funnel-sessions">
+                    <h3 className="text-xs font-semibold text-violet-200 uppercase tracking-wider mb-3 flex items-center gap-2">
+                      <Activity className="w-3.5 h-3.5 text-violet-400" />
+                      Paid-intent sessions ({paidSessions.sessions.length}) — manual replay
+                    </h3>
+                    <div className="space-y-2 max-h-[420px] overflow-y-auto">
+                      {paidSessions.sessions.map((s) => {
+                        const outcomeColor = s.outcome === 'paid' ? 'bg-emerald-500/15 text-emerald-300' :
+                          s.outcome === 'abandoned' ? 'bg-rose-500/15 text-rose-300' :
+                          'bg-slate-700/40 text-slate-400';
+                        return (
+                          <details key={s.session_id} className="rounded-lg border border-violet-500/10 bg-black/30 p-3" data-testid={`paid-session-${s.session_id}`}>
+                            <summary className="cursor-pointer text-xs flex items-center justify-between gap-3">
+                              <span className="font-mono text-violet-300 truncate">{s.session_id.slice(0, 14)}...</span>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${outcomeColor}`}>
+                                {s.outcome}
+                              </span>
+                              <span className="text-slate-500 text-[10px]">
+                                {s.device_type} · {s.browser} · {s.country || '?'}
+                              </span>
+                              <span className="text-slate-400 tabular-nums">{s.event_count} events</span>
+                            </summary>
+                            <div className="mt-2 space-y-0.5 max-h-56 overflow-y-auto pl-3 border-l border-violet-500/20">
+                              {s.timeline.map((e, i) => (
+                                <div key={i} className="flex items-baseline gap-2 text-[11px] font-mono">
+                                  <span className="text-slate-600 tabular-nums shrink-0">
+                                    {e.ts ? e.ts.slice(11, 19) : ''}
+                                  </span>
+                                  <span className="text-violet-200 truncate">{e.step}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </section>

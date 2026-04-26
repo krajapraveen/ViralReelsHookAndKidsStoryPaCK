@@ -132,6 +132,13 @@ FUNNEL_STEPS = [
     "purchase_survey_shown",            # Post-payment 1-question modal shown
     "purchase_survey_submitted",        # User answered the survey
     "purchase_survey_dismissed",        # User closed without answering
+    # ═══ V8 — P1.7 Payment Choke-Point Telemetry (Apr 26, 2026) ═══
+    "login_page_loaded",                # /login mounted (paid_intent flag in meta)
+    "cashfree_checkout_opened",         # Cashfree SDK modal actually opened
+    "cashfree_checkout_failed",         # Cashfree returned an error (not user-cancel)
+    "checkout_exit_survey_shown",       # Returned to billing without payment
+    "checkout_exit_survey_submitted",
+    "checkout_exit_survey_dismissed",
 ]
 
 
@@ -770,6 +777,12 @@ async def revenue_conversion(
     payment_sessions   = await _unique_sessions("payment_success")
     share_clicks       = await _event_count("cta_share_clicked")
 
+    # P1.7 — payment choke-point telemetry
+    login_loaded_sessions   = await _unique_sessions("login_page_loaded")
+    cashfree_open_sessions  = await _unique_sessions("cashfree_checkout_opened")
+    cashfree_fail_sessions  = await _unique_sessions("cashfree_checkout_failed")
+    payment_started_sessions = await _unique_sessions("payment_started")
+
     # Revenue: pull from a known orders / payments collection if present.
     # Fall back to a flat-rate estimate from payment_success count × ₹29
     # so the dashboard always shows a directional number.
@@ -797,6 +810,11 @@ async def revenue_conversion(
         "checkout_to_payment_pct":          _pct(payment_sessions, checkout_sessions),
         "share_pct":                        _pct(share_clicks, completed_sessions),
         "revenue_per_100_visitors":         round((revenue_inr / landing_sessions * 100), 2) if landing_sessions > 0 else 0.0,
+        # P1.7 — payment choke point precision
+        "login_redirect_dropoff_pct":       round(100 - _pct(login_loaded_sessions, checkout_sessions), 1) if checkout_sessions > 0 else 0.0,
+        "cashfree_opened_pct":              _pct(cashfree_open_sessions, payment_started_sessions),
+        "cashfree_success_pct":             _pct(payment_sessions, cashfree_open_sessions),
+        "cashfree_dropoff_pct":             round(100 - _pct(payment_sessions, cashfree_open_sessions), 1) if cashfree_open_sessions > 0 else 0.0,
     }
 
     # ─── P1.1 Outcome-led video CTA variant leaderboard ──────────────────
@@ -846,6 +864,10 @@ async def revenue_conversion(
             "story_completed_sessions": completed_sessions,
             "video_cta_sessions": video_cta_sessions,
             "checkout_sessions": checkout_sessions,
+            "payment_started_sessions": payment_started_sessions,
+            "login_loaded_sessions": login_loaded_sessions,
+            "cashfree_open_sessions": cashfree_open_sessions,
+            "cashfree_fail_sessions": cashfree_fail_sessions,
             "payment_sessions": payment_sessions,
             "share_clicks": share_clicks,
             "revenue_inr": round(revenue_inr, 2),
@@ -955,5 +977,181 @@ async def purchase_survey_summary(
         "total_responses": total,
         "by_answer": by_answer,
         "recent_notes": notes,
+    }
+
+
+
+# ─── P1.7 CHECKOUT EXIT SURVEY ────────────────────────────────────────────
+
+@router.post("/checkout-exit-survey")
+async def checkout_exit_survey(request: Request):
+    """
+    Fires when a user returns to the billing page WITHOUT completing payment.
+    Founder spec: 'Anything stop you today?'
+    Choices: price / payment_failed / needed_more_trust / just_browsing / other.
+    """
+    body = await request.json()
+    answer = (body.get("answer") or "").strip().lower()
+    note = (body.get("note") or "").strip()
+    session_id = body.get("session_id") or str(uuid.uuid4())
+
+    VALID = {"price", "payment_failed", "needed_more_trust", "just_browsing", "other"}
+    if answer not in VALID:
+        return {"success": False, "error": f"answer must be one of {sorted(VALID)}"}
+
+    user_id = None
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        try:
+            from shared import verify_token
+            token_data = verify_token(auth_header.split(" ")[1])
+            user_id = token_data.get("sub")
+        except Exception:
+            pass
+
+    record = {
+        "session_id": session_id,
+        "user_id": user_id,
+        "answer": answer,
+        "note": note[:500],
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        await db.checkout_exit_surveys.insert_one(record)
+    except Exception as e:
+        logger.warning(f"checkout_exit_survey insert failed: {e}")
+
+    try:
+        await db.funnel_events.insert_one({
+            "step": "checkout_exit_survey_submitted",
+            "event": "checkout_exit_survey_submitted",
+            "session_id": session_id,
+            "user_id": user_id,
+            "timestamp": record["timestamp"],
+            "meta": {"answer": answer, "has_note": bool(note)},
+        })
+    except Exception:
+        pass
+
+    return {"success": True}
+
+
+@router.get("/checkout-exit-survey-summary")
+async def checkout_exit_survey_summary(
+    user: dict = Depends(get_admin_user),
+    days: int = Query(30, ge=1, le=365),
+):
+    """Admin rollup of checkout-exit objections — drives copy/UX decisions."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    pipe = [
+        {"$match": {"timestamp": {"$gte": cutoff}}},
+        {"$group": {"_id": "$answer", "count": {"$sum": 1}}},
+        {"$project": {"answer": "$_id", "_id": 0, "count": 1}},
+    ]
+    by_answer, total = [], 0
+    async for d in db.checkout_exit_surveys.aggregate(pipe):
+        by_answer.append(d)
+        total += d["count"]
+    by_answer.sort(key=lambda r: r["count"], reverse=True)
+    for r in by_answer:
+        r["pct"] = round((r["count"] / total) * 100, 1) if total else 0.0
+
+    notes = []
+    cursor = db.checkout_exit_surveys.find(
+        {"timestamp": {"$gte": cutoff}, "note": {"$ne": ""}},
+        {"_id": 0, "answer": 1, "note": 1, "timestamp": 1},
+    ).sort("timestamp", -1).limit(40)
+    async for d in cursor:
+        notes.append(d)
+
+    return {
+        "success": True,
+        "period_days": days,
+        "total_responses": total,
+        "by_answer": by_answer,
+        "recent_notes": notes,
+    }
+
+
+# ─── P1.7 PAID-FUNNEL SESSION REPLAY LITE ─────────────────────────────────
+
+@router.get("/paid-funnel-sessions")
+async def paid_funnel_sessions(
+    user: dict = Depends(get_admin_user),
+    days: int = Query(7, ge=1, le=90),
+    limit: int = Query(20, ge=1, le=100),
+):
+    """
+    Admin 'session replay lite' — last N sessions that hit
+    `video_reward_preview_cta_clicked` (paid intent), with a chronological
+    event timeline so the founder can reconstruct what each user did.
+
+    Cheaper than a real session-replay tool, captures everything important.
+    """
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+    # Find sessions with paid intent
+    intent_pipe = [
+        {"$match": {"timestamp": {"$gte": cutoff}, "step": "video_reward_preview_cta_clicked"}},
+        {"$group": {"_id": "$session_id", "first_intent_ts": {"$min": "$timestamp"}}},
+        {"$sort": {"first_intent_ts": -1}},
+        {"$limit": limit},
+    ]
+    session_ids = []
+    intent_ts_map = {}
+    async for d in db.funnel_events.aggregate(intent_pipe):
+        session_ids.append(d["_id"])
+        intent_ts_map[d["_id"]] = d["first_intent_ts"]
+
+    if not session_ids:
+        return {"success": True, "period_days": days, "sessions": []}
+
+    # Pull each session's full timeline (capped at 80 events / session)
+    sessions_out = []
+    for sid in session_ids:
+        timeline = []
+        cursor = db.funnel_events.find(
+            {"session_id": sid, "timestamp": {"$gte": cutoff}},
+            {"_id": 0, "step": 1, "timestamp": 1, "device_type": 1, "browser": 1,
+             "country": 1, "user_id": 1, "meta": 1, "page": 1},
+        ).sort("timestamp", 1).limit(80)
+        first_step, last_step = None, None
+        device_type, browser, country, user_id_seen = None, None, None, None
+        outcome = "intent_only"
+        async for e in cursor:
+            timeline.append({
+                "step": e.get("step"),
+                "ts": e.get("timestamp"),
+                "page": e.get("page"),
+                "meta": e.get("meta") or {},
+            })
+            first_step = first_step or e.get("step")
+            last_step = e.get("step")
+            device_type = device_type or e.get("device_type")
+            browser = browser or e.get("browser")
+            country = country or e.get("country")
+            user_id_seen = user_id_seen or e.get("user_id")
+            if e.get("step") == "payment_success":
+                outcome = "paid"
+            elif outcome == "intent_only" and e.get("step") in ("cashfree_checkout_failed", "payment_abandoned"):
+                outcome = "abandoned"
+        sessions_out.append({
+            "session_id": sid,
+            "user_id": user_id_seen,
+            "device_type": device_type,
+            "browser": browser,
+            "country": country,
+            "first_step": first_step,
+            "last_step": last_step,
+            "intent_ts": intent_ts_map.get(sid),
+            "event_count": len(timeline),
+            "outcome": outcome,
+            "timeline": timeline,
+        })
+
+    return {
+        "success": True,
+        "period_days": days,
+        "sessions": sessions_out,
     }
 

@@ -8,6 +8,7 @@ import HelpGuide from '../components/HelpGuide';
 import analytics from '../utils/analytics';
 import { trackFunnel } from '../utils/funnelTracker';
 import { triggerPurchaseSurvey } from './PurchaseSurvey';
+import CheckoutExitSurvey from './CheckoutExitSurvey';
 
 export default function Billing() {
   const [products, setProducts] = useState([]);
@@ -16,7 +17,17 @@ export default function Billing() {
   const [pageLoading, setPageLoading] = useState(true);
   const [pageError, setPageError] = useState(false);
   const [verifyingReturn, setVerifyingReturn] = useState(false);
+  const [showExitSurvey, setShowExitSurvey] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // P1.7 — show exit-intent survey ONCE per session when user reaches /billing
+  // without a successful payment. Triggered: (a) immediately when no orderId
+  // and from=experience, (b) after a verify failure, (c) after payment_abandoned.
+  const triggerExitSurveyOnce = useCallback(() => {
+    if (sessionStorage.getItem('checkout_exit_survey_shown_once') === '1') return;
+    sessionStorage.setItem('checkout_exit_survey_shown_once', '1');
+    setShowExitSurvey(true);
+  }, []);
 
   const fetchData = useCallback(async () => {
     setPageLoading(true);
@@ -64,10 +75,13 @@ export default function Billing() {
             triggerPurchaseSurvey({ orderId, plan: null });
           } else {
             toast.info(res.data.message || 'Payment is being processed.');
+            // P1.7 — verify failed → exit survey
+            setTimeout(triggerExitSurveyOnce, 600);
           }
         })
         .catch(() => {
           toast.warning('Could not verify payment status. Your credits will appear shortly if payment was successful.');
+          setTimeout(triggerExitSurveyOnce, 600);
         })
         .finally(() => {
           setVerifyingReturn(false);
@@ -77,6 +91,12 @@ export default function Billing() {
         });
     } else {
       fetchData();
+      // P1.7 — user landed on billing from experience funnel without finishing.
+      // Wait a moment so the page settles before asking.
+      const fromExperience = searchParams.get('from') === 'experience' || document.referrer.includes('/experience');
+      if (fromExperience) {
+        setTimeout(triggerExitSurveyOnce, 1200);
+      }
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -126,7 +146,14 @@ export default function Billing() {
           paymentSessionId: response.data.paymentSessionId,
           redirectTarget: "_modal"
         };
-        
+
+        // P1.7 — exact payment choke point telemetry
+        trackFunnel('cashfree_checkout_opened', {
+          source_page: 'billing',
+          plan_selected: productId,
+          meta: { order_id: response.data.orderId, environment: cashfreeEnv },
+        });
+
         cashfree.checkout(checkoutOptions).then(async (result) => {
           if (result.error) {
             // Detect cancel vs actual failure
@@ -134,10 +161,13 @@ export default function Billing() {
             if (msg.includes('cancel') || msg.includes('closed') || msg.includes('dismiss')) {
               trackFunnel('payment_abandoned', { source_page: 'billing', plan_selected: productId });
               toast.info('Payment was cancelled. No charges were made.');
+              setTimeout(triggerExitSurveyOnce, 800);
             } else {
               trackFunnel('payment_abandoned', { source_page: 'billing', plan_selected: productId, meta: { error: msg } });
+              trackFunnel('cashfree_checkout_failed', { source_page: 'billing', plan_selected: productId, meta: { error: msg, order_id: response.data.orderId } });
               toast.error(`Payment did not complete: ${msg}. Please try again.`);
               analytics.trackError('payment_failed', msg, 'billing');
+              setTimeout(triggerExitSurveyOnce, 800);
             }
           } else if (result.paymentDetails) {
             // Verify payment
@@ -348,6 +378,12 @@ export default function Billing() {
       
       {/* Help Guide */}
       <HelpGuide pageId="billing" />
+
+      {/* P1.7 Checkout Exit-Intent Survey */}
+      <CheckoutExitSurvey
+        open={showExitSurvey}
+        onClose={() => setShowExitSurvey(false)}
+      />
     </div>
   );
 }
