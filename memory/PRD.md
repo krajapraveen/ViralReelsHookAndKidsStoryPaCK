@@ -704,3 +704,53 @@ Smoke-test confirmation (Apr 23, 18:45 UTC):
   share_pct                              (target: 2.3% → 10%+)
   revenue_per_100_visitors              (target: ₹17 → ₹150+)
 
+
+─────────────────────────────────────────────────────────
+[2026-04-26] P1.6 TRUST + URGENCY SPRINT — Tests A-D + Survey SHIPPED
+─────────────────────────────────────────────────────────
+✅ Test A — Social Proof Near CTA (REAL DATA ONLY)
+   • New /api/public/social-proof: returns real count if ≥100 jobs/7d, else
+     'Popular with parents tonight' qualitative fallback. NO fake numbers.
+   • Rendered above CTA in VideoRewardPreview as data-testid=vrp-social-proof
+
+✅ Test B — Risk Reversal
+   • 'Not happy? Regenerate free.' under CTA (data-testid=vrp-risk-reversal)
+   • ShieldCheck icon, slate-400 microcopy — disciplined, no upsell
+
+✅ Test C — Time Urgency (situational, not fake countdown)
+   • Hour-of-day based copy: 19-23 'Make tonight's bedtime story unforgettable',
+     23-6 'Tuck them in with their own story', 6-11 'Start the morning with...',
+     weekend 'Perfect for a weekend afternoon', else 'Worth telling. Worth keeping.'
+   • Computed once per session via useRef(getSituationalUrgency())
+
+✅ Test D — Speed Promise
+   • 'Ready in under {n} seconds' with live countdown
+   • Replaces the old loading-style ETA
+
+✅ Cluttered chips REMOVED
+   • The 3 reward-feature chips (Music/Captions/9:16+1:1) deleted per founder
+     'one clear CTA wins over clutter' rule. Single big gradient CTA remains.
+
+✅ Post-Payment Micro-Survey (founder approved)
+   • New /app/frontend/src/pages/PurchaseSurvey.jsx — 5-option modal:
+     Preview / Price / Story / Needed it now / Other (+ free-text for 'other')
+   • Globally mounted via PurchaseSurveyMount in App.js (listens for
+     localStorage flag + CustomEvent('purchase-survey-ready'))
+   • triggerPurchaseSurvey() called at BOTH payment_success points in Billing.js
+   • POST /api/funnel/purchase-survey persists to db.purchase_surveys + mirrors
+     to funnel_events. GET /api/funnel/purchase-survey-summary for admin rollup.
+   • Admin dashboard 'What made buyers buy' panel with answer breakdown +
+     recent free-text notes
+
+📁 Files Changed:
+   • backend/routes/public_routes.py (+34 lines, /social-proof)
+   • backend/routes/funnel_tracking.py (+95 lines, survey endpoints + steps)
+   • frontend/src/pages/VideoRewardPreview.jsx (trust block + situational copy)
+   • frontend/src/pages/PurchaseSurvey.jsx (NEW, 215 lines)
+   • frontend/src/pages/AdminActivation.jsx (Purchase Survey panel)
+   • frontend/src/App.js (mount PurchaseSurveyMount)
+   • frontend/src/pages/Billing.js (triggerPurchaseSurvey at both payment_success)
+
+🧪 Testing: testing_agent_v3_fork iteration 526 — 18/18 backend tests passed,
+   100% frontend verified, P0+P1 no regression.
+
