@@ -3,7 +3,7 @@ import api from '../utils/api';
 import { toast } from 'sonner';
 import {
   RefreshCw, AlertOctagon, Activity, Smartphone, Monitor, Globe2,
-  ChevronRight, AlertTriangle, Gauge,
+  ChevronRight, AlertTriangle, Gauge, IndianRupee, MousePointerClick, ShoppingCart, CreditCard, Share2,
 } from 'lucide-react';
 
 /**
@@ -19,6 +19,7 @@ import {
  */
 export default function AdminActivation() {
   const [data, setData] = useState(null);
+  const [revenue, setRevenue] = useState(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(7);
   const [deviceFilter, setDeviceFilter] = useState('');
@@ -30,8 +31,12 @@ export default function AdminActivation() {
       const qs = new URLSearchParams({ days: String(days) });
       if (deviceFilter) qs.set('device_type', deviceFilter);
       if (browserFilter) qs.set('browser', browserFilter);
-      const res = await api.get(`/api/funnel/activation-funnel?${qs.toString()}`);
-      setData(res.data);
+      const [funnelRes, revRes] = await Promise.all([
+        api.get(`/api/funnel/activation-funnel?${qs.toString()}`),
+        api.get(`/api/funnel/revenue-conversion?days=${days}`).catch(() => ({ data: null })),
+      ]);
+      setData(funnelRes.data);
+      setRevenue(revRes?.data || null);
     } catch (e) {
       toast.error(e?.response?.data?.detail || 'Failed to load activation funnel');
     } finally {
@@ -107,6 +112,120 @@ export default function AdminActivation() {
 
         {data && (
           <>
+            {/* P1 Revenue Conversion Panel — founder priority for next 72h */}
+            {revenue && (
+              <section className="mb-6" data-testid="revenue-conversion-panel">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-lg font-semibold text-slate-200 flex items-center gap-2">
+                    <IndianRupee className="w-4 h-4 text-emerald-400" />
+                    Revenue Conversion (P1)
+                  </h2>
+                  <span className="text-xs text-slate-500 font-mono">
+                    ₹{(revenue.totals?.revenue_inr || 0).toLocaleString()} · {revenue.totals?.payment_sessions || 0} paid
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  <div className="rounded-2xl border border-violet-500/30 bg-violet-950/20 p-4" data-testid="revcon-completed-to-cta">
+                    <div className="flex items-center gap-2 mb-2 text-violet-300">
+                      <MousePointerClick className="w-3.5 h-3.5" />
+                      <span className="text-[10px] uppercase tracking-wider">Story → Video CTA</span>
+                    </div>
+                    <p className="text-3xl font-bold text-white tabular-nums">
+                      {revenue.metrics?.story_completed_to_video_cta_pct ?? 0}%
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {revenue.totals?.video_cta_sessions || 0} / {revenue.totals?.story_completed_sessions || 0}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-amber-500/30 bg-amber-950/20 p-4" data-testid="revcon-cta-to-checkout">
+                    <div className="flex items-center gap-2 mb-2 text-amber-300">
+                      <ShoppingCart className="w-3.5 h-3.5" />
+                      <span className="text-[10px] uppercase tracking-wider">CTA → Checkout</span>
+                    </div>
+                    <p className="text-3xl font-bold text-white tabular-nums">
+                      {revenue.metrics?.video_cta_to_checkout_pct ?? 0}%
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {revenue.totals?.checkout_sessions || 0} / {revenue.totals?.video_cta_sessions || 0}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-4" data-testid="revcon-checkout-to-payment">
+                    <div className="flex items-center gap-2 mb-2 text-emerald-300">
+                      <CreditCard className="w-3.5 h-3.5" />
+                      <span className="text-[10px] uppercase tracking-wider">Checkout → Payment</span>
+                    </div>
+                    <p className="text-3xl font-bold text-white tabular-nums">
+                      {revenue.metrics?.checkout_to_payment_pct ?? 0}%
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {revenue.totals?.payment_sessions || 0} / {revenue.totals?.checkout_sessions || 0}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-cyan-500/30 bg-cyan-950/20 p-4" data-testid="revcon-share">
+                    <div className="flex items-center gap-2 mb-2 text-cyan-300">
+                      <Share2 className="w-3.5 h-3.5" />
+                      <span className="text-[10px] uppercase tracking-wider">Share %</span>
+                    </div>
+                    <p className="text-3xl font-bold text-white tabular-nums">
+                      {revenue.metrics?.share_pct ?? 0}%
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {revenue.totals?.share_clicks || 0} clicks
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-rose-500/30 bg-rose-950/20 p-4" data-testid="revcon-rev-per-100">
+                    <div className="flex items-center gap-2 mb-2 text-rose-300">
+                      <IndianRupee className="w-3.5 h-3.5" />
+                      <span className="text-[10px] uppercase tracking-wider">₹ / 100 visitors</span>
+                    </div>
+                    <p className="text-3xl font-bold text-white tabular-nums">
+                      ₹{revenue.metrics?.revenue_per_100_visitors ?? 0}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      from {revenue.totals?.landing_sessions || 0} landings
+                    </p>
+                  </div>
+                </div>
+
+                {/* CTA copy A/B leaderboard */}
+                {revenue.video_cta_variants && revenue.video_cta_variants.length > 0 && (
+                  <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4" data-testid="video-cta-variants-table">
+                    <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-3">
+                      Outcome-led Video CTA — variant leaderboard
+                    </h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-xs text-slate-500 uppercase">
+                            <th className="py-1 pr-3">Variant</th>
+                            <th className="py-1 px-3 text-right">Imps</th>
+                            <th className="py-1 px-3 text-right">Clicks</th>
+                            <th className="py-1 px-3 text-right">CTR</th>
+                            <th className="py-1 px-3 text-right">Confirm %</th>
+                            <th className="py-1 pl-3 text-right">→ Checkout %</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {revenue.video_cta_variants.map((v, i) => (
+                            <tr key={v.variant} className="border-t border-slate-800/60" data-testid={`video-cta-row-${v.variant}`}>
+                              <td className="py-2 pr-3 text-white font-medium">
+                                {i === 0 && <span className="mr-1 text-amber-300">★</span>}{v.variant}
+                              </td>
+                              <td className="py-2 px-3 text-right text-slate-300 tabular-nums">{v.impressions}</td>
+                              <td className="py-2 px-3 text-right text-slate-300 tabular-nums">{v.clicks}</td>
+                              <td className="py-2 px-3 text-right font-semibold text-emerald-300 tabular-nums">{v.click_through_pct}%</td>
+                              <td className="py-2 px-3 text-right text-slate-300 tabular-nums">{v.intent_confirm_pct}%</td>
+                              <td className="py-2 pl-3 text-right text-violet-300 tabular-nums">{v.click_to_checkout_pct}%</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
+
             {/* Top Exit Hero */}
             {data.top_exit_step && (
               <div

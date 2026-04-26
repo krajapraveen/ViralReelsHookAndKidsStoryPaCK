@@ -123,6 +123,11 @@ FUNNEL_STEPS = [
     "cta_to_first_paint",     # Time CTA click → demo painted
     "cta_to_wow",             # Time CTA click → real personalized story rendered
     "teaser_ready",           # Time CTA click → quick-generate response received
+    # ═══ V6 — P1 Revenue Conversion Sprint (Apr 26, 2026) ═══
+    "video_cta_variant_impression",     # Outcome-led video CTA seen by engaged user
+    "video_reward_preview_shown",       # Visual reward overlay opened
+    "video_reward_preview_cta_clicked", # User confirmed intent → checkout
+    "video_reward_preview_dismissed",
 ]
 
 
@@ -720,3 +725,127 @@ async def activation_funnel(
         "total_sessions_seen": len(session_timelines),
     }
 
+
+@router.get("/revenue-conversion")
+async def revenue_conversion(
+    user: dict = Depends(get_admin_user),
+    days: int = Query(7, ge=1, le=90),
+):
+    """
+    P1 Revenue Conversion Sprint — strictly the 5 metrics the founder cares about
+    for the next 72 hours:
+
+      1. Story Completed → Video CTA Click %
+      2. Video CTA Click → Checkout Start %
+      3. Checkout Start → Payment %
+      4. Share Click %
+      5. Revenue / 100 visitors
+
+    Plus a leaderboard of the outcome-led video CTA variants (P1.1 A/B test):
+    impressions, clicks, CTR per variant.
+    """
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    base = {"timestamp": {"$gte": cutoff}}
+
+    async def _unique_sessions(step: str) -> int:
+        agg = await db.funnel_events.aggregate([
+            {"$match": {**base, "step": step}},
+            {"$group": {"_id": "$session_id"}},
+            {"$count": "n"},
+        ]).to_list(1)
+        return agg[0]["n"] if agg else 0
+
+    async def _event_count(step: str) -> int:
+        return await db.funnel_events.count_documents({**base, "step": step})
+
+    # Sessions reaching each step
+    landing_sessions   = await _unique_sessions("landing_view")
+    completed_sessions = await _unique_sessions("story_generated_success")
+    video_cta_sessions = await _unique_sessions("cta_video_clicked")
+    checkout_sessions  = await _unique_sessions("checkout_started")
+    payment_sessions   = await _unique_sessions("payment_success")
+    share_clicks       = await _event_count("cta_share_clicked")
+
+    # Revenue: pull from a known orders / payments collection if present.
+    # Fall back to a flat-rate estimate from payment_success count × ₹29
+    # so the dashboard always shows a directional number.
+    revenue_inr = 0.0
+    try:
+        async for doc in db.orders.find(
+            {"status": "paid", "created_at": {"$gte": cutoff}},
+            {"_id": 0, "amount_inr": 1, "amount": 1, "currency": 1},
+        ):
+            amt = doc.get("amount_inr") or doc.get("amount") or 0
+            if (doc.get("currency") or "INR").upper() == "INR":
+                revenue_inr += float(amt or 0)
+    except Exception:
+        pass
+    if revenue_inr <= 0 and payment_sessions > 0:
+        # Fallback proxy: assume ₹29 average (matches the visible CTA price)
+        revenue_inr = payment_sessions * 29.0
+
+    def _pct(n, d):
+        return round((n / d) * 100, 1) if d > 0 else 0.0
+
+    metrics = {
+        "story_completed_to_video_cta_pct": _pct(video_cta_sessions, completed_sessions),
+        "video_cta_to_checkout_pct":        _pct(checkout_sessions, video_cta_sessions),
+        "checkout_to_payment_pct":          _pct(payment_sessions, checkout_sessions),
+        "share_pct":                        _pct(share_clicks, completed_sessions),
+        "revenue_per_100_visitors":         round((revenue_inr / landing_sessions * 100), 2) if landing_sessions > 0 else 0.0,
+    }
+
+    # ─── P1.1 Outcome-led video CTA variant leaderboard ──────────────────
+    variant_pipe = [
+        {"$match": {**base, "step": {"$in": [
+            "video_cta_variant_impression", "cta_video_clicked",
+            "video_reward_preview_cta_clicked", "checkout_started",
+        ]}, "meta.video_cta_variant": {"$ne": None}}},
+        {"$group": {
+            "_id": {"variant": "$meta.video_cta_variant", "step": "$step"},
+            "sessions": {"$addToSet": "$session_id"},
+        }},
+        {"$project": {
+            "variant": "$_id.variant", "step": "$_id.step",
+            "unique_sessions": {"$size": "$sessions"}, "_id": 0,
+        }},
+    ]
+    variant_buckets = {}
+    async for d in db.funnel_events.aggregate(variant_pipe):
+        v = d["variant"]
+        node = variant_buckets.setdefault(v, {
+            "variant": v, "impressions": 0, "clicks": 0,
+            "preview_confirmed": 0, "checkouts": 0,
+        })
+        if d["step"] == "video_cta_variant_impression":
+            node["impressions"] = d["unique_sessions"]
+        elif d["step"] == "cta_video_clicked":
+            node["clicks"] = d["unique_sessions"]
+        elif d["step"] == "video_reward_preview_cta_clicked":
+            node["preview_confirmed"] = d["unique_sessions"]
+        elif d["step"] == "checkout_started":
+            node["checkouts"] = d["unique_sessions"]
+
+    video_cta_variants = []
+    for v in variant_buckets.values():
+        v["click_through_pct"]  = _pct(v["clicks"], v["impressions"])
+        v["intent_confirm_pct"] = _pct(v["preview_confirmed"], v["clicks"])
+        v["click_to_checkout_pct"] = _pct(v["checkouts"], v["clicks"])
+        video_cta_variants.append(v)
+    video_cta_variants.sort(key=lambda r: (r["click_through_pct"], r["impressions"]), reverse=True)
+
+    return {
+        "success": True,
+        "period_days": days,
+        "totals": {
+            "landing_sessions": landing_sessions,
+            "story_completed_sessions": completed_sessions,
+            "video_cta_sessions": video_cta_sessions,
+            "checkout_sessions": checkout_sessions,
+            "payment_sessions": payment_sessions,
+            "share_clicks": share_clicks,
+            "revenue_inr": round(revenue_inr, 2),
+        },
+        "metrics": metrics,
+        "video_cta_variants": video_cta_variants,
+    }

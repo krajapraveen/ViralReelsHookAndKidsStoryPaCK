@@ -4,6 +4,7 @@ import { Sparkles, Play, Share2, Film, RefreshCw, Loader2, CheckCircle, ChevronD
 import { toast } from 'sonner';
 import { trackFunnel } from '../utils/funnelTracker';
 import StoryPaywall from './StoryPaywall';
+import VideoRewardPreview from './VideoRewardPreview';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -88,6 +89,26 @@ function emitSpeedSla(eventName, elapsedMs, extra = {}) {
   } catch (_) { /* never block UI */ }
 }
 
+// ─── P1.1 Outcome-led CTA copy A/B test ─────────────────────────────────
+// Sticky per-session assignment. Variant impressions/clicks tracked via
+// trackFunnel with meta.video_cta_variant for downstream analysis.
+const VIDEO_CTA_VARIANTS = [
+  { id: 'control',     label: 'Turn Into Video' },
+  { id: 'cinematic',   label: 'Turn This Into a Cinematic Video' },
+  { id: 'kids_reel',   label: 'Make This a Reel Kids Will Love' },
+  { id: 'one_tap',     label: 'Create a Shareable Video in 1 Tap' },
+  { id: 'bring_alive', label: 'Bring This Story to Life' },
+];
+
+function getVideoCtaVariant() {
+  let id = sessionStorage.getItem('video_cta_variant');
+  if (id && VIDEO_CTA_VARIANTS.some(v => v.id === id)) return VIDEO_CTA_VARIANTS.find(v => v.id === id);
+  // Random uniform across 5 — small N, treat as exploration.
+  const picked = VIDEO_CTA_VARIANTS[Math.floor(Math.random() * VIDEO_CTA_VARIANTS.length)];
+  sessionStorage.setItem('video_cta_variant', picked.id);
+  return picked;
+}
+
 function getLastCliffhanger(text) {
   if (!text) return '';
   const paragraphs = text.split('\n').filter(p => p.trim());
@@ -127,6 +148,13 @@ export default function InstantStoryExperience() {
   const [showFreeViewTooltip, setShowFreeViewTooltip] = useState(false);
   const continueEndRef = useRef(null);
   const teaserDismissedRef = useRef(false);
+  // P1.2 Visual reward preview before paywall
+  const [showVideoReward, setShowVideoReward] = useState(false);
+  // P1.1 — sticky CTA copy variant for this session
+  const videoCtaVariant = useRef(getVideoCtaVariant()).current;
+  // Has user clicked Continue at least once? Drives sticky footer (P1.5).
+  const hasContinuedRef = useRef(false);
+  const videoCtaImpressionFiredRef = useRef(false);
 
   const source = searchParams.get('source') || 'landing';
   const sourceTitle = searchParams.get('title') || '';
@@ -317,6 +345,24 @@ export default function InstantStoryExperience() {
   // ─── Continue Button Handler ───────────────────────────────────
   const handleContinueStory = useCallback(() => {
     const nextPart = partNumber + 1;
+    hasContinuedRef.current = true;
+
+    // P1.1 — fire impression for the video CTA variant on first Continue
+    // (the moment the user is engaged and the sticky footer becomes visible).
+    if (!videoCtaImpressionFiredRef.current) {
+      videoCtaImpressionFiredRef.current = true;
+      try {
+        trackFunnel('video_cta_variant_impression', {
+          source,
+          meta: {
+            video_cta_variant: videoCtaVariant.id,
+            video_cta_label: videoCtaVariant.label,
+            story_id: activeStory?.story_id,
+            part_number: partNumber,
+          },
+        });
+      } catch {}
+    }
 
     try { trackFunnel('continue_clicked', { meta: { part_number: nextPart, story_id: activeStory?.story_id, entry_source: source, allow_free_view: allowFreeView } }); } catch {}
 
@@ -335,11 +381,40 @@ export default function InstantStoryExperience() {
       setShowPaywall(true);
       try { trackFunnel('paywall_shown', { meta: { part_number: nextPart, story_id: activeStory?.story_id, view_count: newCount, entry_source: source } }); } catch {}
     }
-  }, [partNumber, generateContinuation, activeStory?.story_id, source, paywallViewCount, allowFreeView]);
+  }, [partNumber, generateContinuation, activeStory?.story_id, source, paywallViewCount, allowFreeView, videoCtaVariant]);
 
   // ─── Other Handlers ────────────────────────────────────────────
   const handleVideo = () => {
-    try { trackFunnel('cta_video_clicked', { source, meta: { phase, part_number: partNumber } }); } catch {}
+    // P1.1 — fire CTA click with variant
+    try {
+      trackFunnel('cta_video_clicked', {
+        source,
+        meta: {
+          phase, part_number: partNumber,
+          video_cta_variant: videoCtaVariant.id,
+          video_cta_label: videoCtaVariant.label,
+          story_id: activeStory?.story_id,
+        },
+      });
+    } catch {}
+    // P1.2 — show visual reward preview FIRST (motion + captions + waveform + ETA)
+    // BEFORE asking for login/payment. This converts curiosity into intent.
+    setShowVideoReward(true);
+  };
+
+  const proceedToVideoCheckout = () => {
+    // Called after user confirms in VideoRewardPreview.
+    try {
+      trackFunnel('checkout_started', {
+        source,
+        meta: {
+          intent: 'video',
+          phase, part_number: partNumber,
+          video_cta_variant: videoCtaVariant.id,
+          story_id: activeStory?.story_id,
+        },
+      });
+    } catch {}
     const token = localStorage.getItem('token');
     const storyData = { story_text: fullStoryText, title: activeStory?.title };
     if (token) {
@@ -564,8 +639,8 @@ export default function InstantStoryExperience() {
                 <button onClick={handleContinueStory} className={`w-full py-4 px-6 rounded-xl font-semibold text-white text-base flex items-center justify-center gap-2.5 transition-all hover:scale-[1.02] active:scale-[0.98] ist-cta-primary ${showFreeViewTooltip ? 'ist-cta-enhanced-pulse' : 'ist-cta-pulse'}`} data-testid="cta-continue-story">
                   <Play className="w-5 h-5" />{ctaText}
                 </button>
-                <button onClick={handleVideo} className="w-full py-3.5 px-6 rounded-xl font-medium text-white text-sm flex items-center justify-center gap-2.5 border border-white/10 bg-white/5 hover:bg-white/10 transition-all" data-testid="cta-generate-video">
-                  <Film className="w-4 h-4" />Turn Into Video
+                <button onClick={handleVideo} className="w-full py-3.5 px-6 rounded-xl font-semibold text-white text-sm flex items-center justify-center gap-2.5 ist-video-cta active:scale-[0.98] transition-all" data-testid="cta-generate-video" data-variant={videoCtaVariant.id}>
+                  <Film className="w-4 h-4" />{videoCtaVariant.label} <span className="opacity-80 ml-1">— ₹29</span>
                 </button>
                 <div className="flex gap-3">
                   <button onClick={handleShare} className="flex-1 py-3 px-4 rounded-xl font-medium text-slate-400 text-sm flex items-center justify-center gap-2 border border-white/5 hover:bg-white/5 transition-all" data-testid="cta-share">
@@ -583,14 +658,14 @@ export default function InstantStoryExperience() {
       </div>
 
       {/* ── Mobile Sticky CTA ───────────────────────────────── */}
-      {!isGeneratingPart && !showPaywall && (
+      {!isGeneratingPart && !showPaywall && !showVideoReward && (
         <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 p-3 ist-sticky-cta" data-testid="story-actions-mobile">
           <button onClick={handleContinueStory} className={`w-full py-3.5 px-6 rounded-xl font-semibold text-white text-base flex items-center justify-center gap-2.5 transition-all active:scale-[0.98] ist-cta-primary ${showFreeViewTooltip ? 'ist-cta-enhanced-pulse' : 'ist-cta-pulse'}`} data-testid="cta-continue-story-mobile">
             <Play className="w-5 h-5" />{ctaText}
           </button>
           <div className="flex gap-2 mt-2">
-            <button onClick={handleVideo} className="flex-1 py-2.5 px-3 rounded-lg font-medium text-white/80 text-xs flex items-center justify-center gap-1.5 border border-white/10 bg-white/5" data-testid="cta-video-mobile">
-              <Film className="w-3.5 h-3.5" /> Video
+            <button onClick={handleVideo} className="flex-1 py-2.5 px-3 rounded-lg font-semibold text-white text-xs flex items-center justify-center gap-1.5 ist-video-cta" data-testid="cta-video-mobile" data-variant={videoCtaVariant.id}>
+              <Film className="w-3.5 h-3.5" /> Video — ₹29
             </button>
             <button onClick={handleShare} className="flex-1 py-2.5 px-3 rounded-lg font-medium text-white/80 text-xs flex items-center justify-center gap-1.5 border border-white/10 bg-white/5" data-testid="cta-share-mobile">
               <Share2 className="w-3.5 h-3.5" /> Share
@@ -599,6 +674,23 @@ export default function InstantStoryExperience() {
               <RefreshCw className="w-3.5 h-3.5" /> New
             </button>
           </div>
+        </div>
+      )}
+
+      {/* ── P1.5 Always-on Sticky Video CTA (desktop) ─────────────────
+           Once the user has continued at least once, an outcome-led video
+           CTA is always reachable without scrolling. */}
+      {hasContinuedRef.current && !isGeneratingPart && !showPaywall && !showVideoReward && (
+        <div className="hidden sm:flex fixed bottom-6 right-6 z-40 ist-sticky-video-fade" data-testid="sticky-video-cta-desktop">
+          <button
+            onClick={handleVideo}
+            className="px-5 py-3 rounded-full font-bold text-white text-sm flex items-center gap-2 ist-video-cta active:scale-[0.97] transition-transform"
+            data-variant={videoCtaVariant.id}
+          >
+            <Film className="w-4 h-4" />
+            <span>{videoCtaVariant.label}</span>
+            <span className="ml-1 px-2 py-0.5 rounded-full bg-black/25 text-[11px]">₹29</span>
+          </button>
         </div>
       )}
 
@@ -652,6 +744,19 @@ export default function InstantStoryExperience() {
         viewCount={paywallViewCount}
       />
 
+      {/* ── P1.2 Visual Reward Preview ────────────────────────── */}
+      <VideoRewardPreview
+        open={showVideoReward}
+        onClose={() => setShowVideoReward(false)}
+        onContinue={() => { setShowVideoReward(false); proceedToVideoCheckout(); }}
+        storyTitle={activeStory?.title}
+        storyText={fullStoryText}
+        heroImage={activeStory?.image}
+        storyId={activeStory?.story_id}
+        source={source}
+        priceLabel="₹29"
+      />
+
       <style>{`
         .ist-fadeIn { animation: istFadeIn 0.5s ease-out forwards; }
         @keyframes istFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
@@ -682,6 +787,14 @@ export default function InstantStoryExperience() {
         @keyframes istTooltipIconPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.15); } }
         .ist-cta-enhanced-pulse { animation: istCtaEnhancedPulse 1.5s ease-in-out infinite; }
         @keyframes istCtaEnhancedPulse { 0%, 100% { box-shadow: 0 4px 24px rgba(99,102,241,0.3); transform: scale(1); } 50% { box-shadow: 0 8px 40px rgba(99,102,241,0.6); transform: scale(1.02); } }
+        /* P1 Revenue CTA — outcome-led, attention-grabbing */
+        .ist-video-cta {
+          background: linear-gradient(135deg, #f59e0b 0%, #ef4444 50%, #ec4899 100%);
+          box-shadow: 0 8px 24px -6px rgba(239, 68, 68, 0.5), inset 0 1px 0 rgba(255,255,255,0.18);
+        }
+        .ist-video-cta:hover { filter: brightness(1.06); }
+        .ist-sticky-video-fade { animation: istStickyVideoIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes istStickyVideoIn { from { opacity: 0; transform: translateY(16px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
       `}</style>
     </div>
   );
