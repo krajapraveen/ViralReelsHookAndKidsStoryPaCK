@@ -3,7 +3,7 @@ import api from '../utils/api';
 import { toast } from 'sonner';
 import {
   RefreshCw, AlertOctagon, Activity, Smartphone, Monitor, Globe2,
-  ChevronRight, AlertTriangle,
+  ChevronRight, AlertTriangle, Gauge,
 } from 'lucide-react';
 
 /**
@@ -191,6 +191,56 @@ export default function AdminActivation() {
                 })}
               </div>
             </section>
+
+            {/* Speed SLA panel (P0 Apr 2026 directive) */}
+            {data.speed_sla && data.speed_sla.length > 0 && (
+              <section className="mb-8" data-testid="activation-speed-sla">
+                <h2 className="text-lg font-semibold mb-3 text-slate-200 flex items-center gap-2">
+                  <Gauge className="w-4 h-4 text-cyan-400" />
+                  Speed SLA
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {data.speed_sla.map((s) => {
+                    const healthy = s.samples > 0 && s.breach_pct <= 10;
+                    const warn = s.samples > 0 && s.breach_pct > 10 && s.breach_pct <= 30;
+                    const ringClass = s.samples === 0
+                      ? 'border-slate-800 bg-slate-900/40'
+                      : healthy
+                        ? 'border-emerald-500/30 bg-emerald-950/20'
+                        : warn
+                          ? 'border-amber-500/30 bg-amber-950/20'
+                          : 'border-rose-500/40 bg-rose-950/30';
+                    return (
+                      <div
+                        key={s.event}
+                        className={`rounded-2xl border ${ringClass} p-4`}
+                        data-testid={`sla-${s.event}`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs uppercase tracking-wider text-slate-400 font-mono">{s.event}</span>
+                          <span className="text-xs text-slate-500">≤ {s.threshold_ms}ms</span>
+                        </div>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-2xl font-bold text-white tabular-nums">
+                            {s.median_ms != null ? `${s.median_ms}` : '—'}
+                          </span>
+                          <span className="text-xs text-slate-500">ms p50</span>
+                          {s.p95_ms != null && (
+                            <span className="ml-auto text-xs text-slate-400 tabular-nums">p95 {s.p95_ms}ms</span>
+                          )}
+                        </div>
+                        <div className="mt-2 text-xs text-slate-400">
+                          {s.samples} samples ·
+                          <span className={s.breach_pct > 10 ? ' text-rose-400 font-semibold' : ' text-emerald-300'}>
+                            {' '}{s.breach_pct}% breach
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
 
             {/* Browser + country splits + errors side-by-side */}
             <section className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">

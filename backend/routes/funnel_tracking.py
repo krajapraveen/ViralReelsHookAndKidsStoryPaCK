@@ -117,20 +117,27 @@ FUNNEL_STEPS = [
     "spinner_over_8_seconds",
     "rage_click_detected",
     "double_click_detected",
+    # ═══ V5 — P0 Speed SLA (Apr 2026 founder directive) ═══
+    "speed_sla_met",          # CTA→paint, CTA→wow, teaser ready under threshold
+    "speed_sla_breached",     # Same but over budget — RED LOG
+    "cta_to_first_paint",     # Time CTA click → demo painted
+    "cta_to_wow",             # Time CTA click → real personalized story rendered
+    "teaser_ready",           # Time CTA click → quick-generate response received
 ]
 
 
-# Canonical activation-funnel ordering (founder spec). Used by /activation-funnel
-# for stage-by-stage drop-off analysis. NOT the full ALLOWED_STEPS list.
+# Canonical activation-funnel ordering — REWRITTEN for Instant Demo flow
+# (founder directive Apr 2026: no signup gate before wow moment).
+# Old funnel asked for signup → dashboard → prompt → generation, but the new
+# flow is gate-free until intent. This order matches reality so the dashboard
+# shows useful drop-off insights instead of phantom 0% rates.
 ACTIVATION_FUNNEL_ORDER = [
     ("landing_view",                "Landing"),
     ("landing_cta_clicked",         "CTA Clicked"),
-    ("signup_modal_opened",         "Signup Opened"),
-    ("signup_success",              "Signup Success"),
-    ("dashboard_loaded",            "Dashboard Loaded"),
-    ("prompt_submitted",            "Prompt Submitted"),
-    ("story_generation_started",    "Story Started"),
-    ("story_generation_completed",  "Story Completed"),
+    ("demo_viewed",                 "Demo Visible"),
+    ("story_generated_success",     "Personalized Story Ready"),
+    ("continue_clicked",            "Engaged (Continue)"),
+    ("cta_video_clicked",           "Intent: Video"),
 ]
 
 
@@ -650,6 +657,7 @@ async def activation_funnel(
         "spinner_over_8_seconds", "rage_click_detected", "double_click_detected",
         "google_popup_blocked", "google_popup_closed", "auth_redirect_loop_detected",
         "google_signin_failed", "signup_failed",
+        "speed_sla_breached",
     ]
     err_pipe = [
         {"$match": {**base_match, "step": {"$in": error_events}}},
@@ -663,6 +671,42 @@ async def activation_funnel(
         error_breakdown.append(d)
     error_breakdown.sort(key=lambda r: r["count"], reverse=True)
 
+    # ═══ Speed SLA roll-up (P0 #5) ═══
+    # Compute median + p95 elapsed_ms per timing event, plus breach %.
+    sla_events = ["cta_to_first_paint", "cta_to_wow", "teaser_ready"]
+    sla_thresholds_ms = {"cta_to_first_paint": 1500, "cta_to_wow": 3000, "teaser_ready": 5000}
+    speed_sla = []
+    for ev in sla_events:
+        cursor = db.funnel_events.find(
+            {**base_match, "step": ev, "meta.elapsed_ms": {"$gte": 0}},
+            {"_id": 0, "meta.elapsed_ms": 1},
+        )
+        elapsed = []
+        async for d in cursor:
+            v = (d.get("meta") or {}).get("elapsed_ms")
+            if isinstance(v, (int, float)):
+                elapsed.append(v)
+        threshold = sla_thresholds_ms[ev]
+        if elapsed:
+            elapsed.sort()
+            median = elapsed[len(elapsed) // 2]
+            p95 = elapsed[max(0, int(len(elapsed) * 0.95) - 1)]
+            breaches = sum(1 for e in elapsed if e > threshold)
+            speed_sla.append({
+                "event": ev,
+                "threshold_ms": threshold,
+                "samples": len(elapsed),
+                "median_ms": int(median),
+                "p95_ms": int(p95),
+                "breach_count": breaches,
+                "breach_pct": round((breaches / len(elapsed)) * 100, 1),
+            })
+        else:
+            speed_sla.append({
+                "event": ev, "threshold_ms": threshold, "samples": 0,
+                "median_ms": None, "p95_ms": None, "breach_count": 0, "breach_pct": 0.0,
+            })
+
     return {
         "success": True,
         "period_days": days,
@@ -672,6 +716,7 @@ async def activation_funnel(
         "browser_split": browser_split_sorted,
         "country_split": country_split_sorted,
         "error_breakdown": error_breakdown,
+        "speed_sla": speed_sla,
         "total_sessions_seen": len(session_timelines),
     }
 

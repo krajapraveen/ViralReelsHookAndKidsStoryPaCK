@@ -37,6 +37,30 @@ def assign_variant(session_id: str, experiment_id: str, num_variants: int) -> in
     return h % num_variants
 
 
+def assign_variant_weighted(session_id: str, experiment_id: str, variants: list, weights: dict) -> int:
+    """
+    Deterministic weighted assignment.
+    `weights` is {variant_id: float} (sum should be ~1.0). Falls back to uniform when missing.
+    Same (session_id, experiment_id) always returns the same variant index.
+    """
+    if not weights:
+        return assign_variant(session_id, experiment_id, len(variants))
+    total = sum(max(0.0, float(weights.get(v["id"], 0.0))) for v in variants)
+    if total <= 0:
+        return assign_variant(session_id, experiment_id, len(variants))
+    # Hash → bucket in [0, 1)
+    key = f"{session_id}:{experiment_id}"
+    h = int(hashlib.md5(key.encode()).hexdigest(), 16)
+    bucket = (h % 10_000) / 10_000.0  # 4 decimal precision
+    cumulative = 0.0
+    for idx, v in enumerate(variants):
+        w = max(0.0, float(weights.get(v["id"], 0.0))) / total
+        cumulative += w
+        if bucket < cumulative:
+            return idx
+    return len(variants) - 1
+
+
 # ─── POST /api/ab/assign ─────────────────────────────────────────────────────
 
 @router.post("/assign")
@@ -47,7 +71,11 @@ async def ab_assign(data: AssignRequest):
         raise HTTPException(status_code=404, detail="Experiment not found or inactive")
 
     variants = exp["variants"]
-    idx = assign_variant(data.session_id, data.experiment_id, len(variants))
+    weights = exp.get("traffic_weights") or {}
+    if weights:
+        idx = assign_variant_weighted(data.session_id, data.experiment_id, variants, weights)
+    else:
+        idx = assign_variant(data.session_id, data.experiment_id, len(variants))
     variant = variants[idx]
 
     # Upsert assignment (idempotent)
@@ -87,7 +115,11 @@ async def ab_assign_all(data: dict):
     results = {}
     for exp in experiments:
         variants = exp["variants"]
-        idx = assign_variant(session_id, exp["experiment_id"], len(variants))
+        weights = exp.get("traffic_weights") or {}
+        if weights:
+            idx = assign_variant_weighted(session_id, exp["experiment_id"], variants, weights)
+        else:
+            idx = assign_variant(session_id, exp["experiment_id"], len(variants))
         variant = variants[idx]
 
         await db.ab_assignments.update_one(
@@ -356,6 +388,14 @@ async def smart_headline_route(
         return {"variant_id": None, "reason": "no_experiment"}
 
     control_id = next((v["id"] for v in exp["variants"] if v.get("is_control")), exp["variants"][0]["id"])
+    weights = exp.get("traffic_weights") or {}
+
+    # When traffic_weights are configured, the weighted variant beats the bare
+    # control for the "no confident winner" fallback. This honors the founder's
+    # 90/10 directive without abandoning the experiment.
+    weighted_fallback = None
+    if weights:
+        weighted_fallback = max(weights.items(), key=lambda kv: kv[1])[0]
 
     # Check source-specific data
     variant_ids = [v["id"] for v in exp["variants"]]
@@ -379,8 +419,8 @@ async def smart_headline_route(
 
     if not sufficient or len(rows) != 2:
         return {
-            "variant_id": control_id,
-            "reason": "insufficient_data",
+            "variant_id": weighted_fallback or control_id,
+            "reason": "weighted_rollout" if weighted_fallback else "insufficient_data",
             "source": traffic_source,
             "data_available": sum(r["sessions"] for r in rows),
         }
@@ -388,8 +428,8 @@ async def smart_headline_route(
     conf = _calc_confidence(rows)
     if conf < 95:
         return {
-            "variant_id": control_id,
-            "reason": "low_confidence",
+            "variant_id": weighted_fallback or control_id,
+            "reason": "weighted_rollout" if weighted_fallback else "low_confidence",
             "confidence": conf,
             "source": traffic_source,
         }
@@ -414,6 +454,14 @@ INITIAL_EXPERIMENTS = [
         "secondary_event": "paywall_shown",
         "active": True,
         "min_sessions": 500,
+        # 🎯 P0 Apr 2026 — 90/10 winner rollout. headline_b leads at 16.2% conversion.
+        # Assignment honors these weights deterministically; smart-route source-winner
+        # logic still overrides for confident source-specific winners.
+        "traffic_weights": {
+            "headline_b": 0.90,
+            "headline_a": 0.05,
+            "headline_c": 0.05,
+        },
         "variants": [
             {
                 "id": "headline_a",

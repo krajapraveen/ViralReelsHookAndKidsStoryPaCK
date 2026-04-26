@@ -98,30 +98,32 @@ export default function Landing() {
   const trafficSource = _detectTrafficSource();
   const [heroVariant, setHeroVariant] = useState(() => {
     // Use cached variant if available (instant render, no flash)
-    const cached = localStorage.getItem('ab_hero_variant_id');
+    // v2 cache key forces a re-pull from backend so the 90/10 winner rollout
+    // (founder directive Apr 2026) takes effect for returning visitors.
+    const cached = localStorage.getItem('ab_hero_variant_id_v2');
     if (cached && HERO_VARIANTS[cached]) return cached;
-    return 'headline_a'; // Default to control until backend responds
+    return 'headline_b'; // Default to current winner until backend responds
   });
   const hero = HERO_VARIANTS[heroVariant];
 
   useEffect(() => {
-    // 1. Try smart headline route first (uses source-specific winner if confident)
+    // 1. Try smart headline route first (uses source-specific winner if confident,
+    //    or weighted_rollout when traffic_weights are configured).
     const source = trafficSource;
     axios.get(`${API}/api/ab/smart-route?experiment_id=hero_headline&traffic_source=${source}`)
       .then(r => {
         const vid = r.data?.variant_id;
         const reason = r.data?.reason;
-        if (vid && HERO_VARIANTS[vid] && reason === 'source_winner') {
-          // Use source-specific winner
+        if (vid && HERO_VARIANTS[vid] && (reason === 'source_winner' || reason === 'weighted_rollout')) {
           setHeroVariant(vid);
-          localStorage.setItem('ab_hero_variant_id', vid);
+          localStorage.setItem('ab_hero_variant_id_v2', vid);
           axios.post(`${API}/api/public/ab-impression`, {
             variant: vid, action: 'ab_variant_assigned', session_id: sessionId,
             traffic_source: source, experiment_id: 'hero_headline',
           }).catch(() => {});
           return;
         }
-        // 2. Fallback: use standard sticky assignment
+        // 2. Fallback: use standard sticky assignment (backend honors traffic_weights).
         return axios.post(`${API}/api/ab/assign`, {
           session_id: sessionId, experiment_id: 'hero_headline',
         });
@@ -131,7 +133,7 @@ export default function Landing() {
           const vid = r.data.variant_id;
           if (HERO_VARIANTS[vid]) {
             setHeroVariant(vid);
-            localStorage.setItem('ab_hero_variant_id', vid);
+            localStorage.setItem('ab_hero_variant_id_v2', vid);
             axios.post(`${API}/api/public/ab-impression`, {
               variant: vid, action: 'ab_variant_assigned', session_id: sessionId,
               traffic_source: source, experiment_id: 'hero_headline',
@@ -196,6 +198,7 @@ export default function Landing() {
   };
 
   const startFromHook = (hook) => {
+    sessionStorage.setItem('cta_clicked_ts', String(Date.now()));
     localStorage.setItem('onboarding_prompt', hook.prompt);
     trackFunnel('landing_cta_clicked', {
       source_page: 'landing',
@@ -205,10 +208,12 @@ export default function Landing() {
   };
 
   const goCreateFresh = () => {
+    sessionStorage.setItem('cta_clicked_ts', String(Date.now()));
     // Canonical activation funnel event (founder spec Apr 2026)
     trackFunnel('landing_cta_clicked', {
       source_page: 'landing',
-      meta: { action: 'create_fresh', cta_position: 'primary' },
+      meta: { action: 'create_fresh', cta_position: 'primary', variant_seen: heroVariant },
+      variant_seen: heroVariant,
     });
     // Keep legacy event for back-compat with existing dashboards
     trackFunnel('first_action_click', { source_page: 'landing', meta: { action: 'create_fresh' } });

@@ -65,6 +65,29 @@ function getSessionId() {
   return id;
 }
 
+// Speed SLA thresholds (founder directive Apr 2026):
+// CTA → first paint <1.5s, CTA → wow <3s, teaser ready <5s.
+const SLA_THRESHOLDS_MS = {
+  cta_to_first_paint: 1500,
+  cta_to_wow: 3000,
+  teaser_ready: 5000,
+};
+
+function emitSpeedSla(eventName, elapsedMs, extra = {}) {
+  if (!Number.isFinite(elapsedMs) || elapsedMs < 0) return;
+  const threshold = SLA_THRESHOLDS_MS[eventName];
+  const breached = threshold ? elapsedMs > threshold : false;
+  const meta = { event: eventName, elapsed_ms: Math.round(elapsedMs), threshold_ms: threshold || null, ...extra };
+  try {
+    trackFunnel(eventName, { meta });
+    trackFunnel(breached ? 'speed_sla_breached' : 'speed_sla_met', { meta });
+    if (breached) {
+      // eslint-disable-next-line no-console
+      console.warn('[SLA breach]', eventName, 'elapsed', elapsedMs, 'ms (threshold', threshold, ')');
+    }
+  } catch (_) { /* never block UI */ }
+}
+
 function getLastCliffhanger(text) {
   if (!text) return '';
   const paragraphs = text.split('\n').filter(p => p.trim());
@@ -81,8 +104,9 @@ export default function InstantStoryExperience() {
   const [searchParams] = useSearchParams();
 
   // ─── Initial load state ────────────────────────────────────────
-  const [phase, setPhase] = useState('loading');
-  const [demoStory, setDemoStory] = useState(null);
+  // P0 Apr 2026 — paint demo on first frame (no loading spinner gap).
+  const [phase, setPhase] = useState('demo');
+  const [demoStory, setDemoStory] = useState(() => DEMO_STORIES[Math.floor(Math.random() * DEMO_STORIES.length)]);
   const [realStory, setRealStory] = useState(null);
   const [loadingTextIdx, setLoadingTextIdx] = useState(0);
   const [transitionState, setTransitionState] = useState('idle');
@@ -124,10 +148,14 @@ export default function InstantStoryExperience() {
     ? continuations[continuations.length - 1].text
     : activeStory?.story_text || '';
 
-  // ─── Initial Load Logic (unchanged) ────────────────────────────
+  // ─── Initial Load Logic — INSTANT DEMO (P0 Apr 2026) ──────────
+  // Demo is painted synchronously on first render via lazy useState.
+  // This effect only fires telemetry + kicks off background generation.
   useEffect(() => {
-    setDemoStory(DEMO_STORIES[Math.floor(Math.random() * DEMO_STORIES.length)]);
-  }, []);
+    try { trackFunnel('demo_viewed', { source }); } catch {}
+    const ctaTs = Number(sessionStorage.getItem('cta_clicked_ts') || 0);
+    if (ctaTs > 0) emitSpeedSla('cta_to_first_paint', Date.now() - ctaTs);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (phase !== 'loading') return;
@@ -135,17 +163,11 @@ export default function InstantStoryExperience() {
     return () => clearInterval(interval);
   }, [phase]);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setPhase('demo');
-      try { trackFunnel('demo_viewed', { source }); } catch {}
-    }, 800);
-    return () => clearTimeout(timer);
-  }, [source]);
-
   const startGeneration = useCallback(async () => {
     if (generationRef.current) return;
     generationRef.current = true;
+    const ctaTs = Number(sessionStorage.getItem('cta_clicked_ts') || 0) || Date.now();
+    const genStartedAt = Date.now();
     try { trackFunnel('story_generation_started', { source }); } catch {}
 
     timeoutRef.current = setTimeout(() => {
@@ -173,15 +195,24 @@ export default function InstantStoryExperience() {
         const data = await res.json();
         setRealStory(data);
         if (data.allow_free_view) setAllowFreeView(true);
-        try { trackFunnel('story_generated_success', { source, meta: { story_id: data.story_id, allow_free_view: data.allow_free_view } }); } catch {}
+        // SLA: teaser ready = CTA click → quick-generate response received.
+        emitSpeedSla('teaser_ready', Date.now() - ctaTs, {
+          api_duration_ms: Date.now() - genStartedAt,
+          story_id: data.story_id,
+        });
+        // Canonical funnel name (matches activation dashboard).
+        try {
+          trackFunnel('story_generated_success', { source, meta: { story_id: data.story_id, allow_free_view: data.allow_free_view } });
+          trackFunnel('story_generation_completed', { source, meta: { story_id: data.story_id } });
+        } catch {}
       } else {
         setGenFailed(true);
-        try { trackFunnel('story_generated_failed', { source }); } catch {}
+        try { trackFunnel('story_generated_failed', { source, meta: { status: res.status } }); } catch {}
       }
-    } catch {
+    } catch (err) {
       clearTimeout(timeoutRef.current);
       setGenFailed(true);
-      try { trackFunnel('story_generated_failed', { source }); } catch {}
+      try { trackFunnel('story_generated_failed', { source, meta: { error: String(err).slice(0, 120) } }); } catch {}
     }
   }, [source, sourceTitle, sourceSnippet, theme, realStory]);
 
@@ -194,6 +225,9 @@ export default function InstantStoryExperience() {
         setTimeout(() => {
           setPhase('real');
           setTransitionState('fading-in');
+          // SLA: WOW moment = CTA click → personalized story rendered on screen.
+          const ctaTs = Number(sessionStorage.getItem('cta_clicked_ts') || 0);
+          if (ctaTs > 0) emitSpeedSla('cta_to_wow', Date.now() - ctaTs, { story_id: realStory?.story_id });
           setTimeout(() => setTransitionState('complete'), 500);
         }, 400);
       }, 600);
@@ -385,7 +419,7 @@ export default function InstantStoryExperience() {
   // STORY EXPERIENCE
   // ═══════════════════════════════════════════════════════════════
   return (
-    <div className="min-h-screen bg-[#0a0a10]" data-testid="instant-story-experience">
+    <div className="min-h-screen min-h-[100dvh] bg-[#0a0a10]" data-testid="instant-story-experience">
       {/* ── Top Banner ──────────────────────────────────────── */}
       {bannerState === 'generating' && (
         <div className="fixed top-0 left-0 right-0 z-50 py-1.5 px-4 text-center ist-banner-gen" data-testid="generating-indicator">
@@ -420,7 +454,7 @@ export default function InstantStoryExperience() {
       <div className={`ist-content ${transitionState === 'fading-out' ? 'ist-fade-out' : ''} ${transitionState === 'fading-in' ? 'ist-fade-in' : ''}`}>
         {/* Hero Image */}
         <div className="relative h-[35vh] sm:h-[45vh] overflow-hidden">
-          <img src={activeStory?.image} alt={activeStory?.title} className="w-full h-full object-cover" data-testid="story-hero-image" />
+          <img src={activeStory?.image} alt={activeStory?.title} loading="eager" fetchpriority="high" decoding="async" className="w-full h-full object-cover" data-testid="story-hero-image" />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a10] via-[#0a0a10]/40 to-transparent" />
         </div>
 

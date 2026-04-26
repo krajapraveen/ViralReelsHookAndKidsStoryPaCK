@@ -993,7 +993,8 @@ async def startup():
     except Exception as e:
         logger.warning(f"Streak index creation warning: {e}")
     
-    # Seed A/B experiments (idempotent)
+    # Seed A/B experiments (idempotent) — and force-sync traffic_weights on every boot
+    # so founder-directed rollout changes (e.g. 90/10 winner push) take effect on restart.
     try:
         from routes.ab_testing import INITIAL_EXPERIMENTS
         for exp in INITIAL_EXPERIMENTS:
@@ -1001,6 +1002,16 @@ async def startup():
             if not existing:
                 await db.ab_experiments.insert_one(exp)
                 logger.info(f"Seeded A/B experiment: {exp['experiment_id']}")
+            else:
+                # Sync just the rollout fields without touching variant data or impressions.
+                update_doc = {}
+                if "traffic_weights" in exp:
+                    update_doc["traffic_weights"] = exp["traffic_weights"]
+                if update_doc:
+                    await db.ab_experiments.update_one(
+                        {"experiment_id": exp["experiment_id"]},
+                        {"$set": update_doc},
+                    )
     except Exception as e:
         logger.warning(f"A/B seed warning: {e}")
     
