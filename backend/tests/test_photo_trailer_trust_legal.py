@@ -141,22 +141,32 @@ async def test_sanitizer_safety_block_audit_row():
 async def test_render_embeds_provenance_metadata():
     """Render a tiny clip via the same _render_trailer helper and confirm
     ffprobe reports copyright/title metadata in the container."""
-    import sys, tempfile, subprocess, json as _json
+    import sys, tempfile, subprocess, json as _json, shutil as _shutil
     sys.path.insert(0, "/app/backend")
     from routes.photo_trailer import _render_trailer
 
+    # Resolve ffmpeg/ffprobe binaries – prefer system, fall back to bundled
+    ffmpeg_bin = (
+        "/usr/bin/ffmpeg" if os.path.exists("/usr/bin/ffmpeg")
+        else (_shutil.which("ffmpeg") or "/usr/local/bin/ffmpeg")
+    )
+    ffprobe_bin = (
+        "/usr/bin/ffprobe" if os.path.exists("/usr/bin/ffprobe")
+        else (_shutil.which("ffprobe") or "/usr/local/bin/ffprobe")
+    )
+
     tmp = tempfile.mkdtemp(prefix="trailer_meta_")
     # Build 2 fake scenes (image + audio) using lavfi
-    subprocess.run(["/usr/bin/ffmpeg", "-y", "-f", "lavfi",
+    subprocess.run([ffmpeg_bin, "-y", "-f", "lavfi",
                     "-i", "color=c=red:s=1280x720:d=0.04", "-frames:v", "1",
                     f"{tmp}/img1.png"], capture_output=True, check=True)
-    subprocess.run(["/usr/bin/ffmpeg", "-y", "-f", "lavfi",
+    subprocess.run([ffmpeg_bin, "-y", "-f", "lavfi",
                     "-i", "color=c=blue:s=1280x720:d=0.04", "-frames:v", "1",
                     f"{tmp}/img2.png"], capture_output=True, check=True)
-    subprocess.run(["/usr/bin/ffmpeg", "-y", "-f", "lavfi",
+    subprocess.run([ffmpeg_bin, "-y", "-f", "lavfi",
                     "-i", "anullsrc=r=44100:cl=stereo", "-t", "3",
                     f"{tmp}/aud1.aac"], capture_output=True, check=True)
-    subprocess.run(["/usr/bin/ffmpeg", "-y", "-f", "lavfi",
+    subprocess.run([ffmpeg_bin, "-y", "-f", "lavfi",
                     "-i", "anullsrc=r=44100:cl=stereo", "-t", "3",
                     f"{tmp}/aud2.aac"], capture_output=True, check=True)
     job = {"_id": "test-meta-job-id-12345", "template_id": "superhero_origin",
@@ -169,7 +179,7 @@ async def test_render_embeds_provenance_metadata():
     ]
     final = await _render_trailer(job, scenes, tmp)
     # ffprobe metadata
-    res = subprocess.run(["/usr/bin/ffprobe", "-v", "quiet",
+    res = subprocess.run([ffprobe_bin, "-v", "quiet",
                           "-print_format", "json", "-show_format", final],
                          capture_output=True, text=True, timeout=20)
     data = _json.loads(res.stdout)

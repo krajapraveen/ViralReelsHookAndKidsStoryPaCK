@@ -147,6 +147,29 @@ FUNNEL_STEPS = [
     "remix_after_guide",                # Remix CTA after guide
     "continue_after_guide",             # Continue CTA after guide
     "battle_after_guide",               # Battle CTA after guide
+    # ═══ V10 — Photo Trailer share funnel (2026-04-29 founder directive) ═══
+    # Public /trailer/:slug funnel: distribution measurement + paid-tier proof.
+    "share_page_view",                  # /trailer/:slug rendered
+    "video_play_clicked",               # User pressed play (video element fired play)
+    "watch_25",                         # Reached 25% of duration
+    "watch_50",                         # Reached 50% of duration
+    "watch_75",                         # Reached 75% of duration
+    "completed_watch",                  # Reached 99%+ (treat as completion)
+    "make_your_own_clicked",            # CTA in share-page hit
+    "whatsapp_share_clicked",           # WA share button on share page
+    "native_share_clicked",             # navigator.share / Copy on share page
+    # signup_started + signup_completed already exist above (V4)
+    "first_trailer_created",            # First COMPLETED trailer per user
+    # Paywall + plan
+    "photo_trailer_paywall_shown",
+    "photo_trailer_paywall_upgrade_clicked",
+    "photo_trailer_quota_exhausted",
+    "photo_trailer_plan_blocked",
+    "photo_trailer_prompt_blocked",
+    "photo_trailer_shared",
+    "photo_trailer_whatsapp_share_clicked",
+    "photo_trailer_page_viewed",
+    "photo_trailer_generation_started",
 ]
 
 
@@ -1163,3 +1186,171 @@ async def paid_funnel_sessions(
         "sessions": sessions_out,
     }
 
+
+
+# ─── Photo Trailer Share-Funnel KPI pack ─────────────────────────────────────
+# Founder directive 2026-04-29: "Need to know if YouStar actually spreads."
+# Returns 5 conversion ratios + segmentation breakdowns over a rolling window.
+# Read from `funnel_events` (existing collection) so no migration is needed.
+@router.get("/youstar/kpis")
+async def youstar_kpi_pack(
+    user: dict = Depends(get_admin_user),
+    days: int = Query(7, ge=1, le=90),
+):
+    """First-7-day KPI pack for the YouStar /trailer/:slug funnel.
+    Read-only aggregation; safe to hammer."""
+    from datetime import datetime, timezone, timedelta
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+    async def _sessions(step: str, extra: dict | None = None) -> int:
+        match = {"step": step, "timestamp": {"$gte": cutoff}}
+        if extra: match.update(extra)
+        rows = await db.funnel_events.aggregate([
+            {"$match": match},
+            {"$group": {"_id": "$session_id"}},
+            {"$count": "n"},
+        ]).to_list(1)
+        return rows[0]["n"] if rows else 0
+
+    views   = await _sessions("share_page_view")
+    plays   = await _sessions("video_play_clicked")
+    completes = await _sessions("completed_watch")
+    cta_clicks  = await _sessions("make_your_own_clicked")
+    wa_shares   = await _sessions("whatsapp_share_clicked")
+    native_shares = await _sessions("native_share_clicked")
+    signups       = await _sessions("signup_started")
+    signups_done  = await _sessions("signup_success")
+    first_trailers = await _sessions("first_trailer_created")
+
+    def pct(n, d):
+        if not d: return None
+        return round(100.0 * n / d, 2)
+
+    device_breakdown = {}
+    async for d in db.funnel_events.aggregate([
+        {"$match": {"step": "share_page_view", "timestamp": {"$gte": cutoff}}},
+        {"$group": {"_id": "$device_type", "n": {"$sum": 1}}},
+    ]):
+        device_breakdown[d["_id"] or "unknown"] = d["n"]
+
+    format_breakdown = {}
+    async for d in db.funnel_events.aggregate([
+        {"$match": {"step": "video_play_clicked", "timestamp": {"$gte": cutoff}}},
+        {"$group": {"_id": "$meta.format", "n": {"$sum": 1}}},
+    ]):
+        format_breakdown[d["_id"] or "unknown"] = d["n"]
+
+    source_breakdown = {}
+    async for d in db.funnel_events.aggregate([
+        {"$match": {"step": "share_page_view", "timestamp": {"$gte": cutoff}}},
+        {"$group": {"_id": {"$ifNull": ["$utm_medium", "$traffic_source"]}, "n": {"$sum": 1}}},
+    ]):
+        source_breakdown[d["_id"] or "unknown"] = d["n"]
+
+    plan_breakdown = {"FREE": 0, "PAID": 0, "PREMIUM": 0, "unknown": 0}
+    async for d in db.funnel_events.aggregate([
+        {"$match": {"step": "share_page_view", "timestamp": {"$gte": cutoff}}},
+        {"$group": {"_id": "$meta.creator_plan", "n": {"$sum": 1}}},
+    ]):
+        k = d["_id"] or "unknown"
+        plan_breakdown[k] = plan_breakdown.get(k, 0) + d["n"]
+
+    duration_breakdown = {"20": 0, "60": 0, "90": 0, "other": 0}
+    async for d in db.funnel_events.aggregate([
+        {"$match": {"step": "share_page_view", "timestamp": {"$gte": cutoff}}},
+        {"$group": {"_id": "$meta.duration", "n": {"$sum": 1}}},
+    ]):
+        k = str(d["_id"] or "other")
+        bucket = k if k in duration_breakdown else "other"
+        duration_breakdown[bucket] = duration_breakdown.get(bucket, 0) + d["n"]
+
+    async def _share_rate(plan_filter: list) -> float:
+        v = await db.funnel_events.aggregate([
+            {"$match": {"step": "share_page_view", "timestamp": {"$gte": cutoff},
+                        "meta.creator_plan": {"$in": plan_filter}}},
+            {"$group": {"_id": "$session_id"}},
+            {"$count": "n"},
+        ]).to_list(1)
+        s = await db.funnel_events.aggregate([
+            {"$match": {"step": {"$in": ["whatsapp_share_clicked", "native_share_clicked"]},
+                        "timestamp": {"$gte": cutoff},
+                        "meta.creator_plan": {"$in": plan_filter}}},
+            {"$group": {"_id": "$session_id"}},
+            {"$count": "n"},
+        ]).to_list(1)
+        v_n = v[0]["n"] if v else 0
+        s_n = s[0]["n"] if s else 0
+        return pct(s_n, v_n)
+
+    premium_share_rate = await _share_rate(["PREMIUM"])
+    free_share_rate = await _share_rate(["FREE", "PAID"])
+
+    return {
+        "period_days": days,
+        "cutoff": cutoff,
+        "ratios": {
+            "view_to_play_pct":          pct(plays, views),
+            "play_to_signup_pct":        pct(signups, plays),
+            "signup_to_first_trailer_pct": pct(first_trailers, signups_done),
+            "view_to_share_pct":         pct(wa_shares + native_shares, views),
+            "premium_share_rate_pct":    premium_share_rate,
+            "free_share_rate_pct":       free_share_rate,
+        },
+        "volumes": {
+            "share_page_view":   views,
+            "video_play_clicked": plays,
+            "completed_watch":   completes,
+            "make_your_own_clicked": cta_clicks,
+            "whatsapp_share_clicked": wa_shares,
+            "native_share_clicked":   native_shares,
+            "signup_started":         signups,
+            "signup_success":         signups_done,
+            "first_trailer_created":  first_trailers,
+        },
+        "segments": {
+            "device":   device_breakdown,
+            "format":   format_breakdown,
+            "source":   source_breakdown,
+            "creator_plan": plan_breakdown,
+            "duration": duration_breakdown,
+        },
+    }
+
+
+
+# ─── Photo Trailer Share-Funnel KPI pack ─────────────────────────────────────
+# Founder directive 2026-04-29: "Need to know if YouStar actually spreads."
+# Returns 5 conversion ratios + segmentation breakdowns over a rolling window.
+# Read from `funnel_events` (existing collection) so no migration is needed.
+@router.get("/youstar/kpis")
+async def youstar_kpi_pack(
+    user: dict = Depends(get_admin_user),
+    days: int = Query(7, ge=1, le=90),
+):
+    """First-7-day KPI pack for the YouStar /trailer/:slug funnel.
+    Read-only aggregation; safe to hammer."""
+    from datetime import datetime, timezone, timedelta
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+    async def _count(step: str, extra_match: dict | None = None) -> int:
+        match = {"step": step, "timestamp": {"$gte": cutoff}}
+        if extra_match: match.update(extra_match)
+        n = await db.funnel_events.count_documents(match)
+        return n
+
+    # Distinct sessions per step (avoid counting the same viewer twice)
+    async def _sessions(step: str, extra: dict | None = None) -> int:
+        match = {"step": step, "timestamp": {"$gte": cutoff}}
+        if extra: match.update(extra)
+        rows = await db.funnel_events.aggregate([
+            {"$match": match},
+            {"$group": {"_id": "$session_id"}},
+            {"$count": "n"},
+        ]).to_list(1)
+        return rows[0]["n"] if rows else 0
+
+    views   = await _sessions("share_page_view")
+    plays   = await _sessions("video_play_clicked")
+    completes = await _sessions("completed_watch")
+    cta_clicks  = await _sessions("make_your_own_clicked")
+    

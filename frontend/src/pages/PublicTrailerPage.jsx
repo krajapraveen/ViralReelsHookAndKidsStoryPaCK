@@ -10,6 +10,62 @@ import { toast } from 'sonner';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
+// ─── Funnel telemetry helper ──────────────────────────────────────────────
+// Lightweight, fire-and-forget POST to /api/funnel/track. Public share page
+// is unauthenticated, so we attach a session-scoped UUID kept in
+// sessionStorage. Backend accepts unauthenticated funnel events for the
+// share-page subset (see funnel_tracking.py allow-list).
+const SHARE_SESSION_KEY = 'youstar.share.session';
+function getShareSessionId() {
+  if (typeof window === 'undefined') return null;
+  try {
+    let sid = sessionStorage.getItem(SHARE_SESSION_KEY);
+    if (!sid) {
+      sid = (crypto?.randomUUID?.() || (Date.now() + '-' + Math.random().toString(36).slice(2)));
+      sessionStorage.setItem(SHARE_SESSION_KEY, sid);
+    }
+    return sid;
+  } catch { return null; }
+}
+function detectDevice() {
+  if (typeof window === 'undefined') return 'unknown';
+  const w = window.innerWidth;
+  if (w <= 640) return 'mobile';
+  if (w <= 1024) return 'tablet';
+  return 'desktop';
+}
+function detectSource() {
+  if (typeof window === 'undefined') return 'direct';
+  const params = new URLSearchParams(window.location.search);
+  const m = params.get('utm_medium');
+  if (m) return m;
+  const ref = (document.referrer || '').toLowerCase();
+  if (ref.includes('whatsapp')) return 'whatsapp';
+  if (ref.includes('instagram')) return 'instagram';
+  if (ref.includes('twitter') || ref.includes('x.com')) return 'twitter';
+  if (ref.includes('facebook')) return 'facebook';
+  if (ref.includes('tiktok')) return 'tiktok';
+  return ref ? 'referral' : 'direct';
+}
+
+async function trackShare(step, meta = {}) {
+  try {
+    await fetch(`${API}/api/funnel/track`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        step,
+        session_id: getShareSessionId(),
+        device_type: detectDevice(),
+        utm_medium: detectSource(),
+        traffic_source: detectSource(),
+        meta,
+      }),
+      keepalive: true,
+    });
+  } catch {}
+}
+
 export default function PublicTrailerPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
@@ -23,6 +79,9 @@ export default function PublicTrailerPage() {
     ? (window.matchMedia('(max-width: 640px)').matches ? 'vertical' : 'wide')
     : 'wide';
   const [format, setFormat] = useState(initialFormat);
+  // Watch-progress thresholds we've already fired to avoid double-counting
+  const watchFiredRef = useRef({ p25: false, p50: false, p75: false, p100: false });
+  const playFiredRef = useRef(false);
   const refreshTimerRef = useRef(null);
 
   // Fetch the share payload (mints a fresh signed URL each call).
@@ -37,11 +96,53 @@ export default function PublicTrailerPage() {
       const j = await r.json();
       setData(j);
       setLoading(false);
+      // Fire share_page_view ONCE per session per slug, with rich meta so the
+      // KPI pack can segment by creator plan, duration, and chosen format.
+      if (!sessionStorage.getItem('youstar.viewed.' + slug)) {
+        sessionStorage.setItem('youstar.viewed.' + slug, '1');
+        trackShare('share_page_view', {
+          slug,
+          template: j.title,
+          duration: j.duration_seconds,
+          creator_plan: j.creator_plan,  // backend should send (added below)
+          format,
+          has_vertical: !!j.vertical_video_url,
+        });
+      }
       return j;
     } catch (e) {
       setError('Network error loading trailer.');
       setLoading(false);
       return null;
+    }
+  };
+
+  // Video element instrumentation: play + 25/50/75/100% watch.
+  const onVideoPlay = () => {
+    if (playFiredRef.current) return;
+    playFiredRef.current = true;
+    trackShare('video_play_clicked', {
+      slug, format, duration: data?.duration_seconds, creator_plan: data?.creator_plan,
+    });
+  };
+  const onVideoTimeUpdate = (e) => {
+    const v = e.target;
+    if (!v.duration || v.duration === Infinity) return;
+    const pct = (v.currentTime / v.duration) * 100;
+    const fire = (key, step, threshold) => {
+      if (!watchFiredRef.current[key] && pct >= threshold) {
+        watchFiredRef.current[key] = true;
+        trackShare(step, { slug, format, percent: Math.round(pct), creator_plan: data?.creator_plan });
+      }
+    };
+    fire('p25', 'watch_25', 25);
+    fire('p50', 'watch_50', 50);
+    fire('p75', 'watch_75', 75);
+  };
+  const onVideoEnded = () => {
+    if (!watchFiredRef.current.p100) {
+      watchFiredRef.current.p100 = true;
+      trackShare('completed_watch', { slug, format, creator_plan: data?.creator_plan });
     }
   };
 
@@ -63,6 +164,7 @@ export default function PublicTrailerPage() {
   const shareThis = async () => {
     const url = window.location.href;
     const text = `🎬 Watch ${data?.creator_first_name || 'their'} AI movie trailer on Visionary Suite: ${url}`;
+    trackShare('native_share_clicked', { slug, format, creator_plan: data?.creator_plan });
     try {
       if (navigator.share) await navigator.share({ title: data?.title || 'AI Movie Trailer', text, url });
       else { await navigator.clipboard.writeText(text); toast.success('Link copied'); }
@@ -72,10 +174,12 @@ export default function PublicTrailerPage() {
   const shareWhatsApp = () => {
     const url = window.location.href;
     const text = `🎬 Watch this AI movie trailer on Visionary Suite: ${url}`;
+    trackShare('whatsapp_share_clicked', { slug, format, creator_plan: data?.creator_plan });
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
   };
 
   const makeYourOwn = () => {
+    trackShare('make_your_own_clicked', { slug, format, creator_plan: data?.creator_plan });
     navigate('/app/photo-trailer');
   };
 
@@ -128,6 +232,9 @@ export default function PublicTrailerPage() {
           poster={data.thumbnail_url || undefined}
           controls
           playsInline
+          onPlay={onVideoPlay}
+          onTimeUpdate={onVideoTimeUpdate}
+          onEnded={onVideoEnded}
           className={`w-full rounded-2xl border border-white/10 bg-black ${format === 'vertical' ? 'max-w-[420px] mx-auto block' : ''}`}
           data-testid="public-trailer-video"
         />

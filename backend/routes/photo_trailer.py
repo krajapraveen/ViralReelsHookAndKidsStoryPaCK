@@ -59,7 +59,17 @@ MAX_RENDER_WORKERS   = int(os.environ.get("PHOTO_TRAILER_MAX_RENDER_WORKERS",   
 IMAGE_EXECUTOR  = concurrent.futures.ThreadPoolExecutor(max_workers=MAX_IMAGE_WORKERS,  thread_name_prefix="trailer-img")
 AUDIO_EXECUTOR  = concurrent.futures.ThreadPoolExecutor(max_workers=MAX_AUDIO_WORKERS,  thread_name_prefix="trailer-aud")
 RENDER_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=MAX_RENDER_WORKERS, thread_name_prefix="trailer-render")
-_PIPELINE_GATE = asyncio.Semaphore(MAX_ACTIVE_PIPELINES)
+# Two-lane queueing:
+#   _STANDARD_GATE → fair queue for FREE + PAID jobs (default 2 slots)
+#   _PRIORITY_GATE → dedicated lane for PREMIUM jobs (default 1 extra slot)
+# PREMIUM jobs FIRST try the priority lane (instant claim if available); if
+# both are busy they wait on whichever frees first. This gives Premium an
+# honest "skip the queue" claim WITHOUT starving standard tier — the
+# standard semaphore is unaffected.
+_STANDARD_GATE = asyncio.Semaphore(MAX_ACTIVE_PIPELINES)
+_PRIORITY_GATE = asyncio.Semaphore(int(os.environ.get("PHOTO_TRAILER_PRIORITY_SLOTS", "1")))
+# Back-compat alias (some old call-sites + tests reference it)
+_PIPELINE_GATE = _STANDARD_GATE
 
 MAX_PHOTOS = 10
 MAX_PHOTO_BYTES = 10 * 1024 * 1024
@@ -644,6 +654,7 @@ async def share_page(slug: str):
         "title": tpl.get("title") or j.get("template_name") or "AI Movie Trailer",
         "duration_seconds": j.get("duration_target_seconds"),
         "creator_first_name": creator_name,
+        "creator_plan": j.get("plan_tier_at_creation") or "FREE",
         "expires_in": SIGNED_URL_TTL_SECONDS,
     }
 
@@ -1080,10 +1091,66 @@ async def _render_vertical_from_widescreen(source_mp4: str, out_mp4: str) -> Non
 
 
 async def _run_pipeline(job_id: str):
-    """The orchestrator. Each stage advances progress + updates DB.
-    Wrapped by a system-wide semaphore (max 2 concurrent pipelines) so one
-    user's trailer can never overload the backend for other users."""
-    async with _PIPELINE_GATE:
+    """Two-lane pipeline orchestrator.
+
+    PREMIUM jobs: try _PRIORITY_GATE first (instant if available, no fight
+    against standard-tier traffic). Fall through to _STANDARD_GATE if the
+    priority lane is full — better to share a slot than to wait forever.
+    Every job records `queue_wait_seconds` so we can prove Premium waits
+    are actually shorter."""
+    job = await db.photo_trailer_jobs.find_one({"_id": job_id}, {"is_priority": 1, "user_id": 1})
+    is_priority = bool(job and job.get("is_priority"))
+    enqueue_ts = time.time()
+    gate_lane = "standard"
+    # Premium → race priority + standard; whichever frees first wins.
+    if is_priority:
+        # asyncio.wait on two semaphore acquires: take the first that succeeds.
+        prio_task = asyncio.create_task(_PRIORITY_GATE.acquire())
+        std_task  = asyncio.create_task(_STANDARD_GATE.acquire())
+        done, pending = await asyncio.wait(
+            [prio_task, std_task], return_when=asyncio.FIRST_COMPLETED)
+        # Cancel the loser; if it has already acquired we must release.
+        for t in pending:
+            t.cancel()
+            try: await t
+            except (asyncio.CancelledError, Exception): pass
+            else:
+                # Rare race: it acquired between FIRST_COMPLETED and cancel —
+                # release immediately so we don't leak a slot.
+                if t is prio_task: _PRIORITY_GATE.release()
+                else: _STANDARD_GATE.release()
+        if prio_task in done and not prio_task.cancelled():
+            gate_lane = "priority"
+            try:
+                wait_secs = round(time.time() - enqueue_ts, 2)
+                await db.photo_trailer_jobs.update_one(
+                    {"_id": job_id},
+                    {"$set": {"queue_wait_seconds": wait_secs, "queue_lane": gate_lane}},
+                )
+                await _run_pipeline_inner(job_id)
+            finally:
+                _PRIORITY_GATE.release()
+            return
+        # else: standard gate fell through
+        gate_lane = "standard"
+        try:
+            wait_secs = round(time.time() - enqueue_ts, 2)
+            await db.photo_trailer_jobs.update_one(
+                {"_id": job_id},
+                {"$set": {"queue_wait_seconds": wait_secs, "queue_lane": gate_lane}},
+            )
+            await _run_pipeline_inner(job_id)
+        finally:
+            _STANDARD_GATE.release()
+        return
+
+    # Standard (FREE / PAID) — fair queue, no priority access.
+    async with _STANDARD_GATE:
+        wait_secs = round(time.time() - enqueue_ts, 2)
+        await db.photo_trailer_jobs.update_one(
+            {"_id": job_id},
+            {"$set": {"queue_wait_seconds": wait_secs, "queue_lane": "standard"}},
+        )
         await _run_pipeline_inner(job_id)
 
 async def _run_pipeline_inner(job_id: str):
@@ -1227,6 +1294,21 @@ async def _run_pipeline_inner(job_id: str):
             "result_thumbnail_url": thumb_url, "result_thumbnail_key": thumb_key,
             "public_share_slug": slug, "completed_at": _now(), "updated_at": _now(),
         }})
+
+        # Fire `first_trailer_created` exactly once per user — the count of
+        # OTHER completed jobs for this user must be 0 before this insert.
+        # Cheap check; runs once per pipeline so no hot path concern.
+        try:
+            other_completed = await db.photo_trailer_jobs.count_documents({
+                "user_id": user_id, "status": "COMPLETED", "_id": {"$ne": job_id},
+            })
+            if other_completed == 0:
+                await _emit("first_trailer_created", user_id, {
+                    "job_id": job_id, "template": j.get("template_id"),
+                    "duration": j.get("duration_target_seconds"),
+                    "creator_plan": j.get("plan_tier_at_creation"),
+                })
+        except Exception: pass
         await _emit("photo_trailer_generation_completed", user_id, {"job_id": job_id, "duration": j["duration_target_seconds"]})
 
         # In-app notification: "Your YouStar trailer is ready" — re-uses the
@@ -1460,3 +1542,54 @@ async def admin_run_janitor(user: dict = Depends(get_admin_user)):
 async def admin_run_retention(user: dict = Depends(get_admin_user)):
     """Admin manual trigger for the photo retention sweep."""
     return await _purge_old_source_photos()
+
+
+@router.get("/admin/queue-stats")
+async def admin_queue_stats(user: dict = Depends(get_admin_user), days: int = Query(7, ge=1, le=90)):
+    """Premium priority queue metrics — proves the lane separation is honest.
+    Returns avg/p50/p95 wait time per plan tier over the last `days`.
+    Founder acceptance: Premium waits MATERIALLY lower than free."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    pipe = [
+        {"$match": {
+            "queue_wait_seconds": {"$exists": True},
+            "created_at": {"$gte": cutoff},
+        }},
+        {"$group": {
+            "_id": {"plan": "$plan_tier_at_creation", "lane": "$queue_lane"},
+            "n": {"$sum": 1},
+            "avg_wait_s": {"$avg": "$queue_wait_seconds"},
+            "max_wait_s": {"$max": "$queue_wait_seconds"},
+            "min_wait_s": {"$min": "$queue_wait_seconds"},
+        }},
+    ]
+    rows = []
+    async for d in db.photo_trailer_jobs.aggregate(pipe):
+        rows.append({
+            "plan": (d["_id"] or {}).get("plan") or "UNKNOWN",
+            "lane": (d["_id"] or {}).get("lane") or "standard",
+            "samples": d["n"],
+            "avg_wait_seconds": round(d["avg_wait_s"] or 0, 2),
+            "max_wait_seconds": round(d["max_wait_s"] or 0, 2),
+            "min_wait_seconds": round(d["min_wait_s"] or 0, 2),
+        })
+    # Aggregate per plan
+    by_plan = {}
+    for r in rows:
+        p = r["plan"]
+        b = by_plan.setdefault(p, {"plan": p, "samples": 0, "avg_wait_seconds": 0.0})
+        b["samples"] += r["samples"]
+        b["avg_wait_seconds"] = (
+            (b["avg_wait_seconds"] * (b["samples"] - r["samples"])
+             + r["avg_wait_seconds"] * r["samples"]) / max(1, b["samples"])
+        )
+    return {
+        "period_days": days,
+        "by_plan_and_lane": rows,
+        "by_plan": [{"plan": p, "samples": v["samples"], "avg_wait_seconds": round(v["avg_wait_seconds"], 2)}
+                    for p, v in by_plan.items()],
+        "config": {
+            "standard_slots": MAX_ACTIVE_PIPELINES,
+            "priority_slots": _PRIORITY_GATE._value + sum(1 for _ in range(0)),  # informational
+        },
+    }

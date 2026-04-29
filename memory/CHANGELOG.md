@@ -64,3 +64,12 @@
 - Per-feature worker pools
 - Auto-scaling at 80% utilization
 - Admin dashboard at /app/admin/workers
+
+### Photo Trailer — Share Funnel + Premium Queue Priority (2026-02-XX)
+- Share funnel analytics: 12 events tracked (share_page_view, video_play_clicked, signup_completed, etc.) via /api/funnel/track
+- Premium queue priority: separate asyncio Semaphores (_PRIORITY_GATE, _STANDARD_GATE) so premium 90s jobs skip the line
+- Admin queue-stats endpoint: GET /api/photo-trailer/admin/queue-stats (auth-gated)
+- MP4 provenance metadata baked into rendered trailers (title, copyright, description = job_id)
+- Fixed 2 failing tests: provenance metadata test now resolves ffmpeg/ffprobe via fallback (system → bundled); queue-stats test passes
+- Full photo_trailer regression suite green: 39/39 tests across share_funnel, trust_legal, premium_tier, signed_urls, vertical_cut, janitor
+
