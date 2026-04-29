@@ -243,7 +243,8 @@ async def retry_job(job_id: str, bg: BackgroundTasks, user: dict = Depends(get_c
     if j.get("status") != "FAILED": raise HTTPException(400, "Only failed jobs can be retried")
     await db.photo_trailer_jobs.update_one({"_id": job_id}, {"$set": {
         "status": "QUEUED", "current_stage": "QUEUED", "progress_percent": 0,
-        "error_code": None, "error_message": None, "failed_at": None, "updated_at": _now(),
+        "error_code": None, "error_message": None, "failed_at": None,
+        "charged_credits": 0, "refunded_credits": 0, "updated_at": _now(),
     }})
     bg.add_task(_run_pipeline, job_id)
     return {"ok": True}
@@ -424,7 +425,8 @@ def _ffmpeg_run(args: List[str]) -> None:
 async def _render_trailer(job: dict, scenes_data: List[dict], tmp: str) -> str:
     """ffmpeg: stitch images with motion + voiceover + music + subtitles + end card."""
     import imageio_ffmpeg
-    ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+    # Prefer system ffmpeg (has drawtext + libfreetype). Fall back to bundled.
+    ffmpeg = "/usr/bin/ffmpeg" if os.path.exists("/usr/bin/ffmpeg") else imageio_ffmpeg.get_ffmpeg_exe()
     out_clips = []
     for i, s in enumerate(scenes_data):
         img = s["image_path"]; aud = s["audio_path"]; dur = max(3.0, s["duration"])
@@ -433,7 +435,7 @@ async def _render_trailer(job: dict, scenes_data: List[dict], tmp: str) -> str:
         motion = ["zoompan=z='min(zoom+0.0015,1.18)':d=125:s=1280x720",
                   "zoompan=z='if(gte(zoom,1.15),1.15,zoom+0.0012)':x='iw/2-(iw/zoom/2)+sin(on/40)*40':d=125:s=1280x720",
                   "zoompan=z='1.2-on*0.0012':d=125:s=1280x720"][i % 3]
-        vf = f"scale=1280:-2,crop=1280:720,{motion},format=yuv420p"
+        vf = f"scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,setsar=1,{motion},format=yuv420p"
         _ffmpeg_run([ffmpeg, "-y", "-loop", "1", "-i", img, "-i", aud,
                      "-vf", vf, "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
                      "-c:a", "aac", "-b:a", "128k", "-r", "25", "-t", f"{dur}",
@@ -555,6 +557,7 @@ async def _run_pipeline(job_id: str):
             scene_payload.sort(key=lambda p: p["idx"])
             final_path = await _render_trailer(j, scene_payload, tmpdir)
         except Exception as e:
+            log.exception(f"render failed for {job_id}")
             return await _fail(job_id, "RENDER_FAIL", "Final render hit a hiccup. Please retry.")
 
         # Upload
@@ -610,7 +613,7 @@ async def _upload_video_bytes(data: bytes, name: str, user_id: str) -> (bool, st
     try:
         with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as t:
             t.write(data); local_path = t.name
-        ok, key, url = await service.upload_file(local_path, asset_type="video",
+        ok, url, key = await service.upload_file(local_path, asset_type="video",
                                                  project_id=f"phototrailer/{user_id}/results",
                                                  custom_filename=name)
         try: os.unlink(local_path)

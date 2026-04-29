@@ -1098,6 +1098,35 @@ export default function Dashboard() {
         <QuickActions />
       </div>
 
+      {/* ═══ SECTION 2.5: PHOTO TRAILER CTA — P0 NEW FEATURE ═══ */}
+      <div className="px-4 sm:px-6 lg:px-10 py-3">
+        <button
+          onClick={() => navigate('/app/photo-trailer')}
+          data-testid="dash-photo-trailer-cta"
+          className="group relative w-full overflow-hidden rounded-2xl border border-violet-500/30 bg-gradient-to-r from-violet-600/20 via-fuchsia-600/15 to-rose-600/10 p-5 sm:p-6 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-violet-400/50 hover:shadow-xl hover:shadow-violet-900/30"
+        >
+          <span className="absolute -top-2 left-5 text-[9px] font-bold uppercase tracking-wider bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white px-2.5 py-0.5 rounded-full shadow-sm">
+            NEW · YouStar
+          </span>
+          <div className="flex items-center justify-between gap-4 flex-wrap sm:flex-nowrap">
+            <div className="flex items-start gap-3 flex-1 min-w-0">
+              <div className="rounded-xl border border-violet-400/25 bg-violet-500/15 p-3 flex-shrink-0">
+                <Camera className="w-5 h-5 sm:w-6 sm:h-6 text-violet-200" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-base sm:text-lg font-bold text-white">My Movie Trailer</h3>
+                <p className="text-xs sm:text-sm text-slate-300/90 leading-snug mt-0.5">
+                  Upload your photos → pick a template → generate a 20–60s personalized cinematic AI trailer.
+                </p>
+              </div>
+            </div>
+            <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white text-slate-900 text-sm font-bold whitespace-nowrap group-hover:bg-violet-100 transition-colors">
+              Try it <ArrowRight className="w-4 h-4" />
+            </span>
+          </div>
+        </button>
+      </div>
+
       {/* ═══ SECTION 3: TRENDING BATTLES — Scroll hook ═══ */}
       <TrendingPublicFeed />
 

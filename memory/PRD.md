@@ -982,6 +982,58 @@ Founder directive: NO new features, NO new components. Microcopy only.
 
 
 ─────────────────────────────────────────────────────────
+[2026-04-29] P0 PHOTO TRAILER (YouStar / My Movie Trailer) — REACHABILITY + E2E SHIPPED
+─────────────────────────────────────────────────────────
+Founder directive: ship the photo trailer feature so users can find and use it today.
+Scope strictly: route + dashboard entry + e2e verification. NO admin panel, NO music pack.
+
+✅ Routing
+   • App.js — added 3 routes pointing at PhotoTrailerPage:
+     /app/photo-trailer, /app/youstar, /app/my-movie-trailer (aliases)
+   • Lazy-loaded with Suspense fallback
+
+✅ Dashboard entry point
+   • New "NEW · YouStar" gradient CTA banner under QuickActions
+   • data-testid=dash-photo-trailer-cta
+   • Title "My Movie Trailer", subtitle explains 20–60s personalized trailer
+   • Click navigates to /app/photo-trailer (verified)
+
+✅ Backend pipeline fixes (from real e2e debug)
+   • Switched to system /usr/bin/ffmpeg (bundled imageio-ffmpeg lacks drawtext filter)
+   • scale chain: scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,setsar=1
+     (old chain failed on non-16:9 Nano Banana outputs)
+   • Fixed upload_file tuple unpacking — return value is (ok, public_url, key)
+     not (ok, key, url) → result_video_url now contains the full R2 https URL
+   • Retry now resets charged_credits + refunded_credits to 0 (was leaving stale refund value)
+   • Added log.exception() on render failure so future bugs are diagnosable
+
+✅ Real end-to-end verification (admin@creatorstudio.ai)
+   • Job 99b9bd57 — 15s superhero_origin trailer
+   • COMPLETED in ~21 seconds
+   • Output: https://pub-c251248e414545848d34b8c1b97ecdb3.r2.dev/videos/.../trailer_99b9bd57...mp4
+   • ffprobe: 1280x720 H.264, AAC stereo, 20.56s, 2.15MB
+   • All 8 stages traversed: VALIDATING → ANALYZING_PHOTOS → BUILDING_CHARACTER →
+     WRITING_TRAILER_SCRIPT → GENERATING_SCENES (Nano Banana, 6 scenes with hero face refs)
+     → GENERATING_VOICEOVER (OpenAI TTS onyx voice) → ADDING_MUSIC → RENDERING_TRAILER → COMPLETED
+   • Charged 5 credits (15s bucket), 0 refunded (clean)
+
+✅ Backend test suite (testing_agent_v3_fork iteration 530)
+   • 22/24 backend tests PASS (92%)
+   • 2 minor non-issues (422 vs 400 on Pydantic validation; one flaky test)
+   • All 9 templates, all 4 duration buckets, consent enforcement, admin gating verified
+   • Frontend: 100% — routes reachable, all 5 wizard steps render with correct testids
+
+📁 Files Changed:
+   • frontend/src/App.js — lazy import + 3 routes
+   • frontend/src/pages/Dashboard.js — DEFAULT_FEATURES card + NEW badge support +
+     prominent CTA banner under QuickActions section (~30 lines)
+   • backend/routes/photo_trailer.py — ffmpeg path preference, video crop chain,
+     upload tuple unpacking, retry credit reset, render exception logging
+
+🎯 Discipline win: zero scope creep. Admin panel, music pack, share page —
+   all deferred to next sprint per founder directive.
+
+─────────────────────────────────────────────────────────
 [2026-04-26] HELP-LINK SHIPPED — discreet text only, zero chrome
 ─────────────────────────────────────────────────────────
 ✅ Profile dropdown (GlobalUserBar):
