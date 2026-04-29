@@ -65,7 +65,23 @@ MAX_PHOTOS = 10
 MAX_PHOTO_BYTES = 10 * 1024 * 1024
 ALLOWED_MIME = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
 ACTIVE_JOB_LIMIT = {"FREE": 1, "PAID": 2, "PREMIUM": 3, "ADMIN": 10}
-DURATION_BUCKETS = [(15, 5), (20, 5), (45, 25), (60, 35)]  # (sec, credits)
+# ─── Pricing & plan tiers ────────────────────────────────────────────────────
+# Tier system (computed live from existing fields — no schema migration):
+#   PREMIUM = active subscription with monthly/quarterly/yearly plan.
+#             Unlocks 90s trailers + priority queue (future) + premium templates (future).
+#   PAID    = active weekly subscription, OR a non-zero credit balance large
+#             enough to afford a 60s trailer. Unlocks 60s.
+#   FREE    = no active subscription AND can't afford 60s.
+#             Limited to 15s preview, capped at FREE_MONTHLY_QUOTA per month.
+#
+# Credits unchanged structure. 15s is now zero-cost (free preview); 60s and 90s
+# remain credit-charged so even Premium subscribers consume their bucket.
+DURATION_BUCKETS = [(15, 0), (20, 0), (45, 25), (60, 35), (90, 60)]  # (max_sec, credits)
+PREMIUM_PLAN_IDS = {"monthly", "quarterly", "yearly"}
+WEEKLY_PLAN_IDS  = {"weekly"}
+FREE_MONTHLY_QUOTA = int(os.environ.get("PHOTO_TRAILER_FREE_QUOTA", "3"))
+PREMIUM_MIN_DURATION = 90  # 90s+ requires PREMIUM
+PAID_MIN_DURATION    = 60  # 60s+ requires PAID or PREMIUM
 
 # ─── Templates ────────────────────────────────────────────────────────────────
 TEMPLATES: Dict[str, Dict[str, Any]] = {
@@ -97,15 +113,56 @@ class JobCreateIn(BaseModel):
     supporting_asset_ids: List[str] = []
     template_id: str
     custom_prompt: Optional[str] = None
-    duration_target_seconds: int = Field(45, ge=15, le=60)
+    duration_target_seconds: int = Field(45, ge=15, le=90)
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 def _now(): return datetime.now(timezone.utc).isoformat()
-def _user_role(u: dict) -> str: return (u.get("role") or "FREE").upper()
 def _credits_for(seconds: int) -> int:
     for sec, c in DURATION_BUCKETS:
         if seconds <= sec: return c
     return DURATION_BUCKETS[-1][1]
+
+async def _user_plan(user: dict) -> str:
+    """Compute the user's plan tier live. Returns FREE | PAID | PREMIUM.
+    ADMIN role short-circuits to PREMIUM so internal QA isn't paywalled."""
+    if (user.get("role") or "").upper() == "ADMIN":
+        return "PREMIUM"
+    # Check live subscription doc — there can only be one active sub per user.
+    sub = await db.subscriptions.find_one(
+        {"userId": user["id"], "status": "active"},
+        sort=[("createdAt", -1)],
+    )
+    if sub:
+        plan_id = (sub.get("planId") or "").lower()
+        if plan_id in PREMIUM_PLAN_IDS: return "PREMIUM"
+        if plan_id in WEEKLY_PLAN_IDS:  return "PAID"
+    # No active sub → fall back to credit balance check.
+    if (user.get("credits") or 0) >= 35:  # enough to afford a 60s trailer
+        return "PAID"
+    return "FREE"
+
+async def _free_quota_used_this_month(user_id: str) -> int:
+    """Count of trailer jobs the user CREATED in the current calendar month.
+    Used to enforce FREE_MONTHLY_QUOTA on the FREE tier 15s preview."""
+    now = datetime.now(timezone.utc)
+    start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+    return await db.photo_trailer_jobs.count_documents({
+        "user_id": user_id,
+        "created_at": {"$gte": start_of_month},
+        # Only count jobs that actually consumed a slot (not pre-validation rejects).
+        "status": {"$in": ["QUEUED", "PROCESSING", "COMPLETED", "FAILED", "CANCELLED"]},
+    })
+
+def _required_plan_for_duration(seconds: int) -> str:
+    """The minimum plan tier required to render `seconds`-long trailer."""
+    if seconds >= PREMIUM_MIN_DURATION: return "PREMIUM"
+    if seconds >= PAID_MIN_DURATION:    return "PAID"
+    return "FREE"
+
+def _plan_rank(p: str) -> int:
+    return {"FREE": 0, "PAID": 1, "PREMIUM": 2}.get((p or "FREE").upper(), 0)
+
+def _user_role(u: dict) -> str: return (u.get("role") or "FREE").upper()
 
 def _strip(d: dict) -> dict:
     """Drop _id and ensure ISO strings."""
@@ -214,8 +271,45 @@ async def list_templates():
     return {"templates": [{"id": k, **v} for k, v in TEMPLATES.items()]}
 
 @router.get("/credit-estimate")
-async def credit_estimate(duration: int = Query(45, ge=15, le=60), user: dict = Depends(get_current_user)):
-    return {"duration_seconds": duration, "credits": _credits_for(duration), "user_credits": user.get("credits", 0)}
+async def credit_estimate(duration: int = Query(45, ge=15, le=90), user: dict = Depends(get_current_user)):
+    """Returns the credits cost AND the entitlement state for `duration`.
+    Frontend uses this to render the lock icon on premium-only durations
+    and to pre-fill the upgrade modal's CTA without waiting for a 402."""
+    plan = await _user_plan(user)
+    required = _required_plan_for_duration(duration)
+    can_afford = (user.get("credits") or 0) >= _credits_for(duration)
+    has_plan = _plan_rank(plan) >= _plan_rank(required)
+    free_used = await _free_quota_used_this_month(user["id"]) if plan == "FREE" else 0
+    return {
+        "duration_seconds": duration,
+        "credits": _credits_for(duration),
+        "user_credits": user.get("credits", 0),
+        "user_plan": plan,
+        "required_plan": required,
+        "has_required_plan": has_plan,
+        "can_afford": can_afford,
+        "free_quota": {
+            "limit": FREE_MONTHLY_QUOTA, "used": free_used,
+            "remaining": max(0, FREE_MONTHLY_QUOTA - free_used),
+        } if plan == "FREE" else None,
+    }
+
+@router.get("/me/plan")
+async def my_plan(user: dict = Depends(get_current_user)):
+    """Lightweight plan probe — used by the frontend to render badges &
+    duration-selector lock icons without computing on every keystroke."""
+    plan = await _user_plan(user)
+    return {
+        "plan": plan,
+        "credits": user.get("credits", 0),
+        "free_quota_used": await _free_quota_used_this_month(user["id"]) if plan == "FREE" else None,
+        "free_quota_limit": FREE_MONTHLY_QUOTA if plan == "FREE" else None,
+        "max_duration_seconds": 90 if plan == "PREMIUM" else (60 if plan == "PAID" else 20),
+        "premium_features": {
+            "duration_90s": plan == "PREMIUM",
+            "priority_queue": plan == "PREMIUM",
+        },
+    }
 
 # ─── Trust & Legal: prompt sanitizer ──────────────────────────────────────────
 # Hard-block list of phrases we will not generate. Three categories:
@@ -290,9 +384,53 @@ async def create_job(body: JobCreateIn, bg: BackgroundTasks, user: dict = Depend
     active = await db.photo_trailer_jobs.count_documents({"user_id": user["id"], "status": {"$in": ["QUEUED", "PROCESSING"]}})
     if active >= ACTIVE_JOB_LIMIT.get(role, 1):
         raise HTTPException(429, f"You already have {active} active trailer(s). Wait for them to finish.")
+
+    # ── Plan / entitlement enforcement (server-side; cannot be spoofed) ───
+    plan = await _user_plan(user)
+    required = _required_plan_for_duration(body.duration_target_seconds)
+    if _plan_rank(plan) < _plan_rank(required):
+        # 402 = Payment Required. Body conveys what to upgrade to.
+        await _emit("photo_trailer_plan_blocked", user["id"], {
+            "duration": body.duration_target_seconds,
+            "current_plan": plan, "required_plan": required,
+        })
+        raise HTTPException(status_code=402, detail={
+            "code": "UPGRADE_REQUIRED",
+            "message": (
+                f"{body.duration_target_seconds}-second trailers require the "
+                f"{required} plan. Upgrade to unlock."
+            ),
+            "current_plan": plan,
+            "required_plan": required,
+            "duration_seconds": body.duration_target_seconds,
+            "upgrade_url": "/app/pricing",
+        })
+
+    # FREE-tier monthly quota for the 15-20s preview path
+    if plan == "FREE":
+        used = await _free_quota_used_this_month(user["id"])
+        if used >= FREE_MONTHLY_QUOTA:
+            await _emit("photo_trailer_quota_exhausted", user["id"], {
+                "used": used, "limit": FREE_MONTHLY_QUOTA,
+            })
+            raise HTTPException(status_code=429, detail={
+                "code": "FREE_QUOTA_EXCEEDED",
+                "message": (
+                    f"You've used your {FREE_MONTHLY_QUOTA} free trailers this month. "
+                    "Upgrade for unlimited 60s trailers."
+                ),
+                "used": used, "limit": FREE_MONTHLY_QUOTA,
+                "upgrade_url": "/app/pricing",
+            })
+
     cred = _credits_for(body.duration_target_seconds)
     if (user.get("credits") or 0) < cred and role != "ADMIN":
-        raise HTTPException(402, f"Need {cred} credits. You have {user.get('credits', 0)}.")
+        raise HTTPException(402, detail={
+            "code": "INSUFFICIENT_CREDITS",
+            "message": f"Need {cred} credits. You have {user.get('credits', 0)}.",
+            "required_credits": cred, "current_credits": user.get('credits', 0),
+            "upgrade_url": "/app/pricing",
+        })
 
     # ── Trust & Legal: prompt sanitizer (blocks before credits are charged) ──
     raw_prompt = (body.custom_prompt or "").strip()
@@ -320,6 +458,10 @@ async def create_job(body: JobCreateIn, bg: BackgroundTasks, user: dict = Depend
         "duration_target_seconds": body.duration_target_seconds,
         "estimated_credits": cred, "charged_credits": 0, "refunded_credits": 0,
         "narrator_style": tpl["narrator"], "music_mood": tpl["music_mood"],
+        # Plan tier the user was on at job creation. Frozen here so the
+        # MySpace card badge stays accurate even if they upgrade/downgrade later.
+        "plan_tier_at_creation": plan,
+        "is_priority": plan == "PREMIUM",
         "script_text": None, "error_code": None, "error_message": None,
         "result_video_asset_id": None, "result_thumbnail_asset_id": None,
         "result_video_url": None, "result_thumbnail_url": None,

@@ -155,8 +155,8 @@ async def test_60s_accepted_by_credit_estimate_and_jobs_create():
         body = r.json()
         assert body["duration_seconds"] == 60
         assert body["credits"] == 35
-        # 61 must be rejected (le=60)
-        r2 = await c.get("/api/photo-trailer/credit-estimate?duration=61", headers=H)
+        # 91 must be rejected (le=90; 90s is the new max premium tier)
+        r2 = await c.get("/api/photo-trailer/credit-estimate?duration=91", headers=H)
         assert r2.status_code == 422
 
 

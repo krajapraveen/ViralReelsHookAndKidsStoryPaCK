@@ -322,6 +322,25 @@ function PhotoTrailerCard({ job, justCompleted }) {
               isFailed    ? 'bg-rose-500/20 text-rose-300' :
                             'bg-violet-500/20 text-violet-300'
             }`}>{status}</span>
+            {/* Plan-tier badge — frozen at job creation time so MySpace
+                accurately shows what the user paid for, even if they later
+                downgrade. PREMIUM gets the gold crown treatment. */}
+            {job.plan_tier_at_creation === 'PREMIUM' && (
+              <span
+                className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-gradient-to-r from-amber-500/30 to-fuchsia-500/30 text-amber-200 border border-amber-400/30"
+                data-testid={`myspace-trailer-plan-${job.job_id}`}
+              >
+                ✦ Premium
+              </span>
+            )}
+            {job.plan_tier_at_creation === 'PAID' && (
+              <span
+                className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-200 border border-violet-400/20"
+                data-testid={`myspace-trailer-plan-${job.job_id}`}
+              >
+                Paid
+              </span>
+            )}
           </div>
           <h3 className="text-white font-semibold mt-1 truncate" data-testid={`myspace-trailer-title-${job.job_id}`}>
             {job.title || 'YouStar Trailer'}
@@ -945,6 +964,7 @@ export default function MySpacePage() {
             error_message: t.error_message,
             template_id: t.template_id,
             duration_target_seconds: t.duration_target_seconds,
+            plan_tier_at_creation: t.plan_tier_at_creation,
           });
         }
       }

@@ -100,19 +100,19 @@ class TestCreditEstimateEndpoint:
         assert data["credits"] == 25, f"Expected 25 credits for 45s, got {data['credits']}"
         assert data["duration_seconds"] == 45
     
-    def test_credit_estimate_15s_returns_5(self, auth_headers):
-        """15s duration returns 5 credits"""
+    def test_credit_estimate_15s_returns_0(self, auth_headers):
+        """15s preview is FREE (0 credits) per 2026-04-29 pricing spec"""
         r = requests.get(f"{BASE_URL}/api/photo-trailer/credit-estimate?duration=15", headers=auth_headers)
         assert r.status_code == 200
         data = r.json()
-        assert data["credits"] == 5, f"Expected 5 credits for 15s, got {data['credits']}"
+        assert data["credits"] == 0, f"Expected 0 credits for 15s, got {data['credits']}"
     
-    def test_credit_estimate_20s_returns_5(self, auth_headers):
-        """20s duration returns 5 credits"""
+    def test_credit_estimate_20s_returns_0(self, auth_headers):
+        """20s preview is FREE (0 credits) per 2026-04-29 pricing spec"""
         r = requests.get(f"{BASE_URL}/api/photo-trailer/credit-estimate?duration=20", headers=auth_headers)
         assert r.status_code == 200
         data = r.json()
-        assert data["credits"] == 5, f"Expected 5 credits for 20s, got {data['credits']}"
+        assert data["credits"] == 0, f"Expected 0 credits for 20s, got {data['credits']}"
     
     def test_credit_estimate_60s_returns_35(self, auth_headers):
         """60s duration returns 35 credits"""
@@ -401,7 +401,7 @@ class TestJobCreationWithAdmin:
         data = r.json()
         assert "job_id" in data
         assert data["status"] == "QUEUED"
-        assert data["estimated_credits"] == 5  # 15s = 5 credits
+        assert data["estimated_credits"] == 0  # 15s = 0 credits (free preview)
 
 
 class TestGetJobEndpoint:

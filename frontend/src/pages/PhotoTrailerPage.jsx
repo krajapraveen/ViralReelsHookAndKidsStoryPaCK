@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom';
 import {
   Upload, Camera, ShieldCheck, Sparkles, Film, Wand2, Loader2, X,
-  CheckCircle2, AlertCircle, Trash2, Play, Download, Share2, RefreshCw, MessageCircle, Check,
+  CheckCircle2, AlertCircle, Trash2, Play, Download, Share2, RefreshCw, MessageCircle, Check, Lock, Crown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { trackFunnel } from '../utils/funnelTracker';
@@ -289,7 +289,7 @@ function CharactersStep({ photos, hero, setHero, villain, setVillain, supporting
 }
 
 // ─── Step 3: Template + prompt + duration ────────────────────────────────────
-function TemplateStep({ templates, templateId, setTemplateId, prompt, setPrompt, duration, setDuration, credits, onBack, onGenerate, busy }) {
+function TemplateStep({ templates, templateId, setTemplateId, prompt, setPrompt, duration, setDuration, credits, onBack, onGenerate, busy, userPlan }) {
   return (
     <div className="space-y-6" data-testid="trailer-step-template">
       <div>
@@ -323,14 +323,39 @@ function TemplateStep({ templates, templateId, setTemplateId, prompt, setPrompt,
           className="w-full px-3 py-2 rounded-lg bg-white/[0.03] border border-white/10 text-white text-sm placeholder:text-slate-600"
           data-testid="trailer-prompt" />
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" data-testid="trailer-duration-picker">
-        {[15, 20, 45, 60].map(d => (
-          <button key={d} onClick={() => setDuration(d)}
-            className={`py-2.5 rounded-lg text-sm font-semibold border ${duration === d ? 'border-violet-500 bg-violet-500/15 text-white' : 'border-white/10 bg-white/[0.02] text-slate-300'}`}
-            data-testid={`duration-${d}`}>
-            {d}s
-          </button>
-        ))}
+      <div className="grid grid-cols-3 gap-2" data-testid="trailer-duration-picker">
+        {/* Founder spec: 20s preview / 60s paid / 90s premium. Lock icon on
+            tiers above the user's current plan. Server-side enforcement is
+            authoritative — this is just UX guidance. */}
+        {[
+          { sec: 20, label: '20s', sub: 'Preview',  required: 'FREE'    },
+          { sec: 60, label: '60s', sub: 'Paid',     required: 'PAID'    },
+          { sec: 90, label: '90s', sub: 'Premium ✦', required: 'PREMIUM' },
+        ].map(d => {
+          const planRank = { FREE: 0, PAID: 1, PREMIUM: 2 };
+          const userRank = planRank[(userPlan || 'FREE').toUpperCase()] ?? 0;
+          const reqRank  = planRank[d.required] ?? 0;
+          const locked = userRank < reqRank;
+          return (
+            <button
+              key={d.sec}
+              onClick={() => setDuration(d.sec)}
+              className={`relative py-3 rounded-lg text-sm font-semibold border transition-colors ${
+                duration === d.sec
+                  ? 'border-violet-500 bg-violet-500/15 text-white'
+                  : 'border-white/10 bg-white/[0.02] text-slate-300 hover:bg-white/[0.05]'
+              } ${locked ? 'opacity-90' : ''}`}
+              data-testid={`duration-${d.sec}`}
+              data-locked={locked ? '1' : '0'}
+            >
+              <div className="text-base">{d.label}</div>
+              <div className="text-[10px] mt-0.5 opacity-70 flex items-center justify-center gap-1">
+                {locked && <Lock className="w-3 h-3" />}
+                {d.sub}
+              </div>
+            </button>
+          );
+        })}
       </div>
       <div className="flex items-center justify-between rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3" data-testid="trailer-credit-estimate">
         <span className="text-sm text-slate-300">Estimated cost</span>
@@ -716,6 +741,91 @@ function FailedStep({ job, onRetry, onEdit, onDelete }) {
 }
 
 // ─── Library ──────────────────────────────────────────────────────────────────
+// ─── Paywall modal ────────────────────────────────────────────────────────────
+// Shown when:
+//   1. User picks a duration above their plan (client-side guard, instant).
+//   2. Backend returns 402 UPGRADE_REQUIRED on /jobs (authoritative).
+//   3. Backend returns 429 FREE_QUOTA_EXCEEDED on /jobs.
+// Click "Upgrade" → /app/pricing (existing route).
+function PaywallModal({ paywall, onClose, onUpgrade }) {
+  if (!paywall) return null;
+  const tier = (paywall.required_plan || 'PREMIUM').toUpperCase();
+  const benefits = tier === 'PREMIUM' ? [
+    { icon: Crown, label: 'Up to 90-second cinematic trailers' },
+    { icon: Sparkles, label: 'Priority queue — your job runs first' },
+    { icon: Film, label: 'Vertical 9:16 + widescreen, every time' },
+    { icon: CheckCircle2, label: 'Premium templates (rolling out soon)' },
+  ] : [
+    { icon: Film, label: 'Up to 60-second cinematic trailers' },
+    { icon: Sparkles, label: 'Vertical 9:16 + widescreen' },
+    { icon: CheckCircle2, label: 'Unlimited monthly trailers' },
+  ];
+  const dur = paywall.duration_seconds;
+  const headline = paywall.quota_exhausted
+    ? 'You\'ve used your free trailers this month'
+    : (dur ? `${dur}-second trailers need ${tier}` : `Upgrade to ${tier}`);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+      onClick={onClose}
+      data-testid="trailer-paywall-modal"
+    >
+      <div
+        className="relative w-full max-w-md rounded-3xl border border-fuchsia-500/30 bg-gradient-to-br from-[#13101e] to-[#0a0a10] p-7 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-slate-400 hover:text-white"
+          data-testid="trailer-paywall-close"
+          aria-label="Close"
+        >
+          <X className="w-5 h-5" />
+        </button>
+        <div className="flex items-center gap-2 mb-2">
+          <Crown className="w-6 h-6 text-amber-300" />
+          <p className="text-[11px] uppercase tracking-widest text-amber-300 font-bold">{tier}</p>
+        </div>
+        <h2 className="text-2xl font-bold text-white leading-tight" data-testid="trailer-paywall-headline">
+          {headline}
+        </h2>
+        <p className="text-sm text-slate-400 mt-2">
+          {paywall.message || 'Unlock longer, higher-impact trailers and skip the queue.'}
+        </p>
+        <ul className="mt-5 space-y-2.5">
+          {benefits.map((b, i) => (
+            <li key={i} className="flex items-start gap-3 text-sm text-slate-200">
+              <b.icon className="w-4 h-4 text-fuchsia-300 mt-0.5 shrink-0" />
+              <span>{b.label}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-6 grid grid-cols-2 gap-2">
+          <button
+            onClick={onClose}
+            className="py-3 rounded-xl border border-white/10 text-white text-sm hover:bg-white/5 transition-colors"
+            data-testid="trailer-paywall-not-now"
+          >
+            Maybe later
+          </button>
+          <button
+            onClick={onUpgrade}
+            className="py-3 rounded-xl bg-gradient-to-r from-fuchsia-600 to-amber-500 hover:from-fuchsia-500 hover:to-amber-400 text-white text-sm font-bold transition-all"
+            data-testid="trailer-paywall-upgrade-btn"
+          >
+            Upgrade now
+          </button>
+        </div>
+        <p className="mt-3 text-[11px] text-slate-500 text-center">
+          Cancel anytime. Existing trailers unaffected.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+
 function Library({ onOpen }) {
   const [items, setItems] = useState([]);
   useEffect(() => {
@@ -758,25 +868,48 @@ export default function PhotoTrailerPage() {
   const [templates, setTemplates] = useState([]);
   const [templateId, setTemplateId] = useState(null);
   const [prompt, setPrompt] = useState('');
-  const [duration, setDuration] = useState(45);
+  const [duration, setDuration] = useState(20);
   const [busy, setBusy] = useState(false);
   const [jobId, setJobId] = useState(null);
   const [completedJob, setCompletedJob] = useState(null);
   const [failedJob, setFailedJob] = useState(null);
+  // Plan & paywall
+  const [userPlan, setUserPlan] = useState(null); // {plan, credits, max_duration_seconds, ...}
+  const [paywall, setPaywall] = useState(null);   // { current_plan, required_plan, duration_seconds }
 
   useEffect(() => {
     try { trackFunnel('photo_trailer_page_viewed', {}); } catch {}
     fetch(`${API}/api/photo-trailer/templates`).then(r => r.json()).then(d => setTemplates(d.templates || [])).catch(() => {});
+    // Probe plan once on mount — used for lock icons + duration default.
+    fetch(`${API}/api/photo-trailer/me/plan`, { headers: authHeaders() })
+      .then(r => r.ok ? r.json() : null)
+      .then(p => { if (p) setUserPlan(p); })
+      .catch(() => {});
   }, []);
 
   const credits = useMemo(() => {
-    if (duration <= 15) return 5;
-    if (duration <= 20) return 5;
+    // Mirror backend DURATION_BUCKETS (15/20=0, 45=25, 60=35, 90=60).
+    if (duration <= 20) return 0;
     if (duration <= 45) return 25;
-    return 35;
+    if (duration <= 60) return 35;
+    return 60;
   }, [duration]);
 
   const onGenerate = async () => {
+    // Client-side guard: open paywall if duration exceeds the user's max.
+    // Server-side enforcement is authoritative — we still send the request
+    // and rely on a clean 402 — but this avoids a wasteful round-trip when
+    // we already know the answer.
+    if (userPlan && userPlan.max_duration_seconds && duration > userPlan.max_duration_seconds) {
+      setPaywall({
+        current_plan: userPlan.plan,
+        required_plan: duration >= 90 ? 'PREMIUM' : 'PAID',
+        duration_seconds: duration,
+        message: `${duration}s trailers require the ${duration >= 90 ? 'PREMIUM' : 'PAID'} plan.`,
+      });
+      try { trackFunnel('photo_trailer_paywall_shown', { meta: { duration, current_plan: userPlan.plan } }); } catch {}
+      return;
+    }
     setBusy(true);
     try {
       const r = await fetch(`${API}/api/photo-trailer/jobs`, {
@@ -794,13 +927,32 @@ export default function PhotoTrailerPage() {
       });
       if (!r.ok) {
         const e = await r.json().catch(() => ({}));
-        toast.error(e.detail || 'Could not start trailer');
+        const detail = e.detail;
+        // Backend now returns structured 402 for upgrade-required errors
+        if (r.status === 402 && detail && typeof detail === 'object' && detail.code === 'UPGRADE_REQUIRED') {
+          setPaywall(detail);
+          try { trackFunnel('photo_trailer_paywall_shown', { meta: { duration, code: 'UPGRADE_REQUIRED' } }); } catch {}
+          setBusy(false);
+          return;
+        }
+        // Free monthly quota exceeded → also a paywall opportunity
+        if (r.status === 429 && detail && typeof detail === 'object' && detail.code === 'FREE_QUOTA_EXCEEDED') {
+          setPaywall({
+            current_plan: 'FREE',
+            required_plan: 'PAID',
+            message: detail.message,
+            quota_exhausted: true,
+          });
+          setBusy(false);
+          return;
+        }
+        toast.error(typeof detail === 'string' ? detail : (detail?.message || 'Could not start trailer'));
         setBusy(false);
         return;
       }
       const j = await r.json();
       setJobId(j.job_id);
-      try { trackFunnel('photo_trailer_generation_started', { meta: { job_id: j.job_id, template: templateId } }); } catch {}
+      try { trackFunnel('photo_trailer_generation_started', { meta: { job_id: j.job_id, template: templateId, duration } }); } catch {}
       setStep(4);
     } catch (e) {
       toast.error('Network error');
@@ -851,7 +1003,7 @@ export default function PhotoTrailerPage() {
             <CharactersStep photos={photos} hero={hero} setHero={setHero} villain={villain} setVillain={setVillain} supporting={supporting} setSupporting={setSupporting} onBack={() => setStep(1)} onNext={() => setStep(3)} />
           )}
           {step === 3 && (
-            <TemplateStep templates={templates} templateId={templateId} setTemplateId={setTemplateId} prompt={prompt} setPrompt={setPrompt} duration={duration} setDuration={setDuration} credits={credits} onBack={() => setStep(2)} onGenerate={onGenerate} busy={busy} />
+            <TemplateStep templates={templates} templateId={templateId} setTemplateId={setTemplateId} prompt={prompt} setPrompt={setPrompt} duration={duration} setDuration={setDuration} credits={credits} onBack={() => setStep(2)} onGenerate={onGenerate} busy={busy} userPlan={userPlan?.plan} />
           )}
           {step === 4 && jobId && !completedJob && !failedJob && (
             <ProgressStep jobId={jobId} onDone={(j) => { setCompletedJob(j); try { trackFunnel('photo_trailer_generation_completed', { meta: { job_id: j._id || jobId } }); } catch {} setStep(5); }} onFail={(j) => { setFailedJob(j); setStep(5); }} />
@@ -869,6 +1021,14 @@ export default function PhotoTrailerPage() {
 
         <Library onOpen={(t) => { if (t.status === 'COMPLETED') { setCompletedJob(t); setStep(5); } }} />
       </div>
+      <PaywallModal
+        paywall={paywall}
+        onClose={() => setPaywall(null)}
+        onUpgrade={() => {
+          try { trackFunnel('photo_trailer_paywall_upgrade_clicked', { meta: { current_plan: paywall?.current_plan, required_plan: paywall?.required_plan } }); } catch {}
+          navigate('/app/pricing');
+        }}
+      />
     </div>
   );
 }

@@ -1988,3 +1988,134 @@ PLUS:
 🎯 Discipline win: zero scope creep — no premium tier, no admin dashboard,
    no A/B framework. Pure distribution-asset shipping.
 
+
+
+─────────────────────────────────────────────────────────
+[2026-04-29 P1] PHOTO TRAILER — PREMIUM 90s TIER (MONETIZATION)
+─────────────────────────────────────────────────────────
+Founder rationale: product quality is now credible enough to charge for.
+Build pricing + entitlement, not internal tooling. 90s = premium SKU.
+
+✅ Plan tiers (computed live, no schema migration)
+   File: backend/routes/photo_trailer.py
+   • PREMIUM = active subscription (monthly / quarterly / yearly)
+              OR ADMIN role. Unlocks 90s + priority flag (future queue boost).
+   • PAID    = active weekly subscription, OR credits ≥ 35 (can afford 60s).
+              Unlocks 60s.
+   • FREE    = neither. 20s preview only, capped at FREE_MONTHLY_QUOTA
+              (default 3) per calendar month.
+
+✅ Pricing (DURATION_BUCKETS rewritten)
+   • 15s  = 0 credits   (free preview)
+   • 20s  = 0 credits   (free preview)
+   • 45s  = 25 credits  (legacy)
+   • 60s  = 35 credits  (PAID gate)
+   • 90s  = 60 credits  (PREMIUM gate)  ← NEW
+
+✅ Server-side enforcement (cannot be spoofed)
+   POST /jobs validates plan tier BEFORE charging credits:
+   • plan rank < required rank → HTTPException(402, structured detail):
+     {code, message, current_plan, required_plan, duration_seconds, upgrade_url}
+   • FREE tier monthly quota exceeded → HTTPException(429, structured):
+     {code: FREE_QUOTA_EXCEEDED, used, limit, upgrade_url}
+   • Insufficient credits → HTTPException(402, INSUFFICIENT_CREDITS).
+   ADMIN role short-circuits to PREMIUM so internal QA isn't paywalled.
+
+✅ New endpoints
+   • `GET /api/photo-trailer/me/plan` — lightweight tier probe
+     {plan, credits, max_duration_seconds, free_quota_used,
+      free_quota_limit, premium_features: {duration_90s, priority_queue}}
+   • `GET /api/photo-trailer/credit-estimate?duration=N`
+     Now also returns: user_plan, required_plan, has_required_plan,
+     can_afford, free_quota.{limit, used, remaining}
+   • Pydantic ge=15, le=90 (was le=60). 91+ → 422.
+
+✅ Plan tier persisted on the job document
+   New fields on photo_trailer_jobs:
+     plan_tier_at_creation: FREE | PAID | PREMIUM (FROZEN at creation)
+     is_priority: bool — set true for PREMIUM jobs (priority queue stub)
+
+✅ Frontend
+   File: frontend/src/pages/PhotoTrailerPage.jsx
+   • Duration picker shows 3 buttons: 20s / 60s / 90s with sub-labels
+     "Preview / Paid / Premium ✦" and a Lock icon on tiers above the user.
+   • Page mount fetches `/me/plan` once → state for lock rendering.
+   • onGenerate: client-side guard opens paywall instantly if duration
+     exceeds plan max. Server still authoritative — 402/429 also open it.
+   • Funnel events: `photo_trailer_paywall_shown`,
+     `photo_trailer_paywall_upgrade_clicked`,
+     `photo_trailer_quota_exhausted`, `photo_trailer_plan_blocked`.
+
+✅ PaywallModal component
+   File: frontend/src/pages/PhotoTrailerPage.jsx (NEW component)
+   • Crown icon + tier badge ("PREMIUM" / "PAID")
+   • Bullet list of benefits (90s trailers, priority queue, 9:16, premium
+     templates) — different list per required tier
+   • "Upgrade now" → /app/pricing (existing route)
+   • "Maybe later" closes without converting
+   • All actions instrumented via trackFunnel.
+
+✅ MySpace plan-tier badge
+   File: frontend/src/pages/MySpacePage.js
+   • PhotoTrailerCard now shows ✦ Premium (gold gradient) or "Paid" badge
+     beside YOUSTAR TRAILER + status. Sourced from
+     `plan_tier_at_creation` so the badge stays accurate even after
+     downgrade.
+   • plan_tier_at_creation projected from /my-trailers into the card.
+
+✅ Real 90s render proof (job 725a5ba8-9049-47b9-b2b4-440db6d45581)
+   - estimated_credits = 60 (PREMIUM bucket)
+   - plan_tier_at_creation = PREMIUM ✓
+   - is_priority = True ✓
+   - Final MP4 duration = 92.56s  (acceptance window 85-95s) ✓
+   - Output 1280x720, 9.34 MB, provenance metadata = "Created with Visionary Suite AI"
+   - Status COMPLETED in ~3 min
+
+✅ Tests — backend/tests/test_photo_trailer_premium_tier.py (8 NEW)
+   1. test_admin_user_is_premium                     — admin shortcut
+   2. test_paid_user_capped_at_60s_via_credits       — credits-derived PAID tier
+   3. test_credit_estimate_marks_90s_as_premium_required
+   4. test_non_premium_blocked_from_90s_creating_job — 402 + structured detail
+   5. test_premium_admin_can_create_90s_job          — passes through
+   6. test_job_records_plan_tier_at_creation         — frozen on the doc
+   7. test_credit_buckets_match_pricing_spec         — bucket guard
+   8. test_credit_estimate_accepts_90_rejects_91     — bound enforcement
+PLUS:
+   backend/tests/verify_90s_premium_e2e.py — full live render verifier
+
+   Old tests updated for new pricing:
+   • test_credit_estimate_15s_returns_5 → ..._returns_0
+   • test_credit_estimate_20s_returns_5 → ..._returns_0
+   • test_job_creation_success: estimated_credits 5 → 0
+   • duration=61 reject → duration=91 reject
+
+📊 Photo Trailer suite: 61/61 PASS in ~131s (was 53 + 8 new). Zero regression.
+
+📁 Files Changed:
+  • backend/routes/photo_trailer.py
+      - DURATION_BUCKETS new 90s row + 0-cost 15/20s
+      - _user_plan / _required_plan_for_duration / _plan_rank helpers
+      - _free_quota_used_this_month
+      - PREMIUM_PLAN_IDS / WEEKLY_PLAN_IDS / FREE_MONTHLY_QUOTA constants
+      - GET /me/plan endpoint (NEW)
+      - /credit-estimate enriched with plan/required/can_afford/free_quota
+      - POST /jobs: structured 402 (UPGRADE_REQUIRED) + 429 (FREE_QUOTA_EXCEEDED)
+      - Pydantic le=60 → le=90
+      - Job document: plan_tier_at_creation, is_priority
+  • frontend/src/pages/PhotoTrailerPage.jsx
+      - 20/60/90 duration picker with Lock icon overlay
+      - userPlan probe + paywall state
+      - PaywallModal component
+      - 402/429 → paywall flow
+      - Pricing redirect via navigate('/app/pricing')
+  • frontend/src/pages/MySpacePage.js
+      - Premium / Paid badge on completed cards
+      - plan_tier_at_creation projection
+  • backend/tests/test_photo_trailer_premium_tier.py (NEW, 215 LOC)
+  • backend/tests/verify_90s_premium_e2e.py (NEW, 100 LOC)
+  • backend/tests/test_photo_trailer_iteration530.py (pricing-update edits)
+  • backend/tests/test_photo_trailer_regression_2026_04_29.py (90s edit)
+
+🎯 Discipline win: zero scope creep. No share analytics dashboard, no
+   admin tooling, no premium templates yet. Pure monetization.
+
