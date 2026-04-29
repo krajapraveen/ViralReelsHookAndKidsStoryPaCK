@@ -1333,41 +1333,81 @@ async def _run_pipeline_inner(job_id: str):
         await _set_stage(job_id, "ADDING_MUSIC")
         await _set_stage(job_id, "RENDERING_TRAILER")
         await _heartbeat(job_id, "Final render — stitching scenes, adding music, watermark")
-        try:
+        # P0 RELIABILITY (2026-04-29): wrap render+upload+vertical+thumbnail
+        # in a hard per-stage timeout. If ffmpeg deadlocks or R2 hangs, we
+        # surface RENDER_TIMEOUT instead of leaving the user at 88% forever.
+        render_budget_min = _render_timeout_for(j["duration_target_seconds"])
+
+        async def _do_render_and_upload():
             scene_payload.sort(key=lambda p: p["idx"])
             final_path = await _render_trailer(j, scene_payload, tmpdir)
-        except Exception as e:
+            return final_path
+
+        try:
+            final_path = await asyncio.wait_for(
+                _do_render_and_upload(),
+                timeout=render_budget_min * 60,
+            )
+        except asyncio.TimeoutError:
+            log.error(f"[trailer {job_id}] RENDER_TIMEOUT after {render_budget_min}min")
+            return await _fail(
+                job_id, "RENDER_TIMEOUT",
+                f"Final render took longer than {render_budget_min} minutes. "
+                "Credits refunded — please retry.",
+            )
+        except Exception:
             log.exception(f"render failed for {job_id}")
             return await _fail(job_id, "RENDER_FAIL", "Final render hit a hiccup. Please retry.")
 
-        # Upload widescreen master
+        # Upload widescreen master — also bounded so a hung R2 connection
+        # cannot keep the job at 88% forever. 5 minutes is generous for
+        # any reasonable trailer file size.
         with open(final_path, "rb") as f: video_bytes = f.read()
-        ok, video_url, video_key = await _upload_video_bytes(video_bytes, f"trailer_{job_id}.mp4", user_id)
+        try:
+            ok, video_url, video_key = await asyncio.wait_for(
+                _upload_video_bytes(video_bytes, f"trailer_{job_id}.mp4", user_id),
+                timeout=300,
+            )
+        except asyncio.TimeoutError:
+            log.error(f"[trailer {job_id}] R2 upload timeout (widescreen)")
+            return await _fail(job_id, "UPLOAD_FAIL", "Storage upload timed out. Please retry.")
         if not ok:
             return await _fail(job_id, "UPLOAD_FAIL", "Storage upload failed. Please retry.")
 
         # 9:16 vertical companion (Reels / Shorts / TikTok / WhatsApp Status).
         # Bounded second pass — runs on the same RENDER_EXECUTOR. If the
-        # encode fails we DO NOT fail the whole job; the widescreen master
-        # is the contract. The card will simply hide the vertical button.
+        # encode fails OR times out we DO NOT fail the whole job; the
+        # widescreen master is the contract. Card hides the vertical button.
         vertical_url = None; vertical_key = None
         try:
             vert_path = os.path.join(tmpdir, "vertical.mp4")
             t_v = time.time()
-            await _render_vertical_from_widescreen(final_path, vert_path)
+            await asyncio.wait_for(
+                _render_vertical_from_widescreen(final_path, vert_path),
+                timeout=180,
+            )
             log.info(f"[trailer {job_id}] vertical render took {time.time()-t_v:.1f}s")
             with open(vert_path, "rb") as f: vert_bytes = f.read()
-            okv, v_url, v_key = await _upload_video_bytes(vert_bytes, f"trailer_{job_id}_vertical.mp4", user_id)
+            okv, v_url, v_key = await asyncio.wait_for(
+                _upload_video_bytes(vert_bytes, f"trailer_{job_id}_vertical.mp4", user_id),
+                timeout=180,
+            )
             if okv:
                 vertical_url, vertical_key = v_url, v_key
+        except asyncio.TimeoutError:
+            log.warning(f"[trailer {job_id}] vertical cut TIMEOUT (widescreen still saved)")
         except Exception as e:
             log.warning(f"[trailer {job_id}] vertical cut failed (widescreen still saved): {e}")
 
-        # Thumbnail = first scene image
+        # Thumbnail — also bounded (60s). Failure here never fails the job.
         thumb_url = None; thumb_key = None
         try:
             with open(scene_payload[0]["image_path"], "rb") as f: tb = f.read()
-            ok2, thumb_url_or_key = await upload_image_bytes(tb, f"trailer_{job_id}_thumb.jpg", project_id=f"phototrailer/{user_id}/results")
+            ok2, thumb_url_or_key = await asyncio.wait_for(
+                upload_image_bytes(tb, f"trailer_{job_id}_thumb.jpg",
+                                   project_id=f"phototrailer/{user_id}/results"),
+                timeout=60,
+            )
             if ok2:
                 thumb_url = thumb_url_or_key
                 thumb_key = _strip_public_prefix(thumb_url_or_key)
@@ -1494,6 +1534,32 @@ STALE_MIN_BY_DURATION = {
     90: 35,
 }
 STALE_THRESHOLD_DEFAULT_MIN = 15  # used when duration_target_seconds is missing
+
+# ─── HARD-MAX WALL-CLOCK BUDGETS (P0 — 2026-04-29 founder directive) ─────────
+# Heartbeat protection alone is dangerous: a hung subprocess that periodically
+# updates `last_progress_at` (we don't write inside ffmpeg, so this is unlikely
+# but still) — or worse, an UPLOAD that genuinely makes no DB writes — could
+# spin forever. These are the absolute ceilings: once exceeded, the janitor
+# WILL reap regardless of heartbeat freshness.
+HARD_MAX_RUNTIME_BY_DURATION = {
+    20: 8,
+    45: 15,
+    60: 15,
+    90: 25,
+}
+HARD_MAX_RUNTIME_DEFAULT_MIN = 15
+
+# Per-stage timeouts for the longest-running pipeline stage (RENDERING_TRAILER
+# wraps ffmpeg stitch + music mix + watermark + R2 upload + vertical cut +
+# thumbnail). asyncio.wait_for fires RENDER_TIMEOUT if exceeded.
+RENDER_TIMEOUT_BY_DURATION = {
+    20: 5,
+    45: 8,
+    60: 8,
+    90: 12,
+}
+RENDER_TIMEOUT_DEFAULT_MIN = 8
+
 HEARTBEAT_LIVE_SECONDS = 180  # 3 min — if progress newer than this, job is alive
 JANITOR_INTERVAL_SECONDS = 120
 MAX_AUTO_REQUEUES = 1  # stale-recovery: each job gets ONE free auto-retry
@@ -1504,6 +1570,22 @@ def _stale_threshold_for(duration_seconds: Optional[int]) -> int:
     if duration_seconds is None:
         return STALE_THRESHOLD_DEFAULT_MIN
     return STALE_MIN_BY_DURATION.get(int(duration_seconds), STALE_THRESHOLD_DEFAULT_MIN)
+
+def _hard_max_runtime_for(duration_seconds: Optional[int]) -> int:
+    """Hard-max wall-clock minutes for a job of this duration tier. NOTHING
+    overrides this — not heartbeat, not retry_count. Once exceeded, the
+    janitor reaps the job as RENDER_TIMEOUT (or STALE_PIPELINE if it never
+    reached the render stage)."""
+    if duration_seconds is None:
+        return HARD_MAX_RUNTIME_DEFAULT_MIN
+    return HARD_MAX_RUNTIME_BY_DURATION.get(int(duration_seconds), HARD_MAX_RUNTIME_DEFAULT_MIN)
+
+def _render_timeout_for(duration_seconds: Optional[int]) -> int:
+    """Per-stage timeout (minutes) for the RENDERING_TRAILER stage which
+    includes ffmpeg encode + R2 upload + vertical cut + thumbnail upload."""
+    if duration_seconds is None:
+        return RENDER_TIMEOUT_DEFAULT_MIN
+    return RENDER_TIMEOUT_BY_DURATION.get(int(duration_seconds), RENDER_TIMEOUT_DEFAULT_MIN)
 
 async def _reap_stale_pipelines() -> Dict[str, Any]:
     """Single sweep — find + reap PROCESSING jobs older than their duration-tier
@@ -1517,11 +1599,14 @@ async def _reap_stale_pipelines() -> Dict[str, Any]:
     reaped, refunded_total, refund_failures, skipped_already_terminal = 0, 0, 0, 0
     auto_requeued, skipped_alive_heartbeat = 0, 0
 
-    # Pull anything PROCESSING old enough to MAYBE be stale. The smallest
-    # possible threshold is the smallest tier (10min for 20s tier), so we
-    # use that as a cheap DB-side prefilter — anything younger than that
-    # cannot possibly be stale regardless of duration tier.
-    min_threshold_min = min(STALE_MIN_BY_DURATION.values())
+    # Pull anything PROCESSING old enough to MAYBE be reapable. The smallest
+    # possible threshold is the smallest tier hard-max OR stale floor — use
+    # whichever is lower as the DB prefilter so we don't miss hard-max-only
+    # violators.
+    min_threshold_min = min(
+        min(STALE_MIN_BY_DURATION.values()),
+        min(HARD_MAX_RUNTIME_BY_DURATION.values()),
+    )
     db_prefilter_cutoff = (now_dt - timedelta(minutes=min_threshold_min)).isoformat()
     # Cap per-sweep work so a backlog of stuck jobs (e.g. after a backend
     # restart) cannot thunder the orchestrator with simultaneous requeues.
@@ -1532,8 +1617,6 @@ async def _reap_stale_pipelines() -> Dict[str, Any]:
     }).limit(SWEEP_LIMIT)
     async for j in cursor:
         jid = j["_id"]
-        # 1. Per-duration threshold check
-        threshold_min = _stale_threshold_for(j.get("duration_target_seconds"))
         started_iso = j.get("started_at")
         if not started_iso:
             continue
@@ -1542,23 +1625,47 @@ async def _reap_stale_pipelines() -> Dict[str, Any]:
         except Exception:
             continue
         age_min = (now_dt - started_dt).total_seconds() / 60.0
-        if age_min < threshold_min:
-            continue  # not old enough for its tier yet
 
-        # 2. Heartbeat protection — alive jobs must not be reaped.
+        # Founder spec (2026-04-29):
+        #   • HARD-MAX = base ceiling (8/15/25 min). Below this → job is fine,
+        #     skip. At/past this WITHOUT fresh heartbeat → reap.
+        #   • Fresh heartbeat can extend grace UP TO stale_threshold (10/20/35
+        #     min) — but cannot push past it. At stale_threshold → reap
+        #     regardless of heartbeat.
+        # In short: heartbeat earns extra time within [hard_max, stale_threshold].
+        hard_max_min_check = _hard_max_runtime_for(j.get("duration_target_seconds"))
+        threshold_min = _stale_threshold_for(j.get("duration_target_seconds"))
+
+        # Below hard_max → not even a candidate yet.
+        if age_min < hard_max_min_check:
+            continue
+
+        # Past hard_max — is the heartbeat fresh enough to grant extension?
+        # Extension is only valid while age < stale_threshold (the hard ceiling).
         last_prog = j.get("last_progress_at") or j.get("updated_at")
+        heartbeat_fresh = False
         if last_prog:
             try:
                 last_prog_dt = datetime.fromisoformat(last_prog)
                 if (now_dt - last_prog_dt).total_seconds() < HEARTBEAT_LIVE_SECONDS:
-                    skipped_alive_heartbeat += 1
-                    continue
+                    heartbeat_fresh = True
             except Exception:
                 pass
 
-        # 3. Auto-recovery: first stale gets a free requeue.
+        # Heartbeat-extension window: past hard_max, before stale_threshold,
+        # AND heartbeat is fresh → still alive, skip this sweep.
+        exceeded_hard_max = age_min >= threshold_min  # past hard ceiling
+        if not exceeded_hard_max and heartbeat_fresh:
+            skipped_alive_heartbeat += 1
+            continue
+        # else: fall through to reap path
+
+        # 3. Auto-recovery: first stale gets a free requeue. We DO NOT
+        # auto-requeue jobs that exceeded the hard-max — those are likely
+        # to fail again the same way and burning credits silently is worse
+        # than a clean refund. Hard-max → straight to refund path.
         retry_count = int(j.get("retry_count") or 0)
-        if retry_count < MAX_AUTO_REQUEUES:
+        if retry_count < MAX_AUTO_REQUEUES and not exceeded_hard_max:
             # Atomic transition: PROCESSING + retry_count==N → QUEUED + retry_count==N+1
             upd = await db.photo_trailer_jobs.update_one(
                 {"_id": jid, "status": "PROCESSING", "retry_count": {"$in": [None, retry_count]}},
@@ -1593,13 +1700,24 @@ async def _reap_stale_pipelines() -> Dict[str, Any]:
             continue
 
         # 4. Already retried → real failure with refund (atomic transition guards refund).
+        # Pick the right error_code: if we're past hard-max during render,
+        # it's RENDER_TIMEOUT (more actionable than generic STALE_PIPELINE).
+        cur_stage = j.get("current_stage") or ""
+        if exceeded_hard_max and cur_stage == "RENDERING_TRAILER":
+            err_code = "RENDER_TIMEOUT"
+            err_msg = "Final render didn't finish in time. Credits refunded — please retry."
+            failure_stage = "RENDERING_TRAILER"
+        else:
+            err_code = "STALE_PIPELINE"
+            err_msg = "Trailer didn't complete in time. Credits refunded — please retry."
+            failure_stage = "JANITOR_STALE"
         upd = await db.photo_trailer_jobs.update_one(
             {"_id": jid, "status": "PROCESSING"},
             {"$set": {
                 "status": "FAILED", "current_stage": "FAILED",
-                "failure_stage": "JANITOR_STALE",
-                "error_code": "STALE_PIPELINE",
-                "error_message": "Trailer didn't complete in time. Credits refunded — please retry.",
+                "failure_stage": failure_stage,
+                "error_code": err_code,
+                "error_message": err_msg,
                 "failed_at": _now(), "updated_at": _now(),
             }},
         )
@@ -1631,7 +1749,7 @@ async def _reap_stale_pipelines() -> Dict[str, Any]:
             )
         try:
             await _emit("photo_trailer_generation_failed", j["user_id"],
-                        {"job_id": jid, "code": "STALE_PIPELINE", "via": "janitor"})
+                        {"job_id": jid, "code": err_code, "via": "janitor"})
         except Exception:
             pass
         reaped += 1
@@ -1736,6 +1854,70 @@ async def _purge_old_source_photos() -> Dict[str, Any]:
 async def admin_run_janitor(user: dict = Depends(get_admin_user)):
     """Admin manual trigger — used by tests + ops."""
     return await _reap_stale_pipelines()
+
+
+@router.get("/admin/stuck-jobs")
+async def admin_stuck_jobs(
+    user: dict = Depends(get_admin_user),
+    min_age_minutes: int = Query(3, ge=1, le=60),
+):
+    """P0 diagnostic: list PROCESSING jobs whose `last_progress_at` is older
+    than `min_age_minutes` and/or whose `progress_percent` hasn't moved.
+    These are the prime suspects for "stuck at 88%" reports.
+
+    Founder spec: surface jobs stuck at same progress > N minutes."""
+    now = datetime.now(timezone.utc)
+    cutoff_iso = (now - timedelta(minutes=min_age_minutes)).isoformat()
+    rows = []
+    cur = db.photo_trailer_jobs.find({
+        "status": "PROCESSING",
+        "$or": [
+            {"last_progress_at": {"$lt": cutoff_iso}},
+            {"last_progress_at": None, "started_at": {"$lt": cutoff_iso}},
+        ],
+    }).sort("started_at", 1).limit(100)
+    async for j in cur:
+        started = j.get("started_at")
+        last_prog = j.get("last_progress_at") or j.get("updated_at")
+        age_min = stale_min = None
+        try:
+            age_min = round(
+                (now - datetime.fromisoformat(started)).total_seconds() / 60, 1
+            ) if started else None
+            stale_min = round(
+                (now - datetime.fromisoformat(last_prog)).total_seconds() / 60, 1
+            ) if last_prog else None
+        except Exception:
+            pass
+        dur = j.get("duration_target_seconds")
+        rows.append({
+            "job_id": j["_id"],
+            "user_id": j.get("user_id"),
+            "current_stage": j.get("current_stage"),
+            "progress_percent": j.get("progress_percent"),
+            "progress_message": j.get("progress_message"),
+            "duration_target_seconds": dur,
+            "age_minutes": age_min,
+            "since_last_heartbeat_minutes": stale_min,
+            "retry_count": j.get("retry_count") or 0,
+            "stale_threshold_minutes": _stale_threshold_for(dur),
+            "hard_max_runtime_minutes": _hard_max_runtime_for(dur),
+            "render_timeout_minutes": _render_timeout_for(dur),
+            "will_be_reaped_next_sweep": (
+                age_min is not None and (
+                    age_min >= _hard_max_runtime_for(dur) or (
+                        age_min >= _stale_threshold_for(dur)
+                        and (stale_min or 0) >= HEARTBEAT_LIVE_SECONDS / 60
+                    )
+                )
+            ),
+        })
+    return {
+        "now": now.isoformat(),
+        "min_age_minutes": min_age_minutes,
+        "count": len(rows),
+        "jobs": rows,
+    }
 
 
 @router.post("/admin/retention/run-now")
@@ -2006,14 +2188,15 @@ async def admin_kpi_dashboard(
         "IMAGE_GEN_FAIL":       "GENERATING_SCENES",
         "TTS_FAIL":             "GENERATING_VOICEOVER",
         "RENDER_FAIL":          "RENDERING_TRAILER",
+        "RENDER_TIMEOUT":       "RENDERING_TRAILER",
         "UPLOAD_FAIL":          "RENDERING_TRAILER",
         "STALE_PIPELINE":       "JANITOR_STALE",
         "PIPELINE_CRASH":       "PIPELINE_CRASH",
     }
     # Codes whose root cause is typically transient → retryable
     RETRYABLE_CODES = {"IMAGE_GEN_FAIL", "TTS_FAIL", "RENDER_FAIL",
-                       "UPLOAD_FAIL", "SCRIPT_FAIL", "PIPELINE_CRASH",
-                       "STALE_PIPELINE"}
+                       "RENDER_TIMEOUT", "UPLOAD_FAIL", "SCRIPT_FAIL",
+                       "PIPELINE_CRASH", "STALE_PIPELINE"}
     # Conservative empirical retry success rate for transient pipeline failures
     RETRY_SUCCESS_RATE = 0.65
 

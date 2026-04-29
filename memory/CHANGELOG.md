@@ -178,3 +178,43 @@ revenue-conversion paywall.
 - 47/47 reliability + KPI + funnel + premium + vertical + janitor regression green
 - **Total: 52/52 photo_trailer suite green**
 
+
+### Photo Trailer — P0 STUCK-AT-88% RELIABILITY FIX (2026-02-XX)
+Founder-reported live bug: spinner stuck at 88% RENDERING_TRAILER forever.
+Root cause = heartbeat protection had no upper bound + ffmpeg/upload calls had
+no per-stage timeout. Fixed in one disciplined pass.
+
+**Backend**
+- New `HARD_MAX_RUNTIME_BY_DURATION` (20s=8min, 60s=15min, 90s=25min) — absolute ceiling
+- New `RENDER_TIMEOUT_BY_DURATION` (20s=5min, 60s=8min, 90s=12min) — per-stage ceiling
+- `_render_trailer` wrapped in `asyncio.wait_for(timeout=render_timeout)` — surfaces RENDER_TIMEOUT cleanly
+- All R2 uploads (widescreen + vertical + thumbnail) bounded by `asyncio.wait_for` (300s/180s/60s)
+- Janitor logic rewritten: heartbeat extension is now valid ONLY in `[hard_max, stale_threshold]` window. Past `stale_threshold` → reap regardless of heartbeat
+- Hard-max-exceeded jobs at retry_count=0 now SUPPRESS auto-requeue (toxic — would just hang again)
+- Janitor uses `RENDER_TIMEOUT` error_code when failure occurred during RENDERING_TRAILER stage (vs generic STALE_PIPELINE for upstream)
+- New admin endpoint `GET /admin/stuck-jobs?min_age_minutes=N` lists PROCESSING jobs with stale heartbeat + reap-prediction
+- Dashboard `ERROR_TO_STAGE` map + `RETRYABLE_CODES` updated to include `RENDER_TIMEOUT`
+
+**Frontend**
+- `ProgressStep` polling now also exits on `status === 'CANCELLED'` (was: COMPLETED + FAILED only)
+- Escalation copy gated to elapsed time:
+  - 0-3 min: clean spinner only (no clutter)
+  - 3+ min: "you can leave this page" card + escape buttons
+  - 4+ min: amber "This is taking longer than usual" warning above
+- Trust `j.status` over `progress_percent` for terminal transition (fixes "88% with status=FAILED" stuck-spinner bug)
+
+**Tests** — 9 new tests in `test_photo_trailer_render_timeout.py`:
+1. Hard-max thresholds match founder spec
+2. Hard-max overrides fresh heartbeat in janitor
+3. Hard-max suppresses auto-requeue
+4. Admin /admin/stuck-jobs surfaces stuck jobs
+5. RENDER_TIMEOUT in dashboard error map
+6. Render stage uses asyncio.wait_for
+7. Frontend ProgressStep detects terminal status
+8. Frontend escalation copy gated to 3-min mark
+9. RENDER_TIMEOUT emits funnel failure event
+
+**Total Photo Trailer regression: 61/61 green**
+
+Live verification: `/admin/stuck-jobs` returned a real 90s job at 5.5min mid-GENERATING_SCENES with `will_be_reaped_next_sweep=false` (correctly under 25min hard-max).
+

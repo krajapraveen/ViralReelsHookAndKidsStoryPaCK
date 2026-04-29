@@ -504,6 +504,19 @@ function ProgressStep({ jobId, onDone, onFail }) {
   const navigate = useNavigate();
   const [job, setJob] = useState(null);
   const [showPlayground, setShowPlayground] = useState(false);
+  // P0 reliability fix: escalation copy gates on elapsed time, not on the
+  // first paint. Founder spec: "Still working…" appears at 3 minutes — not
+  // before. Earlier than that and we look broken when we're just slow.
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const startTsRef = useRef(Date.now());
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      setElapsedSec(Math.floor((Date.now() - startTsRef.current) / 1000));
+    }, 1000);
+    return () => clearInterval(t);
+  }, []);
+
   useEffect(() => {
     let stop = false;
     const tick = async () => {
@@ -513,8 +526,12 @@ function ProgressStep({ jobId, onDone, onFail }) {
           if (r.ok) {
             const j = await r.json();
             setJob(j);
+            // P0: ANY terminal status → exit progress screen immediately.
+            // Trust the backend's status field (not progress_percent), so a
+            // job that flipped to FAILED while pct was still at 88 transitions
+            // cleanly to the FailedStep.
             if (j.status === 'COMPLETED') { onDone(j); return; }
-            if (j.status === 'FAILED') { onFail(j); return; }
+            if (j.status === 'FAILED' || j.status === 'CANCELLED') { onFail(j); return; }
           }
         } catch {}
         await new Promise(r => setTimeout(r, 2500));
@@ -532,6 +549,11 @@ function ProgressStep({ jobId, onDone, onFail }) {
   const progressMessage = job?.progress_message;
   const stageCopy = STAGE_COPY[stage] || stage;
   const isRetry = !!progressMessage && /retry|recover/i.test(progressMessage);
+  // Escalation gates (founder spec)
+  const ESCALATE_AT_SEC = 180;   // 3 min — show "you can leave this page"
+  const STILL_WORKING_AT_SEC = 240; // 4 min — show stronger copy
+  const showLeaveCard = elapsedSec >= ESCALATE_AT_SEC;
+  const showStillWorking = elapsedSec >= STILL_WORKING_AT_SEC;
 
   return (
     <div className="space-y-6 text-center py-8" data-testid="trailer-step-progress">
@@ -553,7 +575,25 @@ function ProgressStep({ jobId, onDone, onFail }) {
       </div>
       <p className="text-xs text-slate-500 font-mono" data-testid="trailer-progress-pct">{pct}% · {stage}</p>
 
+      {/* P0 reliability fix: escalation copy is GATED to the 3-min mark. Users
+          who finish in under 3 min never see this — keeps the sub-3-min flow
+          feeling fast. After 3 min: "you can leave this page". After 4 min:
+          stronger "Still working…" message + same escape hatches. */}
+      {showStillWorking && (
+        <div className="max-w-lg mx-auto rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-3 text-left"
+             data-testid="trailer-still-working-card">
+          <p className="text-sm text-amber-200 font-semibold">
+            This is taking longer than usual.
+          </p>
+          <p className="text-xs text-amber-100/80 mt-1">
+            You can leave this page — we'll notify you when it's ready, and your
+            trailer will be saved in Profile → MySpace either way.
+          </p>
+        </div>
+      )}
+
       {/* Reassurance copy + escape hatches — users should NOT feel trapped */}
+      {showLeaveCard && (
       <div className="max-w-lg mx-auto rounded-xl border border-violet-400/20 bg-violet-500/[0.04] p-4 text-left" data-testid="trailer-leave-card">
         <p className="text-sm text-slate-200 leading-relaxed">
           Your trailer is being created. <span className="text-violet-200 font-semibold">You can leave this page</span> and use other Visionary Suite features — we'll notify you when it's ready.
@@ -589,6 +629,7 @@ function ProgressStep({ jobId, onDone, onFail }) {
           </button>
         </div>
       </div>
+      )}
 
       {showPlayground && <WaitingPlayground />}
     </div>

@@ -58,7 +58,7 @@ def test_vertical_helper_uses_correct_ffmpeg_binary():
 # ─── Static guard: pipeline calls the vertical pass + persists URL/key ────────
 def test_pipeline_invokes_vertical_render_and_persists_url():
     src = open("/app/backend/routes/photo_trailer.py").read()
-    assert "await _render_vertical_from_widescreen(" in src, \
+    assert "_render_vertical_from_widescreen(" in src, \
         "pipeline must invoke vertical render after main upload"
     assert '"result_vertical_video_url"' in src, \
         "pipeline must persist result_vertical_video_url"

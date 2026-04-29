@@ -125,12 +125,15 @@ async def test_janitor_heartbeat_protection(admin_token):
     db = cli[os.environ["DB_NAME"]]
     jid = f"reliab-hb-{uuid.uuid4().hex[:8]}"
     try:
+        # 60s tier: hard_max=15min, stale_threshold=20min. Heartbeat-extension
+        # window is [15, 20]. Age=17min is past hard_max — heartbeat MUST save
+        # the job from reaping.
         await db.photo_trailer_jobs.insert_one({
             "_id": jid, "user_id": "reliab-user", "status": "PROCESSING",
             "current_stage": "GENERATING_SCENES",
-            "duration_target_seconds": 20,  # 10 min threshold
-            "started_at": _iso_minutes_ago(15),  # past threshold
-            "created_at": _iso_minutes_ago(15),
+            "duration_target_seconds": 60,
+            "started_at": _iso_minutes_ago(17),
+            "created_at": _iso_minutes_ago(17),
             "updated_at": _iso_minutes_ago(0.5),
             "last_progress_at": _iso_minutes_ago(0.5),  # 30s ago — alive
             "retry_count": 0,
@@ -153,14 +156,17 @@ async def test_stale_auto_requeue_first_time(admin_token):
     db = cli[os.environ["DB_NAME"]]
     jid = f"reliab-rq1-{uuid.uuid4().hex[:8]}"
     try:
+        # 60s tier: hard_max=15min, stale_threshold=20min. Use age=17min
+        # (past hard_max, before stale_threshold) WITH stale heartbeat
+        # so the job is reapable. retry_count=0 → must auto-requeue.
         await db.photo_trailer_jobs.insert_one({
             "_id": jid, "user_id": "reliab-user", "status": "PROCESSING",
             "current_stage": "GENERATING_SCENES",
             "duration_target_seconds": 60,
-            "started_at": _iso_minutes_ago(30),  # past 20-min threshold
-            "created_at": _iso_minutes_ago(30),
+            "started_at": _iso_minutes_ago(17),
+            "created_at": _iso_minutes_ago(17),
             "updated_at": _iso_minutes_ago(10),
-            "last_progress_at": _iso_minutes_ago(10),  # >3min → not alive
+            "last_progress_at": _iso_minutes_ago(10),  # >3min → stale
             "retry_count": 0,
             "charged_credits": 25,
             "refunded_credits": 0,
@@ -202,12 +208,14 @@ async def test_stale_second_time_fails_with_refund(admin_token):
             "_id": user_id, "id": user_id, "email": f"{user_id}@test.local",
             "credits_balance": 0,
         })
+        # 60s tier: hard_max=15min, stale_threshold=20min. retry_count=1 +
+        # past stale_threshold(20) → real FAILED + refund.
         await db.photo_trailer_jobs.insert_one({
             "_id": jid, "user_id": user_id, "status": "PROCESSING",
             "current_stage": "GENERATING_SCENES",
-            "duration_target_seconds": 20,
-            "started_at": _iso_minutes_ago(15),
-            "created_at": _iso_minutes_ago(15),
+            "duration_target_seconds": 60,
+            "started_at": _iso_minutes_ago(22),  # past 20-min stale ceiling
+            "created_at": _iso_minutes_ago(22),
             "updated_at": _iso_minutes_ago(10),
             "last_progress_at": _iso_minutes_ago(10),
             "retry_count": 1,  # already retried once
@@ -285,12 +293,14 @@ async def test_auto_requeued_event_emitted(admin_token):
     jid = f"reliab-evt-{uuid.uuid4().hex[:8]}"
     user_id = f"reliab-evt-user-{uuid.uuid4().hex[:6]}"
     try:
+        # 60s tier: hard_max=15min, stale_threshold=20min. Use age=17min
+        # so we hit the auto-requeue path (not hard-max-suppression).
         await db.photo_trailer_jobs.insert_one({
             "_id": jid, "user_id": user_id, "status": "PROCESSING",
             "current_stage": "GENERATING_SCENES",
-            "duration_target_seconds": 20,
-            "started_at": _iso_minutes_ago(15),
-            "created_at": _iso_minutes_ago(15),
+            "duration_target_seconds": 60,
+            "started_at": _iso_minutes_ago(17),
+            "created_at": _iso_minutes_ago(17),
             "last_progress_at": _iso_minutes_ago(10),
             "retry_count": 0,
         })
