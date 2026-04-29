@@ -69,6 +69,288 @@ const BarRow = ({ label, value, max, suffix, testId }) => {
   );
 };
 
+// ── Failure diagnostics block ────────────────────────────────────────────
+// Lives directly under fail-rate KPI. Tells founder WHY jobs fail, ranks the
+// stages, surfaces top error code, projects recovery if retry strategy were
+// applied, and offers a clickable list of recent failures. No charts library.
+const STAGE_COLORS = {
+  VALIDATING:             'bg-slate-500',
+  ANALYZING_PHOTOS:       'bg-blue-500',
+  WRITING_TRAILER_SCRIPT: 'bg-cyan-500',
+  GENERATING_SCENES:      'bg-violet-500',
+  GENERATING_VOICEOVER:   'bg-fuchsia-500',
+  RENDERING_TRAILER:      'bg-amber-500',
+  JANITOR_STALE:          'bg-rose-500',
+  PIPELINE_CRASH:         'bg-red-700',
+  UNKNOWN:                'bg-slate-700',
+};
+const failColor = (rate) => {
+  if (rate == null) return 'text-white';
+  if (rate > 20) return 'text-rose-400';
+  if (rate >= 10) return 'text-amber-300';
+  return 'text-emerald-400';
+};
+
+function StageRow({ idx, stage, count, share_pct, retryable, accent }) {
+  const bar = STAGE_COLORS[stage] || STAGE_COLORS.UNKNOWN;
+  return (
+    <div className="flex items-center gap-3 text-sm py-1.5"
+         data-testid={`failstage-row-${idx}`}>
+      <div className="text-slate-500 font-mono text-xs w-6">#{idx + 1}</div>
+      <div className={`w-2 h-2 rounded-full ${bar}`} />
+      <div className="flex-1 truncate">
+        <span className={`font-semibold ${accent}`}>{stage}</span>
+        {retryable != null && (
+          <span className={`ml-2 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded ${
+            retryable ? 'bg-emerald-500/15 text-emerald-300' : 'bg-slate-500/15 text-slate-300'
+          }`}>{retryable ? 'retryable' : 'fatal'}</span>
+        )}
+      </div>
+      <div className="text-slate-300 tabular-nums">{count} fails</div>
+      <div className="w-14 text-right text-white font-bold tabular-nums">
+        {Number(share_pct ?? 0).toFixed(1)}%
+      </div>
+    </div>
+  );
+}
+
+function FailureDiagnostics({ ops }) {
+  const [open, setOpen] = useState(false);
+  const stages   = ops?.failure_stage_breakdown || [];
+  const codes    = ops?.error_code_breakdown    || [];
+  const top      = ops?.top_failure_stage;
+  const topErr   = ops?.top_error_code;
+  const recovery = ops?.recovery_opportunity;
+  const recent   = ops?.recent_failures || [];
+  const trend    = ops?.fail_trend || [];
+  const failRate = ops?.fail_rate_pct ?? 0;
+  const accent   = failColor(failRate);
+
+  if (!ops?.failed_jobs) {
+    return (
+      <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5 mb-10"
+           data-testid="failure-diagnostics-empty">
+        <div className="text-[11px] uppercase tracking-wider text-emerald-300 font-bold mb-1">
+          Failure diagnostics
+        </div>
+        <div className="text-sm text-emerald-200">No failures in this range. Ship it.</div>
+      </div>
+    );
+  }
+
+  // For trend, compute a max so bars are normalised
+  const trendMax = Math.max(1, ...trend.map((t) => t.total));
+
+  return (
+    <div className="space-y-4 mb-10" data-testid="failure-diagnostics">
+      <div className="flex items-center justify-between">
+        <div className="text-[11px] uppercase tracking-[0.2em] text-rose-300 font-bold">
+          Failure diagnostics — WHY jobs are dying
+        </div>
+        <div className={`text-sm font-mono ${accent}`}>
+          {ops.failed_jobs} fails / {ops.total_jobs} jobs · {Number(failRate).toFixed(1)}% rate
+        </div>
+      </div>
+
+      {/* Top 3 failing stages + top error code — 4 cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+        {[0, 1, 2].map((i) => {
+          const s = stages[i];
+          return (
+            <div key={i} data-testid={`failstage-card-${i}`}
+                 className={`rounded-xl border p-4 ${
+                   i === 0 ? 'border-rose-500/30 bg-rose-500/5'
+                           : 'border-white/10 bg-white/[0.03]'
+                 }`}>
+              <div className="text-[10px] uppercase tracking-wider text-slate-400 mb-1">
+                #{i + 1} Failing stage
+              </div>
+              {s ? (
+                <>
+                  <div className={`text-lg font-bold truncate ${i === 0 ? 'text-rose-300' : 'text-white'}`}>
+                    {s.stage}
+                  </div>
+                  <div className="text-xs text-slate-400 mt-1">
+                    {s.count} fails · {s.share_pct.toFixed(1)}% of all fails
+                  </div>
+                </>
+              ) : (
+                <div className="text-sm text-slate-500">—</div>
+              )}
+            </div>
+          );
+        })}
+        <div data-testid="top-error-code-card"
+             className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+          <div className="text-[10px] uppercase tracking-wider text-slate-400 mb-1">
+            Top error code
+          </div>
+          {topErr ? (
+            <>
+              <div className="text-lg font-bold text-amber-300 font-mono truncate">
+                {topErr.error_code}
+              </div>
+              <div className="text-xs text-slate-400 mt-1">
+                {topErr.count} fails ·{' '}
+                <span className={topErr.retryable ? 'text-emerald-400' : 'text-slate-400'}>
+                  {topErr.retryable ? 'retryable' : 'fatal'}
+                </span>
+              </div>
+            </>
+          ) : (
+            <div className="text-sm text-slate-500">—</div>
+          )}
+        </div>
+      </div>
+
+      {/* Recovery opportunity */}
+      {recovery && (
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-5"
+             data-testid="recovery-opportunity">
+          <div className="text-[11px] uppercase tracking-wider text-emerald-300 font-bold mb-2">
+            Recovery opportunity
+          </div>
+          <div className="text-base text-white">
+            If we auto-retry <span className="font-mono text-amber-300">{recovery.top_error_code}</span>{' '}
+            with a {Math.round(recovery.assumed_retry_success_rate * 100)}% success rate:
+          </div>
+          <div className="mt-2 text-2xl font-black">
+            <span className="text-rose-400 line-through">{recovery.current_fail_rate_pct.toFixed(1)}%</span>
+            <span className="text-slate-400 mx-3">→</span>
+            <span className="text-emerald-400">{recovery.projected_fail_rate_pct.toFixed(1)}%</span>
+          </div>
+          <div className="text-xs text-emerald-200/80 mt-1">
+            Estimated fail-rate drop: {recovery.estimated_drop_pct.toFixed(1)} percentage points
+            ({recovery.retryable_count} jobs recoverable)
+          </div>
+        </div>
+      )}
+
+      {/* Stage breakdown table */}
+      <div className="grid md:grid-cols-2 gap-4">
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5"
+             data-testid="failstage-breakdown">
+          <div className="text-[11px] uppercase tracking-wider text-slate-400 mb-3">
+            Stage breakdown (all)
+          </div>
+          {stages.length === 0 ? (
+            <div className="text-xs text-slate-500">No data.</div>
+          ) : (
+            <div className="space-y-0.5">
+              {stages.map((s, i) => (
+                <StageRow key={s.stage} idx={i} {...s}
+                          accent={i === 0 ? 'text-rose-300' : 'text-white'} />
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5"
+             data-testid="errcode-breakdown">
+          <div className="text-[11px] uppercase tracking-wider text-slate-400 mb-3">
+            Error code breakdown
+          </div>
+          {codes.length === 0 ? (
+            <div className="text-xs text-slate-500">No data.</div>
+          ) : (
+            <div className="space-y-1">
+              {codes.map((c, i) => (
+                <div key={c.error_code} data-testid={`errcode-row-${i}`}
+                     className="flex items-center gap-3 text-sm py-1">
+                  <div className="text-slate-500 font-mono text-xs w-6">#{i + 1}</div>
+                  <div className={`flex-1 font-mono truncate ${i === 0 ? 'text-amber-300' : 'text-white'}`}>
+                    {c.error_code}
+                  </div>
+                  <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                    c.retryable ? 'bg-emerald-500/15 text-emerald-300' : 'bg-slate-500/15 text-slate-300'
+                  }`}>{c.retryable ? 'retryable' : 'fatal'}</span>
+                  <div className="text-slate-300 tabular-nums w-14 text-right">{c.count}</div>
+                  <div className="text-white font-bold tabular-nums w-14 text-right">
+                    {c.share_pct.toFixed(1)}%
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Fail trend by day, stacked horizontal bar per day */}
+      {trend.length > 0 && (
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5"
+             data-testid="fail-trend">
+          <div className="text-[11px] uppercase tracking-wider text-slate-400 mb-3">
+            Fail trend by day · stacked by stage
+          </div>
+          <div className="space-y-1.5">
+            {trend.slice(-30).map((t) => {
+              const total = Math.max(1, t.total);
+              const widthPct = (t.total / trendMax) * 100;
+              return (
+                <div key={t.day} className="flex items-center gap-3 text-xs"
+                     data-testid={`fail-trend-${t.day}`}>
+                  <div className="w-24 text-slate-400 font-mono">{t.day}</div>
+                  <div className="flex-1 h-3 rounded bg-white/[0.04] overflow-hidden flex"
+                       style={{ width: `${widthPct}%`, minWidth: '4px' }}>
+                    {Object.entries(t.by_stage).map(([stage, n]) => (
+                      <div key={stage} title={`${stage}: ${n}`}
+                           className={`${STAGE_COLORS[stage] || STAGE_COLORS.UNKNOWN} h-full`}
+                           style={{ width: `${(n / total) * 100}%` }} />
+                    ))}
+                  </div>
+                  <div className="w-12 text-right text-white font-semibold tabular-nums">{t.total}</div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3 text-[10px]">
+            {Object.keys(STAGE_COLORS).filter((s) => s !== 'UNKNOWN').map((s) => (
+              <div key={s} className="flex items-center gap-1.5 text-slate-400">
+                <div className={`w-2 h-2 rounded-full ${STAGE_COLORS[s]}`} />
+                <span>{s}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Recent failures sample (clickable) */}
+      <div className="rounded-xl border border-white/10 bg-white/[0.03] overflow-hidden"
+           data-testid="recent-failures">
+        <button onClick={() => setOpen(!open)}
+                className="w-full px-5 py-4 flex items-center justify-between hover:bg-white/[0.04]"
+                data-testid="recent-failures-toggle">
+          <div className="text-[11px] uppercase tracking-wider text-slate-400 font-bold">
+            Recent failures sample ({recent.length})
+          </div>
+          <span className="text-slate-400 text-xs">{open ? 'Hide' : 'Show'}</span>
+        </button>
+        {open && (
+          <div className="border-t border-white/5 divide-y divide-white/5">
+            {recent.length === 0 ? (
+              <div className="p-4 text-xs text-slate-500">No failures.</div>
+            ) : recent.map((f, i) => (
+              <div key={f.job_id} className="p-3 grid grid-cols-12 gap-2 text-xs items-center"
+                   data-testid={`recent-failure-${i}`}>
+                <div className="col-span-3 font-mono text-slate-400 truncate">
+                  {f.failed_at?.replace('T', ' ').slice(0, 19)}
+                </div>
+                <div className="col-span-2 font-mono text-amber-300 truncate">{f.error_code}</div>
+                <div className="col-span-2 text-slate-300 truncate">{f.stage}</div>
+                <div className="col-span-1 text-slate-400">{f.plan_tier}</div>
+                <div className="col-span-1 text-slate-400 tabular-nums">{f.duration}s</div>
+                <div className="col-span-3 text-slate-300 truncate" title={f.error_message}>
+                  {f.error_message || '—'}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 export default function PhotoTrailerKpiDashboard() {
   const [range, setRange] = useState('7d');
   const [data, setData] = useState(null);
@@ -262,7 +544,9 @@ export default function PhotoTrailerKpiDashboard() {
                 sub={`${o.wait_samples?.standard || 0} samples`} testId="kpi-wait-standard" />
           <Stat label="Fail rate"           value={fmtPct(o.fail_rate_pct)}
                 sub={`${o.total_jobs || 0} jobs`}
-                accent={(o.fail_rate_pct || 0) > 10 ? 'text-rose-400' : 'text-white'}
+                accent={(o.fail_rate_pct || 0) > 20 ? 'text-rose-400'
+                       : (o.fail_rate_pct || 0) >= 10 ? 'text-amber-300'
+                       : 'text-emerald-400'}
                 testId="kpi-fail-rate" />
           <Stat label="Avg render · 20s" value={fmtSec(o.avg_render_seconds_by_duration?.['20'])}
                 sub={`${o.render_samples_by_duration?.['20'] || 0} samples`} testId="kpi-render-20" />
@@ -271,6 +555,9 @@ export default function PhotoTrailerKpiDashboard() {
           <Stat label="Avg render · 90s" value={fmtSec(o.avg_render_seconds_by_duration?.['90'])}
                 sub={`${o.render_samples_by_duration?.['90'] || 0} samples`} testId="kpi-render-90" />
         </Section>
+
+        {/* ── FAILURE DIAGNOSTICS — answer the WHY behind fail rate ── */}
+        <FailureDiagnostics ops={o} />
 
         {/* ═══════════════ VIRALITY ═══════════════ */}
         <Section title="6 · Virality" testId="kpi-section-virality">

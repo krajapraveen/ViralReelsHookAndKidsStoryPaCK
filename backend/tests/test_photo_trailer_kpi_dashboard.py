@@ -193,3 +193,88 @@ async def test_dashboard_supports_all_three_ranges(admin_token):
             for section in ("acquisition", "engagement", "conversion",
                             "revenue", "ops", "virality"):
                 assert section in j, f"range={rng} missing {section}"
+
+
+
+@pytest.mark.asyncio
+async def test_dashboard_failure_diagnostics_shape(admin_token):
+    """Seed a couple of FAILED jobs with distinct error codes/stages and
+    assert the new ops diagnostic block surfaces them correctly with
+    breakdowns + recovery opportunity + recent_failures + fail_trend."""
+    base = _api_base()
+    cli = AsyncIOMotorClient(os.environ["MONGO_URL"])
+    db = cli[os.environ["DB_NAME"]]
+
+    job_ids = []
+    try:
+        now = datetime.now(timezone.utc)
+        # 3 IMAGE_GEN_FAIL + 1 TTS_FAIL + 1 STALE_PIPELINE
+        for code, stage in [
+            ("IMAGE_GEN_FAIL", "GENERATING_SCENES"),
+            ("IMAGE_GEN_FAIL", "GENERATING_SCENES"),
+            ("IMAGE_GEN_FAIL", "GENERATING_SCENES"),
+            ("TTS_FAIL",       "GENERATING_VOICEOVER"),
+            ("STALE_PIPELINE", "JANITOR_STALE"),
+        ]:
+            jid = f"diag-fail-{uuid.uuid4().hex[:8]}"
+            job_ids.append(jid)
+            await db.photo_trailer_jobs.insert_one({
+                "_id": jid, "user_id": "diag-test-user", "status": "FAILED",
+                "current_stage": "FAILED", "failure_stage": stage,
+                "error_code": code, "error_message": f"seeded {code}",
+                "template_id": "superhero_origin",
+                "duration_target_seconds": 60,
+                "plan_tier_at_creation": "FREE",
+                "created_at":  now.isoformat(),
+                "started_at":  now.isoformat(),
+                "failed_at":   now.isoformat(),
+                "updated_at":  now.isoformat(),
+            })
+
+        async with httpx.AsyncClient(base_url=base, timeout=20.0) as c:
+            r = await c.get(
+                "/api/photo-trailer/admin/dashboard?range=7d",
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+        assert r.status_code == 200, r.text
+        ops = r.json()["ops"]
+
+        # New diagnostic keys must be present
+        for k in ("failure_stage_breakdown", "error_code_breakdown",
+                  "top_failure_stage", "top_error_code",
+                  "recovery_opportunity", "recent_failures", "fail_trend",
+                  "failed_jobs"):
+            assert k in ops, f"missing ops.{k}"
+
+        # Top stage should be GENERATING_SCENES (3 fails out of our 5)
+        # at minimum — note real data may add more, so use lower bound checks.
+        stage_map = {s["stage"]: s for s in ops["failure_stage_breakdown"]}
+        assert "GENERATING_SCENES" in stage_map
+        assert stage_map["GENERATING_SCENES"]["count"] >= 3
+
+        code_map = {c["error_code"]: c for c in ops["error_code_breakdown"]}
+        assert "IMAGE_GEN_FAIL" in code_map
+        assert code_map["IMAGE_GEN_FAIL"]["count"] >= 3
+        assert code_map["IMAGE_GEN_FAIL"]["retryable"] is True
+
+        # Recovery opportunity should be set when top error is retryable
+        ro = ops["recovery_opportunity"]
+        assert ro is not None
+        assert ro["retryable_count"] >= 3
+        assert ro["projected_fail_rate_pct"] < ro["current_fail_rate_pct"]
+        assert ro["estimated_drop_pct"] > 0
+
+        # Recent failures sample contains our newest seeded jobs
+        recent = ops["recent_failures"]
+        assert len(recent) >= 1
+        seen_codes = {f["error_code"] for f in recent}
+        assert "IMAGE_GEN_FAIL" in seen_codes or "TTS_FAIL" in seen_codes
+
+        # Fail trend has at least today's row
+        assert len(ops["fail_trend"]) >= 1
+        today = datetime.now(timezone.utc).date().isoformat()
+        days = {t["day"] for t in ops["fail_trend"]}
+        assert today in days
+    finally:
+        await db.photo_trailer_jobs.delete_many({"_id": {"$in": job_ids}})
+        cli.close()

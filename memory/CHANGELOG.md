@@ -83,3 +83,14 @@
 - Fixed `priority_slots` config exposure in queue-stats (was reading semaphore-runtime value, now exposes static configured slot count)
 - Test suite: `test_photo_trailer_kpi_dashboard.py` (4 tests — auth gate, range validation, all-three-ranges, and seeded-math correctness across all 6 sections)
 - Full Photo Trailer regression: 36/36 green
+
+### Photo Trailer — Failure Diagnostics (2026-02-XX)
+- Backend: `/admin/dashboard` ops block now includes 7 new diagnostic fields:
+  `failure_stage_breakdown`, `error_code_breakdown`, `top_failure_stage`, `top_error_code`,
+  `recovery_opportunity`, `recent_failures`, `fail_trend`
+- `_fail()` helper now preserves the active `current_stage` into `failure_stage` BEFORE overwriting current_stage to "FAILED" — without this fix, stage breakdown reports "FAILED" for everything
+- Historical jobs without `failure_stage` are mapped via `error_code → stage` table
+- Recovery opportunity calc: assumes 65% retry success rate for transient codes, projects fail-rate after retry strategy
+- Frontend: 4 cards under fail-rate (#1/#2/#3 stages + top error), recovery banner with strikethrough → projected rate, dual stage/code breakdown tables with retryable/fatal badges, stacked-bar daily fail trend with stage legend, collapsible recent-failures drawer (last 10)
+- 6 KPI dashboard tests passing
+

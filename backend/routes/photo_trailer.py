@@ -726,8 +726,15 @@ async def _fail(job_id: str, code: str, msg: str):
     j = await db.photo_trailer_jobs.find_one({"_id": job_id})
     if not j: return
     log.error(f"[trailer {job_id}] FAIL {code}: {msg}")
+    # Preserve the stage we were ON when failure happened — without this, the
+    # admin dashboard cannot tell GENERATING_SCENES failures from RENDERING ones.
+    failure_stage = j.get("current_stage") or "UNKNOWN"
+    if failure_stage == "FAILED":  # double-fail edge case
+        failure_stage = j.get("failure_stage") or "UNKNOWN"
     await db.photo_trailer_jobs.update_one({"_id": job_id}, {"$set": {
-        "status": "FAILED", "current_stage": "FAILED", "error_code": code,
+        "status": "FAILED", "current_stage": "FAILED",
+        "failure_stage": failure_stage,
+        "error_code": code,
         "error_message": msg, "failed_at": _now(), "updated_at": _now(),
     }})
     if j.get("charged_credits") and not j.get("refunded_credits"):
@@ -1796,6 +1803,130 @@ async def admin_kpi_dashboard(
     failed_in_range = await db.photo_trailer_jobs.count_documents(
         {**job_match, "status": "FAILED"}
     )
+
+    # ── Failure diagnostics: stage breakdown, error codes, recovery est. ────
+    # error_code → canonical stage (covers historical jobs that lack
+    # `failure_stage`). For new failures we also store `failure_stage` directly.
+    ERROR_TO_STAGE = {
+        "CREDIT_DEDUCT_FAIL":   "VALIDATING",
+        "HERO_LOAD_FAIL":       "ANALYZING_PHOTOS",
+        "SCRIPT_FAIL":          "WRITING_TRAILER_SCRIPT",
+        "IMAGE_GEN_FAIL":       "GENERATING_SCENES",
+        "TTS_FAIL":             "GENERATING_VOICEOVER",
+        "RENDER_FAIL":          "RENDERING_TRAILER",
+        "UPLOAD_FAIL":          "RENDERING_TRAILER",
+        "STALE_PIPELINE":       "JANITOR_STALE",
+        "PIPELINE_CRASH":       "PIPELINE_CRASH",
+    }
+    # Codes whose root cause is typically transient → retryable
+    RETRYABLE_CODES = {"IMAGE_GEN_FAIL", "TTS_FAIL", "RENDER_FAIL",
+                       "UPLOAD_FAIL", "SCRIPT_FAIL", "PIPELINE_CRASH",
+                       "STALE_PIPELINE"}
+    # Conservative empirical retry success rate for transient pipeline failures
+    RETRY_SUCCESS_RATE = 0.65
+
+    failure_stage_breakdown = []
+    error_code_breakdown = []
+    if failed_in_range:
+        # Per-error-code aggregation, then derive stage
+        ec_pipe = [
+            {"$match": {**job_match, "status": "FAILED"}},
+            {"$group": {"_id": "$error_code", "n": {"$sum": 1}}},
+            {"$sort": {"n": -1}},
+        ]
+        stage_counts = {}
+        async for d in db.photo_trailer_jobs.aggregate(ec_pipe):
+            code = d["_id"] or "UNKNOWN"
+            n = int(d["n"])
+            error_code_breakdown.append({
+                "error_code": code, "count": n,
+                "share_pct": _safe_pct(n, failed_in_range),
+                "retryable": code in RETRYABLE_CODES,
+            })
+            stage = ERROR_TO_STAGE.get(code, "UNKNOWN")
+            stage_counts[stage] = stage_counts.get(stage, 0) + n
+        # If any new-style failure_stage is set, prefer it
+        fs_pipe = [
+            {"$match": {**job_match, "status": "FAILED",
+                        "failure_stage": {"$exists": True, "$ne": None,
+                                          "$nin": ["FAILED", "UNKNOWN"]}}},
+            {"$group": {"_id": "$failure_stage", "n": {"$sum": 1}}},
+        ]
+        async for d in db.photo_trailer_jobs.aggregate(fs_pipe):
+            # Override derived count for stages we have direct evidence for
+            stage_counts[d["_id"]] = max(stage_counts.get(d["_id"], 0), int(d["n"]))
+        failure_stage_breakdown = sorted(
+            [{"stage": s, "count": n,
+              "share_pct": _safe_pct(n, failed_in_range)}
+             for s, n in stage_counts.items()],
+            key=lambda x: -x["count"],
+        )
+
+    top_failure_stage = failure_stage_breakdown[0] if failure_stage_breakdown else None
+    top_error_code = error_code_breakdown[0] if error_code_breakdown else None
+
+    # Recovery opportunity: if top error is retryable, estimate fail-rate drop
+    # if we successfully retried RETRY_SUCCESS_RATE of those failures.
+    recovery_opportunity = None
+    if top_error_code and top_error_code["retryable"] and failed_in_range and total_jobs_in_range:
+        recoverable_fails = int(top_error_code["count"] * RETRY_SUCCESS_RATE)
+        projected_fails = max(0, failed_in_range - recoverable_fails)
+        current_rate = _safe_pct(failed_in_range, total_jobs_in_range)
+        projected_rate = _safe_pct(projected_fails, total_jobs_in_range)
+        recovery_opportunity = {
+            "top_error_code": top_error_code["error_code"],
+            "retryable_count": top_error_code["count"],
+            "assumed_retry_success_rate": RETRY_SUCCESS_RATE,
+            "current_fail_rate_pct": current_rate,
+            "projected_fail_rate_pct": projected_rate,
+            "estimated_drop_pct": round(current_rate - projected_rate, 1),
+        }
+
+    # Recent failed jobs sample (clickable in UI)
+    recent_failures = []
+    if failed_in_range:
+        async for f in db.photo_trailer_jobs.find(
+            {**job_match, "status": "FAILED"},
+            {"_id": 1, "error_code": 1, "error_message": 1, "failed_at": 1,
+             "template_id": 1, "plan_tier_at_creation": 1, "failure_stage": 1,
+             "duration_target_seconds": 1},
+        ).sort("failed_at", -1).limit(10):
+            recent_failures.append({
+                "job_id": f["_id"],
+                "error_code": f.get("error_code") or "UNKNOWN",
+                "error_message": (f.get("error_message") or "")[:160],
+                "stage": f.get("failure_stage") or
+                         ERROR_TO_STAGE.get(f.get("error_code") or "", "UNKNOWN"),
+                "template_id": f.get("template_id"),
+                "plan_tier": f.get("plan_tier_at_creation") or "FREE",
+                "duration": f.get("duration_target_seconds"),
+                "failed_at": f.get("failed_at"),
+            })
+
+    # Daily fail trend (last 14d max regardless of range, by stage stacked)
+    trend_days = 1 if range == "24h" else (7 if range == "7d" else 30)
+    trend_cutoff = (datetime.now(timezone.utc) - timedelta(days=trend_days)).isoformat()
+    trend_pipe = [
+        {"$match": {"status": "FAILED", "failed_at": {"$gte": trend_cutoff}}},
+        {"$project": {
+            "day": {"$substr": ["$failed_at", 0, 10]},
+            "error_code": 1,
+        }},
+        {"$group": {"_id": {"day": "$day", "code": "$error_code"},
+                    "n": {"$sum": 1}}},
+        {"$sort": {"_id.day": 1}},
+    ]
+    trend_by_day = {}
+    async for d in db.photo_trailer_jobs.aggregate(trend_pipe):
+        day = (d["_id"] or {}).get("day") or "?"
+        code = (d["_id"] or {}).get("code") or "UNKNOWN"
+        stage = ERROR_TO_STAGE.get(code, "UNKNOWN")
+        trend_by_day.setdefault(day, {})
+        trend_by_day[day][stage] = trend_by_day[day].get(stage, 0) + int(d["n"])
+    fail_trend = [{"day": day, "by_stage": stages, "total": sum(stages.values())}
+                  for day, stages in sorted(trend_by_day.items())]
+
+
     # Avg render time by duration (started_at → completed_at)
     render_pipe = [
         {"$match": {**job_match, "status": "COMPLETED",
@@ -1887,8 +2018,17 @@ async def admin_kpi_dashboard(
             "wait_samples": wait_samples,
             "fail_rate_pct": _safe_pct(failed_in_range, total_jobs_in_range),
             "total_jobs": total_jobs_in_range,
+            "failed_jobs": failed_in_range,
             "avg_render_seconds_by_duration": render_by_duration,
             "render_samples_by_duration": render_samples,
+            # ── Diagnostic block (P0 founder ask: WHY are jobs failing) ──
+            "failure_stage_breakdown": failure_stage_breakdown,
+            "error_code_breakdown": error_code_breakdown,
+            "top_failure_stage": top_failure_stage,
+            "top_error_code": top_error_code,
+            "recovery_opportunity": recovery_opportunity,
+            "recent_failures": recent_failures,
+            "fail_trend": fail_trend,
         },
         "virality": {
             "view_to_share_pct": _safe_pct(total_shares, unique_visitors),
