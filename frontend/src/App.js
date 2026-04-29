@@ -108,6 +108,7 @@ const StoryEpisodeCreator = lazy(() => import('./pages/StoryEpisodeCreator'));
 const ContentChallengePlanner = lazy(() => import('./pages/ContentChallengePlanner'));
 const CaptionRewriterPro = lazy(() => import('./pages/CaptionRewriterPro'));
 const PromoVideos = lazy(() => import('./pages/PromoVideos'));
+const PhotoTrailerPage = lazy(() => import('./pages/PhotoTrailerPage'));
 
 // Navigation / user pages
 const MySpacePage = lazy(() => import('./pages/MySpacePage'));
@@ -378,6 +379,9 @@ function App() {
         <Route path="/app/content-challenge-planner" element={isAuthenticated ? <L><ContentChallengePlanner /></L> : <Navigate to="/login" />} />
         <Route path="/app/caption-rewriter" element={isAuthenticated ? <L><CaptionRewriterPro /></L> : <Navigate to="/login" />} />
         <Route path="/app/promo-videos" element={isAuthenticated ? <L><PromoVideos /></L> : <Navigate to="/login" />} />
+        <Route path="/app/photo-trailer" element={isAuthenticated ? <L><PhotoTrailerPage /></L> : <Navigate to="/login" />} />
+        <Route path="/app/youstar" element={isAuthenticated ? <L><PhotoTrailerPage /></L> : <Navigate to="/login" />} />
+        <Route path="/app/my-movie-trailer" element={isAuthenticated ? <L><PhotoTrailerPage /></L> : <Navigate to="/login" />} />
 
         {/* ═══ USER PAGES ═══ */}
         <Route path="/app/history" element={isAuthenticated ? <L><History /></L> : <Navigate to="/login" />} />

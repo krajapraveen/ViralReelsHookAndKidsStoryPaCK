@@ -509,6 +509,7 @@ const ICON_MAP = {
 
 // REGRESSION GUARD: Static default feature list — NEVER let features section be empty
 const DEFAULT_FEATURES = [
+  { name: 'My Movie Trailer', desc: 'Upload photos → 20-60s personalized AI trailer', icon: 'Camera', path: '/app/photo-trailer', key: 'photo-trailer', gradient: 'from-violet-500 to-fuchsia-700', score: 100, badge: 'NEW' },
   { name: 'Story Video', desc: 'Turn ideas into cinematic stories', icon: 'Film', path: '/app/story-video-studio', key: 'story-video-studio', gradient: 'from-indigo-500 to-blue-700', score: 0 },
   { name: 'Story Series', desc: 'Multi-episode sagas with memory', icon: 'BookOpen', path: '/app/story-series', key: 'story-series', gradient: 'from-purple-500 to-fuchsia-700', score: 0 },
   { name: 'Character Memory', desc: 'Persistent characters across stories', icon: 'User', path: '/app/characters', key: 'characters', gradient: 'from-cyan-500 to-blue-700', score: 0 },
@@ -544,7 +545,7 @@ function FeaturesGrid({ features, navigate }) {
               <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#6C5CE7]/25 to-[#00C2FF]/25 text-white text-xl border border-white/10 group-hover:scale-110 transition-transform">
                 <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
-              <h3 className="text-white text-lg font-bold tracking-tight">{f.name}</h3>
+              <h3 className="text-white text-lg font-bold tracking-tight flex items-center gap-2">{f.name}{f.badge && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-300 border border-violet-500/30">{f.badge}</span>}</h3>
               <p className="mt-2 text-white/70 text-sm leading-relaxed line-clamp-1">{f.desc}</p>
               <span className="mt-4 inline-flex items-center text-white text-sm font-semibold group-hover:text-white transition-colors">
                 Continue <ArrowRight className="w-3 h-3 ml-1" />
