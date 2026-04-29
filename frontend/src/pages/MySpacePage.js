@@ -288,8 +288,105 @@ const VARIATION_BUTTONS = [
   { label: 'Turn into storybook', icon: BookOpen, tone: null, style: 'storybook', desc: 'Classic illustrated style' },
 ];
 
+// ─── PHOTO TRAILER CARD (YouStar — minimal, isolated from story-engine logic) ─
+function PhotoTrailerCard({ job, justCompleted }) {
+  const navigate = useNavigate();
+  const status = job.status || 'PROCESSING';
+  const isProcessing = status === 'PROCESSING' || status === 'QUEUED';
+  const isCompleted = status === 'COMPLETED';
+  const isFailed = status === 'FAILED';
+  const created = job.created_at ? new Date(job.created_at).toLocaleDateString() : '';
+
+  const tint = isCompleted ? 'border-emerald-400/30 bg-emerald-500/[0.04]'
+            : isFailed     ? 'border-rose-400/30 bg-rose-500/[0.04]'
+            :                'border-violet-400/30 bg-violet-500/[0.04]';
+
+  return (
+    <div
+      data-testid={`myspace-trailer-card-${job.job_id}`}
+      className={`relative rounded-xl border transition-all duration-300 overflow-hidden ${tint} ${
+        justCompleted ? 'ring-2 ring-emerald-400/40 animate-[pulse_2s_ease-in-out_3]' : ''
+      }`}
+    >
+      <div className="flex items-start gap-3 p-4">
+        <div className="w-16 h-16 rounded-lg bg-zinc-800/80 flex items-center justify-center overflow-hidden flex-shrink-0">
+          {job.thumbnail_url
+            ? <img src={job.thumbnail_url} alt="" className="w-full h-full object-cover" />
+            : <span className="text-violet-300/60 text-[10px] font-mono">YouStar</span>}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-300 border border-violet-500/30">YouStar Trailer</span>
+            <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+              isCompleted ? 'bg-emerald-500/20 text-emerald-300' :
+              isFailed    ? 'bg-rose-500/20 text-rose-300' :
+                            'bg-violet-500/20 text-violet-300'
+            }`}>{status}</span>
+          </div>
+          <h3 className="text-white font-semibold mt-1 truncate" data-testid={`myspace-trailer-title-${job.job_id}`}>
+            {job.title || 'YouStar Trailer'}
+          </h3>
+          <p className="text-xs text-zinc-400 mt-0.5">{created}{job.duration_target_seconds ? ` · ${job.duration_target_seconds}s` : ''}</p>
+          {isProcessing && (
+            <div className="mt-2">
+              <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-violet-500 to-fuchsia-500 transition-all duration-500"
+                  style={{ width: `${job.progress || 0}%` }}
+                />
+              </div>
+              <p className="text-[11px] text-zinc-500 mt-1">{job.current_stage || 'Working on it'} · {job.progress || 0}%</p>
+            </div>
+          )}
+          {isFailed && job.error_message && (
+            <p className="text-xs text-rose-300/90 mt-1.5">{job.error_message}</p>
+          )}
+        </div>
+      </div>
+      <div className="flex gap-2 px-4 pb-4">
+        {isCompleted && job.output_url && (
+          <button
+            onClick={() => window.open(job.output_url, '_blank', 'noopener,noreferrer')}
+            className="flex-1 py-2 px-3 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors"
+            data-testid={`myspace-trailer-play-${job.job_id}`}
+          >
+            ▶ Play
+          </button>
+        )}
+        {isFailed && (
+          <button
+            onClick={() => navigate('/app/photo-trailer')}
+            className="flex-1 py-2 px-3 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold transition-colors"
+            data-testid={`myspace-trailer-retry-${job.job_id}`}
+          >
+            Try again
+          </button>
+        )}
+        {isProcessing && (
+          <button
+            onClick={() => navigate('/app/photo-trailer')}
+            className="flex-1 py-2 px-3 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 text-sm transition-colors"
+            data-testid={`myspace-trailer-track-${job.job_id}`}
+          >
+            View progress
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── PROJECT CARD (UNIFIED) ──────────────────────────────────────────────────
-function ProjectCard({ job, highlighted, justCompleted, onShare, onRetry, onDelete, onNavigate, onImproveConsistency, timeEstimates, userCredits, remixCount }) {
+// Dispatches between the legacy story-engine card and the new YouStar trailer
+// card. Wrapper-only — keeps each component pure with no conditional hooks.
+function ProjectCard(props) {
+  if (props.job?.type === 'photo_trailer') {
+    return <PhotoTrailerCard job={props.job} justCompleted={props.justCompleted} />;
+  }
+  return <StoryProjectCard {...props} />;
+}
+
+function StoryProjectCard({ job, highlighted, justCompleted, onShare, onRetry, onDelete, onNavigate, onImproveConsistency, timeEstimates, userCredits, remixCount }) {
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(() => {
     const s = getStatusKey(job);
@@ -779,9 +876,10 @@ export default function MySpacePage() {
 
   const fetchJobs = useCallback(async () => {
     try {
-      const [storyRes, reelRes] = await Promise.allSettled([
+      const [storyRes, reelRes, trailerRes] = await Promise.allSettled([
         api.get('/api/story-engine/user-jobs?limit=100'),
         api.get('/api/convert/user-reels').catch(() => ({ data: { reels: [] } })),
+        api.get('/api/photo-trailer/my-trailers?limit=50').catch(() => ({ data: { trailers: [] } })),
       ]);
       const allItems = [];
       if (storyRes.status === 'fulfilled' && storyRes.value?.data?.jobs) {
@@ -795,6 +893,27 @@ export default function MySpacePage() {
             thumbnail_url: r.thumbnail_url, output_url: r.output_url || r.video_url,
             progress: r.status === 'completed' ? 100 : 50,
             created_at: r.created_at, completed_at: r.completed_at,
+          });
+        }
+      }
+      // Photo Trailers (YouStar) — appear here so users can leave the
+      // generation screen and find their trailer when it's ready.
+      if (trailerRes.status === 'fulfilled' && trailerRes.value?.data?.trailers) {
+        for (const t of trailerRes.value.data.trailers) {
+          allItems.push({
+            job_id: t._id || t.public_share_slug,
+            title: t.template_name || 'YouStar Trailer',
+            type: 'photo_trailer',
+            status: t.status,  // already QUEUED|PROCESSING|COMPLETED|FAILED
+            thumbnail_url: t.result_thumbnail_url,
+            output_url: t.result_video_url,
+            progress: t.status === 'COMPLETED' ? 100 : (t.progress_percent || 0),
+            current_stage: t.current_stage,
+            created_at: t.created_at,
+            completed_at: t.completed_at,
+            error_message: t.error_message,
+            template_id: t.template_id,
+            duration_target_seconds: t.duration_target_seconds,
           });
         }
       }

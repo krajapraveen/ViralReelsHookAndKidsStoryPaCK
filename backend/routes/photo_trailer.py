@@ -667,6 +667,25 @@ async def _run_pipeline_inner(job_id: str):
             "public_share_slug": slug, "completed_at": _now(), "updated_at": _now(),
         }})
         await _emit("photo_trailer_generation_completed", user_id, {"job_id": job_id, "duration": j["duration_target_seconds"]})
+
+        # In-app notification: "Your YouStar trailer is ready" — re-uses the
+        # existing notification system; the bell + center already polls these.
+        try:
+            from services.notification_service import NotificationService
+            tpl_name = j.get("template_name") or TEMPLATES.get(j["template_id"], {}).get("title", "trailer")
+            await NotificationService(db).create_notification(
+                user_id=user_id,
+                notification_type="generation_complete",
+                feature="photo_trailer",
+                title="Your YouStar trailer is ready",
+                message=f"Your '{tpl_name}' trailer just finished — tap to watch.",
+                job_id=job_id,
+                download_url=video_url,
+                action_url=f"/app/my-space?trailer={job_id}",
+                metadata={"template_id": j["template_id"], "thumbnail_url": thumb_url, "duration": j["duration_target_seconds"]},
+            )
+        except Exception as e:
+            log.warning(f"[trailer {job_id}] notification create failed (non-fatal): {e}")
     except Exception as e:
         log.exception(f"orchestrator crash {job_id}")
         await _fail(job_id, "PIPELINE_CRASH", str(e)[:200])

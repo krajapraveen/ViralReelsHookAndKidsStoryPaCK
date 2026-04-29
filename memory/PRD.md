@@ -1053,6 +1053,100 @@ Founder directive: Photo Trailer must never degrade core app responsiveness.
 ✅ Tests: 24/24 PASS in 13.51s (was 22/24 in 151s before this fix).
 
 ─────────────────────────────────────────────────────────
+[2026-04-29 P1] PHOTO TRAILER — WAITING UX + MYSPACE + COMPLETION NOTIFICATION
+─────────────────────────────────────────────────────────
+Goal: when YouStar generation starts, users must not feel trapped.
+Scope: lightweight UX only. NO new game engine. NO admin. NO music.
+
+✅ Progress screen: reassurance + 3 escape hatches
+   File: frontend/src/pages/PhotoTrailerPage.jsx (ProgressStep)
+   - Required copy verbatim:
+       "Your trailer is being created. You can leave this page and use
+        other Visionary Suite features — we'll notify you when it's ready.
+        Your trailer will be saved in Profile → MySpace."
+   - 3 buttons:
+       Go to MySpace          → navigate('/app/my-space')
+       Explore other tools    → navigate('/app')
+       Stay and play while waiting → toggles WaitingPlayground
+
+✅ WaitingPlayground (lightweight anxiety reducer, NOT a game engine)
+   - Purely frontend. No backend calls. ~120 LOC, all static.
+   - 3 widgets:
+       1. Quick brain teaser: 5 riddles × 4 multiple-choice each, with
+          reveal-answer + Next → cycle (correct=emerald / wrong=rose).
+       2. Inspirational quote: 7-quote rotation with "Another quote →".
+       3. True fact: 7-fact rotation with "Another fact →".
+   - All copy is static, no LLM, no analytics writes.
+
+✅ MySpace integration
+   File: frontend/src/pages/MySpacePage.js
+   - fetchJobs now also calls /api/photo-trailer/my-trailers in
+     Promise.allSettled alongside story-engine + reels.
+   - New PhotoTrailerCard component: minimal renderer for type='photo_trailer'.
+       - Badge "YouStar Trailer" + status pill (PROCESSING/COMPLETED/FAILED).
+       - Thumbnail · template name · created date · duration.
+       - PROCESSING → progress bar + stage text + "View progress" CTA.
+       - COMPLETED  → "▶ Play" opens result_video_url in a new tab.
+       - FAILED     → "Try again" returns user to the wizard.
+   - ProjectCard becomes a thin dispatcher: photo_trailer → PhotoTrailerCard,
+     story_video/reel → existing StoryProjectCard. Zero risk to legacy logic.
+   - `data-testid` for every card, status, and action button.
+
+✅ In-app notification on COMPLETED (re-uses existing system, no new infra)
+   File: backend/routes/photo_trailer.py (after _emit at COMPLETED)
+   - Calls NotificationService.create_notification with:
+       type:        generation_complete
+       feature:     photo_trailer
+       title:       "Your YouStar trailer is ready"
+       message:     "Your '<template>' trailer just finished — tap to watch."
+       action_url:  /app/my-space?trailer=<job_id>
+       metadata:    template_id, thumbnail_url, duration
+   - Failure to enqueue notification is logged but non-fatal — pipeline
+     completion is never blocked on the notification system.
+
+✅ Tests added (frontend Playwright)
+   File: backend/tests/test_photo_trailer_waiting_ux.py (4 tests, 187 LOC)
+   IMPORTANT: tests use Playwright route() to STUB the job-create + poll
+   endpoints. They land on the Progress step deterministically WITHOUT
+   spending any LLM credits. This keeps the test suite fast + cost-free.
+   Tests:
+   1. test_progress_shows_leave_copy_and_three_buttons — verifies the exact
+      reassurance phrases and all 3 escape buttons.
+   2. test_stay_and_play_reveals_riddle_quote_fact — opens playground,
+      verifies all 3 widgets, picks a riddle answer, verifies reveal,
+      verifies toggle-hide.
+   3. test_go_to_myspace_button_navigates — clicks Go to MySpace and
+      asserts URL is /app/my-space.
+   4. test_completed_trailer_appears_in_myspace — asserts at least 1
+      YouStar trailer card on MySpace + at least 1 Play button.
+
+✅ Full suite: 35/35 PASS in 117.70s
+   - 24 original Photo Trailer
+   - 4 janitor
+   - 3 upload-step CTA regression
+   - 4 waiting UX + MySpace
+   - Generation pipeline UNTOUCHED. Worker pool UNTOUCHED. Backend logic
+     change limited to ONE notification call after COMPLETED.
+
+📁 Files Changed:
+   • frontend/src/pages/PhotoTrailerPage.jsx
+       — WaitingPlayground component (new)
+       — ProgressStep: reassurance card + 3 buttons + playground toggle
+   • frontend/src/pages/MySpacePage.js
+       — fetchJobs: photo trailer fetch
+       — PhotoTrailerCard component (new)
+       — ProjectCard split into dispatcher + StoryProjectCard
+   • backend/routes/photo_trailer.py
+       — NotificationService.create_notification on COMPLETED
+   • backend/tests/test_photo_trailer_waiting_ux.py (new, 187 LOC)
+
+🎯 Discipline win: lightweight components, no new infrastructure, no new
+   tracking systems. Reused notification service, MySpace page, funnel
+   tracker. All scope-locked instructions honored.
+
+
+─────────────────────────────────────────────────────────
+─────────────────────────────────────────────────────────
 [2026-04-29 P0 BUGFIX] PHOTO TRAILER STEP 1 — UNBLOCKED CTA + REGRESSION TEST
 ─────────────────────────────────────────────────────────
 Funnel-killer bug: after uploading a valid photo, the "Continue → Choose

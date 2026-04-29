@@ -324,9 +324,121 @@ function TemplateStep({ templates, templateId, setTemplateId, prompt, setPrompt,
   );
 }
 
+// ─── Waiting Playground (lightweight anxiety reducer — NOT a game engine) ────
+const WAITING_QUOTES = [
+  '"The first step is the hardest. You already took it." — Unknown',
+  '"Creativity is intelligence having fun." — Albert Einstein',
+  '"Make it work, make it right, make it fast." — Kent Beck',
+  '"You miss 100% of the shots you don\'t take." — Wayne Gretzky',
+  '"Done is better than perfect." — Sheryl Sandberg',
+  '"Storytelling is the most powerful way to put ideas into the world." — Robert McKee',
+  '"Almost everything will work again if you unplug it for a few minutes." — Anne Lamott',
+];
+const WAITING_FACTS = [
+  'A typical Hollywood movie trailer is between 90 and 150 seconds — yours will be shorter and punchier.',
+  'The "Inception" trailer\'s "BWAAA" sound has its own name: a "braam". It defined a decade of trailers.',
+  'Octopuses have three hearts. Two pump blood to the gills, one pumps to the rest of the body.',
+  'Honey never spoils. Archaeologists found 3,000-year-old honey in Egyptian tombs that was still edible.',
+  'The first 10 seconds of a film trailer determine whether viewers keep watching 78% of the time.',
+  'A bolt of lightning is five times hotter than the surface of the sun.',
+  'Bananas are berries, but strawberries are not.',
+];
+const WAITING_RIDDLES = [
+  { q: 'I speak without a mouth and hear without ears. I have no body, but come alive with the wind. What am I?', choices: ['A cloud', 'An echo', 'A whisper', 'A shadow'], answer: 1 },
+  { q: 'The more you take, the more you leave behind. What are they?', choices: ['Memories', 'Footsteps', 'Photos', 'Tears'], answer: 1 },
+  { q: 'What has hands but cannot clap?', choices: ['A statue', 'A mannequin', 'A clock', 'A glove'], answer: 2 },
+  { q: 'What can travel around the world while staying in a corner?', choices: ['A globe', 'A stamp', 'A satellite', 'The wind'], answer: 1 },
+  { q: 'I\'m tall when I\'m young, and I\'m short when I\'m old. What am I?', choices: ['A tree', 'A candle', 'A shadow', 'A mountain'], answer: 1 },
+];
+
+function WaitingPlayground() {
+  const [riddleIdx, setRiddleIdx] = useState(() => Math.floor(Math.random() * WAITING_RIDDLES.length));
+  const [picked, setPicked] = useState(null);
+  const [revealed, setRevealed] = useState(false);
+  const [quoteIdx, setQuoteIdx] = useState(() => Math.floor(Math.random() * WAITING_QUOTES.length));
+  const [factIdx, setFactIdx] = useState(() => Math.floor(Math.random() * WAITING_FACTS.length));
+
+  const riddle = WAITING_RIDDLES[riddleIdx];
+  const isCorrect = picked === riddle.answer;
+
+  const nextRiddle = () => {
+    setRiddleIdx((i) => (i + 1) % WAITING_RIDDLES.length);
+    setPicked(null);
+    setRevealed(false);
+  };
+
+  return (
+    <div className="space-y-3 text-left max-w-md mx-auto" data-testid="trailer-waiting-playground">
+      <div className="rounded-xl border border-violet-500/20 bg-violet-500/[0.04] p-4" data-testid="waiting-riddle">
+        <p className="text-[10px] uppercase tracking-wider text-violet-300/80 font-bold mb-1.5">Quick brain teaser</p>
+        <p className="text-sm text-slate-200">{riddle.q}</p>
+        <div className="grid grid-cols-2 gap-1.5 mt-3">
+          {riddle.choices.map((c, i) => {
+            const isPicked = picked === i;
+            const showCorrect = revealed && i === riddle.answer;
+            const showWrong = revealed && isPicked && i !== riddle.answer;
+            return (
+              <button
+                key={i}
+                onClick={() => { setPicked(i); setRevealed(true); }}
+                disabled={revealed}
+                className={`text-xs rounded-lg px-2.5 py-1.5 border text-left transition-colors ${
+                  showCorrect ? 'bg-emerald-500/20 border-emerald-400 text-emerald-200' :
+                  showWrong   ? 'bg-rose-500/20 border-rose-400 text-rose-200' :
+                  isPicked    ? 'bg-violet-500/20 border-violet-400 text-violet-100' :
+                                'bg-white/[0.03] border-white/10 text-slate-300 hover:border-violet-500/40'
+                }`}
+                data-testid={`waiting-riddle-choice-${i}`}
+              >
+                {c}
+              </button>
+            );
+          })}
+        </div>
+        {revealed && (
+          <div className="mt-2.5 flex items-center justify-between text-xs">
+            <span className={isCorrect ? 'text-emerald-300' : 'text-slate-400'}>
+              {isCorrect ? '✓ Nice one.' : `Answer: ${riddle.choices[riddle.answer]}`}
+            </span>
+            <button onClick={nextRiddle} className="text-violet-300 hover:text-violet-200" data-testid="waiting-riddle-next">
+              Next →
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4" data-testid="waiting-quote">
+        <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1.5">Inspiration</p>
+        <p className="text-sm text-slate-200 italic leading-relaxed">{WAITING_QUOTES[quoteIdx]}</p>
+        <button
+          onClick={() => setQuoteIdx((i) => (i + 1) % WAITING_QUOTES.length)}
+          className="text-xs text-violet-300 hover:text-violet-200 mt-2"
+          data-testid="waiting-quote-next"
+        >
+          Another quote →
+        </button>
+      </div>
+
+      <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4" data-testid="waiting-fact">
+        <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1.5">Did you know</p>
+        <p className="text-sm text-slate-200 leading-relaxed">{WAITING_FACTS[factIdx]}</p>
+        <button
+          onClick={() => setFactIdx((i) => (i + 1) % WAITING_FACTS.length)}
+          className="text-xs text-violet-300 hover:text-violet-200 mt-2"
+          data-testid="waiting-fact-next"
+        >
+          Another fact →
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Step 4: Progress ─────────────────────────────────────────────────────────
 function ProgressStep({ jobId, onDone, onFail }) {
+  const navigate = useNavigate();
   const [job, setJob] = useState(null);
+  const [showPlayground, setShowPlayground] = useState(false);
   useEffect(() => {
     let stop = false;
     const tick = async () => {
@@ -348,6 +460,7 @@ function ProgressStep({ jobId, onDone, onFail }) {
   }, [jobId]);
   const stage = job?.current_stage || 'QUEUED';
   const pct = job?.progress_percent ?? 0;
+
   return (
     <div className="space-y-6 text-center py-8" data-testid="trailer-step-progress">
       <div className="mx-auto w-16 h-16 rounded-full bg-violet-500/15 flex items-center justify-center">
@@ -361,6 +474,45 @@ function ProgressStep({ jobId, onDone, onFail }) {
         <div className="h-full bg-gradient-to-r from-violet-500 to-fuchsia-500 transition-all" style={{ width: `${pct}%` }} />
       </div>
       <p className="text-xs text-slate-500 font-mono" data-testid="trailer-progress-pct">{pct}% · {stage}</p>
+
+      {/* Reassurance copy + escape hatches — users should NOT feel trapped */}
+      <div className="max-w-lg mx-auto rounded-xl border border-violet-400/20 bg-violet-500/[0.04] p-4 text-left" data-testid="trailer-leave-card">
+        <p className="text-sm text-slate-200 leading-relaxed">
+          Your trailer is being created. <span className="text-violet-200 font-semibold">You can leave this page</span> and use other Visionary Suite features — we'll notify you when it's ready.
+        </p>
+        <p className="text-xs text-slate-400 mt-1.5">
+          Your trailer will be saved in <span className="text-violet-300">Profile → MySpace</span>.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
+          <button
+            onClick={() => navigate('/app/my-space')}
+            className="py-2 px-3 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors"
+            data-testid="trailer-go-myspace-btn"
+          >
+            Go to MySpace
+          </button>
+          <button
+            onClick={() => navigate('/app')}
+            className="py-2 px-3 rounded-lg bg-white/10 hover:bg-white/15 text-white text-sm transition-colors"
+            data-testid="trailer-explore-other-btn"
+          >
+            Explore other tools
+          </button>
+          <button
+            onClick={() => setShowPlayground(v => !v)}
+            className={`py-2 px-3 rounded-lg text-sm transition-colors ${
+              showPlayground
+                ? 'bg-fuchsia-500/20 text-fuchsia-200 border border-fuchsia-500/40'
+                : 'bg-white/10 hover:bg-white/15 text-white'
+            }`}
+            data-testid="trailer-stay-play-btn"
+          >
+            {showPlayground ? 'Hide' : 'Stay and play while waiting'}
+          </button>
+        </div>
+      </div>
+
+      {showPlayground && <WaitingPlayground />}
     </div>
   );
 }
