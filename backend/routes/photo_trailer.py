@@ -31,6 +31,7 @@ from __future__ import annotations
 import os, asyncio, base64, uuid, tempfile, subprocess, logging, re, json
 import concurrent.futures
 from datetime import datetime, timezone, timedelta
+import time
 from typing import List, Optional, Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form, BackgroundTasks
@@ -432,31 +433,45 @@ async def _sign_or_passthrough(key_or_url: str, *, ttl: int = SIGNED_URL_TTL_SEC
 
 @router.get("/jobs/{job_id}/stream")
 async def stream_video(job_id: str, user: dict = Depends(get_current_user),
-                        download: bool = Query(False)):
-    """Owner-only signed playback. Migrates legacy jobs (no `result_video_key`)
-    by deriving the key from the stored URL on first access."""
+                        download: bool = Query(False),
+                        format: str = Query("wide", pattern="^(wide|vertical)$")):
+    """Owner-only signed playback. `format=vertical` returns the 9:16 cut
+    (Reels / Shorts / TikTok / WhatsApp Status). Falls back to widescreen
+    when no vertical asset was rendered for this job."""
     j = await db.photo_trailer_jobs.find_one({"_id": job_id, "user_id": user["id"]})
     if not j: raise HTTPException(404, "Job not found")
     if j.get("status") != "COMPLETED":
         raise HTTPException(400, "Trailer is not ready yet.")
-    key = j.get("result_video_key")
-    if not key:
-        key = _strip_public_prefix(j.get("result_video_url") or "")
-        if key:
-            await db.photo_trailer_jobs.update_one(
-                {"_id": job_id}, {"$set": {"result_video_key": key}})
+    use_vert = (format == "vertical") and bool(
+        j.get("result_vertical_video_key") or j.get("result_vertical_video_url"))
+    if use_vert:
+        key = j.get("result_vertical_video_key") or _strip_public_prefix(j.get("result_vertical_video_url") or "")
+    else:
+        key = j.get("result_video_key")
+        if not key:
+            key = _strip_public_prefix(j.get("result_video_url") or "")
+            if key:
+                await db.photo_trailer_jobs.update_one(
+                    {"_id": job_id}, {"$set": {"result_video_key": key}})
     if not key: raise HTTPException(404, "Video unavailable.")
-    fname = f"trailer_{job_id[:8]}.mp4" if download else None
+    suffix = "_vertical" if use_vert else ""
+    fname = f"trailer_{job_id[:8]}{suffix}.mp4" if download else None
     url = await _sign_or_passthrough(key, filename=fname)
     if not url: raise HTTPException(500, "Could not mint signed URL")
     thumb_key = j.get("result_thumbnail_key") or _strip_public_prefix(j.get("result_thumbnail_url") or "")
-    return {"url": url, "expires_in": SIGNED_URL_TTL_SECONDS,
-            "thumbnail_url": await _sign_or_passthrough(thumb_key) if thumb_key else None}
+    return {
+        "url": url, "expires_in": SIGNED_URL_TTL_SECONDS,
+        "format": "vertical" if use_vert else "wide",
+        "thumbnail_url": await _sign_or_passthrough(thumb_key) if thumb_key else None,
+        "has_vertical": bool(j.get("result_vertical_video_key") or j.get("result_vertical_video_url")),
+    }
 
 @router.get("/share/{slug}")
 async def share_page(slug: str):
     """Public share-page payload. Slug is 10 random hex chars set at job
-    completion — unguessable enough that it acts as the access token."""
+    completion — unguessable enough that it acts as the access token.
+    Returns BOTH widescreen and vertical signed URLs when available; the
+    public /trailer/:slug page picks based on viewport (mobile→vertical)."""
     j = await db.photo_trailer_jobs.find_one(
         {"public_share_slug": slug, "status": "COMPLETED",
          "deleted_at": {"$exists": False}})
@@ -466,8 +481,10 @@ async def share_page(slug: str):
     if not j.get("result_video_key") and key:
         await db.photo_trailer_jobs.update_one({"_id": j["_id"]},
                                                 {"$set": {"result_video_key": key}})
+    vert_key = j.get("result_vertical_video_key") or _strip_public_prefix(j.get("result_vertical_video_url") or "")
     thumb_key = j.get("result_thumbnail_key") or _strip_public_prefix(j.get("result_thumbnail_url") or "")
     video_url = await _sign_or_passthrough(key)
+    vertical_url = await _sign_or_passthrough(vert_key) if vert_key else None
     thumb_url = await _sign_or_passthrough(thumb_key) if thumb_key else None
     creator_name = "A Visionary Suite creator"
     try:
@@ -480,123 +497,7 @@ async def share_page(slug: str):
     except Exception: pass
     tpl = TEMPLATES.get(j.get("template_id") or "", {})
     return {
-        "slug": slug, "video_url": video_url, "thumbnail_url": thumb_url,
-        "title": tpl.get("title") or j.get("template_name") or "AI Movie Trailer",
-        "duration_seconds": j.get("duration_target_seconds"),
-        "creator_first_name": creator_name,
-        "expires_in": SIGNED_URL_TTL_SECONDS,
-    }
-
-# ─── Signed-URL gateway (private playback) ────────────────────────────────────
-# Public bucket exposure was a P0 risk: completed video URLs were permanent
-# and unsigned, enabling scraping/hotlinking/uncontrolled distribution.
-# All playback now flows through these endpoints which mint short-lived
-# (10-min default) presigned URLs against the same R2 bucket. The owner-only
-# `/stream` requires auth + ownership; the public `/share/{slug}` endpoint
-# is rate-limit-safe (slug is 10-char random hex) and serves the share page.
-SIGNED_URL_TTL_SECONDS = int(os.environ.get("PHOTO_TRAILER_SIGNED_URL_TTL", "600"))
-
-def _strip_public_prefix(url: str) -> Optional[str]:
-    """Convert a public R2 URL back to its bucket key. Used for migration
-    of jobs that were created before we started storing the key explicitly."""
-    if not url: return None
-    # Already a key (no scheme): return as-is.
-    if not url.startswith("http"): return url
-    # Strip known public prefixes
-    for prefix in (
-        f"https://{R2_CUSTOM_DOMAIN}/" if R2_CUSTOM_DOMAIN else None,
-        f"{R2_PUBLIC_URL.rstrip('/')}/" if R2_PUBLIC_URL else None,
-    ):
-        if prefix and url.startswith(prefix):
-            return url[len(prefix):].split("?", 1)[0]
-    # Generic fallback: strip up to '/videos/' or '/images/' if present
-    for marker in ("/videos/", "/images/", "/voices/"):
-        if marker in url:
-            return url.split(marker, 1)[1] and (marker.strip("/") + "/" + url.split(marker, 1)[1].split("?", 1)[0])
-    return None
-
-async def _sign_or_passthrough(key_or_url: str, *, ttl: int = SIGNED_URL_TTL_SECONDS,
-                               filename: Optional[str] = None) -> Optional[str]:
-    """Mint a presigned URL for a stored key. If R2 is not configured (local
-    fallback) or signing fails, falls back to the existing public URL — so
-    local dev continues to work."""
-    if not key_or_url: return None
-    from services.cloudflare_r2_storage import get_r2_storage
-    r2 = get_r2_storage()
-    # Local fallback path → /static/... — return as-is
-    if key_or_url.startswith("/static/") or key_or_url.startswith("local/"):
-        return key_or_url
-    key = key_or_url if not key_or_url.startswith("http") else _strip_public_prefix(key_or_url)
-    if r2 and key:
-        try:
-            signed = r2.generate_presigned_download_url(key=key, expiration=ttl, filename=filename)
-            if signed: return signed
-        except Exception as e:
-            log.warning(f"presign failed for {key}: {e}")
-    # Last-resort fallback: original URL (may be public).
-    return key_or_url if key_or_url.startswith("http") else None
-
-@router.get("/jobs/{job_id}/stream")
-async def stream_video(job_id: str, user: dict = Depends(get_current_user),
-                        download: bool = Query(False)):
-    """Owner-only: returns a fresh short-lived presigned playback (or download)
-    URL. Migrates legacy jobs that lack `result_video_key` by deriving the
-    key from `result_video_url` on first access."""
-    j = await db.photo_trailer_jobs.find_one({"_id": job_id, "user_id": user["id"]})
-    if not j: raise HTTPException(404, "Job not found")
-    if j.get("status") != "COMPLETED":
-        raise HTTPException(400, "Trailer is not ready yet.")
-    key = j.get("result_video_key")
-    if not key:
-        # Lazy migration for pre-signed-URL jobs.
-        key = _strip_public_prefix(j.get("result_video_url") or "")
-        if key:
-            await db.photo_trailer_jobs.update_one(
-                {"_id": job_id}, {"$set": {"result_video_key": key}})
-    if not key:
-        raise HTTPException(404, "Video unavailable.")
-    fname = f"trailer_{job_id[:8]}.mp4" if download else None
-    url = await _sign_or_passthrough(key, filename=fname)
-    if not url: raise HTTPException(500, "Could not mint signed URL")
-    return {"url": url, "expires_in": SIGNED_URL_TTL_SECONDS,
-            "thumbnail_url": await _sign_or_passthrough(
-                j.get("result_thumbnail_key") or _strip_public_prefix(j.get("result_thumbnail_url") or "")
-            )}
-
-@router.get("/share/{slug}")
-async def share_page(slug: str):
-    """Public share-page payload. No auth required. Returns a fresh signed
-    stream URL + minimal metadata for the public /trailer/:slug page.
-    Slug is 10 random hex chars set at job completion — unguessable enough
-    that the slug itself is the access token."""
-    j = await db.photo_trailer_jobs.find_one(
-        {"public_share_slug": slug, "status": "COMPLETED",
-         "deleted_at": {"$exists": False}})
-    if not j: raise HTTPException(404, "Trailer not found")
-    key = j.get("result_video_key") or _strip_public_prefix(j.get("result_video_url") or "")
-    if not key: raise HTTPException(404, "Video unavailable")
-    if not j.get("result_video_key") and key:
-        await db.photo_trailer_jobs.update_one({"_id": j["_id"]},
-                                                {"$set": {"result_video_key": key}})
-    thumb_key = j.get("result_thumbnail_key") or _strip_public_prefix(j.get("result_thumbnail_url") or "")
-    video_url = await _sign_or_passthrough(key)
-    thumb_url = await _sign_or_passthrough(thumb_key) if thumb_key else None
-    # Owner display name — best-effort (only first name)
-    creator_name = "A Visionary Suite creator"
-    try:
-        u = await db.users.find_one({"id": j.get("user_id")}, {"name": 1, "_id": 0})
-        if u and u.get("name"):
-            creator_name = u["name"].split()[0]
-    except Exception: pass
-    # Increment view counter (best-effort, fire-and-forget pattern)
-    try:
-        await db.photo_trailer_jobs.update_one({"_id": j["_id"]},
-            {"$inc": {"share_view_count": 1}})
-    except Exception: pass
-    tpl = TEMPLATES.get(j.get("template_id") or "", {})
-    return {
-        "slug": slug,
-        "video_url": video_url,
+        "slug": slug, "video_url": video_url, "vertical_video_url": vertical_url,
         "thumbnail_url": thumb_url,
         "title": tpl.get("title") or j.get("template_name") or "AI Movie Trailer",
         "duration_seconds": j.get("duration_target_seconds"),
@@ -994,6 +895,48 @@ async def _render_trailer(job: dict, scenes_data: List[dict], tmp: str) -> str:
                      "-c:a", "copy", *meta_args, "-movflags", "+faststart", final])
     return final
 
+
+# ─── 9:16 vertical auto-cut ──────────────────────────────────────────────────
+# Distribution > polish. Reels / Shorts / TikTok / WhatsApp Status all
+# require 9:16. We post-process the finished 16:9 master into a 1080x1920
+# vertical asset with the typical "blurred-bg + centered hero" treatment so
+# faces are NEVER stretched. Subtitles ride in the safe band (250-1570 px).
+async def _render_vertical_from_widescreen(source_mp4: str, out_mp4: str) -> None:
+    """Bounded re-encode pass: 1080x1920, blurred BG + scaled FG overlay,
+    fall-back to 720x1280 if the encoder rejects the higher res."""
+    # Use /usr/bin/ffmpeg — it ships with drawtext (libfreetype). The
+    # /usr/local/bin/ffmpeg build does not include drawtext so the watermark
+    # filter graph would fail there.
+    ffmpeg = "/usr/bin/ffmpeg" if os.path.exists("/usr/bin/ffmpeg") else "ffmpeg"
+    fc = (
+        "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,"
+            "crop=1080:1920,boxblur=24:1,eq=brightness=-0.10:saturation=0.90[bg];"
+        "[0:v]scale=1080:-2[fg];"
+        "[bg][fg]overlay=(W-w)/2:(H-h)/2,"
+            "drawtext=text='Visionary Suite':fontcolor=white@0.65:fontsize=28:"
+            "x=(w-tw)/2:y=h-110:box=1:boxcolor=black@0.30:boxborderw=10[v]"
+    )
+    args = [
+        ffmpeg, "-y", "-i", source_mp4,
+        "-filter_complex", fc,
+        "-map", "[v]", "-map", "0:a?",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "22", "-pix_fmt", "yuv420p",
+        "-c:a", "copy",
+        "-metadata", "title=Created with Visionary Suite AI",
+        "-metadata", "comment=AI-generated personalized trailer · 9:16 vertical",
+        "-metadata", "copyright=© Visionary Suite — visionary-suite.com",
+        "-movflags", "+faststart",
+        out_mp4,
+    ]
+    try:
+        await _ffmpeg(args)
+    except Exception:
+        log.warning("vertical 1080x1920 encode failed; retrying at 720x1280")
+        fc_lo = fc.replace("1080:1920", "720:1280").replace("1080:-2", "720:-2")
+        args[args.index("-filter_complex") + 1] = fc_lo
+        await _ffmpeg(args)
+
+
 async def _run_pipeline(job_id: str):
     """The orchestrator. Each stage advances progress + updates DB.
     Wrapped by a system-wide semaphore (max 2 concurrent pipelines) so one
@@ -1086,11 +1029,29 @@ async def _run_pipeline_inner(job_id: str):
             log.exception(f"render failed for {job_id}")
             return await _fail(job_id, "RENDER_FAIL", "Final render hit a hiccup. Please retry.")
 
-        # Upload
+        # Upload widescreen master
         with open(final_path, "rb") as f: video_bytes = f.read()
         ok, video_url, video_key = await _upload_video_bytes(video_bytes, f"trailer_{job_id}.mp4", user_id)
         if not ok:
             return await _fail(job_id, "UPLOAD_FAIL", "Storage upload failed. Please retry.")
+
+        # 9:16 vertical companion (Reels / Shorts / TikTok / WhatsApp Status).
+        # Bounded second pass — runs on the same RENDER_EXECUTOR. If the
+        # encode fails we DO NOT fail the whole job; the widescreen master
+        # is the contract. The card will simply hide the vertical button.
+        vertical_url = None; vertical_key = None
+        try:
+            vert_path = os.path.join(tmpdir, "vertical.mp4")
+            t_v = time.time()
+            await _render_vertical_from_widescreen(final_path, vert_path)
+            log.info(f"[trailer {job_id}] vertical render took {time.time()-t_v:.1f}s")
+            with open(vert_path, "rb") as f: vert_bytes = f.read()
+            okv, v_url, v_key = await _upload_video_bytes(vert_bytes, f"trailer_{job_id}_vertical.mp4", user_id)
+            if okv:
+                vertical_url, vertical_key = v_url, v_key
+        except Exception as e:
+            log.warning(f"[trailer {job_id}] vertical cut failed (widescreen still saved): {e}")
+
         # Thumbnail = first scene image
         thumb_url = None; thumb_key = None
         try:
@@ -1098,7 +1059,6 @@ async def _run_pipeline_inner(job_id: str):
             ok2, thumb_url_or_key = await upload_image_bytes(tb, f"trailer_{job_id}_thumb.jpg", project_id=f"phototrailer/{user_id}/results")
             if ok2:
                 thumb_url = thumb_url_or_key
-                # Derive key from URL (strip the bucket public prefix) for re-signing
                 thumb_key = _strip_public_prefix(thumb_url_or_key)
         except Exception:
             pass
@@ -1108,8 +1068,10 @@ async def _run_pipeline_inner(job_id: str):
         await db.photo_trailer_outputs.insert_one({
             "_id": output_doc_id, "job_id": job_id, "user_id": user_id,
             "video_storage_key": video_key, "video_storage_url": video_url,
+            "vertical_video_storage_key": vertical_key, "vertical_video_storage_url": vertical_url,
             "thumbnail_storage_key": thumb_key, "thumbnail_storage_url": thumb_url,
             "duration_seconds": j["duration_target_seconds"], "resolution": "1280x720",
+            "vertical_resolution": "1080x1920" if vertical_url else None,
             "file_size": len(video_bytes), "watermark_applied": True, "end_card_applied": True,
             "download_token_required": True, "created_at": _now(),
         })
@@ -1119,6 +1081,7 @@ async def _run_pipeline_inner(job_id: str):
             "result_video_asset_id": output_doc_id,
             "result_thumbnail_asset_id": output_doc_id if thumb_key else None,
             "result_video_url": video_url, "result_video_key": video_key,
+            "result_vertical_video_url": vertical_url, "result_vertical_video_key": vertical_key,
             "result_thumbnail_url": thumb_url, "result_thumbnail_key": thumb_key,
             "public_share_slug": slug, "completed_at": _now(), "updated_at": _now(),
         }})

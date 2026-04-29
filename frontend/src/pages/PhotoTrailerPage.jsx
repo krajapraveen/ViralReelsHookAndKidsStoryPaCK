@@ -549,23 +549,28 @@ function ResultStep({ job, onCreateAnother }) {
   // points at the public /trailer/:slug page — that page re-signs server-side.
   const [streamUrl, setStreamUrl] = React.useState(null);
   const [thumbUrl, setThumbUrl] = React.useState(job.result_thumbnail_url || null);
+  const [format, setFormat] = React.useState('wide'); // wide | vertical
+  const [hasVertical, setHasVertical] = React.useState(false);
   const downloadHrefRef = React.useRef(null);
   React.useEffect(() => {
     let cancelled = false;
     const load = async () => {
       try {
-        const r = await fetch(`${API}/api/photo-trailer/jobs/${job._id || job.job_id}/stream`,
+        const r = await fetch(`${API}/api/photo-trailer/jobs/${job._id || job.job_id}/stream?format=${format}`,
                               { headers: authHeaders() });
         if (!r.ok) return;
         const j = await r.json();
-        if (!cancelled) { setStreamUrl(j.url); if (j.thumbnail_url) setThumbUrl(j.thumbnail_url); }
+        if (!cancelled) {
+          setStreamUrl(j.url);
+          if (j.thumbnail_url) setThumbUrl(j.thumbnail_url);
+          setHasVertical(!!j.has_vertical);
+        }
       } catch {}
     };
     load();
-    // Re-sign 30s before the URL expires (default 10 min).
     const timer = setInterval(load, 9 * 60 * 1000);
     return () => { cancelled = true; clearInterval(timer); };
-  }, [job._id, job.job_id]);
+  }, [job._id, job.job_id, format]);
 
   const PUBLIC_BASE = window.location.origin;
   const slug = job.public_share_slug;
@@ -611,11 +616,10 @@ function ResultStep({ job, onCreateAnother }) {
   const handleDownload = async (e) => {
     e.preventDefault();
     try {
-      const r = await fetch(`${API}/api/photo-trailer/jobs/${job._id || job.job_id}/stream?download=true`,
+      const r = await fetch(`${API}/api/photo-trailer/jobs/${job._id || job.job_id}/stream?download=true&format=${format}`,
                             { headers: authHeaders() });
       if (!r.ok) { toast.error('Could not start download'); return; }
       const j = await r.json();
-      // Open in a new tab so the browser handles the download via Content-Disposition
       window.open(j.url, '_blank', 'noopener');
     } catch {
       toast.error('Could not start download');
@@ -628,10 +632,41 @@ function ResultStep({ job, onCreateAnother }) {
         <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto" />
         <h2 className="text-2xl font-bold text-white mt-2">Your trailer is ready</h2>
       </div>
-      <video src={streamUrl || undefined} controls poster={thumbUrl || undefined} className="w-full rounded-2xl border border-white/10 bg-black" data-testid="trailer-result-video" />
+      {/* Format toggle: Wide (16:9) ↔ Vertical (9:16). Vertical hidden if not rendered. */}
+      {hasVertical && (
+        <div className="flex justify-center" data-testid="trailer-format-toggle">
+          <div className="inline-flex p-1 rounded-xl border border-white/10 bg-white/[0.04]">
+            <button
+              type="button"
+              onClick={() => setFormat('wide')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${format === 'wide' ? 'bg-violet-600 text-white' : 'text-slate-300 hover:text-white'}`}
+              data-testid="trailer-format-wide"
+            >
+              16:9 Wide
+            </button>
+            <button
+              type="button"
+              onClick={() => setFormat('vertical')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${format === 'vertical' ? 'bg-fuchsia-600 text-white' : 'text-slate-300 hover:text-white'}`}
+              data-testid="trailer-format-vertical"
+              title="Reels / Shorts / TikTok / WhatsApp Status"
+            >
+              9:16 Vertical
+            </button>
+          </div>
+        </div>
+      )}
+      <video
+        key={format}
+        src={streamUrl || undefined}
+        controls
+        poster={thumbUrl || undefined}
+        className={`w-full rounded-2xl border border-white/10 bg-black ${format === 'vertical' ? 'max-w-[360px] mx-auto block' : ''}`}
+        data-testid="trailer-result-video"
+      />
       <div className="flex flex-wrap gap-2">
         <button onClick={handleDownload} className="flex-1 min-w-[120px] py-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors" data-testid="trailer-download-btn">
-          <Download className="w-4 h-4" /> Download
+          <Download className="w-4 h-4" /> Download {format === 'vertical' ? '9:16' : '16:9'}
         </button>
         <button
           onClick={handleWhatsApp}
@@ -652,7 +687,9 @@ function ResultStep({ job, onCreateAnother }) {
         </button>
       </div>
       <p className="text-xs text-slate-500 text-center">
-        Want it bigger? Share via WhatsApp — your friends get a single tap to watch.
+        {hasVertical
+          ? 'Tip: switch to 9:16 for Reels, Shorts, TikTok and WhatsApp Status. One tap.'
+          : 'Want it bigger? Share via WhatsApp — your friends get a single tap to watch.'}
       </p>
     </div>
   );

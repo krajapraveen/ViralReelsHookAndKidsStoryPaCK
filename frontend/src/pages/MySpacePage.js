@@ -358,7 +358,25 @@ function PhotoTrailerCard({ job, justCompleted }) {
             className="flex-1 py-2 px-3 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors"
             data-testid={`myspace-trailer-play-${job.job_id}`}
           >
-            ▶ Play
+            ▶ Wide
+          </button>
+        )}
+        {isCompleted && (
+          <button
+            onClick={async () => {
+              try {
+                const r = await api.get(`/api/photo-trailer/jobs/${job.job_id}/stream?format=vertical`);
+                if (r.data?.url) window.open(r.data.url, '_blank', 'noopener,noreferrer');
+                else if (job.output_url) window.open(job.output_url, '_blank', 'noopener,noreferrer');
+              } catch {
+                if (job.output_url) window.open(job.output_url, '_blank', 'noopener,noreferrer');
+              }
+            }}
+            className="flex-1 py-2 px-3 rounded-lg bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-sm font-semibold transition-colors"
+            data-testid={`myspace-trailer-play-vertical-${job.job_id}`}
+            title="Play vertical (Reels / Shorts / TikTok / WhatsApp Status)"
+          >
+            ▶ 9:16
           </button>
         )}
         {isFailed && (

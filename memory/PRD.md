@@ -1896,3 +1896,95 @@ PROOF ARTIFACTS
   • backend/tests/test_photo_trailer_regression_2026_04_29.py (NEW, 175 LOC)
   • backend/tests/verify_60s_trailer_e2e.py (NEW, 130 LOC)
 
+
+
+─────────────────────────────────────────────────────────
+[2026-04-29 P1] PHOTO TRAILER — 9:16 VERTICAL AUTO-CUT (DISTRIBUTION ASSET)
+─────────────────────────────────────────────────────────
+Founder rationale: distribution > polish. Reels / Shorts / TikTok / WhatsApp
+Status all need 9:16. Build NOW, before dashboard / paywall / A/B work.
+
+✅ Backend `_render_vertical_from_widescreen` (post-pipeline second pass)
+   File: backend/routes/photo_trailer.py
+   • Filter graph: blurred-bg plate + scaled-FG center overlay so faces are
+     NEVER stretched. Background = scale=1080:1920:fit + boxblur=24 + eq dim;
+     Foreground = scale=1080:-2 (preserves 16:9 aspect, fills width);
+     Overlay centered. Watermark in safe-zone bottom (y=h-110).
+   • Target 1080x1920; auto-fallback to 720x1280 on encoder failure.
+   • Provenance metadata baked in (title / copyright / comment).
+   • Bounded on the existing RENDER_EXECUTOR — never blocks event loop.
+   • Vertical failure does NOT fail the job; widescreen master is the SLA.
+   ⚠️ FFMPEG GOTCHA: must call `/usr/bin/ffmpeg` (ships drawtext via
+   libfreetype). `/usr/local/bin/ffmpeg` lacks drawtext — the watermark
+   filter would crash. Locked in by static guard test.
+
+✅ Persisted on the job document
+   • result_vertical_video_url, result_vertical_video_key
+   • photo_trailer_outputs.vertical_video_storage_{key,url}
+   • Lazy migration unchanged: legacy jobs without vertical fields fall
+     back to widescreen gracefully on every endpoint.
+
+✅ Endpoint contract
+   • `GET /api/photo-trailer/jobs/{id}/stream?format=wide|vertical`
+     Default = wide (back-compat). Bad value → 422. Returns
+     `{url, format, has_vertical, expires_in, thumbnail_url}`.
+   • `GET /api/photo-trailer/share/{slug}` now also returns
+     `vertical_video_url` (null when not rendered, never errors).
+
+✅ Frontend
+   • MySpace PhotoTrailerCard: two side-by-side buttons — `▶ Wide` (violet)
+     and `▶ 9:16` (fuchsia). Each fetches a fresh signed URL on click.
+   • PhotoTrailerPage ResultStep: 16:9 ↔ 9:16 toggle that re-streams + the
+     download button reflects the active format.
+   • PublicTrailerPage `/trailer/:slug`:
+     - Mobile (≤640px) defaults to vertical
+     - Desktop defaults to wide
+     - Visible toggle when both formats exist
+     - Vertical viewer is constrained to `max-w-[420px]` so it doesn't
+       become a full-width tower on desktop.
+
+✅ Real generation proof (job e51e40bd-4c57-4e78-babc-0ea907a4df50)
+   - Wide:     1280x720  · 20.56s · 2.84 MB
+   - Vertical: 1080x1920 · 20.56s · 6.06 MB · Δ duration = 0.000s
+   - Aspect ratio 1.78 (true 9:16)
+   - Provenance metadata present
+   - /stream?format=vertical returned signed URL
+   - /share/:slug returned vertical_video_url
+   - Total render time: 104s (15s trailer; +32s vs widescreen-only)
+     → Per-minute ceiling ~30s extra, well within budget.
+
+✅ Tests — backend/tests/test_photo_trailer_vertical_cut.py (5 NEW)
+   1. test_vertical_helper_uses_correct_ffmpeg_binary
+      Static guard: enforces /usr/bin/ffmpeg + blurred-bg overlay pattern.
+      Re-introducing /usr/local/bin/ffmpeg breaks the test.
+   2. test_pipeline_invokes_vertical_render_and_persists_url
+      Pipeline must call _render_vertical + persist URL/key fields.
+   3. test_stream_endpoint_supports_format_query
+      ?format=vertical signs the vertical key; bad format → 422.
+   4. test_share_endpoint_returns_vertical_video_url
+      Share payload exposes vertical URL when present.
+   5. test_share_endpoint_handles_missing_vertical_gracefully
+      Legacy jobs (no vertical) → wide URL still works, vertical_url=null.
+PLUS:
+   backend/tests/verify_vertical_cut_e2e.py (NEW, live e2e harness)
+
+📊 Photo Trailer suite: 53/53 PASS in 35s (was 48 + 5 new). Zero regression.
+
+📁 Files Changed:
+  • backend/routes/photo_trailer.py
+      - _render_vertical_from_widescreen helper
+      - Pipeline post-upload vertical pass (best-effort)
+      - photo_trailer_outputs schema extended
+      - /stream gains format=wide|vertical
+      - /share/:slug returns vertical_video_url
+      - import time (used for vertical timing log)
+      - Query(regex=) → Query(pattern=) (deprecation fix)
+  • frontend/src/pages/MySpacePage.js — Wide + 9:16 dual play buttons
+  • frontend/src/pages/PhotoTrailerPage.jsx — ResultStep format toggle
+  • frontend/src/pages/PublicTrailerPage.jsx — mobile-aware default + toggle
+  • backend/tests/test_photo_trailer_vertical_cut.py (NEW, 165 LOC)
+  • backend/tests/verify_vertical_cut_e2e.py (NEW, 145 LOC)
+
+🎯 Discipline win: zero scope creep — no premium tier, no admin dashboard,
+   no A/B framework. Pure distribution-asset shipping.
+

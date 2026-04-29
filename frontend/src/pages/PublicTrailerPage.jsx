@@ -16,6 +16,13 @@ export default function PublicTrailerPage() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  // Auto-pick the right aspect for the viewer's device. Mobile (≤640px)
+  // gets the 9:16 vertical cut, desktop gets the 16:9 widescreen — both
+  // re-fetched fresh from /share/:slug so the URL is always signed.
+  const initialFormat = typeof window !== 'undefined' && window.matchMedia
+    ? (window.matchMedia('(max-width: 640px)').matches ? 'vertical' : 'wide')
+    : 'wide';
+  const [format, setFormat] = useState(initialFormat);
   const refreshTimerRef = useRef(null);
 
   // Fetch the share payload (mints a fresh signed URL each call).
@@ -116,13 +123,38 @@ export default function PublicTrailerPage() {
         </div>
 
         <video
-          src={data.video_url}
+          key={format}
+          src={(format === 'vertical' && data.vertical_video_url) ? data.vertical_video_url : data.video_url}
           poster={data.thumbnail_url || undefined}
           controls
           playsInline
-          className="w-full rounded-2xl border border-white/10 bg-black"
+          className={`w-full rounded-2xl border border-white/10 bg-black ${format === 'vertical' ? 'max-w-[420px] mx-auto block' : ''}`}
           data-testid="public-trailer-video"
         />
+
+        {/* Format toggle — only when vertical is available */}
+        {data.vertical_video_url && (
+          <div className="mt-4 flex justify-center" data-testid="public-trailer-format-toggle">
+            <div className="inline-flex p-1 rounded-xl border border-white/10 bg-white/[0.04]">
+              <button
+                type="button"
+                onClick={() => setFormat('wide')}
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${format === 'wide' ? 'bg-violet-600 text-white' : 'text-slate-300 hover:text-white'}`}
+                data-testid="public-trailer-format-wide"
+              >
+                16:9 Wide
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormat('vertical')}
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${format === 'vertical' ? 'bg-fuchsia-600 text-white' : 'text-slate-300 hover:text-white'}`}
+                data-testid="public-trailer-format-vertical"
+              >
+                9:16 Vertical
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="mt-6 grid grid-cols-2 gap-3">
           <button onClick={shareWhatsApp} className="py-3.5 rounded-xl font-semibold text-sm bg-[#25D366] hover:bg-[#1EA952] text-white inline-flex items-center justify-center gap-2 transition-colors" data-testid="public-trailer-whatsapp-btn">
