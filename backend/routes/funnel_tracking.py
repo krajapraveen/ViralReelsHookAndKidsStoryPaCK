@@ -170,6 +170,14 @@ FUNNEL_STEPS = [
     "photo_trailer_whatsapp_share_clicked",
     "photo_trailer_page_viewed",
     "photo_trailer_generation_started",
+    # ═══ V11 — Low-credit revenue UX (2026-04-29) ═══
+    "photo_trailer_low_credit_seen",
+    "photo_trailer_buy_credit_clicked",
+    "photo_trailer_subscribe_clicked",
+    "photo_trailer_duration_downgraded",
+    "photo_trailer_credit_fail_recovered",
+    # Auto-recovery from reliability sprint
+    "photo_trailer_auto_requeued",
 ]
 
 

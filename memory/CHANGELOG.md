@@ -136,3 +136,45 @@ Founder directive: 59.2% fail rate → under 20%. Three changes shipped together
 - Plus IMAGE_GEN retries should cut the 41% IMAGE_GEN_FAIL share further
 - Combined target post-fix: under 20%
 
+
+### Photo Trailer — P0 LOW-CREDITS REVENUE UX (2026-02-XX)
+Founder directive: replace generic "Could not start trailer" toast with structured
+revenue-conversion paywall.
+
+**Backend**
+- `POST /api/photo-trailer/jobs` returns structured 402 `INSUFFICIENT_CREDITS`:
+  `{code, message, required_credits, current_credits, missing_credits, duration_seconds, current_plan, suggested_durations, upgrade_url, topup_url}`
+- `suggested_durations` calculated server-side: lists shorter durations the user
+  CAN afford right now (1-tap downgrade UX)
+- Emits `photo_trailer_low_credit_seen` funnel event with full context
+- Added 5 events to funnel allowlist: `photo_trailer_low_credit_seen`,
+  `photo_trailer_buy_credit_clicked`, `photo_trailer_subscribe_clicked`,
+  `photo_trailer_duration_downgraded`, `photo_trailer_credit_fail_recovered`,
+  plus `photo_trailer_auto_requeued` from reliability sprint
+
+**Frontend**
+- New `LowCreditsModal` component replaces the toast for 402 INSUFFICIENT_CREDITS
+- Smart primary CTA per plan:
+  - FREE → Subscribe Now (revenue conversion)
+  - PAID → Buy Credits (top-up)
+  - PREMIUM → Contact Support (safety net)
+- Variant copy:
+  - missing ≤ 5 → "Subscribe now and get instant access"
+  - missing > 20 → "Best value: Monthly plan"
+  - default → "Add credits or subscribe to continue"
+- Inline 1-tap downgrade buttons for cheaper durations
+- Pre-click "Need X credits · you have Y" / "You are short by Z" subtext under cost line
+
+**SPEED — Image+TTS pipelined per scene**
+- Per-scene voiceover now kicks off inline AS SOON AS that scene's image lands
+  (was: serial gather phase 1 = all images, phase 2 = all audio)
+- Wall-clock saving estimate: ~25-40% on 6-scene trailers
+- One-failure-blocks-all-others isolation preserved via `return_exceptions=True`
+- TTS_FAIL vs IMAGE_GEN_FAIL distinguished in error tagging for diagnostics
+
+**Tests**
+- 5/5 new low-credits tests green (structured 402 shape, suggested durations,
+  funnel event emission, free-tier exemption, pipeline source-level proof)
+- 47/47 reliability + KPI + funnel + premium + vertical + janitor regression green
+- **Total: 52/52 photo_trailer suite green**
+

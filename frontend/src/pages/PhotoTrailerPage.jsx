@@ -289,7 +289,7 @@ function CharactersStep({ photos, hero, setHero, villain, setVillain, supporting
 }
 
 // ─── Step 3: Template + prompt + duration ────────────────────────────────────
-function TemplateStep({ templates, templateId, setTemplateId, prompt, setPrompt, duration, setDuration, credits, onBack, onGenerate, busy, userPlan }) {
+function TemplateStep({ templates, templateId, setTemplateId, prompt, setPrompt, duration, setDuration, credits, onBack, onGenerate, busy, userPlan, userCredits }) {
   return (
     <div className="space-y-6" data-testid="trailer-step-template">
       <div>
@@ -361,6 +361,20 @@ function TemplateStep({ templates, templateId, setTemplateId, prompt, setPrompt,
         <span className="text-sm text-slate-300">Estimated cost</span>
         <span className="text-lg font-bold text-amber-300">{credits} credits</span>
       </div>
+      {/* P0 revenue UX: show "Need X / You are short by Y" right under the
+          cost line so the user sees their balance vs the cost BEFORE they
+          tap Generate. Removes the surprise that kills conversion. */}
+      {typeof userCredits === 'number' && credits > 0 && (
+        userCredits >= credits ? (
+          <p className="text-[11px] text-slate-500" data-testid="credit-status-ok">
+            Need {credits} credits · you have {userCredits}
+          </p>
+        ) : (
+          <p className="text-[11px] text-amber-300 font-semibold" data-testid="credit-status-short">
+            You are short by {credits - userCredits} credit{(credits - userCredits) === 1 ? '' : 's'}
+          </p>
+        )
+      )}
       <p className="text-[11px] text-slate-500 italic">AI preserves character inspiration and visual style, but exact likeness may vary.</p>
       <div className="flex gap-2">
         <button onClick={onBack} className="flex-1 py-3 rounded-xl border border-white/10 text-white text-sm" data-testid="trailer-step3-back">Back</button>
@@ -838,6 +852,123 @@ function PaywallModal({ paywall, onClose, onUpgrade }) {
   );
 }
 
+// ─── Low-Credits Modal — P0 revenue UX ────────────────────────────────────────
+// Replaces the old "Could not start trailer" red toast. Shows EXACTLY how many
+// credits the user is short by, smart primary CTA based on current plan, and
+// an inline "shorter duration that fits your wallet" downgrade option.
+//
+// Smart CTA logic (founder spec):
+//   FREE     → primary = Subscribe Now      (revenue conversion path)
+//   PAID     → primary = Buy Credits        (existing user, just needs top-up)
+//   PREMIUM  → primary = Contact Support    (shouldn't happen; safety net)
+//
+// Optional copy variants based on missing_credits magnitude (founder upside):
+//   <=5 short → "Subscribe now and get instant access"
+//   >20 short → "Best value: Monthly plan"
+function LowCreditsModal({ data, onClose, onSubscribe, onBuyCredits, onDowngrade, onContactSupport }) {
+  if (!data) return null;
+  const required = data.required_credits ?? 0;
+  const have = data.current_credits ?? 0;
+  const missing = data.missing_credits ?? Math.max(0, required - have);
+  const dur = data.duration_seconds;
+  const plan = (data.current_plan || 'FREE').toUpperCase();
+  const suggested = (data.suggested_durations || []).filter((d) => d !== dur);
+  // Variant copy (founder upside spec)
+  const teaser = missing <= 5
+    ? 'Subscribe now and get instant access — you\'re almost there.'
+    : missing > 20
+      ? 'Best value: Monthly plan unlocks longer trailers + priority queue.'
+      : 'Add credits or subscribe to continue.';
+
+  // Smart primary CTA per plan tier
+  let primary;
+  if (plan === 'FREE') {
+    primary = { label: 'Subscribe Now', action: onSubscribe, testId: 'low-credits-subscribe' };
+  } else if (plan === 'PAID') {
+    primary = { label: 'Buy Credits', action: onBuyCredits, testId: 'low-credits-buy' };
+  } else {
+    primary = { label: 'Contact Support', action: onContactSupport, testId: 'low-credits-support' };
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+      onClick={onClose}
+      data-testid="trailer-low-credits-modal"
+    >
+      <div
+        className="relative w-full max-w-md rounded-3xl border border-amber-500/30 bg-gradient-to-br from-[#1a1410] to-[#0a0a10] p-7 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-slate-400 hover:text-white"
+          aria-label="Close"
+          data-testid="low-credits-close"
+        >
+          <X className="w-5 h-5" />
+        </button>
+        <div className="flex items-center gap-2 mb-2">
+          <Sparkles className="w-6 h-6 text-amber-300" />
+          <p className="text-[11px] uppercase tracking-widest text-amber-300 font-bold">Low Credits</p>
+        </div>
+        <h2 className="text-2xl font-bold text-white leading-tight" data-testid="low-credits-headline">
+          You need {required} credits to generate this {dur ? `${dur}s ` : ''}trailer.
+        </h2>
+        <p className="text-sm text-slate-300 mt-2" data-testid="low-credits-balance">
+          You currently have <span className="font-semibold text-white">{have}</span> credit{have === 1 ? '' : 's'}.
+          You're short by <span className="font-bold text-amber-300">{missing}</span>.
+        </p>
+        <p className="text-sm text-slate-400 mt-3" data-testid="low-credits-teaser">{teaser}</p>
+
+        {/* Suggested affordable downgrades */}
+        {suggested.length > 0 && (
+          <div className="mt-5 rounded-xl border border-violet-500/20 bg-violet-500/[0.05] p-3"
+               data-testid="low-credits-downgrade-block">
+            <p className="text-[11px] uppercase tracking-wider text-violet-300 font-bold mb-2">
+              Or try a shorter trailer (free or cheaper)
+            </p>
+            <div className="flex gap-2">
+              {suggested.map((d) => (
+                <button
+                  key={d}
+                  onClick={() => onDowngrade && onDowngrade(d)}
+                  className="px-3 py-2 rounded-lg border border-violet-500/30 text-sm text-violet-100 hover:bg-violet-500/10 transition-colors"
+                  data-testid={`low-credits-downgrade-${d}`}
+                >
+                  {d}s
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-6 grid grid-cols-2 gap-2">
+          <button
+            onClick={primary.action}
+            className="col-span-2 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-fuchsia-600 hover:from-amber-400 hover:to-fuchsia-500 text-white text-sm font-bold transition-all"
+            data-testid={primary.testId}
+          >
+            {primary.label}
+          </button>
+          {plan !== 'PREMIUM' && (
+            <button
+              onClick={plan === 'FREE' ? onBuyCredits : onSubscribe}
+              className="col-span-2 py-3 rounded-xl border border-white/10 text-white text-sm hover:bg-white/5 transition-colors"
+              data-testid={plan === 'FREE' ? 'low-credits-buy-secondary' : 'low-credits-subscribe-secondary'}
+            >
+              {plan === 'FREE' ? 'Just buy credits this once' : 'See subscription plans'}
+            </button>
+          )}
+        </div>
+        <p className="mt-3 text-[11px] text-slate-500 text-center">
+          You won't be charged until you confirm on the next screen.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 
 function Library({ onOpen }) {
   const [items, setItems] = useState([]);
@@ -889,6 +1020,7 @@ export default function PhotoTrailerPage() {
   // Plan & paywall
   const [userPlan, setUserPlan] = useState(null); // {plan, credits, max_duration_seconds, ...}
   const [paywall, setPaywall] = useState(null);   // { current_plan, required_plan, duration_seconds }
+  const [lowCredits, setLowCredits] = useState(null); // structured 402 INSUFFICIENT_CREDITS payload
 
   useEffect(() => {
     try { trackFunnel('photo_trailer_page_viewed', {}); } catch {}
@@ -959,6 +1091,24 @@ export default function PhotoTrailerPage() {
           setBusy(false);
           return;
         }
+        // P0 revenue UX: structured 402 INSUFFICIENT_CREDITS → premium modal,
+        // not a generic red toast. Confusion costs conversions.
+        if (r.status === 402 && detail && typeof detail === 'object' && detail.code === 'INSUFFICIENT_CREDITS') {
+          setLowCredits(detail);
+          try {
+            trackFunnel('photo_trailer_low_credit_seen', {
+              meta: {
+                required: detail.required_credits,
+                have: detail.current_credits,
+                missing: detail.missing_credits,
+                duration: detail.duration_seconds,
+                plan: detail.current_plan,
+              },
+            });
+          } catch {}
+          setBusy(false);
+          return;
+        }
         toast.error(typeof detail === 'string' ? detail : (detail?.message || 'Could not start trailer'));
         setBusy(false);
         return;
@@ -1016,7 +1166,7 @@ export default function PhotoTrailerPage() {
             <CharactersStep photos={photos} hero={hero} setHero={setHero} villain={villain} setVillain={setVillain} supporting={supporting} setSupporting={setSupporting} onBack={() => setStep(1)} onNext={() => setStep(3)} />
           )}
           {step === 3 && (
-            <TemplateStep templates={templates} templateId={templateId} setTemplateId={setTemplateId} prompt={prompt} setPrompt={setPrompt} duration={duration} setDuration={setDuration} credits={credits} onBack={() => setStep(2)} onGenerate={onGenerate} busy={busy} userPlan={userPlan?.plan} />
+            <TemplateStep templates={templates} templateId={templateId} setTemplateId={setTemplateId} prompt={prompt} setPrompt={setPrompt} duration={duration} setDuration={setDuration} credits={credits} onBack={() => setStep(2)} onGenerate={onGenerate} busy={busy} userPlan={userPlan?.plan} userCredits={userPlan?.credits} />
           )}
           {step === 4 && jobId && !completedJob && !failedJob && (
             <ProgressStep jobId={jobId} onDone={(j) => { setCompletedJob(j); try { trackFunnel('photo_trailer_generation_completed', { meta: { job_id: j._id || jobId } }); } catch {} setStep(5); }} onFail={(j) => { setFailedJob(j); setStep(5); }} />
@@ -1040,6 +1190,33 @@ export default function PhotoTrailerPage() {
         onUpgrade={() => {
           try { trackFunnel('photo_trailer_paywall_upgrade_clicked', { meta: { current_plan: paywall?.current_plan, required_plan: paywall?.required_plan } }); } catch {}
           navigate('/app/pricing');
+        }}
+      />
+      <LowCreditsModal
+        data={lowCredits}
+        onClose={() => setLowCredits(null)}
+        onSubscribe={() => {
+          try { trackFunnel('photo_trailer_subscribe_clicked', { meta: { missing: lowCredits?.missing_credits, plan: lowCredits?.current_plan } }); } catch {}
+          setLowCredits(null);
+          navigate('/app/pricing');
+        }}
+        onBuyCredits={() => {
+          try { trackFunnel('photo_trailer_buy_credit_clicked', { meta: { missing: lowCredits?.missing_credits, plan: lowCredits?.current_plan } }); } catch {}
+          setLowCredits(null);
+          navigate('/app/billing');
+        }}
+        onDowngrade={(newDur) => {
+          try { trackFunnel('photo_trailer_duration_downgraded', { meta: { from: lowCredits?.duration_seconds, to: newDur } }); } catch {}
+          setDuration(newDur);
+          setLowCredits(null);
+          // Re-trigger generate with the cheaper duration on next tick. The user
+          // already confirmed intent — one click should "fix and ship".
+          setTimeout(() => onGenerate(), 50);
+          try { trackFunnel('photo_trailer_credit_fail_recovered', { meta: { recovered_via: 'downgrade', new_duration: newDur } }); } catch {}
+        }}
+        onContactSupport={() => {
+          setLowCredits(null);
+          window.location.href = 'mailto:support@visionary-suite.com?subject=Premium%20account%20credit%20issue';
         }}
       />
     </div>

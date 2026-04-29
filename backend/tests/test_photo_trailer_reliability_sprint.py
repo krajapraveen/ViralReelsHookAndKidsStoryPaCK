@@ -252,7 +252,6 @@ def test_heartbeat_helper_exists_and_writes_message():
     assert 'await _heartbeat(job_id, f"Recording voiceover' in src
     assert 'await _heartbeat(job_id, "Final render' in src
 
-
 # ─── 8. _gen_scene_image inner retry config (3 attempts, 2/5/10s backoff) ─────
 def test_gen_scene_image_retry_config():
     src = open("/app/backend/routes/photo_trailer.py").read()
