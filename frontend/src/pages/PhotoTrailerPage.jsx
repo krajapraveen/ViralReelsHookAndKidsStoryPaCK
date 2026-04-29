@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Upload, Camera, ShieldCheck, Sparkles, Film, Wand2, Loader2, X,
   CheckCircle2, AlertCircle, Trash2, Play, Download, Share2, RefreshCw, MessageCircle, Check, Lock, Crown,
+  ArrowLeft, Home,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { trackFunnel } from '../utils/funnelTracker';
@@ -637,7 +638,8 @@ function ProgressStep({ jobId, onDone, onFail }) {
 }
 
 // ─── Step 5: Result ───────────────────────────────────────────────────────────
-function ResultStep({ job, onCreateAnother }) {
+function ResultStep({ job, onCreateAnother, onBackToWizard }) {
+  const navigate = useNavigate();
   // Owner playback uses a fresh signed stream URL (10 min TTL). Sharing
   // points at the public /trailer/:slug page — that page re-signs server-side.
   const [streamUrl, setStreamUrl] = React.useState(null);
@@ -775,6 +777,34 @@ function ResultStep({ job, onCreateAnother }) {
 
   return (
     <div className="space-y-5" data-testid="trailer-step-result">
+      {/* P0 UX escape-path fix (2026-04-29): the result page used to have NO
+          way back. Users were trapped if they didn't want to download/share
+          right now. Adding a Back (to wizard step 1) button on the left and
+          a Home (to /app) button on the right — visible on every viewport,
+          no horizontal overflow, doesn't disturb the existing primary CTAs. */}
+      <div className="flex items-center justify-between gap-2"
+           data-testid="trailer-result-nav">
+        <button
+          type="button"
+          onClick={() => (onBackToWizard ? onBackToWizard() : navigate('/app/photo-trailer'))}
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.03] hover:bg-white/[0.07] text-slate-200 text-sm transition-colors"
+          data-testid="trailer-result-back-btn"
+          aria-label="Back"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span className="hidden sm:inline">Back</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate('/app')}
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.03] hover:bg-white/[0.07] text-slate-200 text-sm transition-colors"
+          data-testid="trailer-result-home-btn"
+          aria-label="Home"
+        >
+          <Home className="w-4 h-4" />
+          <span className="hidden sm:inline">Home</span>
+        </button>
+      </div>
       <div className="text-center">
         <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto" />
         <h2 className="text-2xl font-bold text-white mt-2">Your trailer is ready</h2>
@@ -1267,7 +1297,11 @@ export default function PhotoTrailerPage() {
             <ProgressStep jobId={jobId} onDone={(j) => { setCompletedJob(j); try { trackFunnel('photo_trailer_generation_completed', { meta: { job_id: j._id || jobId } }); } catch {} setStep(5); }} onFail={(j) => { setFailedJob(j); setStep(5); }} />
           )}
           {step === 5 && completedJob && (
-            <ResultStep job={completedJob} onCreateAnother={() => { setStep(1); setPhotos([]); setConsent(false); setHero(null); setVillain(null); setSupporting([]); setTemplateId(null); setPrompt(''); setSessionId(null); setJobId(null); setCompletedJob(null); setFailedJob(null); }} />
+            <ResultStep
+              job={completedJob}
+              onCreateAnother={() => { setStep(1); setPhotos([]); setConsent(false); setHero(null); setVillain(null); setSupporting([]); setTemplateId(null); setPrompt(''); setSessionId(null); setJobId(null); setCompletedJob(null); setFailedJob(null); }}
+              onBackToWizard={() => { setStep(1); setPhotos([]); setConsent(false); setHero(null); setVillain(null); setSupporting([]); setTemplateId(null); setPrompt(''); setSessionId(null); setJobId(null); setCompletedJob(null); setFailedJob(null); }}
+            />
           )}
           {step === 5 && failedJob && (
             <FailedStep job={failedJob} onRetry={onRetry} onEdit={() => { setFailedJob(null); setStep(3); }} onDelete={async () => {

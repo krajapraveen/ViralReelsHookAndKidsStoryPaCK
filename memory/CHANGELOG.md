@@ -261,3 +261,37 @@ formats — both return 200 with `response-content-disposition` in the signed UR
 
 **Total Photo Trailer regression: 68/68 green**
 
+
+### Photo Trailer — P0 RESULT-PAGE ESCAPE PATH (2026-02-XX)
+Founder bug: Result page had no Back/Home — users got trapped after a trailer
+finished (couldn't get back to wizard or home without browser back-button).
+
+**Frontend (`PhotoTrailerPage.jsx :: ResultStep`)**
+- Top-left **Back** button (testid `trailer-result-back-btn`):
+  prefers parent-supplied `onBackToWizard` callback (in-page state reset),
+  falls back to `navigate('/app/photo-trailer')`
+- Top-right **Home** button (testid `trailer-result-home-btn`): `navigate('/app')`
+- Both labels use `hidden sm:inline` — icon-only on mobile, icon+label on desktop
+  → no horizontal overflow on iPhone widths (verified at 390x844)
+- Wrapped in a labelled flex container (testid `trailer-result-nav`) using
+  the existing border/background tokens, no new color or design language
+- Parent passes `onBackToWizard` mirroring the existing `onCreateAnother`
+  reset logic so Back lands on wizard step 1 with clean state
+
+**Untouched (per founder rule)**: generation pipeline, render logic, download
+logic, payments, credits, templates, share buttons, Make-another button.
+
+**Tests** — 9 new in `test_photo_trailer_result_nav.py`:
+1. Back button rendered with documented testid
+2. Home button rendered with documented testid
+3. Home routes via useNavigate to /app
+4. Back uses callback with route fallback
+5. Nav container has labelled testid
+6. All 5 existing primary CTAs still present (Download / WhatsApp / More /
+   Make another / video element)
+7. ArrowLeft + Home icons imported from lucide-react
+8. Labels use `hidden sm:inline` — mobile-safe
+9. Parent passes `onBackToWizard` prop
+
+**Total Photo Trailer regression: 77/77 green**
+
