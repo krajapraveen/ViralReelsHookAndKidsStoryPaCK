@@ -765,12 +765,23 @@ async def _gen_scene_image(visual_prompt: str, hero_b64: str, villain_b64: Optio
     return await asyncio.get_event_loop().run_in_executor(IMAGE_EXECUTOR, _sync_call)
 
 async def _tts(narration: str, voice: str) -> bytes:
-    """OpenAI TTS via emergentintegrations — runs on the AUDIO_EXECUTOR."""
+    """OpenAI TTS via emergentintegrations — runs on the AUDIO_EXECUTOR.
+    Light retry on transient upstream issues (rate limit, network reset)."""
     from emergentintegrations.llm.openai import OpenAITextToSpeech
 
     def _sync_call() -> bytes:
-        tts = OpenAITextToSpeech(api_key=EMERGENT_LLM_KEY)
-        return asyncio.run(tts.generate_speech(text=narration[:4000], model="tts-1", voice=voice))
+        last = None
+        for attempt in range(3):
+            try:
+                tts = OpenAITextToSpeech(api_key=EMERGENT_LLM_KEY)
+                return asyncio.run(tts.generate_speech(
+                    text=narration[:4000], model="tts-1", voice=voice))
+            except Exception as e:
+                last = e
+                # Bounded backoff so 6 parallel TTS calls don't all hammer at once
+                import time as _t
+                _t.sleep(0.6 * (attempt + 1))
+        raise last  # type: ignore[misc]
 
     return await asyncio.get_event_loop().run_in_executor(AUDIO_EXECUTOR, _sync_call)
 
@@ -918,10 +929,22 @@ async def _render_trailer(job: dict, scenes_data: List[dict], tmp: str) -> str:
         chain.append("format=yuv420p")
         vf = ",".join(chain)
 
+        # Audio chain: pad TTS with silence so the audio matches `dur`.
+        # Without this, `-shortest` would truncate the per-scene clip to the
+        # narration length (~3s), so a 60s trailer (6×10s scenes) would
+        # render as ~20s. apad makes the audio stream infinite, atrim caps
+        # it at dur. Final clip length is governed by `-t {dur}` only.
+        af_chain = (
+            f"apad,atrim=duration={dur},"
+            f"afade=t=in:st=0:d=0.20,"
+            f"afade=t=out:st={max(0.0, dur-0.30):.2f}:d=0.30"
+        )
+
         await _ffmpeg([ffmpeg, "-y", "-loop", "1", "-i", img, "-i", aud,
-                     "-vf", vf, "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
+                     "-vf", vf, "-af", af_chain,
+                     "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
                      "-c:a", "aac", "-b:a", "128k", "-r", "25", "-t", f"{dur}",
-                     "-shortest", "-movflags", "+faststart", clip])
+                     "-movflags", "+faststart", clip])
         out_clips.append(clip)
     # End card — 2.5s static branded text
     end_card = os.path.join(tmp, "endcard.mp4")
@@ -1050,6 +1073,7 @@ async def _run_pipeline_inner(job_id: str):
         try:
             scene_payload = await asyncio.gather(*[_v(p) for p in scene_payload])
         except Exception as e:
+            log.exception(f"[trailer {job_id}] TTS gather failed")
             return await _fail(job_id, "TTS_FAIL", "Voiceover hit a hiccup. Please retry.")
 
         # Render
@@ -1080,8 +1104,9 @@ async def _run_pipeline_inner(job_id: str):
             pass
 
         # Record output
+        output_doc_id = str(uuid.uuid4())
         await db.photo_trailer_outputs.insert_one({
-            "_id": str(uuid.uuid4()), "job_id": job_id, "user_id": user_id,
+            "_id": output_doc_id, "job_id": job_id, "user_id": user_id,
             "video_storage_key": video_key, "video_storage_url": video_url,
             "thumbnail_storage_key": thumb_key, "thumbnail_storage_url": thumb_url,
             "duration_seconds": j["duration_target_seconds"], "resolution": "1280x720",
@@ -1091,6 +1116,8 @@ async def _run_pipeline_inner(job_id: str):
         slug = uuid.uuid4().hex[:10]
         await db.photo_trailer_jobs.update_one({"_id": job_id}, {"$set": {
             "status": "COMPLETED", "current_stage": "COMPLETED", "progress_percent": 100,
+            "result_video_asset_id": output_doc_id,
+            "result_thumbnail_asset_id": output_doc_id if thumb_key else None,
             "result_video_url": video_url, "result_video_key": video_key,
             "result_thumbnail_url": thumb_url, "result_thumbnail_key": thumb_key,
             "public_share_slug": slug, "completed_at": _now(), "updated_at": _now(),

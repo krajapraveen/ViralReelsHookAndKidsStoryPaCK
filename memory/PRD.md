@@ -1791,3 +1791,108 @@ and uncontrolled distribution.
    • frontend/src/App.js — lazy import + /trailer/:slug route
    • backend/tests/test_photo_trailer_signed_urls.py (NEW, 165 LOC)
 
+
+
+─────────────────────────────────────────────────────────
+[2026-04-29 P0] PHOTO TRAILER — TWO P0 BUGS FIXED + REGRESSION-TESTED
+─────────────────────────────────────────────────────────
+Founder report: "a generated video that does not save is a broken product,
+and a 60-second option that does not work is a fake promise."
+
+═══════════════════════════════════════════════════════════
+BUG 2 ROOT CAUSE — 60s trailers rendered as ~20s (THE BIG ONE)
+═══════════════════════════════════════════════════════════
+The per-scene encode passed `-shortest` to ffmpeg with the TTS narration
+as audio input. The narration audio is ~3s long for a ~12-word voiceover,
+regardless of the requested per-scene duration. `-shortest` STOPS encoding
+when the shortest input ends — so every per-scene clip was being truncated
+to ~3s, NOT the requested `dur` (10s for a 60s/6-scene trailer).
+
+Effect:
+  • 15s trailer (5×3s scenes) → audio ≈ video → output looked correct (~17s).
+  • 60s trailer (6×10s scenes) → audio truncated each clip to ~3s → output
+    rendered as 6×3 + 2.5 endcard = ~20.5s. Founder's bug verbatim.
+
+Fix (backend/routes/photo_trailer.py — _render_trailer):
+  • Removed `-shortest` from per-scene encode.
+  • Added explicit audio chain: `apad,atrim=duration={dur},afade=in/out`
+    so the audio stream is padded with silence and trimmed exactly to dur.
+  • `-t {dur}` remains the authoritative clip-length flag.
+
+Verification (live e2e on real generation):
+  • Job d911c284 (60s template superhero_origin):
+      - Final MP4 duration = 62.56s   (acceptance window 55-65s)  ✅
+      - Render time = 123s            (well under 5-min janitor)  ✅
+      - Charged 35 credits, 0 refund                              ✅
+  • Job 3c4bdd6a (15s preview regression):
+      - Final MP4 duration = 20.56s   (acceptance window 15-22s)  ✅
+      - No regression                                              ✅
+  • Both jobs visible in /api/photo-trailer/my-trailers           ✅
+
+═══════════════════════════════════════════════════════════
+BUG 1 ROOT CAUSE — MySpace persistence — addressed defensively
+═══════════════════════════════════════════════════════════
+On investigation /api/photo-trailer/my-trailers was already returning
+completed jobs correctly with all required fields. MySpace was rendering
+50 trailer cards (24 with Play buttons), thumbnails loaded (img.naturalWidth
+= 1376), deep-link `?trailer=<id>` highlighted the correct card.
+
+What was NOT being populated even though the founder listed it as a check:
+  • `result_video_asset_id` (initialized to None on job create, never set
+    on completion). MySpace doesn't read this field, but auditors / future
+    consumers might. Fixed by setting it to the photo_trailer_outputs._id.
+  • `result_thumbnail_asset_id` similarly populated.
+
+Also added:
+  • TTS retry-with-backoff (3 attempts, 0.6/1.2/1.8s) — covers the
+    transient OpenAI rate-limit error that bounced the first 60s e2e run.
+  • Better failure logging on TTS gather (log.exception so the actual
+    upstream message lands in /var/log/supervisor/backend.err.log).
+
+═══════════════════════════════════════════════════════════
+TESTS — backend/tests/test_photo_trailer_regression_2026_04_29.py (6 NEW)
+═══════════════════════════════════════════════════════════
+1. test_completed_trailer_visible_to_myspace_fetch
+   Seeds completed row, asserts /my-trailers returns it with every field
+   PhotoTrailerCard renderer reads (job_id, status, template_name,
+   result_video_url, result_thumbnail_url, public_share_slug, ...).
+2. test_processing_trailer_visible_in_my_trailers
+   PROCESSING job surfaces with current_stage + progress_percent.
+3. test_result_video_asset_id_populated_on_completion
+   Recent completed jobs carry non-null result_video_asset_id.
+4. test_scene_duration_math_for_60s_target
+   Re-derives per-scene dur=10s for 60s/6-scene template; total in [55,65].
+5. test_60s_accepted_by_credit_estimate_and_jobs_create
+   /credit-estimate?duration=60 → 35cr; ?duration=61 → 422.
+6. test_per_scene_encode_does_not_use_shortest_flag
+   Static guard: re-introducing `-shortest` to the per-scene encode would
+   re-break 60s trailers. Test reads the source and asserts the flag is
+   absent + apad,atrim=duration= is present in the audio chain.
+
+PLUS:
+  backend/tests/verify_60s_trailer_e2e.py (NEW)
+  Live e2e harness — runs a real 60s + 15s generation and asserts the
+  final MP4 duration is in the expected window. Run pre-deploy / nightly.
+
+📊 Photo Trailer suite: 48/48 PASS in 34s (was 42 + 6 = 48). Zero regression.
+
+═══════════════════════════════════════════════════════════
+PROOF ARTIFACTS
+═══════════════════════════════════════════════════════════
+  • Live 60s job: d911c284-cdac-4f95-a855-2b60ff336622
+    - ffprobe duration = 62.56s, file size 7.20 MB
+    - Visible in MySpace via deep-link with emerald highlight ring
+  • MySpace screenshot proof: card "Superhero Origin · 60s · COMPLETED"
+    rendered with Play button, thumbnail loaded, highlight applied.
+  • test_per_scene_encode_does_not_use_shortest_flag in regression suite
+    locks the file shape so this exact bug can never re-ship silently.
+
+📁 Files Changed:
+  • backend/routes/photo_trailer.py
+      - per-scene encode: removed `-shortest`, added apad/atrim audio chain
+      - _tts: 3-attempt retry with backoff
+      - completion update: result_video_asset_id + result_thumbnail_asset_id
+      - TTS gather: log.exception on failure
+  • backend/tests/test_photo_trailer_regression_2026_04_29.py (NEW, 175 LOC)
+  • backend/tests/verify_60s_trailer_e2e.py (NEW, 130 LOC)
+
