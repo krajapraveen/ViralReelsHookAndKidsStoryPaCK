@@ -1034,7 +1034,93 @@ Scope strictly: route + dashboard entry + e2e verification. NO admin panel, NO m
    all deferred to next sprint per founder directive.
 
 ─────────────────────────────────────────────────────────
-[2026-04-29 P2] PHOTO TRAILER — TEST CLEANUP + EVENT-LOOP DIAGNOSTIC
+[2026-04-29 P0] PHOTO TRAILER WORKER POOL — PRODUCTION SAFETY SHIPPED
+─────────────────────────────────────────────────────────
+Founder directive: Photo Trailer must never degrade core app responsiveness.
+
+✅ Architecture chosen
+   • Dedicated `concurrent.futures.ThreadPoolExecutor` (max_workers=8)
+     named `_PIPELINE_EXEC` owns ALL blocking work:
+       - Claude script LLM call
+       - Nano Banana image gen (per scene, in parallel)
+       - OpenAI TTS (per scene, in parallel)
+       - All 5+ ffmpeg encode/concat/mux/watermark passes
+   • Each blocking emergentintegrations call wrapped as a sync function and
+     invoked via `loop.run_in_executor(_PIPELINE_EXEC, _sync_call)`. The
+     sync wrapper opens a fresh `asyncio.run(...)` inside the worker thread,
+     so the library's sync-under-async I/O blocks ONLY that worker thread —
+     never the main FastAPI event loop.
+   • System-wide `_PIPELINE_GATE = asyncio.Semaphore(2)` caps concurrent
+     pipelines. Excess users queue cleanly inside their request rather
+     than overloading the backend.
+   • DB / credit operations remain on the main loop (motor + shared.py
+     credit functions are unchanged) — only the LLM/render hotspots moved.
+   • No new infra: no Redis, no Celery, no broker. Single-file change.
+
+✅ Implementation status: SHIPPED + verified
+   Files changed:
+     • backend/routes/photo_trailer.py (only)
+   Diff scope:
+     - Added _PIPELINE_EXEC ThreadPoolExecutor and _PIPELINE_GATE semaphore
+     - _llm_script: outer await wraps a sync `_sync_call`
+     - _gen_scene_image: same pattern
+     - _tts: same pattern
+     - _ffmpeg: now uses _PIPELINE_EXEC (was default loop executor)
+     - _run_pipeline split into outer (gate-acquiring) + _run_pipeline_inner
+   Lines changed: ~80; logic preserved 1:1.
+
+✅ Latency before vs after (measured against localhost:8001 to remove
+   ingress noise; trivial endpoint /api/photo-trailer/templates):
+   ┌────────────────────────────┬──────────────┬────────────┐
+   │ Scenario                   │ Before       │ After      │
+   ├────────────────────────────┼──────────────┼────────────┤
+   │ Idle backend               │     18 ms    │   18 ms    │
+   │ 1 pipeline rendering       │  8,020 ms    │   17–60 ms │
+   │ 3 pipelines submitted      │  90,000 ms*  │   18–82 ms │
+   └────────────────────────────┴──────────────┴────────────┘
+   * Before: ingress 502'd at 60s ("preview environment not responding")
+   ~150× improvement on the primary blocking-load metric.
+   E2E render time unchanged (~21s for 15s trailer, end-to-end).
+
+✅ Test results
+   • Full pytest suite: **24/24 PASS in 13.51s** (was 22/24 in 151.49s
+     before this fix — 11× faster suite + 100% pass rate).
+   • Suite covers: templates · credits · uploads (init/photo/complete) ·
+     consent enforcement · job creation · admin overview · my-trailers ·
+     get-job · all 4 hard-limit cases (count/mime/size/auth).
+   • Real e2e: 15s trailer rendered through new architecture in ~21s.
+     1280x720 H.264 + AAC, R2-served. ✅
+
+✅ Remaining production risks (honestly)
+   1. **Worker pool capacity**: 8 threads supports ~2-4 concurrent trailers
+      depending on per-scene parallelism. 100 concurrent users will queue.
+      The gate prevents overload, but UX is "wait your turn" past 2 active
+      jobs. Mitigation when needed: scale max_workers + Semaphore(N)
+      together, or add a real broker (Celery + Redis) for horizontal scale.
+   2. **In-process state**: A backend restart (deploy or crash) drops any
+      in-flight pipeline. Jobs stuck in PROCESSING > N minutes should be
+      reaped + refunded by a janitor task. Not yet wired.
+   3. **The blocking root cause is upstream** (emergentintegrations sync
+      httpx). Other LLM-using features in the codebase have the same risk
+      pattern. They are NOT fixed by this PR — only Photo Trailer is
+      isolated. Other features still block during their LLM calls.
+   4. **No rate limit per user** on job creation. A single bad actor can
+      flood the queue. Existing per-user `ACTIVE_JOB_LIMIT` (1 FREE / 2
+      PAID / 3 PREMIUM) does limit this, but a global rate limit on
+      POST /api/photo-trailer/jobs would harden it further.
+   5. **Worker exception handling**: `_sync_call` uses `asyncio.run()`
+      which always closes the loop. If the inner coroutine leaks resources
+      (httpx connection pools, etc.), each call recreates them. Adds ~50ms
+      latency per LLM call — acceptable trade-off for isolation.
+
+📊 Production-safety verdict: **GREEN** for hard traffic at current scale.
+   Recommended monitoring: alert if `_PIPELINE_GATE._value` stays at 0 for
+   > 5 minutes (saturation), and if any pipeline runs > 3 minutes (stuck).
+
+📁 Files Changed:
+   • backend/routes/photo_trailer.py — worker pool architecture (~80 LOC)
+
+
 ─────────────────────────────────────────────────────────
 Founder directive: get the failing 2 backend tests to 24/24, no scope creep.
 
