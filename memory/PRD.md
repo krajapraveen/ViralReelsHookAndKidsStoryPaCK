@@ -1053,6 +1053,66 @@ Founder directive: Photo Trailer must never degrade core app responsiveness.
 ✅ Tests: 24/24 PASS in 13.51s (was 22/24 in 151s before this fix).
 
 ─────────────────────────────────────────────────────────
+[2026-04-29 P0] PHOTO TRAILER NOTIFICATION LOOP — CLOSED END-TO-END
+─────────────────────────────────────────────────────────
+Founder rationale: "you already paid to acquire the user and generate the
+trailer. If they miss the completion moment, you waste conversion energy."
+
+✅ Bell click loop wired
+   File: frontend/src/components/NotificationBell.js
+   - Cross-shape link resolver: tries action_url → actionUrl → link →
+     data.deep_link → /app/my-space (only if feature='photo_trailer')
+   - feature-aware icon map: photo_trailer → Film
+   - notification_type/feature ⇒ NotificationService schema fully supported
+   - body field aliased from `message` so the new shape renders correctly
+   - data-testid = notification-item-photo-trailer (deterministic for tests)
+
+✅ MySpace deep-link highlight
+   File: frontend/src/pages/MySpacePage.js
+   - URL param `?trailer=<job_id>` parsed via useSearchParams
+   - useEffect smooth-scrolls the matching card into view (300ms after fetch)
+   - photo_trailer cards now also receive `highlighted=true` and
+     `justCompleted=true` flags when their id matches the trailer query
+     param — the existing pulse-highlight animation from MySpace fires
+     automatically for them.
+
+✅ Backend bug fixed (uncovered while wiring this)
+   File: backend/routes/photo_trailer.py
+   - GET /api/photo-trailer/my-trailers was projecting `{"_id": 0}`,
+     stripping the job id from the response. The frontend was rendering
+     `myspace-trailer-card-null` for every YouStar card, so the deep-link
+     scroll could NEVER find a match. Now projects `_id → job_id` so each
+     card has a real, addressable testid.
+
+✅ Tests added (3 new, all using REAL DB seeds + the same notification
+   collection shape the backend writes via NotificationService)
+   File: backend/tests/test_notification_bell_loop.py (158 LOC)
+   1. test_bell_renders_photo_trailer_notification — bell shows the new
+      notification with the right title + Film icon
+   2. test_click_navigates_to_myspace_with_trailer_param — click → URL
+      contains /app/my-space?trailer=<id>, dropdown closes, matching
+      card becomes visible in MySpace within 12s
+   3. test_fallback_when_action_url_missing — defensive: if backend ever
+      omits action_url, photo_trailer notifications STILL navigate to
+      /app/my-space (no dead row)
+
+✅ Full suite: 38/38 PASS in 175s
+   - 24 original photo trailer + 4 janitor + 3 upload-step CTA
+   - 4 waiting UX + 3 notification loop = 38 tests covering the whole
+     lifecycle from upload through generation through MySpace landing.
+
+📁 Files Changed:
+   • frontend/src/components/NotificationBell.js (icon map + handler)
+   • frontend/src/pages/MySpacePage.js (?trailer= deep-link + highlight)
+   • backend/routes/photo_trailer.py (my-trailers _id → job_id projection)
+   • backend/tests/test_notification_bell_loop.py (NEW, 3 tests)
+
+🚦 No new notification system. No bell UI redesign. No admin features.
+   Generation pipeline UNTOUCHED. Worker pool UNTOUCHED.
+
+
+─────────────────────────────────────────────────────────
+─────────────────────────────────────────────────────────
 [2026-04-29 P1] PHOTO TRAILER — WAITING UX + MYSPACE + COMPLETION NOTIFICATION
 ─────────────────────────────────────────────────────────
 Goal: when YouStar generation starts, users must not feel trapped.

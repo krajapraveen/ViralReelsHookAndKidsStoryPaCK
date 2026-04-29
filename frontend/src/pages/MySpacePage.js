@@ -833,7 +833,10 @@ export default function MySpacePage() {
   const [newMilestone, setNewMilestone] = useState(null);
   const [searchParams] = useSearchParams();
   const highlightId = searchParams.get('projectId');
+  // Trailer-specific deep-link from notification: /app/my-space?trailer=<job_id>
+  const highlightTrailerId = searchParams.get('trailer');
   const highlightRef = useRef(null);
+  const trailerHighlightRef = useRef(null);
   const pollRef = useRef(null);
   const prevStatusMap = useRef({});
   const promptedJobIds = useRef(new Set());
@@ -901,7 +904,8 @@ export default function MySpacePage() {
       if (trailerRes.status === 'fulfilled' && trailerRes.value?.data?.trailers) {
         for (const t of trailerRes.value.data.trailers) {
           allItems.push({
-            job_id: t._id || t.public_share_slug,
+            // Backend now returns job_id (renamed from _id). Fall back gracefully.
+            job_id: t.job_id || t._id || t.public_share_slug,
             title: t.template_name || 'YouStar Trailer',
             type: 'photo_trailer',
             status: t.status,  // already QUEUED|PROCESSING|COMPLETED|FAILED
@@ -986,6 +990,17 @@ export default function MySpacePage() {
       setTimeout(() => { highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300);
     }
   }, [highlightId, jobs]);
+
+  // Deep-link from notification: /app/my-space?trailer=<job_id>
+  // Smooth-scroll to the matching YouStar trailer card and apply a brief
+  // ring highlight so the user instantly sees their video.
+  useEffect(() => {
+    if (highlightTrailerId && trailerHighlightRef.current) {
+      setTimeout(() => {
+        trailerHighlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 300);
+    }
+  }, [highlightTrailerId, jobs]);
 
   const handleRetry = async (job) => {
     try {
@@ -1281,8 +1296,22 @@ export default function MySpacePage() {
             {!collapsedSections.inProgress && (
               <div className="space-y-3 mt-2">
                 {inProgress.map(job => (
-                  <div key={job.job_id} ref={job.job_id === highlightId ? highlightRef : null}>
-                    <ProjectCard job={job} highlighted={job.job_id === highlightId} onShare={handleShare} onRetry={handleRetry} onDelete={handleDelete} onNavigate={handleNavigate} timeEstimates={timeEstimates} userCredits={userCredits} remixCount={remixStats[job.job_id] || 0} />
+                  <div
+                    key={job.job_id}
+                    ref={
+                      job.job_id === highlightId ? highlightRef
+                      : (job.type === 'photo_trailer' && job.job_id === highlightTrailerId) ? trailerHighlightRef
+                      : null
+                    }
+                  >
+                    <ProjectCard
+                      job={job}
+                      highlighted={
+                        job.job_id === highlightId ||
+                        (job.type === 'photo_trailer' && job.job_id === highlightTrailerId)
+                      }
+                      onShare={handleShare} onRetry={handleRetry} onDelete={handleDelete} onNavigate={handleNavigate} timeEstimates={timeEstimates} userCredits={userCredits} remixCount={remixStats[job.job_id] || 0}
+                    />
                   </div>
                 ))}
               </div>
@@ -1296,8 +1325,26 @@ export default function MySpacePage() {
           {!collapsedSections.completed && (
             <div className="space-y-3 mt-2">
               {completed.map(job => (
-                <div key={job.job_id} ref={job.job_id === highlightId ? highlightRef : null}>
-                  <ProjectCard job={job} highlighted={job.job_id === highlightId} justCompleted={justCompletedIds.has(job.job_id)} onShare={handleShare} onRetry={handleRetry} onDelete={handleDelete} onNavigate={handleNavigate} timeEstimates={timeEstimates} userCredits={userCredits} remixCount={remixStats[job.job_id] || 0} />
+                <div
+                  key={job.job_id}
+                  ref={
+                    job.job_id === highlightId ? highlightRef
+                    : (job.type === 'photo_trailer' && job.job_id === highlightTrailerId) ? trailerHighlightRef
+                    : null
+                  }
+                >
+                  <ProjectCard
+                    job={job}
+                    highlighted={
+                      job.job_id === highlightId ||
+                      (job.type === 'photo_trailer' && job.job_id === highlightTrailerId)
+                    }
+                    justCompleted={
+                      justCompletedIds.has(job.job_id) ||
+                      (job.type === 'photo_trailer' && job.job_id === highlightTrailerId)
+                    }
+                    onShare={handleShare} onRetry={handleRetry} onDelete={handleDelete} onNavigate={handleNavigate} timeEstimates={timeEstimates} userCredits={userCredits} remixCount={remixStats[job.job_id] || 0}
+                  />
                 </div>
               ))}
             </div>
@@ -1335,8 +1382,22 @@ export default function MySpacePage() {
             {!collapsedSections.failed && (
               <div className="space-y-3 mt-2">
                 {failed.map(job => (
-                  <div key={job.job_id} ref={job.job_id === highlightId ? highlightRef : null}>
-                    <ProjectCard job={job} highlighted={job.job_id === highlightId} onShare={handleShare} onRetry={handleRetry} onDelete={handleDelete} onNavigate={handleNavigate} timeEstimates={timeEstimates} userCredits={userCredits} remixCount={remixStats[job.job_id] || 0} />
+                  <div
+                    key={job.job_id}
+                    ref={
+                      job.job_id === highlightId ? highlightRef
+                      : (job.type === 'photo_trailer' && job.job_id === highlightTrailerId) ? trailerHighlightRef
+                      : null
+                    }
+                  >
+                    <ProjectCard
+                      job={job}
+                      highlighted={
+                        job.job_id === highlightId ||
+                        (job.type === 'photo_trailer' && job.job_id === highlightTrailerId)
+                      }
+                      onShare={handleShare} onRetry={handleRetry} onDelete={handleDelete} onNavigate={handleNavigate} timeEstimates={timeEstimates} userCredits={userCredits} remixCount={remixStats[job.job_id] || 0}
+                    />
                   </div>
                 ))}
               </div>

@@ -19,6 +19,13 @@ const ICON_MAP = {
   war_overtake: Flame,
   war_won: Trophy,
   war_ended: Target,
+  // Photo Trailer (YouStar) generation lifecycle
+  generation_complete: Film,
+  generation_failed: RefreshCcw,
+};
+
+const FEATURE_ICON_MAP = {
+  photo_trailer: Film,
 };
 
 const COLOR_MAP = {
@@ -75,7 +82,13 @@ export default function NotificationBell() {
   };
 
   const handleClick = (n) => {
-    const link = n.link || n.data?.deep_link;
+    // Cross-shape link resolution. Different writers use different field names:
+    //   - NotificationService.create_notification: action_url / actionUrl
+    //   - universe_routes.create_notification:    link / data.deep_link
+    // photo_trailer (YouStar) notifications fall back to MySpace if action_url
+    // was somehow omitted.
+    const link = n.action_url || n.actionUrl || n.link || n.data?.deep_link
+              || (n.feature === 'photo_trailer' ? '/app/my-space' : null);
     if (link) {
       setOpen(false);
       navigate(link);
@@ -127,15 +140,20 @@ export default function NotificationBell() {
               </div>
             ) : (
               notifications.map((n, i) => {
-                const NIcon = ICON_MAP[n.type] || Bell;
-                const colorCls = COLOR_MAP[n.type] || (!n.read ? 'text-violet-400 bg-violet-500/10' : 'text-slate-500 bg-white/[0.04]');
-                const hasLink = !!(n.link || n.data?.deep_link);
+                // Cross-shape compatibility: NotificationService uses
+                // notification_type+feature+message; legacy uses type+body+link.
+                const ntype = n.notification_type || n.type;
+                const body  = n.message || n.body;
+                const NIcon = FEATURE_ICON_MAP[n.feature] || ICON_MAP[ntype] || Bell;
+                const colorCls = COLOR_MAP[ntype] || (n.feature === 'photo_trailer' ? 'text-violet-400 bg-violet-500/10'
+                                                       : (!n.read ? 'text-violet-400 bg-violet-500/10' : 'text-slate-500 bg-white/[0.04]'));
+                const hasLink = !!(n.action_url || n.actionUrl || n.link || n.data?.deep_link || n.feature === 'photo_trailer');
                 return (
                   <div
-                    key={n._id || i}
+                    key={n._id || n.id || i}
                     className={`px-4 py-3 border-b border-white/[0.04] hover:bg-white/[0.03] transition-colors ${hasLink ? 'cursor-pointer' : ''} ${!n.read ? 'bg-violet-500/[0.04]' : ''}`}
                     onClick={() => handleClick(n)}
-                    data-testid={`notification-item-${i}`}
+                    data-testid={n.feature === 'photo_trailer' ? 'notification-item-photo-trailer' : `notification-item-${i}`}
                   >
                     <div className="flex gap-3">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${colorCls}`}>
@@ -143,15 +161,15 @@ export default function NotificationBell() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className={`text-xs font-medium leading-relaxed ${!n.read ? 'text-white' : 'text-slate-400'}`}>{n.title}</p>
-                        {n.body && <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-2">{n.body}</p>}
+                        {body && <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-2">{body}</p>}
                         {/* Aggregated remix count */}
-                        {n.type === 'story_remixed' && n.meta?.remix_count > 1 && (
+                        {ntype === 'story_remixed' && n.meta?.remix_count > 1 && (
                           <span className="inline-flex items-center gap-1 text-[10px] text-pink-400 font-semibold mt-1">
                             <Users className="w-2.5 h-2.5" /> {n.meta.remix_count} people
                           </span>
                         )}
                         {/* Viral remix momentum */}
-                        {n.type === 'viral_remix' && n.count > 1 && (
+                        {ntype === 'viral_remix' && n.count > 1 && (
                           <span className="inline-flex items-center gap-1 text-[10px] text-rose-400 font-semibold mt-1" data-testid="viral-notification-count">
                             <Flame className="w-2.5 h-2.5" /> {n.count} creator{n.count !== 1 ? 's' : ''} inspired
                           </span>

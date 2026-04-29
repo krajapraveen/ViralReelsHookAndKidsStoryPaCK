@@ -304,11 +304,16 @@ async def delete_job(job_id: str, user: dict = Depends(get_current_user)):
 
 @router.get("/my-trailers")
 async def my_trailers(user: dict = Depends(get_current_user), limit: int = Query(30, ge=1, le=100)):
+    # NB: must include the job id so MySpace can deep-link via ?trailer=<id>
+    # and so notification click handlers can match a card. Strip the Mongo
+    # _id but project it onto a JSON-friendly job_id field.
     cur = db.photo_trailer_jobs.find(
         {"user_id": user["id"], "deleted_at": {"$exists": False}},
-        {"_id": 0},
     ).sort("created_at", -1).limit(limit)
-    rows = [d async for d in cur]
+    rows = []
+    async for d in cur:
+        d["job_id"] = d.pop("_id")
+        rows.append(d)
     return {"trailers": rows}
 
 # ─── Admin ────────────────────────────────────────────────────────────────────

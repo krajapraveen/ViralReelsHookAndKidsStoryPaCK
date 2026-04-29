@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   Bell, X, Check, CheckCheck, Trash2, Download, 
   CheckCircle, AlertTriangle, Clock, ExternalLink,
@@ -17,6 +17,7 @@ const FEATURE_ICONS = {
   reel_generator: Film,
   story_generator: BookOpen,
   coloring_book: Palette,
+  photo_trailer: Film,   // YouStar trailers
   default: CheckCircle
 };
 
@@ -32,7 +33,7 @@ const formatRelativeTime = (timestamp) => {
 };
 
 // Single notification item
-function NotificationItem({ notification, onRead, onRemove, onAction }) {
+function NotificationItem({ notification, onRead, onRemove, onActivate }) {
   const { type, title, message, read, timestamp, color, feature, downloadUrl, actionUrl, expiresAt } = notification;
   
   const Icon = type === NOTIFICATION_TYPES.GENERATION_FAILED 
@@ -62,13 +63,17 @@ function NotificationItem({ notification, onRead, onRemove, onAction }) {
   };
 
   const remainingTime = getRemainingTime();
+  // Whole-row click navigates when there's an in-app destination (actionUrl).
+  // Pure-download notifications still use the dedicated download icon.
+  const hasInAppDestination = !!actionUrl;
 
   return (
     <div 
       className={`p-3 border-b border-slate-700/50 hover:bg-slate-800/50 transition-colors ${
         !read ? 'bg-slate-800/30' : ''
-      }`}
-      onClick={() => !read && onRead(notification.id)}
+      } ${hasInAppDestination ? 'cursor-pointer' : ''}`}
+      onClick={() => onActivate(notification)}
+      data-testid={`notification-item-${feature || 'general'}`}
     >
       <div className="flex gap-3">
         {/* Icon */}
@@ -111,21 +116,22 @@ function NotificationItem({ notification, onRead, onRemove, onAction }) {
             </div>
             
             <div className="flex items-center gap-1">
-              {/* Action button */}
-              {(downloadUrl || actionUrl) && remainingTime !== 'Expired' && (
+              {/* Download icon — only for pure download notifications */}
+              {downloadUrl && remainingTime !== 'Expired' && (
                 <a
-                  href={downloadUrl || actionUrl}
-                  target={downloadUrl ? '_blank' : '_self'}
+                  href={downloadUrl}
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="p-1 hover:bg-slate-700 rounded transition-colors"
                   onClick={(e) => e.stopPropagation()}
+                  data-testid="notification-download-link"
                 >
-                  {downloadUrl ? (
-                    <Download className="w-4 h-4 text-indigo-400" />
-                  ) : (
-                    <ExternalLink className="w-4 h-4 text-indigo-400" />
-                  )}
+                  <Download className="w-4 h-4 text-indigo-400" />
                 </a>
+              )}
+              {/* In-app destination indicator — wholerow click handles nav */}
+              {hasInAppDestination && !downloadUrl && (
+                <ExternalLink className="w-4 h-4 text-indigo-400/70" aria-hidden="true" />
               )}
               
               {/* Remove button */}
@@ -160,6 +166,23 @@ export default function NotificationCenter() {
   } = useNotifications();
   
   const panelRef = useRef(null);
+  const navigate = useNavigate();
+
+  // Click-handler for the entire notification row.
+  // Marks read, then navigates to in-app destination (actionUrl) if present.
+  // Falls back to the feature's MySpace landing for photo_trailer notifications.
+  const handleActivate = (n) => {
+    if (!n.read) markAsRead(n.id);
+    let dest = n.actionUrl;
+    if (!dest && n.feature === 'photo_trailer') {
+      // Sensible fallback if backend ever omits action_url
+      dest = '/app/my-space';
+    }
+    if (dest) {
+      setIsOpen(false);
+      navigate(dest);
+    }
+  };
 
   // Close panel when clicking outside
   useEffect(() => {
@@ -242,6 +265,7 @@ export default function NotificationCenter() {
                   notification={notification}
                   onRead={markAsRead}
                   onRemove={removeNotification}
+                  onActivate={handleActivate}
                 />
               ))
             )}
