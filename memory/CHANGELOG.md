@@ -73,3 +73,13 @@
 - Fixed 2 failing tests: provenance metadata test now resolves ffmpeg/ffprobe via fallback (system → bundled); queue-stats test passes
 - Full photo_trailer regression suite green: 39/39 tests across share_funnel, trust_legal, premium_tier, signed_urls, vertical_cut, janitor
 
+
+
+### Photo Trailer — Founder KPI Dashboard (2026-02-XX)
+- New endpoint `GET /api/photo-trailer/admin/dashboard?range=24h|7d|30d` returns 27 KPIs across 6 sections:
+  Acquisition (3) · Engagement (4-7) · Conversion (8-13) · Revenue (14-19) · Ops (20-24) · Virality (25-27)
+- Powered by `funnel_events` (share_page_view, video_play_clicked, watch_25/50/75, completed_watch, share clicks, make_your_own_clicked, signup_started/completed, first_trailer_created, paywall_shown/upgrade_clicked) joined with `photo_trailer_jobs` (plan_tier, duration, queue_lane, queue_wait_seconds, render time, fail rate)
+- New admin page `/app/admin/photo-trailers` (`PhotoTrailerKpiDashboard.jsx`): truth-first stat cards + pure-CSS bar charts, 24h/7d/30d toggle, refresh button
+- Fixed `priority_slots` config exposure in queue-stats (was reading semaphore-runtime value, now exposes static configured slot count)
+- Test suite: `test_photo_trailer_kpi_dashboard.py` (4 tests — auth gate, range validation, all-three-ranges, and seeded-math correctness across all 6 sections)
+- Full Photo Trailer regression: 36/36 green

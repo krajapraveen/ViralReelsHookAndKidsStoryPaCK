@@ -67,7 +67,8 @@ RENDER_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=MAX_RENDER_W
 # honest "skip the queue" claim WITHOUT starving standard tier — the
 # standard semaphore is unaffected.
 _STANDARD_GATE = asyncio.Semaphore(MAX_ACTIVE_PIPELINES)
-_PRIORITY_GATE = asyncio.Semaphore(int(os.environ.get("PHOTO_TRAILER_PRIORITY_SLOTS", "1")))
+PRIORITY_SLOTS = int(os.environ.get("PHOTO_TRAILER_PRIORITY_SLOTS", "1"))
+_PRIORITY_GATE = asyncio.Semaphore(PRIORITY_SLOTS)
 # Back-compat alias (some old call-sites + tests reference it)
 _PIPELINE_GATE = _STANDARD_GATE
 
@@ -1590,6 +1591,313 @@ async def admin_queue_stats(user: dict = Depends(get_admin_user), days: int = Qu
                     for p, v in by_plan.items()],
         "config": {
             "standard_slots": MAX_ACTIVE_PIPELINES,
-            "priority_slots": _PRIORITY_GATE._value + sum(1 for _ in range(0)),  # informational
+            "priority_slots": PRIORITY_SLOTS,
+        },
+    }
+
+
+# ─── Founder KPI Dashboard ────────────────────────────────────────────────────
+# Single endpoint that powers /app/admin/photo-trailers. Built to answer the
+# only question that matters at this stage: is YouStar actually working?
+# 27 KPIs across Acquisition / Engagement / Conversion / Revenue / Ops / Virality.
+_RANGE_MAP = {"24h": 1, "7d": 7, "30d": 30}
+
+def _range_to_cutoff_iso(rng: str) -> str:
+    days = _RANGE_MAP.get(rng, 7)
+    return (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+async def _unique_sessions(step: str, cutoff: str, extra_match: dict = None) -> int:
+    match = {"step": step, "timestamp": {"$gte": cutoff}}
+    if extra_match: match.update(extra_match)
+    pipe = [
+        {"$match": match},
+        {"$group": {"_id": "$session_id"}},
+        {"$count": "n"},
+    ]
+    async for d in db.funnel_events.aggregate(pipe):
+        return int(d.get("n", 0))
+    return 0
+
+async def _unique_users(step: str, cutoff: str) -> int:
+    pipe = [
+        {"$match": {"step": step, "timestamp": {"$gte": cutoff}, "user_id": {"$ne": None}}},
+        {"$group": {"_id": "$user_id"}},
+        {"$count": "n"},
+    ]
+    async for d in db.funnel_events.aggregate(pipe):
+        return int(d.get("n", 0))
+    return 0
+
+def _safe_pct(num, den) -> float:
+    return round(100.0 * (num or 0) / den, 1) if den else 0.0
+
+@router.get("/admin/dashboard")
+async def admin_kpi_dashboard(
+    user: dict = Depends(get_admin_user),
+    range: str = Query("7d", pattern="^(24h|7d|30d)$"),
+):
+    """Single-shot founder KPI dashboard. Truth-first, no charts library bloat.
+
+    Returns 27 KPIs across:
+      ACQUISITION (1-3)  ENGAGEMENT (4-7)  CONVERSION (8-13)
+      REVENUE (14-19)    OPS (20-24)       VIRALITY (25-27)
+    """
+    cutoff = _range_to_cutoff_iso(range)
+
+    # ═══ ACQUISITION ═══════════════════════════════════════════════════════════
+    # 1. Public share page views (raw event count)
+    share_page_view_total = await db.funnel_events.count_documents(
+        {"step": "share_page_view", "timestamp": {"$gte": cutoff}}
+    )
+    # 2. Unique visitors (unique session_ids)
+    unique_visitors = await _unique_sessions("share_page_view", cutoff)
+    # 3. Source split — bucket traffic_source values into the founder's 4 buckets
+    source_split = {"whatsapp": 0, "native_share": 0, "direct": 0, "other": 0}
+    pipe_src = [
+        {"$match": {"step": "share_page_view", "timestamp": {"$gte": cutoff}}},
+        {"$group": {"_id": {"sid": "$session_id", "src": "$traffic_source"}}},
+        {"$group": {"_id": "$_id.src", "n": {"$sum": 1}}},
+    ]
+    async for d in db.funnel_events.aggregate(pipe_src):
+        src = (d["_id"] or "direct").lower() if d["_id"] else "direct"
+        n = int(d["n"])
+        if src == "whatsapp": source_split["whatsapp"] += n
+        elif src in {"direct", "unknown", "none", ""}: source_split["direct"] += n
+        elif src in {"share", "native", "navigator", "navigator-share"}: source_split["native_share"] += n
+        else: source_split["other"] += n
+
+    # ═══ ENGAGEMENT ════════════════════════════════════════════════════════════
+    plays_unique = await _unique_sessions("video_play_clicked", cutoff)
+    w25 = await _unique_sessions("watch_25", cutoff)
+    w50 = await _unique_sessions("watch_50", cutoff)
+    w75 = await _unique_sessions("watch_75", cutoff)
+    w100 = await _unique_sessions("completed_watch", cutoff)
+    # Format split: count play events grouped by meta.format
+    fmt_pipe = [
+        {"$match": {"step": "video_play_clicked", "timestamp": {"$gte": cutoff}}},
+        {"$group": {"_id": "$meta.format", "n": {"$sum": 1}}},
+    ]
+    fmt_play = {"wide": 0, "vertical": 0}
+    async for d in db.funnel_events.aggregate(fmt_pipe):
+        f = d["_id"] or "wide"
+        if f in fmt_play: fmt_play[f] += int(d["n"])
+    # Top templates by completion rate (need slug→template_id join)
+    # Step A: collect (slug, views, completions) from funnel events
+    slug_view_pipe = [
+        {"$match": {"step": "share_page_view", "timestamp": {"$gte": cutoff},
+                    "meta.slug": {"$ne": None}}},
+        {"$group": {"_id": {"slug": "$meta.slug", "sid": "$session_id"}}},
+        {"$group": {"_id": "$_id.slug", "views": {"$sum": 1}}},
+    ]
+    slug_views = {}
+    async for d in db.funnel_events.aggregate(slug_view_pipe):
+        if d["_id"]: slug_views[d["_id"]] = int(d["views"])
+    slug_complete_pipe = [
+        {"$match": {"step": "completed_watch", "timestamp": {"$gte": cutoff},
+                    "meta.slug": {"$ne": None}}},
+        {"$group": {"_id": {"slug": "$meta.slug", "sid": "$session_id"}}},
+        {"$group": {"_id": "$_id.slug", "completes": {"$sum": 1}}},
+    ]
+    slug_completes = {}
+    async for d in db.funnel_events.aggregate(slug_complete_pipe):
+        if d["_id"]: slug_completes[d["_id"]] = int(d["completes"])
+    slug_share_pipe = [
+        {"$match": {"step": {"$in": ["whatsapp_share_clicked", "native_share_clicked"]},
+                    "timestamp": {"$gte": cutoff}, "meta.slug": {"$ne": None}}},
+        {"$group": {"_id": {"slug": "$meta.slug", "sid": "$session_id"}}},
+        {"$group": {"_id": "$_id.slug", "shares": {"$sum": 1}}},
+    ]
+    slug_shares = {}
+    async for d in db.funnel_events.aggregate(slug_share_pipe):
+        if d["_id"]: slug_shares[d["_id"]] = int(d["shares"])
+    # Slug → template_id mapping (pull only slugs we have data on)
+    all_slugs = set(slug_views) | set(slug_completes) | set(slug_shares)
+    slug_to_tpl = {}
+    if all_slugs:
+        async for j in db.photo_trailer_jobs.find(
+            {"public_share_slug": {"$in": list(all_slugs)}},
+            {"_id": 0, "public_share_slug": 1, "template_id": 1},
+        ):
+            slug_to_tpl[j["public_share_slug"]] = j.get("template_id") or "unknown"
+    # Aggregate per template
+    tpl_agg = {}  # tpl_id → {views, completes, shares}
+    for slug, views in slug_views.items():
+        tpl = slug_to_tpl.get(slug, "unknown")
+        tpl_agg.setdefault(tpl, {"views": 0, "completes": 0, "shares": 0})["views"] += views
+    for slug, c in slug_completes.items():
+        tpl = slug_to_tpl.get(slug, "unknown")
+        tpl_agg.setdefault(tpl, {"views": 0, "completes": 0, "shares": 0})["completes"] += c
+    for slug, s in slug_shares.items():
+        tpl = slug_to_tpl.get(slug, "unknown")
+        tpl_agg.setdefault(tpl, {"views": 0, "completes": 0, "shares": 0})["shares"] += s
+    top_templates_completion = sorted(
+        [
+            {
+                "template_id": tpl,
+                "title": (TEMPLATES.get(tpl, {}) or {}).get("title", tpl),
+                "views": v["views"], "completes": v["completes"],
+                "completion_pct": _safe_pct(v["completes"], v["views"]),
+            }
+            for tpl, v in tpl_agg.items() if v["views"] >= 1
+        ],
+        key=lambda x: (-x["completion_pct"], -x["views"]),
+    )[:10]
+
+    # ═══ CONVERSION ════════════════════════════════════════════════════════════
+    make_your_own_clicks = await _unique_sessions("make_your_own_clicked", cutoff)
+    signup_started = await _unique_sessions("signup_started", cutoff)
+    signup_completed = await _unique_sessions("signup_completed", cutoff)
+    first_trailer_created = await _unique_users("first_trailer_created", cutoff)
+
+    # ═══ REVENUE ═══════════════════════════════════════════════════════════════
+    job_match = {"created_at": {"$gte": cutoff}}
+    plan_pipe = [
+        {"$match": job_match},
+        {"$group": {"_id": "$plan_tier_at_creation", "n": {"$sum": 1}}},
+    ]
+    plan_counts = {"FREE": 0, "PAID": 0, "PREMIUM": 0}
+    async for d in db.photo_trailer_jobs.aggregate(plan_pipe):
+        k = (d["_id"] or "FREE").upper()
+        if k in plan_counts: plan_counts[k] += int(d["n"])
+    purchases_60s = await db.photo_trailer_jobs.count_documents({
+        **job_match, "duration_target_seconds": 60, "status": "COMPLETED",
+    })
+    purchases_90s = await db.photo_trailer_jobs.count_documents({
+        **job_match, "duration_target_seconds": 90, "status": "COMPLETED",
+    })
+    upgrade_shown = await _unique_sessions("photo_trailer_paywall_shown", cutoff)
+    upgrade_clicked = await _unique_sessions("photo_trailer_paywall_upgrade_clicked", cutoff)
+    # Credits charged (revenue proxy — credits are the economic unit)
+    credits_pipe = [
+        {"$match": {**job_match, "status": "COMPLETED"}},
+        {"$group": {"_id": None, "total": {"$sum": "$charged_credits"}}},
+    ]
+    total_credits = 0
+    async for d in db.photo_trailer_jobs.aggregate(credits_pipe):
+        total_credits = int(d.get("total") or 0)
+
+    # ═══ OPS ═══════════════════════════════════════════════════════════════════
+    queue_depth_active = await db.photo_trailer_jobs.count_documents(
+        {"status": {"$in": ["QUEUED", "PROCESSING"]}}
+    )
+    wait_pipe = [
+        {"$match": {**job_match, "queue_wait_seconds": {"$exists": True}}},
+        {"$group": {"_id": "$queue_lane", "avg": {"$avg": "$queue_wait_seconds"},
+                    "n": {"$sum": 1}}},
+    ]
+    wait_by_lane = {"priority": 0.0, "standard": 0.0}
+    wait_samples = {"priority": 0, "standard": 0}
+    async for d in db.photo_trailer_jobs.aggregate(wait_pipe):
+        lane = d["_id"] or "standard"
+        if lane in wait_by_lane:
+            wait_by_lane[lane] = round(d["avg"] or 0, 1)
+            wait_samples[lane] = int(d["n"])
+    total_jobs_in_range = await db.photo_trailer_jobs.count_documents(job_match)
+    failed_in_range = await db.photo_trailer_jobs.count_documents(
+        {**job_match, "status": "FAILED"}
+    )
+    # Avg render time by duration (started_at → completed_at)
+    render_pipe = [
+        {"$match": {**job_match, "status": "COMPLETED",
+                    "started_at": {"$ne": None}, "completed_at": {"$ne": None}}},
+        {"$project": {
+            "duration_target_seconds": 1,
+            "render_seconds": {
+                "$divide": [
+                    {"$subtract": [
+                        {"$dateFromString": {"dateString": "$completed_at"}},
+                        {"$dateFromString": {"dateString": "$started_at"}},
+                    ]},
+                    1000,
+                ]},
+        }},
+        {"$group": {"_id": "$duration_target_seconds",
+                    "avg": {"$avg": "$render_seconds"}, "n": {"$sum": 1}}},
+    ]
+    render_by_duration = {"20": None, "60": None, "90": None}
+    render_samples = {"20": 0, "60": 0, "90": 0}
+    async for d in db.photo_trailer_jobs.aggregate(render_pipe):
+        k = str(int(d["_id"])) if d["_id"] is not None else None
+        if k in render_by_duration:
+            render_by_duration[k] = round(d["avg"] or 0, 1)
+            render_samples[k] = int(d["n"])
+
+    # ═══ VIRALITY ══════════════════════════════════════════════════════════════
+    wa_shares = await _unique_sessions("whatsapp_share_clicked", cutoff)
+    native_shares = await _unique_sessions("native_share_clicked", cutoff)
+    total_shares = wa_shares + native_shares
+    completed_jobs = await db.photo_trailer_jobs.count_documents(
+        {**job_match, "status": "COMPLETED"}
+    )
+    top_templates_share = sorted(
+        [
+            {
+                "template_id": tpl,
+                "title": (TEMPLATES.get(tpl, {}) or {}).get("title", tpl),
+                "views": v["views"], "shares": v["shares"],
+                "share_rate_pct": _safe_pct(v["shares"], v["views"]),
+            }
+            for tpl, v in tpl_agg.items() if v["views"] >= 1
+        ],
+        key=lambda x: (-x["share_rate_pct"], -x["views"]),
+    )[:10]
+
+    return {
+        "range": range,
+        "generated_at": _now(),
+        "acquisition": {
+            "share_page_views": share_page_view_total,
+            "unique_visitors": unique_visitors,
+            "source_split": source_split,
+        },
+        "engagement": {
+            "view_to_play_pct": _safe_pct(plays_unique, unique_visitors),
+            "watch_25_pct": _safe_pct(w25, plays_unique),
+            "watch_50_pct": _safe_pct(w50, plays_unique),
+            "watch_75_pct": _safe_pct(w75, plays_unique),
+            "watch_100_pct": _safe_pct(w100, plays_unique),
+            "plays_unique": plays_unique,
+            "format_play_split": fmt_play,
+            "top_templates_by_completion": top_templates_completion,
+        },
+        "conversion": {
+            "make_your_own_ctr_pct": _safe_pct(make_your_own_clicks, unique_visitors),
+            "make_your_own_clicks": make_your_own_clicks,
+            "signup_started": signup_started,
+            "signup_completed": signup_completed,
+            "first_trailer_created": first_trailer_created,
+            "view_to_signup_pct": _safe_pct(signup_completed, unique_visitors),
+            "signup_to_first_trailer_pct": _safe_pct(first_trailer_created, signup_completed),
+        },
+        "revenue": {
+            "free_jobs": plan_counts["FREE"],
+            "paid_jobs": plan_counts["PAID"],
+            "premium_jobs": plan_counts["PREMIUM"],
+            "purchases_60s": purchases_60s,
+            "purchases_90s": purchases_90s,
+            "upgrade_modal_shown": upgrade_shown,
+            "upgrade_clicked": upgrade_clicked,
+            "upgrade_ctr_pct": _safe_pct(upgrade_clicked, upgrade_shown),
+            "credits_charged_total": total_credits,
+        },
+        "ops": {
+            "queue_depth_active": queue_depth_active,
+            "avg_wait_premium_seconds": wait_by_lane["priority"],
+            "avg_wait_standard_seconds": wait_by_lane["standard"],
+            "wait_samples": wait_samples,
+            "fail_rate_pct": _safe_pct(failed_in_range, total_jobs_in_range),
+            "total_jobs": total_jobs_in_range,
+            "avg_render_seconds_by_duration": render_by_duration,
+            "render_samples_by_duration": render_samples,
+        },
+        "virality": {
+            "view_to_share_pct": _safe_pct(total_shares, unique_visitors),
+            "shares_total": total_shares,
+            "whatsapp_shares": wa_shares,
+            "native_shares": native_shares,
+            "shares_per_completed_trailer": (
+                round(total_shares / completed_jobs, 2) if completed_jobs else 0.0
+            ),
+            "top_templates_by_share_rate": top_templates_share,
         },
     }

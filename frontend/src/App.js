@@ -188,6 +188,7 @@ const AdminFeedbackPage = lazy(() => import('./pages/Admin/AdminFeedbackPage'));
 const GrowthDashboard = lazy(() => import('./pages/Admin/GrowthDashboard'));
 const ProductionMetrics = lazy(() => import('./pages/Admin/ProductionMetrics'));
 const MediaSecurityDashboard = lazy(() => import('./pages/Admin/MediaSecurityDashboard'));
+const PhotoTrailerKpiDashboard = lazy(() => import('./pages/Admin/PhotoTrailerKpiDashboard'));
 
 // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
 const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
@@ -469,6 +470,7 @@ function App() {
           <Route path="content-engine" element={<L><ContentEngine /></L>} />
           <Route path="payments" element={<L><PaymentsDashboard /></L>} />
           <Route path="conversion" element={<L><ConversionDashboard /></L>} />
+          <Route path="photo-trailers" element={<L><PhotoTrailerKpiDashboard /></L>} />
         </Route>
 
         {/* Catch-all */}
