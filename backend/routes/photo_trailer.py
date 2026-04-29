@@ -382,19 +382,25 @@ def _sanitize_prompt(text: str) -> tuple[str, Optional[str]]:
 @router.post("/jobs")
 async def create_job(body: JobCreateIn, bg: BackgroundTasks, user: dict = Depends(get_current_user)):
     if body.template_id not in TEMPLATES:
-        raise HTTPException(400, "Invalid template")
+        raise HTTPException(400, detail={"code": "INVALID_TEMPLATE", "message": "Invalid template"})
     sess = await db.photo_trailer_upload_sessions.find_one({"_id": body.upload_session_id, "user_id": user["id"]})
-    if not sess: raise HTTPException(404, "Upload session not found")
-    if sess.get("status") != "COMPLETED": raise HTTPException(400, "Upload not finalised — confirm consent first.")
+    if not sess:
+        raise HTTPException(404, detail={"code": "UPLOAD_SESSION_NOT_FOUND", "message": "Upload session not found"})
+    if sess.get("status") != "COMPLETED":
+        raise HTTPException(400, detail={"code": "UPLOAD_NOT_FINALISED", "message": "Upload not finalised — confirm consent first."})
     if body.hero_asset_id not in sess["asset_ids"]:
-        raise HTTPException(400, "Hero must be one of the uploaded photos")
+        raise HTTPException(400, detail={"code": "HERO_NOT_IN_SESSION", "message": "Hero must be one of the uploaded photos"})
     for vid in [body.villain_asset_id] + body.supporting_asset_ids:
         if vid and vid not in sess["asset_ids"]:
-            raise HTTPException(400, "Character refs must come from uploaded photos")
+            raise HTTPException(400, detail={"code": "CHARACTER_NOT_IN_SESSION", "message": "Character refs must come from uploaded photos"})
     role = _user_role(user)
     active = await db.photo_trailer_jobs.count_documents({"user_id": user["id"], "status": {"$in": ["QUEUED", "PROCESSING"]}})
     if active >= ACTIVE_JOB_LIMIT.get(role, 1):
-        raise HTTPException(429, f"You already have {active} active trailer(s). Wait for them to finish.")
+        raise HTTPException(429, detail={
+            "code": "TOO_MANY_ACTIVE_JOBS",
+            "message": f"You already have {active} active trailer(s). Wait for them to finish.",
+            "active_jobs": active,
+        })
 
     # ── Plan / entitlement enforcement (server-side; cannot be spoofed) ───
     plan = await _user_plan(user)
@@ -476,7 +482,10 @@ async def create_job(body: JobCreateIn, bg: BackgroundTasks, user: dict = Depend
             })
         except Exception: pass
         await _emit("photo_trailer_prompt_blocked", user["id"], {"reason": reject_reason[:200]})
-        raise HTTPException(400, reject_reason)
+        raise HTTPException(400, detail={
+            "code": "PROMPT_BLOCKED",
+            "message": reject_reason,
+        })
     job_id = str(uuid.uuid4())
     tpl = TEMPLATES[body.template_id]
     job = {

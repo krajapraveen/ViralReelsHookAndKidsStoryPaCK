@@ -176,6 +176,9 @@ FUNNEL_STEPS = [
     "photo_trailer_subscribe_clicked",
     "photo_trailer_duration_downgraded",
     "photo_trailer_credit_fail_recovered",
+    # Generation start failures (2026-04-29) — every "Could not start" needs
+    # a measurable code so we can see WHY users bounce on Generate
+    "photo_trailer_start_failed",
     # Download conversion (2026-04-29) — confirms the result deliverable
     # actually leaves the system as a downloaded file
     "photo_trailer_download_clicked",

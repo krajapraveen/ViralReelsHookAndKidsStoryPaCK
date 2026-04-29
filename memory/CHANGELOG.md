@@ -295,3 +295,58 @@ logic, payments, credits, templates, share buttons, Make-another button.
 
 **Total Photo Trailer regression: 77/77 green**
 
+
+### Photo Trailer — P0 START-ERROR TRANSPARENCY (2026-02-XX)
+Founder bug: clicking Generate on failure showed only "Could not start trailer"
+red toast. No cause, no next step. Users blamed the product.
+
+**Backend** — every error path on `POST /api/photo-trailer/jobs` now returns
+structured `{detail: {code, message}}` instead of bare strings:
+- `INVALID_TEMPLATE`, `UPLOAD_SESSION_NOT_FOUND`, `UPLOAD_NOT_FINALISED`
+- `HERO_NOT_IN_SESSION`, `CHARACTER_NOT_IN_SESSION`
+- `TOO_MANY_ACTIVE_JOBS` (with `active_jobs` count)
+- `PROMPT_BLOCKED` (existing safety reject path now structured)
+- (Pre-existing structured: `INSUFFICIENT_CREDITS`, `UPGRADE_REQUIRED`,
+  `FREE_QUOTA_EXCEEDED`)
+- New funnel event `photo_trailer_start_failed` allowlisted
+
+**Frontend** (`PhotoTrailerPage.jsx`)
+- New `START_ERROR_MESSAGES` map with founder-spec human copy for: insufficient
+  credits, rate-limited, auth-required, upload-missing, beta-locked,
+  validation, plus all backend codes
+- New `deriveStartError(resp, body, thrown)` helper produces stable
+  `{code, message, http_status, retryable, cta}` shape
+- New inline error panel (testid `trailer-start-error`) ABOVE Generate:
+  - Persistent (doesn't disappear like a toast)
+  - Shows error code + http status (debug-friendly)
+  - Contextual CTAs:
+    - INSUFFICIENT_CREDITS → "Buy credits" → `/app/billing`
+    - UPGRADE_REQUIRED / FREE_QUOTA_EXCEEDED → "See plans" → `/app/pricing`
+    - AUTH_REQUIRED → "Sign in" → `/login`
+    - UPLOAD_*  / HERO_*/CHARACTER_* → "Re-upload" (jumps to wizard step 1)
+    - INVALID_TEMPLATE → "Pick a template" (jumps to wizard step 2)
+    - PROMPT_BLOCKED → "Edit prompt"
+    - TOO_MANY_ACTIVE_JOBS / RATE_LIMITED / UNKNOWN → "Retry"
+- Toast still fires (same human message) — toast for ephemeral feedback,
+  panel for read-and-act
+- `setStartError(null)` at the top of every onGenerate attempt — never a
+  stale red panel
+- `photo_trailer_start_failed` emitted with `{code, message, http_status}`
+- The OLD bare `'Could not start trailer'` fallback string is GONE
+- No raw stack traces ever surfaced
+
+**Tests** — 11 new in `test_photo_trailer_start_errors.py`:
+1. `INVALID_TEMPLATE` returns structured 400 detail
+2. `UPLOAD_SESSION_NOT_FOUND` returns structured 404
+3. `TOO_MANY_ACTIVE_JOBS` returns structured 429 with active_jobs count
+4. `photo_trailer_start_failed` is in funnel allowlist
+5. Frontend has all 13 spec'd error codes in mapper
+6. Inline error panel testids present + role=alert
+7. Frontend emits start_failed event with code+http_status
+8. Generic "Could not start trailer" fallback removed
+9. Retry button gated to `err.retryable`
+10. CTA button + buy/pricing/billing routes wired
+11. `setStartError(null)` clears panel on retry
+
+**Total Photo Trailer regression: 88 passed across 12 suites (each isolated)**
+

@@ -9,6 +9,8 @@ Covers:
 4. Sanitizer light rewrites (deepfake → AI cinematic portrait) flow through
 """
 import os, asyncio, time
+from dotenv import load_dotenv
+load_dotenv("/app/backend/.env")
 import httpx, pytest
 
 BACKEND = "http://localhost:8001"
@@ -57,7 +59,8 @@ async def test_sanitizer_blocks_celebrity_prompt():
         })
         assert r.status_code == 400, f"expected 400, got {r.status_code} {r.text}"
         body = r.json()
-        det = body.get("detail", "")
+        det_obj = body.get("detail", "")
+        det = det_obj.get("message") if isinstance(det_obj, dict) else str(det_obj)
         assert "tom cruise" in det.lower() or "rights" in det.lower(), det
 
 @pytest.mark.asyncio
@@ -73,7 +76,8 @@ async def test_sanitizer_blocks_marvel_ip():
             "custom_prompt": "I want to be Iron Man saving the Avengers",
         })
         assert r.status_code == 400
-        det = r.json().get("detail", "").lower()
+        det_obj = r.json().get("detail", "")
+        det = (det_obj.get("message") if isinstance(det_obj, dict) else str(det_obj)).lower()
         assert "iron man" in det or "avengers" in det or "rights" in det, det
 
 @pytest.mark.asyncio
@@ -89,7 +93,8 @@ async def test_sanitizer_blocks_explicit_content():
             "custom_prompt": "Generate a nude scene with the hero",
         })
         assert r.status_code == 400
-        det = r.json().get("detail", "").lower()
+        det_obj = r.json().get("detail", "")
+        det = (det_obj.get("message") if isinstance(det_obj, dict) else str(det_obj)).lower()
         assert "nude" in det or "rights" in det or "rewor" in det, det
 
 @pytest.mark.asyncio

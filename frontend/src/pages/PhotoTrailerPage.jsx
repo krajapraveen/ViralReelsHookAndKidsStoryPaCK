@@ -290,7 +290,8 @@ function CharactersStep({ photos, hero, setHero, villain, setVillain, supporting
 }
 
 // ─── Step 3: Template + prompt + duration ────────────────────────────────────
-function TemplateStep({ templates, templateId, setTemplateId, prompt, setPrompt, duration, setDuration, credits, onBack, onGenerate, busy, userPlan, userCredits }) {
+function TemplateStep({ templates, templateId, setTemplateId, prompt, setPrompt, duration, setDuration, credits, onBack, onGenerate, busy, userPlan, userCredits, startError, onClearStartError, onErrorBack }) {
+  const navigate = useNavigate();
   return (
     <div className="space-y-6" data-testid="trailer-step-template">
       <div>
@@ -377,6 +378,74 @@ function TemplateStep({ templates, templateId, setTemplateId, prompt, setPrompt,
         )
       )}
       <p className="text-[11px] text-slate-500 italic">AI preserves character inspiration and visual style, but exact likeness may vary.</p>
+      {/* P0 UX transparency (2026-04-29): inline error panel directly above
+          the Generate CTA. Uses the SAME human message the toast shows.
+          Stays put — doesn't disappear like a toast — so the user can read
+          it and act. The Retry / Buy credits / Re-upload CTA is contextual
+          to the error code. */}
+      {startError && (
+        <div
+          role="alert"
+          className="rounded-xl border border-rose-500/40 bg-rose-500/[0.07] p-4"
+          data-testid="trailer-start-error"
+        >
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-rose-300 mt-0.5 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-rose-100"
+                 data-testid="trailer-start-error-message">
+                {startError.message}
+              </p>
+              <p className="text-[10px] text-rose-200/60 font-mono mt-1"
+                 data-testid="trailer-start-error-code">
+                code · {startError.code}{startError.http_status ? ` · ${startError.http_status}` : ''}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClearStartError}
+              className="text-rose-200/70 hover:text-rose-100 shrink-0"
+              aria-label="Dismiss error"
+              data-testid="trailer-start-error-dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="mt-3 flex gap-2 flex-wrap">
+            {startError.cta?.ctaTo && (
+              <button
+                type="button"
+                onClick={() => navigate(startError.cta.ctaTo)}
+                className="px-3 py-2 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-100 text-sm font-semibold transition-colors"
+                data-testid="trailer-start-error-cta"
+              >
+                {startError.cta.ctaLabel}
+              </button>
+            )}
+            {startError.cta?.back != null && (
+              <button
+                type="button"
+                onClick={() => onErrorBack && onErrorBack(startError.cta.back)}
+                className="px-3 py-2 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-100 text-sm font-semibold transition-colors"
+                data-testid="trailer-start-error-cta"
+              >
+                {startError.cta.ctaLabel}
+              </button>
+            )}
+            {startError.retryable && (
+              <button
+                type="button"
+                onClick={() => { onClearStartError(); onGenerate(); }}
+                disabled={busy}
+                className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+                data-testid="trailer-start-error-retry"
+              >
+                Retry
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       <div className="flex gap-2">
         <button onClick={onBack} className="flex-1 py-3 rounded-xl border border-white/10 text-white text-sm" data-testid="trailer-step3-back">Back</button>
         <button onClick={onGenerate} disabled={!templateId || busy}
@@ -899,6 +968,110 @@ function FailedStep({ job, onRetry, onEdit, onDelete }) {
 //   2. Backend returns 402 UPGRADE_REQUIRED on /jobs (authoritative).
 //   3. Backend returns 429 FREE_QUOTA_EXCEEDED on /jobs.
 // Click "Upgrade" → /app/pricing (existing route).
+// ─── Error-code → human message mapper (P0 UX transparency, 2026-04-29) ──────
+// Backend returns structured 402/429/400 responses with an explicit `code`
+// in `detail`. Keep this map in sync with the backend create_job error paths.
+// `retryable` controls whether the inline panel shows a Retry CTA (vs only an
+// upgrade/upload-photo CTA).
+const START_ERROR_MESSAGES = {
+  // 402 family
+  INSUFFICIENT_CREDITS:
+    'You need more credits to generate this trailer.',
+  UPGRADE_REQUIRED:
+    'This trailer length needs a higher plan. Upgrade to unlock.',
+  // 429 family
+  FREE_QUOTA_EXCEEDED:
+    'You\'ve used your free trailers this month. Upgrade for more, or try again next month.',
+  TOO_MANY_ACTIVE_JOBS:
+    'You already have a trailer being generated. Wait for it to finish, then try again.',
+  RATE_LIMITED:
+    'Servers are busy right now. Please try again in a minute.',
+  // 400/404 family — upload + validation
+  INVALID_TEMPLATE:
+    'Please pick a valid trailer template before generating.',
+  UPLOAD_SESSION_NOT_FOUND:
+    'Your photo upload session expired. Please re-upload your photos and try again.',
+  UPLOAD_NOT_FINALISED:
+    'Please confirm photo rights / consent and try again.',
+  HERO_NOT_IN_SESSION:
+    'The chosen hero photo is no longer in your upload. Re-upload and pick again.',
+  CHARACTER_NOT_IN_SESSION:
+    'A selected character photo is no longer in your upload. Re-upload and try again.',
+  PROMPT_BLOCKED:
+    'Your custom prompt was flagged by safety review. Please edit it and try again.',
+  // Auth (some other route may also return these in future)
+  AUTH_REQUIRED:
+    'Please sign in again to continue.',
+  // Beta / coming-soon
+  BETA_LOCKED:
+    'This feature is in Beta testing. Full access opens on 2 May 2026.',
+  // Validation fall-through (FastAPI 422)
+  VALIDATION_ERROR:
+    'Please review your selected options and try again.',
+  // Last-resort
+  UNKNOWN:
+    'Something went wrong starting your trailer. Please try again.',
+};
+const START_ERROR_RETRYABLE = new Set([
+  'TOO_MANY_ACTIVE_JOBS', 'RATE_LIMITED', 'UNKNOWN',
+]);
+const START_ERROR_HOOKS = {
+  // Codes whose primary CTA navigates somewhere else (not retry)
+  INSUFFICIENT_CREDITS: { ctaLabel: 'Buy credits',  ctaTo: '/app/billing' },
+  UPGRADE_REQUIRED:     { ctaLabel: 'See plans',    ctaTo: '/app/pricing' },
+  FREE_QUOTA_EXCEEDED:  { ctaLabel: 'See plans',    ctaTo: '/app/pricing' },
+  AUTH_REQUIRED:        { ctaLabel: 'Sign in',      ctaTo: '/login' },
+  UPLOAD_SESSION_NOT_FOUND:    { ctaLabel: 'Re-upload', back: 1 },
+  UPLOAD_NOT_FINALISED:        { ctaLabel: 'Re-upload', back: 1 },
+  HERO_NOT_IN_SESSION:         { ctaLabel: 'Re-upload', back: 1 },
+  CHARACTER_NOT_IN_SESSION:    { ctaLabel: 'Re-upload', back: 1 },
+  INVALID_TEMPLATE:            { ctaLabel: 'Pick a template', back: 2 },
+  PROMPT_BLOCKED:              { ctaLabel: 'Edit prompt', focus: 'prompt' },
+};
+
+/**
+ * Convert any backend error response (or thrown exception) into a stable
+ * `{code, message, http_status, retryable, cta?}` shape that powers BOTH
+ * the inline error panel and the toast.
+ *
+ * @param {Response|null} resp – fetch Response (may be null if network error)
+ * @param {object} parsedBody – the JSON body if the server returned one
+ * @param {Error|null} thrown – the JS exception, if `fetch` itself threw
+ */
+function deriveStartError(resp, parsedBody, thrown) {
+  // Network / dropped connection
+  if (thrown && !resp) {
+    return {
+      code: 'RATE_LIMITED', // closest user-friendly bucket — server unreachable
+      message: 'Couldn\'t reach our servers. Check your connection and try again.',
+      http_status: 0,
+      retryable: true,
+    };
+  }
+  const status = resp?.status ?? 0;
+  const detail = parsedBody?.detail;
+  let code = 'UNKNOWN';
+  let serverMessage = null;
+  if (detail && typeof detail === 'object' && detail.code) {
+    code = detail.code;
+    serverMessage = detail.message || null;
+  } else if (status === 401 || status === 403) {
+    code = 'AUTH_REQUIRED';
+  } else if (status === 422) {
+    code = 'VALIDATION_ERROR';
+  } else if (status === 429) {
+    code = 'RATE_LIMITED';
+  } else if (typeof detail === 'string') {
+    serverMessage = detail; // legacy string-detail path
+  }
+  const message = START_ERROR_MESSAGES[code] || serverMessage || START_ERROR_MESSAGES.UNKNOWN;
+  return {
+    code, message, http_status: status,
+    retryable: START_ERROR_RETRYABLE.has(code),
+    cta: START_ERROR_HOOKS[code] || null,
+  };
+}
+
 function PaywallModal({ paywall, onClose, onUpgrade }) {
   if (!paywall) return null;
   const tier = (paywall.required_plan || 'PREMIUM').toUpperCase();
@@ -1146,6 +1319,7 @@ export default function PhotoTrailerPage() {
   const [userPlan, setUserPlan] = useState(null); // {plan, credits, max_duration_seconds, ...}
   const [paywall, setPaywall] = useState(null);   // { current_plan, required_plan, duration_seconds }
   const [lowCredits, setLowCredits] = useState(null); // structured 402 INSUFFICIENT_CREDITS payload
+  const [startError, setStartError] = useState(null); // {code, message, http_status, retryable, cta?}
 
   useEffect(() => {
     try { trackFunnel('photo_trailer_page_viewed', {}); } catch {}
@@ -1166,6 +1340,9 @@ export default function PhotoTrailerPage() {
   }, [duration]);
 
   const onGenerate = async () => {
+    // Clear any previous start error so the inline panel disappears the
+    // moment the user retries (no stale red panels haunting the UI).
+    setStartError(null);
     // Client-side guard: open paywall if duration exceeds the user's max.
     // Server-side enforcement is authoritative — we still send the request
     // and rely on a clean 402 — but this avoids a wasteful round-trip when
@@ -1181,8 +1358,9 @@ export default function PhotoTrailerPage() {
       return;
     }
     setBusy(true);
+    let resp = null, parsedBody = null, thrown = null;
     try {
-      const r = await fetch(`${API}/api/photo-trailer/jobs`, {
+      resp = await fetch(`${API}/api/photo-trailer/jobs`, {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
@@ -1195,55 +1373,68 @@ export default function PhotoTrailerPage() {
           duration_target_seconds: duration,
         }),
       });
-      if (!r.ok) {
-        const e = await r.json().catch(() => ({}));
-        const detail = e.detail;
-        // Backend now returns structured 402 for upgrade-required errors
-        if (r.status === 402 && detail && typeof detail === 'object' && detail.code === 'UPGRADE_REQUIRED') {
-          setPaywall(detail);
-          try { trackFunnel('photo_trailer_paywall_shown', { meta: { duration, code: 'UPGRADE_REQUIRED' } }); } catch {}
-          setBusy(false);
-          return;
-        }
-        // Free monthly quota exceeded → also a paywall opportunity
-        if (r.status === 429 && detail && typeof detail === 'object' && detail.code === 'FREE_QUOTA_EXCEEDED') {
-          setPaywall({
-            current_plan: 'FREE',
-            required_plan: 'PAID',
-            message: detail.message,
-            quota_exhausted: true,
-          });
-          setBusy(false);
-          return;
-        }
-        // P0 revenue UX: structured 402 INSUFFICIENT_CREDITS → premium modal,
-        // not a generic red toast. Confusion costs conversions.
-        if (r.status === 402 && detail && typeof detail === 'object' && detail.code === 'INSUFFICIENT_CREDITS') {
-          setLowCredits(detail);
-          try {
-            trackFunnel('photo_trailer_low_credit_seen', {
-              meta: {
-                required: detail.required_credits,
-                have: detail.current_credits,
-                missing: detail.missing_credits,
-                duration: detail.duration_seconds,
-                plan: detail.current_plan,
-              },
-            });
-          } catch {}
-          setBusy(false);
-          return;
-        }
-        toast.error(typeof detail === 'string' ? detail : (detail?.message || 'Could not start trailer'));
+    } catch (e) {
+      thrown = e;
+    }
+    if (!resp || !resp.ok) {
+      try { parsedBody = await resp.json(); } catch {}
+      const detail = parsedBody?.detail;
+      // Existing dedicated modal flows — keep these (lowCredits, paywall).
+      if (resp?.status === 402 && detail?.code === 'UPGRADE_REQUIRED') {
+        setPaywall(detail);
+        try { trackFunnel('photo_trailer_paywall_shown', { meta: { duration, code: 'UPGRADE_REQUIRED' } }); } catch {}
         setBusy(false);
         return;
       }
-      const j = await r.json();
+      if (resp?.status === 429 && detail?.code === 'FREE_QUOTA_EXCEEDED') {
+        setPaywall({
+          current_plan: 'FREE',
+          required_plan: 'PAID',
+          message: detail.message,
+          quota_exhausted: true,
+        });
+        setBusy(false);
+        return;
+      }
+      if (resp?.status === 402 && detail?.code === 'INSUFFICIENT_CREDITS') {
+        setLowCredits(detail);
+        try {
+          trackFunnel('photo_trailer_low_credit_seen', {
+            meta: {
+              required: detail.required_credits,
+              have: detail.current_credits,
+              missing: detail.missing_credits,
+              duration: detail.duration_seconds,
+              plan: detail.current_plan,
+            },
+          });
+        } catch {}
+        setBusy(false);
+        return;
+      }
+      // P0 UX transparency (2026-04-29): all other failures get a structured
+      // human message in BOTH an inline panel above Generate AND a toast.
+      // Never silent. Never a stack trace.
+      const err = deriveStartError(resp, parsedBody, thrown);
+      setStartError(err);
+      toast.error(err.message);
+      try {
+        trackFunnel('photo_trailer_start_failed', {
+          meta: {
+            code: err.code,
+            message: err.message.slice(0, 200),
+            http_status: err.http_status,
+          },
+        });
+      } catch {}
+      setBusy(false);
+      return;
+    }
+    try {
+      const j = await resp.json();
       setJobId(j.job_id);
       try { trackFunnel('photo_trailer_generation_started', { meta: { job_id: j.job_id, template: templateId, duration } }); } catch {}
       setStep(4);
-    } catch (e) {
-      toast.error('Network error');
     } finally {
       setBusy(false);
     }
@@ -1291,7 +1482,7 @@ export default function PhotoTrailerPage() {
             <CharactersStep photos={photos} hero={hero} setHero={setHero} villain={villain} setVillain={setVillain} supporting={supporting} setSupporting={setSupporting} onBack={() => setStep(1)} onNext={() => setStep(3)} />
           )}
           {step === 3 && (
-            <TemplateStep templates={templates} templateId={templateId} setTemplateId={setTemplateId} prompt={prompt} setPrompt={setPrompt} duration={duration} setDuration={setDuration} credits={credits} onBack={() => setStep(2)} onGenerate={onGenerate} busy={busy} userPlan={userPlan?.plan} userCredits={userPlan?.credits} />
+            <TemplateStep templates={templates} templateId={templateId} setTemplateId={setTemplateId} prompt={prompt} setPrompt={setPrompt} duration={duration} setDuration={setDuration} credits={credits} onBack={() => setStep(2)} onGenerate={onGenerate} busy={busy} userPlan={userPlan?.plan} userCredits={userPlan?.credits} startError={startError} onClearStartError={() => setStartError(null)} onErrorBack={(steps) => { setStartError(null); setStep(Math.max(1, 3 - (steps || 1))); }} />
           )}
           {step === 4 && jobId && !completedJob && !failedJob && (
             <ProgressStep jobId={jobId} onDone={(j) => { setCompletedJob(j); try { trackFunnel('photo_trailer_generation_completed', { meta: { job_id: j._id || jobId } }); } catch {} setStep(5); }} onFail={(j) => { setFailedJob(j); setStep(5); }} />

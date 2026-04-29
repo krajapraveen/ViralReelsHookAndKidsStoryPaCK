@@ -9,6 +9,8 @@ Locks in the contract so the feature can't silently regress:
   • Static guard: filter graph contains the blurred-bg overlay pattern
 """
 import os, uuid, asyncio
+from dotenv import load_dotenv
+load_dotenv("/app/backend/.env")
 import httpx, pytest
 from datetime import datetime, timezone
 

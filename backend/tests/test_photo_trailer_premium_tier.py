@@ -10,6 +10,8 @@ Founder acceptance criteria:
   • Cannot spoof tier from frontend — server is authoritative
 """
 import os, uuid, asyncio
+from dotenv import load_dotenv
+load_dotenv("/app/backend/.env")
 import httpx, pytest
 from datetime import datetime, timezone, timedelta
 
