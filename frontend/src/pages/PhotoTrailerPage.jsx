@@ -148,16 +148,63 @@ function UploadStep({ sessionId, setSessionId, photos, setPhotos, consent, setCo
           ))}
         </div>
       )}
-      <label className="flex items-start gap-2.5 p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 cursor-pointer" data-testid="trailer-consent">
-        <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} className="mt-0.5 accent-emerald-500" data-testid="trailer-consent-checkbox" />
-        <div className="text-sm text-slate-200">
-          <div className="font-semibold flex items-center gap-1.5"><ShieldCheck className="w-4 h-4 text-emerald-400" /> I confirm I have rights or permission to use these photos.</div>
-          <p className="text-xs text-slate-400 mt-0.5">Do not upload photos of people without permission.</p>
+      <label
+        className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${
+          consent
+            ? 'border-emerald-400/60 bg-emerald-500/10 ring-1 ring-emerald-400/30'
+            : 'border-white/15 bg-white/[0.03] hover:border-emerald-500/40 hover:bg-emerald-500/[0.06]'
+        }`}
+        data-testid="trailer-consent"
+      >
+        <input
+          type="checkbox"
+          checked={consent}
+          onChange={e => setConsent(e.target.checked)}
+          className="sr-only peer"
+          data-testid="trailer-consent-checkbox"
+        />
+        <span
+          aria-hidden
+          className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
+            consent
+              ? 'bg-emerald-500 border-emerald-500'
+              : 'bg-transparent border-slate-400 group-hover:border-emerald-400'
+          }`}
+        >
+          {consent && <CheckCircle2 className="w-4 h-4 text-white" strokeWidth={3} />}
+        </span>
+        <div className="text-sm text-slate-200 select-none">
+          <div className="font-semibold flex items-center gap-1.5">
+            <ShieldCheck className={`w-4 h-4 ${consent ? 'text-emerald-300' : 'text-slate-400'}`} />
+            I confirm I have rights or permission to use these photos.
+          </div>
+          <p className="text-xs text-slate-400 mt-0.5">Tap to confirm. Do not upload photos of people without permission.</p>
         </div>
       </label>
-      <button onClick={finalize} disabled={!consent || photos.length === 0}
-        className="w-full py-3.5 rounded-xl font-bold text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 disabled:opacity-50"
-        data-testid="trailer-step1-next">
+
+      {/* Helper text — shows the EXACT reason the CTA is disabled */}
+      {!busy && photos.length === 0 && (
+        <p className="text-xs text-slate-400 text-center" data-testid="trailer-step1-hint">
+          Add at least 1 photo to continue.
+        </p>
+      )}
+      {!busy && photos.length > 0 && !consent && (
+        <p className="text-xs text-amber-300/90 text-center" data-testid="trailer-step1-hint">
+          Confirm photo rights to continue.
+        </p>
+      )}
+      {busy && (
+        <p className="text-xs text-violet-300 text-center inline-flex items-center gap-1.5 justify-center w-full" data-testid="trailer-step1-hint">
+          <Loader2 className="w-3 h-3 animate-spin" /> Uploading photos…
+        </p>
+      )}
+
+      <button
+        onClick={finalize}
+        disabled={!consent || photos.length === 0 || busy}
+        className="w-full py-3.5 rounded-xl font-bold text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 disabled:opacity-40 disabled:cursor-not-allowed enabled:hover:from-violet-500 enabled:hover:to-fuchsia-500 transition-colors"
+        data-testid="trailer-step1-next"
+      >
         Continue → Choose your hero
       </button>
     </div>

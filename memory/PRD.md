@@ -1053,7 +1053,50 @@ Founder directive: Photo Trailer must never degrade core app responsiveness.
 ✅ Tests: 24/24 PASS in 13.51s (was 22/24 in 151s before this fix).
 
 ─────────────────────────────────────────────────────────
-[2026-04-29 P0] PHOTO TRAILER — BOUNDED PER-STAGE WORKERS + WHATSAPP SHARE
+[2026-04-29 P0 BUGFIX] PHOTO TRAILER STEP 1 — UNBLOCKED CTA + REGRESSION TEST
+─────────────────────────────────────────────────────────
+Funnel-killer bug: after uploading a valid photo, the "Continue → Choose
+your hero" CTA stayed disabled. Users could never advance to Step 2.
+
+Root cause:
+   The native <input type="checkbox"> for consent was visually invisible
+   on the dark theme — only the text + shield icon were perceptible.
+   Users assumed the green panel itself was a "confirmed" indicator and
+   never realized they had to actively click to check the box.
+   The disable condition was correct (`!consent || photos.length === 0`),
+   but the consent state was never being toggled.
+
+Fix:
+   • Replaced native checkbox with a custom-styled visible checkbox:
+       - 5x5 rounded-md border, transparent when unchecked
+       - Solid emerald with white checkmark when checked
+   • Whole label flips border + ring colour to emerald when checked
+   • Added the EXACT-reason hint under the CTA:
+       - 0 photos:   "Add at least 1 photo to continue."
+       - photos but no consent:  "Confirm photo rights to continue."
+       - busy uploading:  "Uploading photos…"  (with spinner)
+   • Disabled state shows reduced opacity + cursor-not-allowed
+   • Subcopy under consent changed from "Do not upload..." to
+     "Tap to confirm. Do not upload..." (clearer affordance)
+   • CTA disabled condition now also includes `busy` — prevents
+     submission while photos are mid-upload
+
+Acceptance verified end-to-end via Playwright:
+   ✅ Upload photo → grid shows 1 item, hint = "Confirm photo rights..."
+   ✅ Tap consent → checkbox visibly checks, ring + border turn emerald
+   ✅ CTA enables → click advances to Step 2 (Hero)
+   ✅ Untick consent → CTA disables again, hint reappears
+   ✅ Consent without photos → CTA stays disabled
+
+📁 Files Changed:
+   • frontend/src/pages/PhotoTrailerPage.jsx — UploadStep ~50 LOC
+   • backend/tests/test_photo_trailer_upload_flow_frontend.py (NEW, 117 LOC)
+       - 3 Playwright regression tests covering happy path + 2 negative paths
+
+✅ Test result: 31/31 PASS in 55s (28 original + 3 new frontend regression).
+   No backend touched. No worker system touched. No new features added.
+
+
 ─────────────────────────────────────────────────────────
 Founder directive: bounded parallelism per stage. NO unlimited workers.
 NO server melting under 5 users.
