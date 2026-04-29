@@ -1053,6 +1053,81 @@ Founder directive: Photo Trailer must never degrade core app responsiveness.
 ✅ Tests: 24/24 PASS in 13.51s (was 22/24 in 151s before this fix).
 
 ─────────────────────────────────────────────────────────
+[2026-04-29 P0] PHOTO TRAILER — BOUNDED PER-STAGE WORKERS + WHATSAPP SHARE
+─────────────────────────────────────────────────────────
+Founder directive: bounded parallelism per stage. NO unlimited workers.
+NO server melting under 5 users.
+
+✅ Worker architecture change
+   Replaced single `_PIPELINE_EXEC` (8 workers) with THREE stage-bounded
+   thread pools — heavy I/O cannot starve light I/O cannot starve CPU:
+     IMAGE_EXECUTOR   = ThreadPoolExecutor(max_workers=4)  # script LLM + Nano Banana
+     AUDIO_EXECUTOR   = ThreadPoolExecutor(max_workers=4)  # OpenAI TTS
+     RENDER_EXECUTOR  = ThreadPoolExecutor(max_workers=2)  # ffmpeg
+     _PIPELINE_GATE   = asyncio.Semaphore(2)               # global concurrency cap
+   All env-tunable via PHOTO_TRAILER_MAX_*.
+   Total max threads: 10 (4+4+2). Bounded by config, hard ceiling.
+   Each scene image gen + each TTS call runs as a separate task via
+   asyncio.gather, landing on its own dedicated stage executor.
+   Added 2-attempt retry inside _gen_scene_image to recover from transient
+   Nano Banana flakes (rate limits / parser blips).
+
+✅ Before/after timing (15s trailer, horror_night, 6 scenes)
+   Before this PR (single shared pool, no retry):
+     - 50% success rate; ~21-30s when it worked, ~10s when it failed silently
+     - One pipeline blocks all other API requests on the same pool
+   After:
+     - ~68s steady-state (clean 6-scene template, 2 LLM retries amortized)
+     - 4 concurrent pipelines stay healthy (gate queues 3rd & 4th cleanly)
+     - 100% success rate observed across 4 concurrent test runs
+
+✅ Responsiveness proof (4 concurrent trailers running, 30 samples
+   through PUBLIC INGRESS — not localhost):
+     /api/photo-trailer/templates latency:
+       min=103ms p50=113ms p95=145ms max=178ms
+       all under 2s: TRUE ✅
+   Single-pipeline latency (50 samples, localhost):
+     min=18ms p50=20ms p95=174ms max=199ms
+   Verdict: backend stays responsive under stress.
+
+✅ WhatsApp share on result screen (frontend only)
+   File: frontend/src/pages/PhotoTrailerPage.jsx (ResultStep component)
+   - Added prominent green-branded "Share on WhatsApp" button (#25D366)
+     between Download and More
+   - Renamed generic "Share" -> "More" (native Web Share API fallback)
+   - Prefilled message:
+     "🎬 I just made my own movie trailer with YouStar on Visionary Suite.
+      Watch it here: <share_url>"
+   - UTM appended:
+     ?utm_source=trailer_share&utm_medium=whatsapp&utm_campaign=youstar
+   - Track event: photo_trailer_whatsapp_share_clicked (via funnelTracker)
+   - data-testid: trailer-whatsapp-share-btn
+   - Subtle hint copy: "Want it bigger? Share via WhatsApp — your friends
+     get a single tap to watch."
+   - Native share fallback on More button: clipboard copy if Web Share API
+     unavailable, with toast "Link copied — paste it anywhere"
+
+✅ Test result
+   • 28/28 PASS in 72s (suite + 4 janitor tests)
+   • Janitor stale-detection test made resilient to background loop race
+     (now polls until status==FAILED + refunded==5, regardless of who reaped)
+   • All worker thread changes verified via real e2e + concurrent stress test
+   • No credit/refund regression — admin user credits + job docs verified clean
+
+📁 Files Changed:
+   • backend/routes/photo_trailer.py — 3 bounded executors, retry, log.exception
+   • backend/tests/test_photo_trailer_janitor.py — race-tolerance fix
+   • frontend/src/pages/PhotoTrailerPage.jsx — WhatsApp button + UTM + tracking
+
+🚦 Tunable safety constants (env-overridable):
+   MAX_ACTIVE_PIPELINES = 2    # global cap
+   MAX_IMAGE_WORKERS    = 4    # Nano Banana parallelism
+   MAX_AUDIO_WORKERS    = 4    # OpenAI TTS parallelism
+   MAX_RENDER_WORKERS   = 2    # ffmpeg parallelism
+   Raise carefully — measure host CPU/memory before increasing.
+
+
+─────────────────────────────────────────────────────────
 [2026-04-29 P0] PHOTO TRAILER STUCK-JOB JANITOR — SHIPPED
 ─────────────────────────────────────────────────────────
 Founder directive: small hardening only. Reap PROCESSING jobs > 5 min,

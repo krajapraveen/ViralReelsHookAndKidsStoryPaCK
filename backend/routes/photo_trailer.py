@@ -8,13 +8,24 @@ Pipeline:
 
 Production-safety architecture (Apr 29 2026):
 - All blocking emergentintegrations calls (script LLM, Nano Banana image gen,
-  OpenAI TTS) run on a dedicated `_PIPELINE_EXEC` thread pool. Each worker
-  thread spins up its own asyncio loop via `asyncio.run`, so the library's
-  sync-under-async I/O blocks the worker thread, NEVER the main FastAPI loop.
-- ffmpeg subprocess.run also runs on the same pool via `_ffmpeg`.
-- A system-wide `_PIPELINE_GATE` semaphore caps concurrent pipelines to 2 so
-  one user's trailer cannot starve other users' requests.
+  OpenAI TTS) and ffmpeg subprocesses run on DEDICATED, BOUNDED, PER-STAGE
+  thread pools. Each worker thread spins up its own asyncio loop via
+  `asyncio.run`, so the library's sync-under-async I/O blocks the worker
+  thread, NEVER the main FastAPI loop.
+- Three executors, separated by stage so heavy I/O (images) cannot starve
+  light I/O (TTS) or CPU (ffmpeg):
+    IMAGE_EXECUTOR  — script LLM + Nano Banana image gen
+    AUDIO_EXECUTOR  — OpenAI TTS narration
+    RENDER_EXECUTOR — ffmpeg encode/concat/mux passes
+- A system-wide `_PIPELINE_GATE` semaphore caps concurrent pipelines so
+  5 users cannot melt the server.
 - Result: while a trailer renders (~30-60s), all other API endpoints stay sub-100ms.
+
+Tunables (do NOT raise blindly — measure first):
+  MAX_ACTIVE_PIPELINES  — concurrent pipeline budget (default 2)
+  MAX_IMAGE_WORKERS     — Nano Banana parallelism (default 4)
+  MAX_AUDIO_WORKERS     — OpenAI TTS parallelism (default 4)
+  MAX_RENDER_WORKERS    — ffmpeg parallelism (default 2 — CPU/disk bound)
 """
 from __future__ import annotations
 import os, asyncio, base64, uuid, tempfile, subprocess, logging, re, json
@@ -35,15 +46,19 @@ log = logging.getLogger("photo_trailer")
 router = APIRouter(prefix="/photo-trailer", tags=["photo-trailer"])
 EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
 
-# ─── Production-safety: dedicated worker pool + concurrency cap ────────────────
-# Off-loads all blocking I/O (LLM calls, ffmpeg) so the main FastAPI event loop
-# stays responsive. max_workers=8 covers 2 concurrent trailers × 4 simultaneous
-# scene-image generations (typical max parallel work per pipeline).
-_PIPELINE_EXEC = concurrent.futures.ThreadPoolExecutor(
-    max_workers=8, thread_name_prefix="trailer-worker"
-)
-# Gate: only N pipelines may be IN render at once. Excess users get 429 fast.
-_PIPELINE_GATE = asyncio.Semaphore(2)
+# ─── Bounded parallel workers per pipeline stage ───────────────────────────────
+# Hard caps. Total max threads = MAX_IMAGE_WORKERS + MAX_AUDIO_WORKERS + MAX_RENDER_WORKERS
+# = 10 by default. Increasing these blindly will choke the server before it
+# helps anyone. Profile + measure before tuning.
+MAX_ACTIVE_PIPELINES = int(os.environ.get("PHOTO_TRAILER_MAX_ACTIVE_PIPELINES", "2"))
+MAX_IMAGE_WORKERS    = int(os.environ.get("PHOTO_TRAILER_MAX_IMAGE_WORKERS",    "4"))
+MAX_AUDIO_WORKERS    = int(os.environ.get("PHOTO_TRAILER_MAX_AUDIO_WORKERS",    "4"))
+MAX_RENDER_WORKERS   = int(os.environ.get("PHOTO_TRAILER_MAX_RENDER_WORKERS",   "2"))
+
+IMAGE_EXECUTOR  = concurrent.futures.ThreadPoolExecutor(max_workers=MAX_IMAGE_WORKERS,  thread_name_prefix="trailer-img")
+AUDIO_EXECUTOR  = concurrent.futures.ThreadPoolExecutor(max_workers=MAX_AUDIO_WORKERS,  thread_name_prefix="trailer-aud")
+RENDER_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=MAX_RENDER_WORKERS, thread_name_prefix="trailer-render")
+_PIPELINE_GATE = asyncio.Semaphore(MAX_ACTIVE_PIPELINES)
 
 MAX_PHOTOS = 10
 MAX_PHOTO_BYTES = 10 * 1024 * 1024
@@ -414,7 +429,7 @@ async def _llm_script(job: dict, hero_role_hint: str) -> List[Dict[str, str]]:
         raw = asyncio.run(chat.send_message(UserMessage(text=f"Write the trailer for: {user_text}")))
         return raw if isinstance(raw, str) else str(raw)
 
-    txt = await asyncio.get_event_loop().run_in_executor(_PIPELINE_EXEC, _sync_call)
+    txt = await asyncio.get_event_loop().run_in_executor(IMAGE_EXECUTOR, _sync_call)
     m = re.search(r"\{.*\}", txt, re.S)
     if not m: raise RuntimeError(f"script parse failed: {txt[:200]}")
     data = json.loads(m.group(0))
@@ -441,22 +456,30 @@ async def _gen_scene_image(visual_prompt: str, hero_b64: str, villain_b64: Optio
         msg = UserMessage(text=full_prompt, file_contents=refs)
         # Each thread runs its own event loop — emergentintegrations' blocking
         # I/O stays in this worker thread, never touching the main loop.
-        _txt, images = asyncio.run(chat.send_message_multimodal_response(msg))
-        if not images: raise RuntimeError("no image returned")
-        return base64.b64decode(images[0]["data"])
+        # Light retry on transient upstream failures (rate limits, parser errors).
+        last_err = None
+        for attempt in range(2):
+            try:
+                _txt, images = asyncio.run(chat.send_message_multimodal_response(msg))
+                if images and images[0].get("data"):
+                    return base64.b64decode(images[0]["data"])
+                last_err = RuntimeError(f"empty response (txt={(_txt or '')[:100]})")
+            except Exception as e:
+                last_err = e
+                log.warning(f"[scene_image] attempt {attempt+1} failed for {session_id}: {type(e).__name__}: {str(e)[:200]}")
+        raise last_err or RuntimeError("image gen failed after retries")
 
-    return await asyncio.get_event_loop().run_in_executor(_PIPELINE_EXEC, _sync_call)
+    return await asyncio.get_event_loop().run_in_executor(IMAGE_EXECUTOR, _sync_call)
 
 async def _tts(narration: str, voice: str) -> bytes:
-    """OpenAI TTS via emergentintegrations — also offloaded to a worker thread
-    so the main event loop stays responsive."""
+    """OpenAI TTS via emergentintegrations — runs on the AUDIO_EXECUTOR."""
     from emergentintegrations.llm.openai import OpenAITextToSpeech
 
     def _sync_call() -> bytes:
         tts = OpenAITextToSpeech(api_key=EMERGENT_LLM_KEY)
         return asyncio.run(tts.generate_speech(text=narration[:4000], model="tts-1", voice=voice))
 
-    return await asyncio.get_event_loop().run_in_executor(_PIPELINE_EXEC, _sync_call)
+    return await asyncio.get_event_loop().run_in_executor(AUDIO_EXECUTOR, _sync_call)
 
 def _ffmpeg_run(args: List[str]) -> None:
     res = subprocess.run(args, capture_output=True, text=True, timeout=600)
@@ -465,10 +488,9 @@ def _ffmpeg_run(args: List[str]) -> None:
         raise RuntimeError(f"ffmpeg failed: {res.stderr[-600:]}")
 
 async def _ffmpeg(args: List[str]) -> None:
-    """Run ffmpeg in the dedicated pipeline thread pool — keeps the main
-    asyncio event loop responsive so the backend can serve other requests
-    while a trailer renders."""
-    await asyncio.get_event_loop().run_in_executor(_PIPELINE_EXEC, _ffmpeg_run, args)
+    """Run ffmpeg in the dedicated RENDER_EXECUTOR — bounded so 5 simultaneous
+    pipelines cannot all spawn ffmpeg processes at the same time."""
+    await asyncio.get_event_loop().run_in_executor(RENDER_EXECUTOR, _ffmpeg_run, args)
 
 async def _render_trailer(job: dict, scenes_data: List[dict], tmp: str) -> str:
     """ffmpeg: stitch images with motion + voiceover + music + subtitles + end card."""
@@ -590,6 +612,7 @@ async def _run_pipeline_inner(job_id: str):
         try:
             scene_payload = await asyncio.gather(*[_scene_assets(i, sc) for i, sc in enumerate(scenes)])
         except Exception as e:
+            log.exception(f"[trailer {job_id}] image gen failed: {e}")
             return await _fail(job_id, "IMAGE_GEN_FAIL", "Some scenes couldn't render. Please retry.")
 
         # Voiceover per scene

@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom';
 import {
   Upload, Camera, ShieldCheck, Sparkles, Film, Wand2, Loader2, X,
-  CheckCircle2, AlertCircle, Trash2, Play, Download, Share2, RefreshCw,
+  CheckCircle2, AlertCircle, Trash2, Play, Download, Share2, RefreshCw, MessageCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { trackFunnel } from '../utils/funnelTracker';
@@ -321,6 +321,51 @@ function ProgressStep({ jobId, onDone, onFail }) {
 // ─── Step 5: Result ───────────────────────────────────────────────────────────
 function ResultStep({ job, onCreateAnother }) {
   const url = job.result_video_url;
+  // Append UTM params for attribution. Works whether url already has a query string or not.
+  const buildShareUrl = (medium) => {
+    if (!url) return '';
+    const sep = url.includes('?') ? '&' : '?';
+    return `${url}${sep}utm_source=trailer_share&utm_medium=${medium}&utm_campaign=youstar`;
+  };
+  const PREFILL = (shareUrl) =>
+    `🎬 I just made my own movie trailer with YouStar on Visionary Suite. Watch it here: ${shareUrl}`;
+
+  const handleWhatsApp = () => {
+    const shareUrl = buildShareUrl('whatsapp');
+    try {
+      trackFunnel('photo_trailer_whatsapp_share_clicked', {
+        meta: { job_id: job._id, template: job.template_id },
+      });
+    } catch {}
+    const waUrl = `https://wa.me/?text=${encodeURIComponent(PREFILL(shareUrl))}`;
+    window.open(waUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleNativeShare = async () => {
+    const shareUrl = buildShareUrl('native');
+    try {
+      trackFunnel('photo_trailer_shared', {
+        meta: { job_id: job._id, channel: navigator.share ? 'native' : 'clipboard' },
+      });
+    } catch {}
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'My AI movie trailer',
+          text: PREFILL(shareUrl),
+          url: shareUrl,
+        });
+      } catch {}
+    } else {
+      try {
+        await navigator.clipboard.writeText(PREFILL(shareUrl));
+        toast.success('Link copied — paste it anywhere');
+      } catch {
+        toast.error('Could not copy link');
+      }
+    }
+  };
+
   return (
     <div className="space-y-5" data-testid="trailer-step-result">
       <div className="text-center">
@@ -329,19 +374,30 @@ function ResultStep({ job, onCreateAnother }) {
       </div>
       <video src={url} controls poster={job.result_thumbnail_url} className="w-full rounded-2xl border border-white/10 bg-black" data-testid="trailer-result-video" />
       <div className="flex flex-wrap gap-2">
-        <a href={url} download className="flex-1 py-3 rounded-xl bg-violet-600 text-white text-sm font-semibold flex items-center justify-center gap-2" data-testid="trailer-download-btn">
+        <a href={url} download className="flex-1 min-w-[120px] py-3 rounded-xl bg-violet-600 text-white text-sm font-semibold flex items-center justify-center gap-2" data-testid="trailer-download-btn">
           <Download className="w-4 h-4" /> Download
         </a>
-        <button onClick={() => { try { trackFunnel('photo_trailer_shared', { meta: { job_id: job._id } }); } catch {}
-          if (navigator.share) navigator.share({ title: 'My AI trailer', url }).catch(() => {});
-          else { navigator.clipboard.writeText(url); toast.success('Link copied'); }
-        }} className="flex-1 py-3 rounded-xl bg-white/10 text-white text-sm font-semibold flex items-center justify-center gap-2" data-testid="trailer-share-btn">
-          <Share2 className="w-4 h-4" /> Share
+        <button
+          onClick={handleWhatsApp}
+          className="flex-1 min-w-[120px] py-3 rounded-xl bg-[#25D366] hover:bg-[#1EA952] text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
+          data-testid="trailer-whatsapp-share-btn"
+        >
+          <MessageCircle className="w-4 h-4" /> Share on WhatsApp
         </button>
-        <button onClick={onCreateAnother} className="flex-1 py-3 rounded-xl border border-white/10 text-white text-sm flex items-center justify-center gap-2" data-testid="trailer-create-another-btn">
+        <button
+          onClick={handleNativeShare}
+          className="flex-1 min-w-[120px] py-3 rounded-xl bg-white/10 hover:bg-white/15 text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
+          data-testid="trailer-share-btn"
+        >
+          <Share2 className="w-4 h-4" /> More
+        </button>
+        <button onClick={onCreateAnother} className="flex-1 min-w-[120px] py-3 rounded-xl border border-white/10 hover:bg-white/5 text-white text-sm flex items-center justify-center gap-2 transition-colors" data-testid="trailer-create-another-btn">
           <RefreshCw className="w-4 h-4" /> Make another
         </button>
       </div>
+      <p className="text-xs text-slate-500 text-center">
+        Want it bigger? Share via WhatsApp — your friends get a single tap to watch.
+      </p>
     </div>
   );
 }

@@ -97,27 +97,39 @@ class TestStaleJobJanitor:
     """End-to-end janitor verification using real DB writes + admin endpoint."""
 
     def test_stale_processing_job_is_reaped_and_refunded(self, admin_headers, db):
-        """6-minute-old PROCESSING job (stale) -> FAILED + refunded exactly once."""
+        """6-minute-old PROCESSING job (stale) -> FAILED + refunded exactly once.
+        Tolerates the background janitor loop sweeping the job first — what
+        matters is that EXACTLY ONE reap happens (manual or auto)."""
         # Setup
         jid = _run(_seed_job(db, age_min=STALE_MIN + 1, charged=5, refunded=0))
         before_credits = _run(_user_credits(db, ADMIN_EMAIL))
 
-        # Trigger
+        # Trigger manual sweep — may or may not catch this job depending on
+        # whether the background loop got there first.
         r = requests.post(f"{BASE_URL}/api/photo-trailer/admin/janitor/run-now",
                           headers=admin_headers, timeout=30)
         assert r.status_code == 200, r.text
-        result = r.json()
-        assert result["reaped"] >= 1, f"expected at least 1 reaped: {result}"
-        assert result["refunded_credits_total"] >= 5, f"expected >=5 cr refunded: {result}"
 
-        # Verify job state flipped
-        job = _run(db.photo_trailer_jobs.find_one({"_id": jid}))
-        assert job["status"] == "FAILED"
+        # The defining check: regardless of who reaped it, the job MUST be
+        # FAILED + refunded by the time we look.
+        # Allow up to 2.5s for either the manual call or the bg loop to finish.
+        import time
+        deadline = time.time() + 2.5
+        job = None
+        while time.time() < deadline:
+            job = _run(db.photo_trailer_jobs.find_one({"_id": jid}))
+            if job["status"] == "FAILED" and job["refunded_credits"] == 5:
+                break
+            time.sleep(0.2)
+
+        assert job is not None
+        assert job["status"] == "FAILED", f"job not reaped: {job}"
         assert job["current_stage"] == "FAILED"
         assert job["error_code"] == "STALE_PIPELINE"
         assert job["refunded_credits"] == 5
 
-        # Verify user credits restored
+        # Verify user credits restored (delta >= 5; could be more if other tests
+        # also seeded jobs in parallel, but never less).
         after_credits = _run(_user_credits(db, ADMIN_EMAIL))
         assert after_credits >= before_credits + 5, \
             f"credits not refunded: before={before_credits} after={after_credits}"
