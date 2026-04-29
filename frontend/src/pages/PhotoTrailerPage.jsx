@@ -708,14 +708,68 @@ function ResultStep({ job, onCreateAnother }) {
 
   const handleDownload = async (e) => {
     e.preventDefault();
+    // P0 fix (2026-04-29): the OLD impl did `window.open(j.url, '_blank')`
+    // AFTER an async fetch — popup blockers in Chrome / Safari silently kill
+    // popups that don't originate from a *synchronous* user gesture, which
+    // is exactly why the button "did nothing".
+    //
+    // Correct pattern (works in Chrome, Edge, Firefox, Safari):
+    //   1. Toast "Preparing download…" so the user sees feedback immediately
+    //   2. Always fetch a FRESH signed URL on click (handles 10+ min wait
+    //      where the previous `streamUrl` may have expired)
+    //   3. Trigger via temporary <a href download> element + programmatic
+    //      click — counts as a gesture continuation, no popup blocker
+    //   4. Safari treats `download` on cross-origin URLs as a hint only:
+    //      fall back to window.location assignment which always navigates
+    const fmt = format === 'vertical' ? 'vertical' : 'wide';
+    const fname = `trailer_${(job._id || job.job_id || 'video').slice(0, 8)}${fmt === 'vertical' ? '_vertical' : ''}.mp4`;
+    const prepToast = toast.loading('Preparing download…');
     try {
-      const r = await fetch(`${API}/api/photo-trailer/jobs/${job._id || job.job_id}/stream?download=true&format=${format}`,
-                            { headers: authHeaders() });
-      if (!r.ok) { toast.error('Could not start download'); return; }
+      const r = await fetch(
+        `${API}/api/photo-trailer/jobs/${job._id || job.job_id}/stream?download=true&format=${fmt}`,
+        { headers: authHeaders() },
+      );
+      if (!r.ok) {
+        let why = 'Could not start download';
+        try {
+          const errBody = await r.json();
+          why = errBody?.detail?.message || errBody?.detail || errBody?.message || why;
+          if (typeof why !== 'string') why = JSON.stringify(why);
+        } catch {}
+        toast.error(`Download failed · ${why}`, { id: prepToast });
+        return;
+      }
       const j = await r.json();
-      window.open(j.url, '_blank', 'noopener');
-    } catch {
-      toast.error('Could not start download');
+      const url = j.url;
+      if (!url) {
+        toast.error('Download failed · server returned no link', { id: prepToast });
+        return;
+      }
+      // 1. Try the <a download> path (works for same-origin and most CDNs that
+      //    set Content-Disposition: attachment — our backend does this).
+      try {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fname;
+        a.rel = 'noopener';
+        // Safari needs the anchor to be in the DOM for the click() to fire
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        // Yield once so Safari can pick up the click before we remove the node
+        setTimeout(() => { try { document.body.removeChild(a); } catch {} }, 0);
+        toast.success('Download started', { id: prepToast });
+      } catch (clickErr) {
+        // 2. Hard fallback for older Safari / very locked-down WebKit:
+        //    just navigate the current tab to the signed URL. Browser will
+        //    serve it inline thanks to the backend's Content-Disposition.
+        toast.success('Opening file…', { id: prepToast });
+        window.location.href = url;
+      }
+      // Track for the funnel — we now know download conversion is real
+      try { trackFunnel('photo_trailer_download_clicked', { meta: { format: fmt } }); } catch {}
+    } catch (netErr) {
+      toast.error(`Download failed · ${netErr?.message || 'network error'}`, { id: prepToast });
     }
   };
 

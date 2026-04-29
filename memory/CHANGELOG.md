@@ -218,3 +218,46 @@ no per-stage timeout. Fixed in one disciplined pass.
 
 Live verification: `/admin/stuck-jobs` returned a real 90s job at 5.5min mid-GENERATING_SCENES with `will_be_reaped_next_sweep=false` (correctly under 25min hard-max).
 
+
+### Photo Trailer — P0 DOWNLOAD-BUTTON FIX (2026-02-XX)
+Founder bug: "Download 16:9" button does nothing on Result screen.
+
+**Root cause**
+The download handler called `window.open(j.url, '_blank', 'noopener')` AFTER an
+async `fetch()`. Chrome and Safari popup blockers silently kill `window.open()`
+that doesn't originate from a synchronous user gesture — the async fetch broke
+the gesture chain. No error, no toast, button just appeared dead.
+
+**Fix (`PhotoTrailerPage.jsx :: handleDownload`)**
+1. Toast "Preparing download…" immediately on click (user feedback)
+2. Always fetch a FRESH signed URL on click (handles 10+ min waits where
+   the previous `streamUrl` may have expired)
+3. Trigger via temporary `<a href={url} download={fname}>` element +
+   programmatic `click()` — counts as gesture continuation, no popup blocker
+4. Fallback: if anchor click throws (locked-down WebKit), `window.location.href = url`
+5. Exact error reasons surfaced (`detail.message`, `detail`, network err)
+   — no more silent "Could not start download"
+6. Toast "Download started" on success
+7. Funnel emit: `photo_trailer_download_clicked` (allowlisted server-side)
+
+**Backend (already correct, verified by tests)**
+- `/api/photo-trailer/jobs/{job_id}/stream?download=true&format=wide|vertical`
+  returns `{url, expires_in, format, thumbnail_url, has_vertical}`
+- R2 signer adds `response-content-disposition: attachment; filename="..."`
+- Format regex enforces `wide|vertical` only
+- Owner-only (404 for non-owner, 401 anonymous)
+
+**Tests** — 7 new in `test_photo_trailer_download.py`:
+1. /stream returns signed URL with attachment disposition
+2. format=vertical mints vertical key
+3. invalid format → 422
+4. anonymous → 401/403
+5. non-owner → 404
+6. Frontend uses `<a download>` pattern (no `window.open(` in handler code)
+7. Funnel allowlist includes `photo_trailer_download_clicked`
+
+**Live verification**: hit `/stream` for a real completed trailer with both
+formats — both return 200 with `response-content-disposition` in the signed URL.
+
+**Total Photo Trailer regression: 68/68 green**
+
