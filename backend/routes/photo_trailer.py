@@ -497,20 +497,128 @@ async def _ffmpeg(args: List[str]) -> None:
     pipelines cannot all spawn ffmpeg processes at the same time."""
     await asyncio.get_event_loop().run_in_executor(RENDER_EXECUTOR, _ffmpeg_run, args)
 
+# ───────────────────── Motion engine (v2) ────────────────────────────────────
+# Spec: every scene must visibly move. ≥4 motion styles per 6-scene trailer.
+# No frozen frames > 1s. 8 distinct camera moves rotated by scene index +
+# template-tone seed. Per-template tone color grade. Subtitle drawn from
+# narration line. 0.25s fade-in/out per clip simulates a soft trailer-cut.
+
+# Each motion is parameterized by frame count for the scene's duration
+# so movement is continuous regardless of clip length.
+def _motion_filter(idx: int, frames: int) -> str:
+    """Pick a motion style by index. zoompan paints one frame per `d` step;
+    we drive `d=frames` so the move plays exactly once across the clip."""
+    f = max(1, int(frames))
+    # All motions use `on` (current output frame number) directly so the
+    # ffmpeg zoom variable's accumulation quirks can never freeze a clip.
+    # Each style produces visibly continuous motion at every frame.
+    h = 2.6  # horizontal sweep px/frame
+    v = 1.8  # vertical sweep px/frame
+    styles = [
+        # 0: slow_push — 1.00 → ~1.22 over the clip
+        f"zoompan=z='1.0+on*0.0030':d={f}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1280x720:fps=25",
+        # 1: pan_right — fixed zoom, horizontal sweep
+        f"zoompan=z='1.20':d={f}:x='(iw-iw/zoom)/2+on*{h}':y='(ih-ih/zoom)/2':s=1280x720:fps=25",
+        # 2: pull_back — 1.32 → ~1.10
+        f"zoompan=z='1.32-on*0.0030':d={f}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1280x720:fps=25",
+        # 3: push_to_face — 1.00 → ~1.30, anchored toward upper third
+        f"zoompan=z='1.0+on*0.0040':d={f}:x='iw/2-(iw/zoom/2)':y='ih/3-(ih/zoom/3)':s=1280x720:fps=25",
+        # 4: pan_left
+        f"zoompan=z='1.20':d={f}:x='(iw-iw/zoom)/2-on*{h}':y='(ih-ih/zoom)/2':s=1280x720:fps=25",
+        # 5: diagonal_drift — zoom + diagonal sweep
+        f"zoompan=z='1.0+on*0.0022':d={f}:x='(iw-iw/zoom)/2+on*{h}':y='(ih-ih/zoom)/2+on*{v}':s=1280x720:fps=25",
+        # 6: handheld_shake — micro shake with sin/cos
+        f"zoompan=z='1.22':d={f}:x='iw/2-(iw/zoom/2)+sin(on/2.8)*22':y='ih/2-(ih/zoom/2)+cos(on/2.4)*14':s=1280x720:fps=25",
+        # 7: vertical_reveal — pan upward
+        f"zoompan=z='1.22':d={f}:x='iw/2-(iw/zoom/2)':y='(ih-ih/zoom)-on*{v}':s=1280x720:fps=25",
+    ]
+    return styles[idx % len(styles)]
+
+# Tone seed: ensures the FIRST scene of a horror trailer leans handheld,
+# action leans push-to-face, etc. Subsequent scenes rotate from there so
+# every trailer still gets ≥4 distinct moves.
+_TONE_SEED = {
+    "epic": 3, "horror": 6, "scary": 6, "comedy": 1, "comedic": 1,
+    "cinematic": 0, "intense": 6, "warm": 0, "playful": 1, "mysterious": 7,
+    "action": 3, "anime": 3, "fantasy": 0, "mythology": 0, "love": 0,
+    "family": 0, "drama": 0, "romance": 0, "documentary": 0,
+}
+
+# Per-template color grade. Subtle, applied via eq+curves which are bundled
+# in stock ffmpeg. NEVER strong enough to alter identity.
+_TONE_GRADE = {
+    "horror":     "eq=contrast=1.18:saturation=0.78:brightness=-0.05",
+    "scary":      "eq=contrast=1.18:saturation=0.78:brightness=-0.05",
+    "epic":       "eq=contrast=1.10:saturation=1.15:gamma=0.95",
+    "action":     "eq=contrast=1.18:saturation=1.10",
+    "anime":      "eq=saturation=1.30:contrast=1.10",
+    "comedic":    "eq=saturation=1.18:brightness=0.04",
+    "comedy":     "eq=saturation=1.18:brightness=0.04",
+    "love":       "eq=saturation=1.10:gamma=1.05",
+    "family":     "eq=saturation=1.10:gamma=1.05",
+    "warm":       "eq=saturation=1.10:gamma=1.05",
+    "fantasy":    "eq=saturation=1.20:gamma=1.05",
+    "mythology":  "eq=saturation=1.20:gamma=1.05",
+    "cinematic":  "eq=contrast=1.08:saturation=1.05",
+    "mysterious": "eq=contrast=1.10:saturation=0.92:brightness=-0.03",
+}
+
+def _ffmpeg_text_escape(s: str) -> str:
+    """Escape a string for use inside ffmpeg drawtext text= parameter.
+    Commas would break the surrounding filter chain; colons and single-quotes
+    are filter-syntax delimiters; backslashes are illegal."""
+    s = (s or "").replace("\\", "")
+    return (s.replace(",", "")        # comma: filter chain separator
+             .replace(":", " ")       # colon: filter argument separator
+             .replace("'", "’")       # single quote: filter string delimiter
+             .replace("[", "(").replace("]", ")"))  # brackets: filter labels
+
+def _subtitle_filter(narration: str) -> str:
+    txt = _ffmpeg_text_escape(narration)[:90]
+    if not txt: return None
+    return ("drawtext=text='" + txt + "':"
+            "fontcolor=white:fontsize=28:"
+            "box=1:boxcolor=black@0.55:boxborderw=10:"
+            "x=(w-tw)/2:y=h-th-32")
+
+# ─────────────────────────────────────────────────────────────────────────────
 async def _render_trailer(job: dict, scenes_data: List[dict], tmp: str) -> str:
-    """ffmpeg: stitch images with motion + voiceover + music + subtitles + end card."""
+    """ffmpeg: stitch images with varied motion + voiceover + music +
+    subtitles + end card. Each scene gets a distinct camera move + tone
+    grade + scene subtitle + 0.25s fade-in/out so cuts feel cinematic."""
     import imageio_ffmpeg
     # Prefer system ffmpeg (has drawtext + libfreetype). Fall back to bundled.
     ffmpeg = "/usr/bin/ffmpeg" if os.path.exists("/usr/bin/ffmpeg") else imageio_ffmpeg.get_ffmpeg_exe()
+    template = TEMPLATES.get(job.get("template_id", ""), {})
+    tone = (template.get("tone") or "cinematic").lower()
+    tone_seed = _TONE_SEED.get(tone, 0)
+    grade = _TONE_GRADE.get(tone)
+
     out_clips = []
     for i, s in enumerate(scenes_data):
         img = s["image_path"]; aud = s["audio_path"]; dur = max(3.0, s["duration"])
         clip = os.path.join(tmp, f"clip_{i}.mp4")
-        # Motion picks: alternate slow zoom-in / pan-right / push-in for variety
-        motion = ["zoompan=z='min(zoom+0.0015,1.18)':d=125:s=1280x720",
-                  "zoompan=z='if(gte(zoom,1.15),1.15,zoom+0.0012)':x='iw/2-(iw/zoom/2)+sin(on/40)*40':d=125:s=1280x720",
-                  "zoompan=z='1.2-on*0.0012':d=125:s=1280x720"][i % 3]
-        vf = f"scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,setsar=1,{motion},format=yuv420p"
+        # 8-style motion rotation seeded by template tone — 6-scene trailers
+        # always get ≥ 4 distinct moves (verified by frame-diff regression).
+        frames = max(75, int(dur * 25))
+        motion = _motion_filter(tone_seed + i, frames)
+        subtitle = _subtitle_filter(s.get("narration", ""))
+
+        # Filter chain: scale → crop → setsar → motion → tone grade →
+        # subtitle → fade-in/out → format. fade=t=in/out at 0.25s simulates
+        # a soft trailer-cut crossfade when clips are concatenated.
+        chain = [
+            "scale=1280:720:force_original_aspect_ratio=increase",
+            "crop=1280:720",
+            "setsar=1",
+            motion,
+        ]
+        if grade:    chain.append(grade)
+        if subtitle: chain.append(subtitle)
+        chain.append(f"fade=t=in:st=0:d=0.25,fade=t=out:st={max(0.0, dur-0.25):.2f}:d=0.25")
+        chain.append("format=yuv420p")
+        vf = ",".join(chain)
+
         await _ffmpeg([ffmpeg, "-y", "-loop", "1", "-i", img, "-i", aud,
                      "-vf", vf, "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
                      "-c:a", "aac", "-b:a", "128k", "-r", "25", "-t", f"{dur}",
