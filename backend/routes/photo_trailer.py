@@ -45,7 +45,7 @@ TEMPLATES: Dict[str, Dict[str, Any]] = {
 
 # ─── Models ───────────────────────────────────────────────────────────────────
 class UploadInitIn(BaseModel):
-    file_count: int = Field(..., ge=1, le=10)
+    file_count: int = Field(..., ge=1)
     mime_types: List[str]
     file_sizes: List[int]
 
@@ -420,7 +420,13 @@ async def _tts(narration: str, voice: str) -> bytes:
 def _ffmpeg_run(args: List[str]) -> None:
     res = subprocess.run(args, capture_output=True, text=True, timeout=600)
     if res.returncode != 0:
+        log.error(f"ffmpeg cmd failed: {' '.join(args[:4])}... stderr: {res.stderr[-1200:]}")
         raise RuntimeError(f"ffmpeg failed: {res.stderr[-600:]}")
+
+async def _ffmpeg(args: List[str]) -> None:
+    """Run ffmpeg in a thread executor — keeps the asyncio event loop responsive
+    so the backend can serve other requests while a trailer renders."""
+    await asyncio.get_event_loop().run_in_executor(None, _ffmpeg_run, args)
 
 async def _render_trailer(job: dict, scenes_data: List[dict], tmp: str) -> str:
     """ffmpeg: stitch images with motion + voiceover + music + subtitles + end card."""
@@ -436,14 +442,14 @@ async def _render_trailer(job: dict, scenes_data: List[dict], tmp: str) -> str:
                   "zoompan=z='if(gte(zoom,1.15),1.15,zoom+0.0012)':x='iw/2-(iw/zoom/2)+sin(on/40)*40':d=125:s=1280x720",
                   "zoompan=z='1.2-on*0.0012':d=125:s=1280x720"][i % 3]
         vf = f"scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,setsar=1,{motion},format=yuv420p"
-        _ffmpeg_run([ffmpeg, "-y", "-loop", "1", "-i", img, "-i", aud,
+        await _ffmpeg([ffmpeg, "-y", "-loop", "1", "-i", img, "-i", aud,
                      "-vf", vf, "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
                      "-c:a", "aac", "-b:a", "128k", "-r", "25", "-t", f"{dur}",
                      "-shortest", "-movflags", "+faststart", clip])
         out_clips.append(clip)
     # End card — 2.5s static branded text
     end_card = os.path.join(tmp, "endcard.mp4")
-    _ffmpeg_run([ffmpeg, "-y", "-f", "lavfi", "-i", "color=c=black:s=1280x720:d=2.5:r=25",
+    await _ffmpeg([ffmpeg, "-y", "-f", "lavfi", "-i", "color=c=black:s=1280x720:d=2.5:r=25",
                  "-vf", "drawtext=text='Created with Visionary Suite':fontcolor=white:fontsize=42:x=(w-tw)/2:y=(h-th)/2-30,"
                         "drawtext=text='visionary-suite.com':fontcolor=#a78bfa:fontsize=24:x=(w-tw)/2:y=(h-th)/2+30",
                  "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p", "-r", "25",
@@ -454,7 +460,7 @@ async def _render_trailer(job: dict, scenes_data: List[dict], tmp: str) -> str:
     with open(concat_txt, "w") as f:
         for c in out_clips: f.write(f"file '{c}'\n")
     stitched = os.path.join(tmp, "stitched.mp4")
-    _ffmpeg_run([ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", concat_txt,
+    await _ffmpeg([ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", concat_txt,
                  "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k",
                  "-movflags", "+faststart", stitched])
     # Music bed (if available) — duck under voiceover
@@ -465,13 +471,13 @@ async def _render_trailer(job: dict, scenes_data: List[dict], tmp: str) -> str:
     wm_filter = ("[0:v]drawtext=text='Visionary Suite':fontcolor=white@0.65:fontsize=18:"
                  "x=w-tw-22:y=h-th-22:box=1:boxcolor=black@0.25:boxborderw=8[v]")
     if music_path:
-        _ffmpeg_run([ffmpeg, "-y", "-i", stitched, "-stream_loop", "-1", "-i", music_path,
+        await _ffmpeg([ffmpeg, "-y", "-i", stitched, "-stream_loop", "-1", "-i", music_path,
                      "-filter_complex", wm_filter + ";[1:a]volume=0.18[m];[0:a][m]amix=inputs=2:duration=shortest[a]",
                      "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
                      "-c:a", "aac", "-b:a", "160k", "-ar", "44100", "-shortest",
                      "-movflags", "+faststart", final])
     else:
-        _ffmpeg_run([ffmpeg, "-y", "-i", stitched, "-vf", "drawtext=text='Visionary Suite':fontcolor=white@0.65:fontsize=18:"
+        await _ffmpeg([ffmpeg, "-y", "-i", stitched, "-vf", "drawtext=text='Visionary Suite':fontcolor=white@0.65:fontsize=18:"
                      "x=w-tw-22:y=h-th-22:box=1:boxcolor=black@0.25:boxborderw=8",
                      "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
                      "-c:a", "copy", "-movflags", "+faststart", final])
