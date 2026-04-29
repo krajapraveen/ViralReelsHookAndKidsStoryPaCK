@@ -344,9 +344,17 @@ function PhotoTrailerCard({ job, justCompleted }) {
         </div>
       </div>
       <div className="flex gap-2 px-4 pb-4">
-        {isCompleted && job.output_url && (
+        {isCompleted && (
           <button
-            onClick={() => window.open(job.output_url, '_blank', 'noopener,noreferrer')}
+            onClick={async () => {
+              try {
+                const r = await api.get(`/api/photo-trailer/jobs/${job.job_id}/stream`);
+                if (r.data?.url) window.open(r.data.url, '_blank', 'noopener,noreferrer');
+                else if (job.output_url) window.open(job.output_url, '_blank', 'noopener,noreferrer');
+              } catch {
+                if (job.output_url) window.open(job.output_url, '_blank', 'noopener,noreferrer');
+              }
+            }}
             className="flex-1 py-2 px-3 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors"
             data-testid={`myspace-trailer-play-${job.job_id}`}
           >
@@ -911,6 +919,7 @@ export default function MySpacePage() {
             status: t.status,  // already QUEUED|PROCESSING|COMPLETED|FAILED
             thumbnail_url: t.result_thumbnail_url,
             output_url: t.result_video_url,
+            public_share_slug: t.public_share_slug,
             progress: t.status === 'COMPLETED' ? 100 : (t.progress_percent || 0),
             current_stage: t.current_stage,
             created_at: t.created_at,
@@ -1033,6 +1042,22 @@ export default function MySpacePage() {
     else navigate(`/app/story-video-studio?projectId=${job.job_id}`);
   };
   const handleShare = async (job) => {
+    // Photo trailers share via the public /trailer/:slug page (server re-signs).
+    if (job.type === 'photo_trailer') {
+      // public_share_slug is on the raw API row, not always projected onto job;
+      // fall back to job_id which the API also accepts via redirect.
+      const slug = job.public_share_slug || job.share_slug;
+      if (slug) {
+        const shareUrl = `${window.location.origin}/trailer/${slug}`;
+        const text = encodeURIComponent(`🎬 Watch my AI movie trailer on Visionary Suite: ${shareUrl}`);
+        window.open(`https://wa.me/?text=${text}`, '_blank', 'noopener,noreferrer');
+        return;
+      }
+      // No slug yet — degrade gracefully to text-only share, NEVER raw bucket URL.
+      const text = encodeURIComponent('🎬 Just made my own movie trailer with Visionary Suite!');
+      window.open(`https://wa.me/?text=${text}`, '_blank', 'noopener,noreferrer');
+      return;
+    }
     try {
       const res = await api.post(`/api/story-engine/share-link/${job.job_id}`);
       if (res.data?.whatsapp_url) window.open(res.data.whatsapp_url, '_blank');

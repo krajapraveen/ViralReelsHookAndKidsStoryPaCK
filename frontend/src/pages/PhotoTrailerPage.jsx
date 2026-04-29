@@ -545,29 +545,54 @@ function ProgressStep({ jobId, onDone, onFail }) {
 
 // ─── Step 5: Result ───────────────────────────────────────────────────────────
 function ResultStep({ job, onCreateAnother }) {
-  const url = job.result_video_url;
-  // Append UTM params for attribution. Works whether url already has a query string or not.
-  const buildShareUrl = (medium) => {
-    if (!url) return '';
-    const sep = url.includes('?') ? '&' : '?';
-    return `${url}${sep}utm_source=trailer_share&utm_medium=${medium}&utm_campaign=youstar`;
+  // Owner playback uses a fresh signed stream URL (10 min TTL). Sharing
+  // points at the public /trailer/:slug page — that page re-signs server-side.
+  const [streamUrl, setStreamUrl] = React.useState(null);
+  const [thumbUrl, setThumbUrl] = React.useState(job.result_thumbnail_url || null);
+  const downloadHrefRef = React.useRef(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const r = await fetch(`${API}/api/photo-trailer/jobs/${job._id || job.job_id}/stream`,
+                              { headers: authHeaders() });
+        if (!r.ok) return;
+        const j = await r.json();
+        if (!cancelled) { setStreamUrl(j.url); if (j.thumbnail_url) setThumbUrl(j.thumbnail_url); }
+      } catch {}
+    };
+    load();
+    // Re-sign 30s before the URL expires (default 10 min).
+    const timer = setInterval(load, 9 * 60 * 1000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [job._id, job.job_id]);
+
+  const PUBLIC_BASE = window.location.origin;
+  const slug = job.public_share_slug;
+  const sharePageUrl = slug ? `${PUBLIC_BASE}/trailer/${slug}` : null;
+
+  const buildShareLink = (medium) => {
+    if (!sharePageUrl) return '';
+    const sep = sharePageUrl.includes('?') ? '&' : '?';
+    return `${sharePageUrl}${sep}utm_source=trailer_share&utm_medium=${medium}&utm_campaign=youstar`;
   };
-  const PREFILL = (shareUrl) =>
-    `🎬 I just made my own movie trailer with YouStar on Visionary Suite. Watch it here: ${shareUrl}`;
+  const PREFILL = (shareLink) =>
+    `🎬 I just made my own movie trailer with YouStar on Visionary Suite. Watch it here: ${shareLink}`;
 
   const handleWhatsApp = () => {
-    const shareUrl = buildShareUrl('whatsapp');
+    const shareLink = buildShareLink('whatsapp');
+    if (!shareLink) { toast.error('Share link is not ready yet — please try again in a moment.'); return; }
     try {
       trackFunnel('photo_trailer_whatsapp_share_clicked', {
-        meta: { job_id: job._id, template: job.template_id },
+        meta: { job_id: job._id, template: job.template_id, share_url: sharePageUrl },
       });
     } catch {}
-    const waUrl = `https://wa.me/?text=${encodeURIComponent(PREFILL(shareUrl))}`;
-    window.open(waUrl, '_blank', 'noopener,noreferrer');
+    window.open(`https://wa.me/?text=${encodeURIComponent(PREFILL(shareLink))}`, '_blank', 'noopener,noreferrer');
   };
 
   const handleNativeShare = async () => {
-    const shareUrl = buildShareUrl('native');
+    const shareLink = buildShareLink('native');
+    if (!shareLink) { toast.error('Share link is not ready yet'); return; }
     try {
       trackFunnel('photo_trailer_shared', {
         meta: { job_id: job._id, channel: navigator.share ? 'native' : 'clipboard' },
@@ -575,19 +600,25 @@ function ResultStep({ job, onCreateAnother }) {
     } catch {}
     if (navigator.share) {
       try {
-        await navigator.share({
-          title: 'My AI movie trailer',
-          text: PREFILL(shareUrl),
-          url: shareUrl,
-        });
+        await navigator.share({ title: 'My AI movie trailer', text: PREFILL(shareLink), url: shareLink });
       } catch {}
     } else {
-      try {
-        await navigator.clipboard.writeText(PREFILL(shareUrl));
-        toast.success('Link copied — paste it anywhere');
-      } catch {
-        toast.error('Could not copy link');
-      }
+      try { await navigator.clipboard.writeText(PREFILL(shareLink)); toast.success('Link copied — paste it anywhere'); }
+      catch { toast.error('Could not copy link'); }
+    }
+  };
+
+  const handleDownload = async (e) => {
+    e.preventDefault();
+    try {
+      const r = await fetch(`${API}/api/photo-trailer/jobs/${job._id || job.job_id}/stream?download=true`,
+                            { headers: authHeaders() });
+      if (!r.ok) { toast.error('Could not start download'); return; }
+      const j = await r.json();
+      // Open in a new tab so the browser handles the download via Content-Disposition
+      window.open(j.url, '_blank', 'noopener');
+    } catch {
+      toast.error('Could not start download');
     }
   };
 
@@ -597,11 +628,11 @@ function ResultStep({ job, onCreateAnother }) {
         <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto" />
         <h2 className="text-2xl font-bold text-white mt-2">Your trailer is ready</h2>
       </div>
-      <video src={url} controls poster={job.result_thumbnail_url} className="w-full rounded-2xl border border-white/10 bg-black" data-testid="trailer-result-video" />
+      <video src={streamUrl || undefined} controls poster={thumbUrl || undefined} className="w-full rounded-2xl border border-white/10 bg-black" data-testid="trailer-result-video" />
       <div className="flex flex-wrap gap-2">
-        <a href={url} download className="flex-1 min-w-[120px] py-3 rounded-xl bg-violet-600 text-white text-sm font-semibold flex items-center justify-center gap-2" data-testid="trailer-download-btn">
+        <button onClick={handleDownload} className="flex-1 min-w-[120px] py-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors" data-testid="trailer-download-btn">
           <Download className="w-4 h-4" /> Download
-        </a>
+        </button>
         <button
           onClick={handleWhatsApp}
           className="flex-1 min-w-[120px] py-3 rounded-xl bg-[#25D366] hover:bg-[#1EA952] text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors"

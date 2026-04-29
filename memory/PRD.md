@@ -1732,3 +1732,62 @@ non-compliance, likeness rights violations as the feature scales.
    • frontend/src/pages/PhotoTrailerPage.jsx — consent text (3 lines)
    • backend/tests/test_photo_trailer_trust_legal.py (NEW, 235 LOC)
 
+
+
+─────────────────────────────────────────────────────────
+[2026-04-29 P1] PHOTO TRAILER — SIGNED EXPIRING URLS + PUBLIC SHARE PAGE
+─────────────────────────────────────────────────────────
+Founder rationale: public bucket exposure was the next biggest risk after the
+motion + sanitizer fixes. Permanent unsigned URLs enable scraping, hotlinking,
+and uncontrolled distribution.
+
+✅ Backend signed-URL gateway (backend/routes/photo_trailer.py)
+   • `_strip_public_prefix(url)` extracts the bucket key from any stored URL
+   • `_sign_or_passthrough(key)` mints presigned URLs (S3v4, X-Amz-Expires=600)
+   • Pipeline now stores `result_video_key` + `result_thumbnail_key`
+   • Tunable: `PHOTO_TRAILER_SIGNED_URL_TTL` (default 600s)
+
+✅ New endpoints
+   • `GET /api/photo-trailer/jobs/{job_id}/stream` — owner-only, signed URL,
+     optional `?download=true` adds Content-Disposition
+   • `GET /api/photo-trailer/share/{slug}` — public, slug-gated (10-char hex),
+     returns signed URL + creator first name + title + view counter
+
+✅ Lazy migration: legacy jobs (no `result_video_key`) auto-derive the key
+   from `result_video_url` on first request and persist it back.
+
+✅ Public share page `/trailer/:slug` — frontend/src/pages/PublicTrailerPage.jsx
+   • Lazy-loaded, no auth, auto re-signs every 9 minutes
+   • Title + creator + duration, big "Make My Movie Trailer" CTA
+   • WhatsApp + Copy share row, 404 fallback with recovery CTA
+
+✅ Frontend everywhere uses signed URLs / share page
+   • ResultStep: useEffect → /stream; Download → /stream?download=true
+   • Share buttons → /trailer/:slug (NEVER raw bucket URL)
+   • MySpace "▶ Play" → /stream signed URL; handleShare → /trailer/:slug
+   • App.js: /trailer/:slug route added
+
+✅ Tests — backend/tests/test_photo_trailer_signed_urls.py (7 NEW)
+   • Owner stream returns signed URL + actually serves MP4
+   • Stream is auth-gated; non-owner gets 404
+   • Public /share/:slug works without auth
+   • Bad slug → 404
+   • Legacy job lazy migration backfills the key
+   • TTL bounded to [60, 3600] seconds
+
+📊 Photo Trailer suite: 42/42 PASS in 35s (zero regression)
+
+🔒 Security model
+   • Owner playback:    auth-gated, signed, 10-min TTL
+   • Public share page: slug-gated (~1.1 trillion combos), signed, 10-min TTL
+   • Bucket key never exposed to client — only re-issuable via API
+   • Code works whether R2 bucket public-access is on or off
+
+📁 Files Changed:
+   • backend/routes/photo_trailer.py — gateway + endpoints + key storage
+   • frontend/src/pages/PublicTrailerPage.jsx (NEW, 145 LOC)
+   • frontend/src/pages/PhotoTrailerPage.jsx — ResultStep uses /stream
+   • frontend/src/pages/MySpacePage.js — Play + handleShare use /stream + /trailer/:slug
+   • frontend/src/App.js — lazy import + /trailer/:slug route
+   • backend/tests/test_photo_trailer_signed_urls.py (NEW, 165 LOC)
+

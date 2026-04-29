@@ -387,6 +387,223 @@ async def my_trailers(user: dict = Depends(get_current_user), limit: int = Query
         rows.append(d)
     return {"trailers": rows}
 
+# ─── Signed-URL gateway (private playback) ────────────────────────────────────
+# Public bucket exposure was a P0 risk: completed video URLs were permanent
+# and unsigned, enabling scraping/hotlinking/uncontrolled distribution.
+# All playback now flows through these endpoints which mint short-lived
+# (10-min default) presigned URLs against the same R2 bucket. The owner-only
+# `/stream` requires auth + ownership; the public `/share/{slug}` endpoint
+# is rate-limit-safe (slug is 10-char random hex) and serves the share page.
+SIGNED_URL_TTL_SECONDS = int(os.environ.get("PHOTO_TRAILER_SIGNED_URL_TTL", "600"))
+
+def _strip_public_prefix(url: str) -> Optional[str]:
+    """Convert a public R2 URL back to its bucket key. Used for migration
+    of jobs that were created before we started storing the key explicitly."""
+    if not url: return None
+    if not url.startswith("http"): return url
+    for prefix in (
+        f"https://{R2_CUSTOM_DOMAIN}/" if R2_CUSTOM_DOMAIN else None,
+        f"{R2_PUBLIC_URL.rstrip('/')}/" if R2_PUBLIC_URL else None,
+    ):
+        if prefix and url.startswith(prefix):
+            return url[len(prefix):].split("?", 1)[0]
+    for marker in ("/videos/", "/images/", "/voices/"):
+        if marker in url:
+            return marker.strip("/") + "/" + url.split(marker, 1)[1].split("?", 1)[0]
+    return None
+
+async def _sign_or_passthrough(key_or_url: str, *, ttl: int = SIGNED_URL_TTL_SECONDS,
+                               filename: Optional[str] = None) -> Optional[str]:
+    """Mint a presigned URL. Falls back to the original URL when R2 is not
+    configured (local dev) or signing fails — so dev never breaks."""
+    if not key_or_url: return None
+    from services.cloudflare_r2_storage import get_r2_storage
+    if key_or_url.startswith("/static/") or key_or_url.startswith("local/"):
+        return key_or_url
+    r2 = get_r2_storage()
+    key = key_or_url if not key_or_url.startswith("http") else _strip_public_prefix(key_or_url)
+    if r2 and key:
+        try:
+            signed = r2.generate_presigned_download_url(key=key, expiration=ttl, filename=filename)
+            if signed: return signed
+        except Exception as e:
+            log.warning(f"presign failed for {key}: {e}")
+    return key_or_url if key_or_url.startswith("http") else None
+
+@router.get("/jobs/{job_id}/stream")
+async def stream_video(job_id: str, user: dict = Depends(get_current_user),
+                        download: bool = Query(False)):
+    """Owner-only signed playback. Migrates legacy jobs (no `result_video_key`)
+    by deriving the key from the stored URL on first access."""
+    j = await db.photo_trailer_jobs.find_one({"_id": job_id, "user_id": user["id"]})
+    if not j: raise HTTPException(404, "Job not found")
+    if j.get("status") != "COMPLETED":
+        raise HTTPException(400, "Trailer is not ready yet.")
+    key = j.get("result_video_key")
+    if not key:
+        key = _strip_public_prefix(j.get("result_video_url") or "")
+        if key:
+            await db.photo_trailer_jobs.update_one(
+                {"_id": job_id}, {"$set": {"result_video_key": key}})
+    if not key: raise HTTPException(404, "Video unavailable.")
+    fname = f"trailer_{job_id[:8]}.mp4" if download else None
+    url = await _sign_or_passthrough(key, filename=fname)
+    if not url: raise HTTPException(500, "Could not mint signed URL")
+    thumb_key = j.get("result_thumbnail_key") or _strip_public_prefix(j.get("result_thumbnail_url") or "")
+    return {"url": url, "expires_in": SIGNED_URL_TTL_SECONDS,
+            "thumbnail_url": await _sign_or_passthrough(thumb_key) if thumb_key else None}
+
+@router.get("/share/{slug}")
+async def share_page(slug: str):
+    """Public share-page payload. Slug is 10 random hex chars set at job
+    completion — unguessable enough that it acts as the access token."""
+    j = await db.photo_trailer_jobs.find_one(
+        {"public_share_slug": slug, "status": "COMPLETED",
+         "deleted_at": {"$exists": False}})
+    if not j: raise HTTPException(404, "Trailer not found")
+    key = j.get("result_video_key") or _strip_public_prefix(j.get("result_video_url") or "")
+    if not key: raise HTTPException(404, "Video unavailable")
+    if not j.get("result_video_key") and key:
+        await db.photo_trailer_jobs.update_one({"_id": j["_id"]},
+                                                {"$set": {"result_video_key": key}})
+    thumb_key = j.get("result_thumbnail_key") or _strip_public_prefix(j.get("result_thumbnail_url") or "")
+    video_url = await _sign_or_passthrough(key)
+    thumb_url = await _sign_or_passthrough(thumb_key) if thumb_key else None
+    creator_name = "A Visionary Suite creator"
+    try:
+        u = await db.users.find_one({"id": j.get("user_id")}, {"name": 1, "_id": 0})
+        if u and u.get("name"): creator_name = u["name"].split()[0]
+    except Exception: pass
+    try:
+        await db.photo_trailer_jobs.update_one({"_id": j["_id"]},
+            {"$inc": {"share_view_count": 1}})
+    except Exception: pass
+    tpl = TEMPLATES.get(j.get("template_id") or "", {})
+    return {
+        "slug": slug, "video_url": video_url, "thumbnail_url": thumb_url,
+        "title": tpl.get("title") or j.get("template_name") or "AI Movie Trailer",
+        "duration_seconds": j.get("duration_target_seconds"),
+        "creator_first_name": creator_name,
+        "expires_in": SIGNED_URL_TTL_SECONDS,
+    }
+
+# ─── Signed-URL gateway (private playback) ────────────────────────────────────
+# Public bucket exposure was a P0 risk: completed video URLs were permanent
+# and unsigned, enabling scraping/hotlinking/uncontrolled distribution.
+# All playback now flows through these endpoints which mint short-lived
+# (10-min default) presigned URLs against the same R2 bucket. The owner-only
+# `/stream` requires auth + ownership; the public `/share/{slug}` endpoint
+# is rate-limit-safe (slug is 10-char random hex) and serves the share page.
+SIGNED_URL_TTL_SECONDS = int(os.environ.get("PHOTO_TRAILER_SIGNED_URL_TTL", "600"))
+
+def _strip_public_prefix(url: str) -> Optional[str]:
+    """Convert a public R2 URL back to its bucket key. Used for migration
+    of jobs that were created before we started storing the key explicitly."""
+    if not url: return None
+    # Already a key (no scheme): return as-is.
+    if not url.startswith("http"): return url
+    # Strip known public prefixes
+    for prefix in (
+        f"https://{R2_CUSTOM_DOMAIN}/" if R2_CUSTOM_DOMAIN else None,
+        f"{R2_PUBLIC_URL.rstrip('/')}/" if R2_PUBLIC_URL else None,
+    ):
+        if prefix and url.startswith(prefix):
+            return url[len(prefix):].split("?", 1)[0]
+    # Generic fallback: strip up to '/videos/' or '/images/' if present
+    for marker in ("/videos/", "/images/", "/voices/"):
+        if marker in url:
+            return url.split(marker, 1)[1] and (marker.strip("/") + "/" + url.split(marker, 1)[1].split("?", 1)[0])
+    return None
+
+async def _sign_or_passthrough(key_or_url: str, *, ttl: int = SIGNED_URL_TTL_SECONDS,
+                               filename: Optional[str] = None) -> Optional[str]:
+    """Mint a presigned URL for a stored key. If R2 is not configured (local
+    fallback) or signing fails, falls back to the existing public URL — so
+    local dev continues to work."""
+    if not key_or_url: return None
+    from services.cloudflare_r2_storage import get_r2_storage
+    r2 = get_r2_storage()
+    # Local fallback path → /static/... — return as-is
+    if key_or_url.startswith("/static/") or key_or_url.startswith("local/"):
+        return key_or_url
+    key = key_or_url if not key_or_url.startswith("http") else _strip_public_prefix(key_or_url)
+    if r2 and key:
+        try:
+            signed = r2.generate_presigned_download_url(key=key, expiration=ttl, filename=filename)
+            if signed: return signed
+        except Exception as e:
+            log.warning(f"presign failed for {key}: {e}")
+    # Last-resort fallback: original URL (may be public).
+    return key_or_url if key_or_url.startswith("http") else None
+
+@router.get("/jobs/{job_id}/stream")
+async def stream_video(job_id: str, user: dict = Depends(get_current_user),
+                        download: bool = Query(False)):
+    """Owner-only: returns a fresh short-lived presigned playback (or download)
+    URL. Migrates legacy jobs that lack `result_video_key` by deriving the
+    key from `result_video_url` on first access."""
+    j = await db.photo_trailer_jobs.find_one({"_id": job_id, "user_id": user["id"]})
+    if not j: raise HTTPException(404, "Job not found")
+    if j.get("status") != "COMPLETED":
+        raise HTTPException(400, "Trailer is not ready yet.")
+    key = j.get("result_video_key")
+    if not key:
+        # Lazy migration for pre-signed-URL jobs.
+        key = _strip_public_prefix(j.get("result_video_url") or "")
+        if key:
+            await db.photo_trailer_jobs.update_one(
+                {"_id": job_id}, {"$set": {"result_video_key": key}})
+    if not key:
+        raise HTTPException(404, "Video unavailable.")
+    fname = f"trailer_{job_id[:8]}.mp4" if download else None
+    url = await _sign_or_passthrough(key, filename=fname)
+    if not url: raise HTTPException(500, "Could not mint signed URL")
+    return {"url": url, "expires_in": SIGNED_URL_TTL_SECONDS,
+            "thumbnail_url": await _sign_or_passthrough(
+                j.get("result_thumbnail_key") or _strip_public_prefix(j.get("result_thumbnail_url") or "")
+            )}
+
+@router.get("/share/{slug}")
+async def share_page(slug: str):
+    """Public share-page payload. No auth required. Returns a fresh signed
+    stream URL + minimal metadata for the public /trailer/:slug page.
+    Slug is 10 random hex chars set at job completion — unguessable enough
+    that the slug itself is the access token."""
+    j = await db.photo_trailer_jobs.find_one(
+        {"public_share_slug": slug, "status": "COMPLETED",
+         "deleted_at": {"$exists": False}})
+    if not j: raise HTTPException(404, "Trailer not found")
+    key = j.get("result_video_key") or _strip_public_prefix(j.get("result_video_url") or "")
+    if not key: raise HTTPException(404, "Video unavailable")
+    if not j.get("result_video_key") and key:
+        await db.photo_trailer_jobs.update_one({"_id": j["_id"]},
+                                                {"$set": {"result_video_key": key}})
+    thumb_key = j.get("result_thumbnail_key") or _strip_public_prefix(j.get("result_thumbnail_url") or "")
+    video_url = await _sign_or_passthrough(key)
+    thumb_url = await _sign_or_passthrough(thumb_key) if thumb_key else None
+    # Owner display name — best-effort (only first name)
+    creator_name = "A Visionary Suite creator"
+    try:
+        u = await db.users.find_one({"id": j.get("user_id")}, {"name": 1, "_id": 0})
+        if u and u.get("name"):
+            creator_name = u["name"].split()[0]
+    except Exception: pass
+    # Increment view counter (best-effort, fire-and-forget pattern)
+    try:
+        await db.photo_trailer_jobs.update_one({"_id": j["_id"]},
+            {"$inc": {"share_view_count": 1}})
+    except Exception: pass
+    tpl = TEMPLATES.get(j.get("template_id") or "", {})
+    return {
+        "slug": slug,
+        "video_url": video_url,
+        "thumbnail_url": thumb_url,
+        "title": tpl.get("title") or j.get("template_name") or "AI Movie Trailer",
+        "duration_seconds": j.get("duration_target_seconds"),
+        "creator_first_name": creator_name,
+        "expires_in": SIGNED_URL_TTL_SECONDS,
+    }
+
 # ─── Admin ────────────────────────────────────────────────────────────────────
 @router.get("/admin/overview")
 async def admin_overview(user: dict = Depends(get_admin_user), days: int = Query(30, ge=1, le=365)):
@@ -847,22 +1064,26 @@ async def _run_pipeline_inner(job_id: str):
 
         # Upload
         with open(final_path, "rb") as f: video_bytes = f.read()
-        ok, video_url = await _upload_video_bytes(video_bytes, f"trailer_{job_id}.mp4", user_id)
+        ok, video_url, video_key = await _upload_video_bytes(video_bytes, f"trailer_{job_id}.mp4", user_id)
         if not ok:
             return await _fail(job_id, "UPLOAD_FAIL", "Storage upload failed. Please retry.")
         # Thumbnail = first scene image
-        thumb_url = None
+        thumb_url = None; thumb_key = None
         try:
             with open(scene_payload[0]["image_path"], "rb") as f: tb = f.read()
             ok2, thumb_url_or_key = await upload_image_bytes(tb, f"trailer_{job_id}_thumb.jpg", project_id=f"phototrailer/{user_id}/results")
-            if ok2: thumb_url = thumb_url_or_key
+            if ok2:
+                thumb_url = thumb_url_or_key
+                # Derive key from URL (strip the bucket public prefix) for re-signing
+                thumb_key = _strip_public_prefix(thumb_url_or_key)
         except Exception:
             pass
 
         # Record output
         await db.photo_trailer_outputs.insert_one({
             "_id": str(uuid.uuid4()), "job_id": job_id, "user_id": user_id,
-            "video_storage_key": video_url, "thumbnail_storage_key": thumb_url,
+            "video_storage_key": video_key, "video_storage_url": video_url,
+            "thumbnail_storage_key": thumb_key, "thumbnail_storage_url": thumb_url,
             "duration_seconds": j["duration_target_seconds"], "resolution": "1280x720",
             "file_size": len(video_bytes), "watermark_applied": True, "end_card_applied": True,
             "download_token_required": True, "created_at": _now(),
@@ -870,7 +1091,8 @@ async def _run_pipeline_inner(job_id: str):
         slug = uuid.uuid4().hex[:10]
         await db.photo_trailer_jobs.update_one({"_id": job_id}, {"$set": {
             "status": "COMPLETED", "current_stage": "COMPLETED", "progress_percent": 100,
-            "result_video_url": video_url, "result_thumbnail_url": thumb_url,
+            "result_video_url": video_url, "result_video_key": video_key,
+            "result_thumbnail_url": thumb_url, "result_thumbnail_key": thumb_key,
             "public_share_slug": slug, "completed_at": _now(), "updated_at": _now(),
         }})
         await _emit("photo_trailer_generation_completed", user_id, {"job_id": job_id, "duration": j["duration_target_seconds"]})
@@ -902,8 +1124,10 @@ async def _run_pipeline_inner(job_id: str):
         except Exception: pass
 
 
-async def _upload_video_bytes(data: bytes, name: str, user_id: str) -> (bool, str):
-    """Upload an in-memory MP4 to R2 (or local fallback)."""
+async def _upload_video_bytes(data: bytes, name: str, user_id: str) -> tuple:
+    """Upload an in-memory MP4 to R2 (or local fallback).
+    Returns (ok, public_url, storage_key) — the storage_key is used to
+    mint short-lived presigned playback URLs (signed_stream endpoint)."""
     from services.cloudflare_r2_storage import get_r2_storage
     service = get_r2_storage()
     if not service or not getattr(service, "_client", None):
@@ -911,9 +1135,9 @@ async def _upload_video_bytes(data: bytes, name: str, user_id: str) -> (bool, st
             os.makedirs("/app/backend/static/trailer_outputs", exist_ok=True)
             local = f"/app/backend/static/trailer_outputs/{name}"
             with open(local, "wb") as f: f.write(data)
-            return True, f"/static/trailer_outputs/{name}"
+            return True, f"/static/trailer_outputs/{name}", f"local/{name}"
         except Exception as e:
-            return False, str(e)
+            return False, str(e), ""
     try:
         with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as t:
             t.write(data); local_path = t.name
@@ -922,9 +1146,9 @@ async def _upload_video_bytes(data: bytes, name: str, user_id: str) -> (bool, st
                                                  custom_filename=name)
         try: os.unlink(local_path)
         except Exception: pass
-        return ok, (url or key)
+        return ok, (url or key), key
     except Exception as e:
-        return False, str(e)
+        return False, str(e), ""
 
 
 
@@ -1016,7 +1240,6 @@ async def stale_pipeline_janitor_loop():
     Also runs the source-photo retention sweep on the same cadence (it's
     cheap when there's nothing to purge)."""
     log.info(f"[trailer-janitor] starting (every {JANITOR_INTERVAL_SECONDS}s, threshold {STALE_THRESHOLD_MINUTES}min)")
-    # Small delay so other startup tasks settle first.
     await asyncio.sleep(15)
     while True:
         try:
@@ -1035,10 +1258,6 @@ async def stale_pipeline_janitor_loop():
 
 
 # ─── Trust & Legal: source photo retention sweep ─────────────────────────────
-# Promise to users: source photos are deleted from R2 within
-# PHOTO_RETENTION_DAYS days after the job ends (COMPLETED, FAILED, CANCELLED).
-# Idempotent: marks `assets.deleted_at` on first sweep; later sweeps skip
-# already-deleted assets.
 PHOTO_RETENTION_DAYS = int(os.environ.get("PHOTO_TRAILER_PHOTO_RETENTION_DAYS", "7"))
 
 async def _purge_old_source_photos() -> Dict[str, Any]:
@@ -1067,7 +1286,6 @@ async def _purge_old_source_photos() -> Dict[str, Any]:
     if not sessions_seen:
         return {"purged": 0, "failed": 0, "skipped": 0, "sessions_swept": 0}
 
-    # Look up all undeleted assets for those sessions (cap at 200)
     assets_cursor = db.photo_trailer_assets.find(
         {"upload_session_id": {"$in": list(sessions_seen)},
          "deleted_at": {"$exists": False}},
@@ -1085,8 +1303,6 @@ async def _purge_old_source_photos() -> Dict[str, Any]:
                 ok = await r2.delete_file(key)
             except Exception as e:
                 log.warning(f"[trailer-retention] r2 delete {key} failed: {e}")
-        # Mark deleted in DB regardless (so we don't loop on the same row);
-        # if R2 delete failed we keep a flag for ops review.
         await db.photo_trailer_assets.update_one(
             {"_id": aid, "deleted_at": {"$exists": False}},
             {"$set": {"deleted_at": _now(), "r2_purge_ok": bool(ok)}},

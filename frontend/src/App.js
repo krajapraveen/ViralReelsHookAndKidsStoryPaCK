@@ -109,6 +109,7 @@ const ContentChallengePlanner = lazy(() => import('./pages/ContentChallengePlann
 const CaptionRewriterPro = lazy(() => import('./pages/CaptionRewriterPro'));
 const PromoVideos = lazy(() => import('./pages/PromoVideos'));
 const PhotoTrailerPage = lazy(() => import('./pages/PhotoTrailerPage'));
+const PublicTrailerPage = lazy(() => import('./pages/PublicTrailerPage'));
 
 // Navigation / user pages
 const MySpacePage = lazy(() => import('./pages/MySpacePage'));
@@ -382,6 +383,8 @@ function App() {
         <Route path="/app/photo-trailer" element={isAuthenticated ? <L><PhotoTrailerPage /></L> : <Navigate to="/login" />} />
         <Route path="/app/youstar" element={isAuthenticated ? <L><PhotoTrailerPage /></L> : <Navigate to="/login" />} />
         <Route path="/app/my-movie-trailer" element={isAuthenticated ? <L><PhotoTrailerPage /></L> : <Navigate to="/login" />} />
+        {/* Public share page — no auth, slug is the access token */}
+        <Route path="/trailer/:slug" element={<L><PublicTrailerPage /></L>} />
 
         {/* ═══ USER PAGES ═══ */}
         <Route path="/app/history" element={isAuthenticated ? <L><History /></L> : <Navigate to="/login" />} />
