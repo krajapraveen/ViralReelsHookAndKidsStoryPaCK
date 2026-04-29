@@ -1053,6 +1053,61 @@ Founder directive: Photo Trailer must never degrade core app responsiveness.
 ✅ Tests: 24/24 PASS in 13.51s (was 22/24 in 151s before this fix).
 
 ─────────────────────────────────────────────────────────
+[2026-04-29 P0] PHOTO TRAILER — VISIBILITY FIXES (consent + role buttons)
+─────────────────────────────────────────────────────────
+Founder rationale: tiny controls kill mainstream adoption. Founders tolerate
+tiny UI; real users don't.
+
+✅ Consent checkbox upgraded
+   File: frontend/src/pages/PhotoTrailerPage.jsx (UploadStep)
+   - Sized: 24px mobile (w-6 h-6), 22px desktop (w-[22px] h-[22px])
+   - rounded-[5px] for clear SQUARE shape (no longer reads as a circle)
+   - 2.5px solid border (was 2px)
+   - Unchecked state: bg-white/[0.06] tint so the box pops on dark theme
+   - Checked: solid emerald with white Check icon (was CheckCircle2 — a
+     circle inside a square, now uses the proper square Check glyph)
+   - Whole row stays clickable; entire label toggles state
+   - Hover ring on whole label, focus ring via focus-visible
+
+✅ Hero / Villain / Support buttons upgraded
+   File: frontend/src/pages/PhotoTrailerPage.jsx (CharacterStep)
+   - Layout: 1 col (mobile) → 2 cols (sm) → 3 cols (lg) — was 3-5 cramped col
+   - Each photo card is now a vertical card: image on top, role row at bottom
+   - 3 segmented buttons in a single row at the bottom of each card
+       Min height: 44px mobile, 40px desktop (proper tap target)
+       2px border, font-bold, rounded-lg
+   - Active states use distinct color identity:
+       HERO    = amber-500 fill + amber-400 border + glow shadow
+       VILLAIN = rose-500  fill + rose-500  border + glow shadow
+       SUPPORT = cyan-500  fill + cyan-400  border + glow shadow
+   - Larger badge inside photo (★ HERO / ⚔ VILLAIN / ✓ SUPPORT)
+   - aria-pressed on each button + focus-visible ring for keyboard a11y
+   - cursor-pointer on interactive elements
+
+✅ New tests (frontend Playwright)
+   File: backend/tests/test_photo_trailer_visibility_fixes.py (5 tests)
+   - test_checkbox_is_square_22px_minimum_desktop  (22.5×22.5px, square check)
+   - test_checkbox_is_24px_minimum_mobile           (>= 24px on 390px width)
+   - test_role_buttons_have_proper_tap_target_size  (>= 40px H, >= 48px W)
+   - test_role_buttons_44px_on_mobile               (>= 44px H on mobile)
+   - test_clicking_hero_marks_button_active_with_aria
+       (verifies aria-pressed flips false→true + amber class applied +
+        Continue CTA enables on hero selection)
+
+✅ Full suite: 43/43 PASS in 222s
+   - 24 Photo Trailer + 4 janitor + 3 upload CTA
+   - 4 waiting UX + 3 notification loop + 5 visibility = 43
+
+📁 Files Changed:
+   • frontend/src/pages/PhotoTrailerPage.jsx — UploadStep + CharacterStep
+   • backend/tests/test_photo_trailer_visibility_fixes.py (NEW, 162 LOC)
+
+🚦 Discipline maintained: backend untouched, no page redesign, no shrunk
+   text, no dropdown hiding. Pure visibility upgrade.
+
+
+─────────────────────────────────────────────────────────
+─────────────────────────────────────────────────────────
 [2026-04-29 P0] PHOTO TRAILER NOTIFICATION LOOP — CLOSED END-TO-END
 ─────────────────────────────────────────────────────────
 Founder rationale: "you already paid to acquire the user and generate the

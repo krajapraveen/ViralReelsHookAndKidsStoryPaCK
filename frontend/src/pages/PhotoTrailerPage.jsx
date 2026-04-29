@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom';
 import {
   Upload, Camera, ShieldCheck, Sparkles, Film, Wand2, Loader2, X,
-  CheckCircle2, AlertCircle, Trash2, Play, Download, Share2, RefreshCw, MessageCircle,
+  CheckCircle2, AlertCircle, Trash2, Play, Download, Share2, RefreshCw, MessageCircle, Check,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { trackFunnel } from '../utils/funnelTracker';
@@ -165,13 +165,13 @@ function UploadStep({ sessionId, setSessionId, photos, setPhotos, consent, setCo
         />
         <span
           aria-hidden
-          className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
+          className={`mt-0.5 flex-shrink-0 w-6 h-6 sm:w-[22px] sm:h-[22px] rounded-[5px] border-[2.5px] flex items-center justify-center transition-all ${
             consent
               ? 'bg-emerald-500 border-emerald-500'
-              : 'bg-transparent border-slate-400 group-hover:border-emerald-400'
+              : 'bg-white/[0.06] border-slate-300 hover:border-emerald-400'
           }`}
         >
-          {consent && <CheckCircle2 className="w-4 h-4 text-white" strokeWidth={3} />}
+          {consent && <Check className="w-4 h-4 text-white" strokeWidth={3.5} />}
         </span>
         <div className="text-sm text-slate-200 select-none">
           <div className="font-semibold flex items-center gap-1.5">
@@ -227,26 +227,46 @@ function CharactersStep({ photos, hero, setHero, villain, setVillain, supporting
         <h2 className="text-2xl font-bold text-white">Choose your hero</h2>
         <p className="text-sm text-slate-400 mt-1">Tap one photo to be the main hero. Optionally pick a villain and supporting cast.</p>
       </div>
-      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2.5">
+      {/* Each card stacks: photo on top, large 3-button role row below.
+          Min 44px tap target on mobile. Clear color states. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {photos.map(p => {
           const isHero = hero === p.asset_id;
           const isVillain = villain === p.asset_id;
           const isSupport = supporting.includes(p.asset_id);
-          let badge = '';
-          if (isHero) badge = 'border-amber-400 ring-2 ring-amber-400';
-          else if (isVillain) badge = 'border-rose-500 ring-2 ring-rose-500';
-          else if (isSupport) badge = 'border-cyan-400 ring-2 ring-cyan-400';
-          else badge = 'border-white/10';
+          let frame = 'border-white/10';
+          if (isHero)        frame = 'border-amber-400 ring-2 ring-amber-400/60 shadow-[0_0_24px_-8px_rgba(251,191,36,0.7)]';
+          else if (isVillain) frame = 'border-rose-500 ring-2 ring-rose-500/60 shadow-[0_0_24px_-8px_rgba(244,63,94,0.7)]';
+          else if (isSupport) frame = 'border-cyan-400 ring-2 ring-cyan-400/60 shadow-[0_0_24px_-8px_rgba(34,211,238,0.7)]';
+
+          // Reusable role-button class generator. 44px tap target on mobile.
+          const roleBtn = (active, activeCls, label, testid, onClick) => (
+            <button
+              type="button"
+              onClick={onClick}
+              data-testid={testid}
+              aria-pressed={active}
+              className={`flex-1 min-h-[44px] sm:min-h-[40px] px-2 text-sm font-bold tracking-wide rounded-lg border-2 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 ${
+                active ? activeCls
+                       : 'border-white/15 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:border-white/25 cursor-pointer'
+              }`}
+            >
+              {label}
+            </button>
+          );
+
           return (
-            <div key={p.asset_id} className={`relative rounded-lg overflow-hidden aspect-square bg-black/40 border-2 ${badge}`} data-testid={`character-card-${p.asset_id}`}>
-              <img src={p.url} alt="" className="w-full h-full object-cover" />
-              {isHero && <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-400 text-black">HERO</div>}
-              {isVillain && <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500 text-white">VILLAIN</div>}
-              {isSupport && <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-500 text-white">SUPPORT</div>}
-              <div className="absolute inset-x-0 bottom-0 grid grid-cols-3 text-[10px] font-semibold">
-                <button onClick={() => pick(p.asset_id)} className={`py-1 ${isHero ? 'bg-amber-500 text-black' : 'bg-black/60 text-white'}`} data-testid={`pick-hero-${p.asset_id}`}>Hero</button>
-                <button onClick={() => toggleVillain(p.asset_id)} className={`py-1 ${isVillain ? 'bg-rose-500 text-white' : 'bg-black/60 text-white'}`}>Villain</button>
-                <button onClick={() => toggleSupport(p.asset_id)} className={`py-1 ${isSupport ? 'bg-cyan-500 text-white' : 'bg-black/60 text-white'}`}>Support</button>
+            <div key={p.asset_id} className={`rounded-2xl bg-black/30 border-2 ${frame} overflow-hidden transition-all`} data-testid={`character-card-${p.asset_id}`}>
+              <div className="relative aspect-square">
+                <img src={p.url} alt="" className="w-full h-full object-cover" />
+                {isHero    && <div className="absolute top-2 left-2 px-2 py-1 rounded-md text-xs font-extrabold bg-amber-400 text-black shadow-md">★ HERO</div>}
+                {isVillain && <div className="absolute top-2 left-2 px-2 py-1 rounded-md text-xs font-extrabold bg-rose-500 text-white shadow-md">⚔ VILLAIN</div>}
+                {isSupport && <div className="absolute top-2 left-2 px-2 py-1 rounded-md text-xs font-extrabold bg-cyan-500 text-white shadow-md">✓ SUPPORT</div>}
+              </div>
+              <div className="flex gap-2 p-2.5 bg-black/50 border-t border-white/10">
+                {roleBtn(isHero,    'border-amber-400 bg-amber-500 text-black cursor-pointer',          'Hero',    `pick-hero-${p.asset_id}`,    () => pick(p.asset_id))}
+                {roleBtn(isVillain, 'border-rose-500 bg-rose-500 text-white cursor-pointer',            'Villain', `pick-villain-${p.asset_id}`, () => toggleVillain(p.asset_id))}
+                {roleBtn(isSupport, 'border-cyan-400 bg-cyan-500 text-white cursor-pointer',            'Support', `pick-support-${p.asset_id}`, () => toggleSupport(p.asset_id))}
               </div>
             </div>
           );
