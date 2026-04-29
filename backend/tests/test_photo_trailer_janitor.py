@@ -24,7 +24,10 @@ load_dotenv("/app/backend/.env")
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL") or open("/app/frontend/.env").read().split("REACT_APP_BACKEND_URL=")[1].split("\n")[0].strip()
 ADMIN_EMAIL = "admin@creatorstudio.ai"
 ADMIN_PASSWORD = "Cr3@t0rStud!o#2026"
-STALE_MIN = 5  # must match STALE_THRESHOLD_MINUTES in routes/photo_trailer.py
+STALE_MIN = 25  # must exceed the largest per-tier threshold (90s = 35min) NO,
+#               # must exceed the 20s tier threshold (10min) — using 25 gives us
+#               # comfortable margin past 20min (45/60s tier) too. For 90s tier
+#               # individual tests pass age explicitly.
 
 
 @pytest.fixture(scope="module")
@@ -52,8 +55,15 @@ def _iso_minutes_ago(n: int) -> str:
     return (datetime.now(timezone.utc) - timedelta(minutes=n)).isoformat()
 
 
-async def _seed_job(db, *, age_min: int, charged: int = 5, refunded: int = 0, status: str = "PROCESSING") -> str:
-    """Insert a synthetic Photo Trailer job for the admin user."""
+async def _seed_job(db, *, age_min: int, charged: int = 5, refunded: int = 0,
+                    status: str = "PROCESSING", retry_count: int = 1,
+                    duration_seconds: int = 20) -> str:
+    """Insert a synthetic Photo Trailer job for the admin user.
+
+    NOTE on `retry_count`: the reliability sprint added auto-requeue, so a
+    fresh (retry_count=0) stale job is REQUEUED, not refunded. Tests that
+    want to exercise the FAIL+refund path pass retry_count=1 (already
+    requeued once) — that's the real "second-time-stale" path."""
     # Resolve admin user_id once
     admin = await db.users.find_one({"email": ADMIN_EMAIL}, {"_id": 0, "id": 1})
     assert admin, "admin user not found"
@@ -69,15 +79,18 @@ async def _seed_job(db, *, age_min: int, charged: int = 5, refunded: int = 0, st
         "supporting_asset_ids": [],
         "template_id": "comedy_roast",
         "template_name": "Comedy Roast",
-        "duration_target_seconds": 15,
+        "duration_target_seconds": duration_seconds,
         "estimated_credits": charged,
         "charged_credits": charged,
         "refunded_credits": refunded,
         "narrator_style": "echo",
         "music_mood": "playful",
+        "retry_count": retry_count,
         "created_at": _iso_minutes_ago(age_min + 1),
         "started_at": _iso_minutes_ago(age_min),
         "updated_at": _iso_minutes_ago(age_min),
+        # Stale heartbeat so the alive-protection doesn't shield the job
+        "last_progress_at": _iso_minutes_ago(age_min),
     }
     await db.photo_trailer_jobs.insert_one(doc)
     return jid

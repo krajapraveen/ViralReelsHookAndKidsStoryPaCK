@@ -718,9 +718,33 @@ MUSIC_TRACK_BY_MOOD = {
 }
 
 async def _set_stage(job_id: str, stage: str, **extra):
-    upd = {"current_stage": stage, "progress_percent": STAGE_PCT.get(stage, 0), "updated_at": _now()}
+    """Move the job to a new stage AND update the progress heartbeat. The
+    `last_progress_at` + `last_stage_change_at` fields tell the janitor this
+    job is alive; without them, slow scene-gens were getting reaped at 5min."""
+    upd = {
+        "current_stage": stage,
+        "progress_percent": STAGE_PCT.get(stage, 0),
+        "updated_at": _now(),
+        "last_progress_at": _now(),
+        "last_stage_change_at": _now(),
+        # Clear any previous transient progress message — the new stage starts fresh
+        "progress_message": None,
+    }
     upd.update(extra)
     await db.photo_trailer_jobs.update_one({"_id": job_id}, {"$set": upd})
+
+async def _heartbeat(job_id: str, message: Optional[str] = None):
+    """Mid-stage liveness ping — call from inside long-running stages so the
+    janitor's heartbeat protection knows the job is making progress.
+    Optional `message` populates `progress_message` (e.g. "Retrying scene 4/6")
+    which the frontend renders next to the stage name."""
+    upd = {"last_progress_at": _now(), "updated_at": _now()}
+    if message is not None:
+        upd["progress_message"] = message
+    try:
+        await db.photo_trailer_jobs.update_one({"_id": job_id}, {"$set": upd})
+    except Exception:
+        pass  # heartbeat MUST never break the pipeline
 
 async def _fail(job_id: str, code: str, msg: str):
     j = await db.photo_trailer_jobs.find_one({"_id": job_id})
@@ -795,7 +819,12 @@ async def _llm_script(job: dict, hero_role_hint: str) -> List[Dict[str, str]]:
 async def _gen_scene_image(visual_prompt: str, hero_b64: str, villain_b64: Optional[str], session_id: str) -> bytes:
     """Generate one scene image with reference photos for character consistency.
     Runs the (sync-under-async) emergentintegrations call on a worker thread
-    so the main FastAPI event loop stays responsive for other users."""
+    so the main FastAPI event loop stays responsive for other users.
+
+    RELIABILITY SPRINT: 3 attempts with 2s/5s/10s backoff (was 2 attempts with
+    no backoff). This is the inner retry — the outer per-scene retry in the
+    pipeline orchestrator wraps this to give a true "retry only the failed
+    scene, not the whole trailer" behavior."""
     from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
     refs = [ImageContent(hero_b64)]
     if villain_b64: refs.append(ImageContent(villain_b64))
@@ -804,25 +833,26 @@ async def _gen_scene_image(visual_prompt: str, hero_b64: str, villain_b64: Optio
         "face, age, ethnicity, hair and overall identity. Cinematic 16:9 framing. Photorealistic film still. "
         "Strong dramatic lighting. No on-screen text. No watermarks. No logos."
     )
+    BACKOFF_SECONDS = [2, 5, 10]
 
     def _sync_call() -> bytes:
-        chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=session_id, system_message="You generate a single cinematic image.")
-        chat.with_model("gemini", "gemini-3.1-flash-image-preview").with_params(modalities=["image", "text"])
-        msg = UserMessage(text=full_prompt, file_contents=refs)
-        # Each thread runs its own event loop — emergentintegrations' blocking
-        # I/O stays in this worker thread, never touching the main loop.
-        # Light retry on transient upstream failures (rate limits, parser errors).
         last_err = None
-        for attempt in range(2):
+        import time as _t
+        for attempt in range(3):
             try:
+                chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=session_id, system_message="You generate a single cinematic image.")
+                chat.with_model("gemini", "gemini-3.1-flash-image-preview").with_params(modalities=["image", "text"])
+                msg = UserMessage(text=full_prompt, file_contents=refs)
                 _txt, images = asyncio.run(chat.send_message_multimodal_response(msg))
                 if images and images[0].get("data"):
                     return base64.b64decode(images[0]["data"])
                 last_err = RuntimeError(f"empty response (txt={(_txt or '')[:100]})")
             except Exception as e:
                 last_err = e
-                log.warning(f"[scene_image] attempt {attempt+1} failed for {session_id}: {type(e).__name__}: {str(e)[:200]}")
-        raise last_err or RuntimeError("image gen failed after retries")
+                log.warning(f"[scene_image] attempt {attempt+1}/3 failed for {session_id}: {type(e).__name__}: {str(e)[:200]}")
+            if attempt < 2:
+                _t.sleep(BACKOFF_SECONDS[attempt])
+        raise last_err or RuntimeError("image gen failed after 3 retries")
 
     return await asyncio.get_event_loop().run_in_executor(IMAGE_EXECUTOR, _sync_call)
 
@@ -1197,13 +1227,32 @@ async def _run_pipeline_inner(job_id: str):
             return await _fail(job_id, "SCRIPT_FAIL", f"Trailer writing hit a hiccup. Please retry.")
         await db.photo_trailer_jobs.update_one({"_id": job_id}, {"$set": {"script_text": json.dumps(scenes)[:8000]}})
 
-        # Image + voice generation per scene (parallelised)
+        # Image + voice generation per scene (parallelised, with per-scene retry)
         await _set_stage(job_id, "GENERATING_SCENES")
         scene_payload: List[dict] = []
         per_scene_dur = max(3.0, j["duration_target_seconds"] / max(1, len(scenes)))
+        total_scenes = len(scenes)
 
         async def _scene_assets(idx: int, sc: dict) -> dict:
-            img_bytes = await _gen_scene_image(sc["visual"], hero_b64, villain_b64, session_id=f"img_{job_id}_{idx}")
+            """Generate one scene's image. Inner _gen_scene_image already
+            retries 3x with backoff on the gemini call itself."""
+            await _heartbeat(job_id, f"Generating scene {idx+1}/{total_scenes}")
+            try:
+                img_bytes = await _gen_scene_image(
+                    sc["visual"], hero_b64, villain_b64,
+                    session_id=f"img_{job_id}_{idx}",
+                )
+            except Exception as first_err:
+                # Outer per-scene retry: provider-level errors that survived
+                # 3 inner retries get ONE more shot here, with a fresh session
+                # id so any rate-limit cool-down has a chance to clear.
+                log.warning(f"[trailer {job_id}] scene {idx+1} provider error → outer retry: {first_err}")
+                await _heartbeat(job_id, f"Retrying scene {idx+1}/{total_scenes}")
+                await asyncio.sleep(3)
+                img_bytes = await _gen_scene_image(
+                    sc["visual"], hero_b64, villain_b64,
+                    session_id=f"img_retry_{job_id}_{idx}",
+                )
             img_path = os.path.join(tmpdir, f"scene_{idx}.png")
             with open(img_path, "wb") as f: f.write(img_bytes)
             await db.photo_trailer_scenes.insert_one({
@@ -1217,14 +1266,33 @@ async def _run_pipeline_inner(job_id: str):
             return {"idx": idx, "image_path": img_path, "narration": sc["narration"]}
 
         try:
-            scene_payload = await asyncio.gather(*[_scene_assets(i, sc) for i, sc in enumerate(scenes)])
-        except Exception as e:
-            log.exception(f"[trailer {job_id}] image gen failed: {e}")
+            # gather with return_exceptions so one failed scene doesn't cancel
+            # the others — we tally what failed and report which scene index
+            # to the user instead of dropping the whole trailer.
+            results = await asyncio.gather(
+                *[_scene_assets(i, sc) for i, sc in enumerate(scenes)],
+                return_exceptions=True,
+            )
+            failed_idx = [i for i, r in enumerate(results) if isinstance(r, Exception)]
+            if failed_idx:
+                # Log each failure precisely — diagnostics will show which
+                # scenes are pathological.
+                for i in failed_idx:
+                    log.error(f"[trailer {job_id}] scene {i+1} FAILED after retries: "
+                              f"{type(results[i]).__name__}: {str(results[i])[:300]}")
+                return await _fail(
+                    job_id, "IMAGE_GEN_FAIL",
+                    f"Couldn't render scene {failed_idx[0]+1}/{total_scenes} after retries. Please retry.",
+                )
+            scene_payload = list(results)
+        except Exception:
+            log.exception(f"[trailer {job_id}] image gen gather crashed")
             return await _fail(job_id, "IMAGE_GEN_FAIL", "Some scenes couldn't render. Please retry.")
 
         # Voiceover per scene
         await _set_stage(job_id, "GENERATING_VOICEOVER")
         async def _v(p):
+            await _heartbeat(job_id, f"Recording voiceover {p['idx']+1}/{total_scenes}")
             audio = await _tts(p["narration"], j.get("narrator_style") or "alloy")
             ap = os.path.join(tmpdir, f"audio_{p['idx']}.mp3"); 
             with open(ap, "wb") as f: f.write(audio)
@@ -1239,6 +1307,7 @@ async def _run_pipeline_inner(job_id: str):
         # Render
         await _set_stage(job_id, "ADDING_MUSIC")
         await _set_stage(job_id, "RENDERING_TRAILER")
+        await _heartbeat(job_id, "Final render — stitching scenes, adding music, watermark")
         try:
             scene_payload.sort(key=lambda p: p["idx"])
             final_path = await _render_trailer(j, scene_payload, tmpdir)
@@ -1375,35 +1444,135 @@ async def _upload_video_bytes(data: bytes, name: str, user_id: str) -> tuple:
 
 
 # ═════════════════════════ STALE-JOB JANITOR ════════════════════════════════════
-# Reaps Photo Trailer jobs stuck in PROCESSING > STALE_THRESHOLD minutes.
+# Reaps Photo Trailer jobs stuck in PROCESSING > duration-tier-aware threshold.
 # Hardens against backend restart drops + orphaned pipelines (e.g. a worker
 # crash mid-render). Marks them FAILED with STALE_PIPELINE and refunds the
 # user's credits exactly once. Idempotent — re-running is safe.
+#
+# RELIABILITY SPRINT (2026-04-29 founder directive):
+#   1. Dynamic stale thresholds per duration tier (was hard-coded 5min for all
+#      tiers — that's why 50% of fails were JANITOR_STALE on 60/90s renders
+#      that legitimately take 4+ minutes).
+#   2. Heartbeat protection — if last_progress_at < HEARTBEAT_LIVE_SECONDS,
+#      the job is alive and the janitor MUST NOT reap it.
+#   3. Auto-recovery — first STALE_PIPELINE auto-requeues exactly once,
+#      preserving credits. Only the second stale → real refund + fail.
 
-STALE_THRESHOLD_MINUTES = 5
+# Per-duration stale thresholds (founder directive):
+#   20s trailer  = 10 min
+#   45-60s       = 20 min
+#   90s          = 35 min
+STALE_MIN_BY_DURATION = {
+    20: 10,
+    45: 20,
+    60: 20,
+    90: 35,
+}
+STALE_THRESHOLD_DEFAULT_MIN = 15  # used when duration_target_seconds is missing
+HEARTBEAT_LIVE_SECONDS = 180  # 3 min — if progress newer than this, job is alive
 JANITOR_INTERVAL_SECONDS = 120
+MAX_AUTO_REQUEUES = 1  # stale-recovery: each job gets ONE free auto-retry
+STALE_THRESHOLD_MINUTES = STALE_THRESHOLD_DEFAULT_MIN  # back-compat for older tests
+
+def _stale_threshold_for(duration_seconds: Optional[int]) -> int:
+    """Pick the right stale-cutoff for this job's duration tier."""
+    if duration_seconds is None:
+        return STALE_THRESHOLD_DEFAULT_MIN
+    return STALE_MIN_BY_DURATION.get(int(duration_seconds), STALE_THRESHOLD_DEFAULT_MIN)
 
 async def _reap_stale_pipelines() -> Dict[str, Any]:
-    """Single sweep — find + reap PROCESSING jobs older than the threshold.
-    Returns metrics dict for logging/testing. Atomic + idempotent:
-    the status update is gated on `status: PROCESSING`, so if two janitors
-    or a real completion race the reap, only one wins and only that one
-    issues a refund."""
-    cutoff_dt = datetime.now(timezone.utc) - timedelta(minutes=STALE_THRESHOLD_MINUTES)
-    cutoff_iso = cutoff_dt.isoformat()
-    reaped, refunded_total, refund_failures, skipped_already_terminal = 0, 0, 0, 0
+    """Single sweep — find + reap PROCESSING jobs older than their duration-tier
+    threshold AND with no recent progress heartbeat. First-time stale jobs are
+    auto-requeued (credits preserved). Second-time stale → refund + FAIL.
 
+    Returns metrics dict for logging/testing. Atomic + idempotent: status/retry
+    transitions are gated on prior values, so concurrent janitor sweeps cannot
+    double-refund or double-requeue."""
+    now_dt = datetime.now(timezone.utc)
+    reaped, refunded_total, refund_failures, skipped_already_terminal = 0, 0, 0, 0
+    auto_requeued, skipped_alive_heartbeat = 0, 0
+
+    # Pull anything PROCESSING old enough to MAYBE be stale. The smallest
+    # possible threshold is the smallest tier (10min for 20s tier), so we
+    # use that as a cheap DB-side prefilter — anything younger than that
+    # cannot possibly be stale regardless of duration tier.
+    min_threshold_min = min(STALE_MIN_BY_DURATION.values())
+    db_prefilter_cutoff = (now_dt - timedelta(minutes=min_threshold_min)).isoformat()
+    # Cap per-sweep work so a backlog of stuck jobs (e.g. after a backend
+    # restart) cannot thunder the orchestrator with simultaneous requeues.
+    SWEEP_LIMIT = 50
     cursor = db.photo_trailer_jobs.find({
         "status": "PROCESSING",
-        "started_at": {"$lt": cutoff_iso, "$ne": None},
-    })
+        "started_at": {"$lt": db_prefilter_cutoff, "$ne": None},
+    }).limit(SWEEP_LIMIT)
     async for j in cursor:
         jid = j["_id"]
-        # Atomic transition: only flip if STILL PROCESSING. Loses race -> skip.
+        # 1. Per-duration threshold check
+        threshold_min = _stale_threshold_for(j.get("duration_target_seconds"))
+        started_iso = j.get("started_at")
+        if not started_iso:
+            continue
+        try:
+            started_dt = datetime.fromisoformat(started_iso)
+        except Exception:
+            continue
+        age_min = (now_dt - started_dt).total_seconds() / 60.0
+        if age_min < threshold_min:
+            continue  # not old enough for its tier yet
+
+        # 2. Heartbeat protection — alive jobs must not be reaped.
+        last_prog = j.get("last_progress_at") or j.get("updated_at")
+        if last_prog:
+            try:
+                last_prog_dt = datetime.fromisoformat(last_prog)
+                if (now_dt - last_prog_dt).total_seconds() < HEARTBEAT_LIVE_SECONDS:
+                    skipped_alive_heartbeat += 1
+                    continue
+            except Exception:
+                pass
+
+        # 3. Auto-recovery: first stale gets a free requeue.
+        retry_count = int(j.get("retry_count") or 0)
+        if retry_count < MAX_AUTO_REQUEUES:
+            # Atomic transition: PROCESSING + retry_count==N → QUEUED + retry_count==N+1
+            upd = await db.photo_trailer_jobs.update_one(
+                {"_id": jid, "status": "PROCESSING", "retry_count": {"$in": [None, retry_count]}},
+                {"$set": {
+                    "status": "QUEUED",
+                    "current_stage": "VALIDATING",
+                    "progress_percent": 0,
+                    "progress_message": "Recovering stalled job — auto-retrying",
+                    "started_at": None,  # reset so the next sweep computes a fresh age
+                    "last_progress_at": _now(),
+                    "last_stage_change_at": _now(),
+                    "updated_at": _now(),
+                    "retry_count": retry_count + 1,
+                    "auto_requeued_at": _now(),
+                }},
+            )
+            if upd.modified_count == 0:
+                skipped_already_terminal += 1
+                continue
+            # Fire and forget — orchestrator will re-run the pipeline.
+            asyncio.create_task(_run_pipeline(jid))
+            try:
+                await _emit("photo_trailer_auto_requeued", j["user_id"],
+                            {"job_id": jid, "retry_count": retry_count + 1, "age_min": round(age_min, 1)})
+            except Exception:
+                pass
+            log.warning(
+                f"[trailer-janitor] AUTO-REQUEUED stale job {jid} user={j['user_id']} "
+                f"template={j.get('template_id')} age={round(age_min,1)}min retry={retry_count+1}"
+            )
+            auto_requeued += 1
+            continue
+
+        # 4. Already retried → real failure with refund (atomic transition guards refund).
         upd = await db.photo_trailer_jobs.update_one(
             {"_id": jid, "status": "PROCESSING"},
             {"$set": {
                 "status": "FAILED", "current_stage": "FAILED",
+                "failure_stage": "JANITOR_STALE",
                 "error_code": "STALE_PIPELINE",
                 "error_message": "Trailer didn't complete in time. Credits refunded — please retry.",
                 "failed_at": _now(), "updated_at": _now(),
@@ -1412,25 +1581,20 @@ async def _reap_stale_pipelines() -> Dict[str, Any]:
         if upd.modified_count == 0:
             skipped_already_terminal += 1
             continue
-
-        # Refund exactly once: only if charged > 0 AND not previously refunded.
-        # The atomic guard above ensures only one janitor instance can reach here.
         charged = j.get("charged_credits") or 0
         prior_refund = j.get("refunded_credits") or 0
         if charged > 0 and prior_refund == 0:
             try:
                 await add_credits(j["user_id"], charged, f"Refund stale trailer {jid}", tx_type="REFUND")
-                # Belt-and-braces: the refunded_credits write is itself idempotent
-                # (set to charged value, won't double if re-run somehow).
                 await db.photo_trailer_jobs.update_one(
                     {"_id": jid, "refunded_credits": 0},
                     {"$set": {"refunded_credits": charged}},
                 )
                 refunded_total += charged
-                age_min = round((datetime.now(timezone.utc) - cutoff_dt).total_seconds() / 60 + STALE_THRESHOLD_MINUTES, 1)
                 log.warning(
                     f"[trailer-janitor] Reaped stale job {jid} user={j['user_id']} "
-                    f"template={j.get('template_id')} age>={age_min}min refunded={charged}cr"
+                    f"template={j.get('template_id')} age={round(age_min,1)}min "
+                    f"retry={retry_count} refunded={charged}cr"
                 )
             except Exception as e:
                 refund_failures += 1
@@ -1438,7 +1602,7 @@ async def _reap_stale_pipelines() -> Dict[str, Any]:
         else:
             log.warning(
                 f"[trailer-janitor] Reaped stale job {jid} user={j['user_id']} "
-                f"template={j.get('template_id')} (no refund needed: charged={charged} prior_refund={prior_refund})"
+                f"template={j.get('template_id')} age={round(age_min,1)}min retry={retry_count} (no refund needed)"
             )
         try:
             await _emit("photo_trailer_generation_failed", j["user_id"],
@@ -1449,10 +1613,12 @@ async def _reap_stale_pipelines() -> Dict[str, Any]:
 
     return {
         "reaped": reaped,
+        "auto_requeued": auto_requeued,
         "refunded_credits_total": refunded_total,
         "refund_failures": refund_failures,
+        "skipped_alive_heartbeat": skipped_alive_heartbeat,
         "skipped_already_terminal": skipped_already_terminal,
-        "cutoff_iso": cutoff_iso,
+        "swept_at": now_dt.isoformat(),
     }
 
 
@@ -1461,7 +1627,8 @@ async def stale_pipeline_janitor_loop():
     every JANITOR_INTERVAL_SECONDS seconds. Survives individual sweep errors.
     Also runs the source-photo retention sweep on the same cadence (it's
     cheap when there's nothing to purge)."""
-    log.info(f"[trailer-janitor] starting (every {JANITOR_INTERVAL_SECONDS}s, threshold {STALE_THRESHOLD_MINUTES}min)")
+    log.info(f"[trailer-janitor] starting (every {JANITOR_INTERVAL_SECONDS}s, "
+             f"thresholds={STALE_MIN_BY_DURATION}min, heartbeat={HEARTBEAT_LIVE_SECONDS}s)")
     await asyncio.sleep(15)
     while True:
         try:

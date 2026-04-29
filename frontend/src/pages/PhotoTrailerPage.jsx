@@ -511,6 +511,13 @@ function ProgressStep({ jobId, onDone, onFail }) {
   }, [jobId]);
   const stage = job?.current_stage || 'QUEUED';
   const pct = job?.progress_percent ?? 0;
+  // RELIABILITY SPRINT: progress_message gives sub-stage detail like
+  // "Retrying scene 4/6" or "Recovering stalled job — auto-retrying".
+  // It overrides the static stage copy when present so the user always
+  // sees fresh signal — never a silent dead job.
+  const progressMessage = job?.progress_message;
+  const stageCopy = STAGE_COPY[stage] || stage;
+  const isRetry = !!progressMessage && /retry|recover/i.test(progressMessage);
 
   return (
     <div className="space-y-6 text-center py-8" data-testid="trailer-step-progress">
@@ -519,7 +526,13 @@ function ProgressStep({ jobId, onDone, onFail }) {
       </div>
       <div>
         <h2 className="text-2xl font-bold text-white">Building your trailer</h2>
-        <p className="text-sm text-slate-300 mt-1" data-testid="trailer-stage-copy">{STAGE_COPY[stage] || stage}</p>
+        <p className="text-sm text-slate-300 mt-1" data-testid="trailer-stage-copy">{stageCopy}</p>
+        {progressMessage && (
+          <p className={`text-sm mt-1 font-medium ${isRetry ? 'text-amber-300' : 'text-violet-300'}`}
+             data-testid="trailer-progress-message">
+            {progressMessage}
+          </p>
+        )}
       </div>
       <div className="w-full max-w-md mx-auto h-2 rounded-full bg-white/10 overflow-hidden">
         <div className="h-full bg-gradient-to-r from-violet-500 to-fuchsia-500 transition-all" style={{ width: `${pct}%` }} />

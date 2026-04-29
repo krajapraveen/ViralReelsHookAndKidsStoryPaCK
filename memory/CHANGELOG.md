@@ -94,3 +94,45 @@
 - Frontend: 4 cards under fail-rate (#1/#2/#3 stages + top error), recovery banner with strikethrough → projected rate, dual stage/code breakdown tables with retryable/fatal badges, stacked-bar daily fail trend with stage legend, collapsible recent-failures drawer (last 10)
 - 6 KPI dashboard tests passing
 
+
+### Photo Trailer — P0 RELIABILITY SPRINT (2026-02-XX)
+Founder directive: 59.2% fail rate → under 20%. Three changes shipped together.
+
+**1. JANITOR — Dynamic stale thresholds + heartbeat protection**
+- Replaced single `STALE_THRESHOLD_MINUTES = 5` with per-duration table:
+  20s = 10min, 45/60s = 20min, 90s = 35min, default = 15min
+- Added `last_progress_at` + `last_stage_change_at` fields, written by `_set_stage`
+  and a new `_heartbeat(job_id, message)` helper called inline during long stages
+- Janitor skips any job whose `last_progress_at` < 180s (alive)
+- DB-side prefilter (smallest tier threshold) + per-sweep cap of 50 jobs prevents
+  thundering-herd on backlogs
+
+**2. STALE AUTO-RECOVERY — First stale gets a free retry**
+- New `retry_count` field. retry_count == 0 + stale → status flips back to QUEUED,
+  `_run_pipeline(jid)` re-scheduled, `auto_requeued_at` stamped, `retry_count = 1`,
+  `progress_message = "Recovering stalled job — auto-retrying"`. NO refund.
+- retry_count >= 1 + stale → normal FAIL + STALE_PIPELINE + refund (existing path)
+- Funnel event `photo_trailer_auto_requeued` emitted for dashboard observability
+
+**3. IMAGE_GEN HARDENING — Per-scene retry, partial-failure tolerance**
+- `_gen_scene_image` inner retry bumped 2→3 attempts with explicit 2/5/10s backoff
+- Outer per-scene retry in orchestrator (one extra shot with fresh session_id)
+- `asyncio.gather(return_exceptions=True)` — one failed scene no longer cancels
+  in-flight siblings; failure message tells user which scene index died
+- Heartbeat ping per scene start ("Generating scene 4/6") + on retry ("Retrying scene 4/6")
+
+**UX**
+- New `progress_message` field rendered under the stage copy in the wizard
+- Amber styling on retry/recovery messages, violet on normal progress
+
+**Tests**
+- 10/10 new reliability_sprint tests green
+- 4/4 existing janitor regression tests updated for new behavior
+- Full Photo Trailer regression: 47/47 green
+
+**Expected impact** (per dashboard recovery-opportunity card):
+- 67 STALE_PIPELINE jobs in 30d × ~65% recovery → ~44 jobs saved
+- Projected fail-rate drop: 59.1% → ~40% on STALE alone
+- Plus IMAGE_GEN retries should cut the 41% IMAGE_GEN_FAIL share further
+- Combined target post-fix: under 20%
+
