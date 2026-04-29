@@ -178,7 +178,13 @@ function UploadStep({ sessionId, setSessionId, photos, setPhotos, consent, setCo
             <ShieldCheck className={`w-4 h-4 ${consent ? 'text-emerald-300' : 'text-slate-400'}`} />
             I confirm I have rights or permission to use these photos.
           </div>
-          <p className="text-xs text-slate-400 mt-0.5">Tap to confirm. Do not upload photos of people without permission.</p>
+          <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+            No celebrities, public figures, or copyrighted characters (Marvel, Disney, anime IP, etc.).
+            No photos of minors without a parent's consent. Source photos are auto-deleted after 7 days.
+          </p>
+          <p className="text-[11px] text-slate-500 mt-1">
+            Trailers carry a Visionary Suite watermark + provenance metadata for safety.
+          </p>
         </div>
       </label>
 

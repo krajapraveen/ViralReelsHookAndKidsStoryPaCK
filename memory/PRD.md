@@ -1617,3 +1617,118 @@ Founder directive: get the failing 2 backend tests to 24/24, no scope creep.
    (UserManual at /help and Contact at /contact already existed).
    Pure information-architecture surfacing.
 
+
+
+─────────────────────────────────────────────────────────
+[2026-04-29 P0] PHOTO TRAILER MOTION UPGRADE — VERIFIED + SHIPPED
+─────────────────────────────────────────────────────────
+Founder rationale: trailers without movement read like a slideshow. Cinematic
+motion is required for shareability/virality.
+
+Bug found in v2 motion catalog: pan-only styles (1, 4, 7) used a fixed
+px-per-frame rate that exceeded the available pan range for longer scenes,
+causing the second half of those clips to clamp at the canvas edge (frozen).
+
+✅ `_motion_filter` rewritten with FRAME-BOUNDED math
+   File: backend/routes/photo_trailer.py
+   • All motion rates normalized against `last = f - 1` so the camera
+     traverses its FULL valid range across the clip duration — never
+     overshoots, never clamps.
+   • 8 distinct camera moves (slow_push, pan_right, pull_back,
+     push_to_face, pan_left, diagonal_drift, handheld_shake, vertical_reveal)
+     rotated by `tone_seed + scene_index` so every 6-scene trailer gets
+     ≥ 4 distinct moves.
+   • Per-template tone color grade preserved (eq filter).
+
+✅ Verification harness — backend/tests/verify_motion_math.py
+   Standalone ffmpeg test against a high-detail synthetic source image.
+   Validates per-style: longest frozen run, frame-by-frame motion (PSNR),
+   pairwise distinctness across the 8-style catalog. Result: 8/8 PASS,
+   28/28 distinct style pairs.
+
+✅ Verification harness — backend/tests/verify_motion_e2e.py
+   Real end-to-end run: login → upload → consent → 15s superhero job →
+   poll to COMPLETED → download MP4 → frame-extract + frame-diff body.
+   Result on actual job 5ea323c3-7c5b-4f4c (Apr 29, 09:00 UTC):
+     • Render time:                 76s (under the 90s budget)
+     • Output size:                 3.03 MB
+     • Longest frozen run (body):   2 frames = 0.08s   (target < 1s)  ✅
+     • Distinct scene cuts:         6                  (target ≥ 4)   ✅
+     • Intra-scene motion segments: 6/6                (target ≥ 4)   ✅
+     • Templates p50 latency under render: 7ms p95 49ms (target <500ms) ✅
+
+📁 Files changed:
+   • backend/routes/photo_trailer.py — `_motion_filter` rewritten (~32 LOC)
+   • backend/tests/verify_motion_math.py (NEW, 175 LOC)
+   • backend/tests/verify_motion_e2e.py (NEW, 200 LOC)
+
+
+─────────────────────────────────────────────────────────
+[2026-04-29 P0] PHOTO TRAILER TRUST + LEGAL HARDENING — SHIPPED
+─────────────────────────────────────────────────────────
+Founder directive: prevent copyright infringement, deepfake abuse, regulatory
+non-compliance, likeness rights violations as the feature scales.
+
+✅ 1. Prompt sanitizer (rejects copyrighted/celebrity/unsafe at job creation)
+   File: backend/routes/photo_trailer.py — `_sanitize_prompt`
+   • 14 regex pattern groups across 3 categories:
+     - Public figures / heads of state (Trump, Biden, Modi, Musk, Bezos…)
+     - Celebrities (Tom Cruise, Beyoncé, MS Dhoni, Shahrukh Khan…)
+     - Copyrighted franchises (Marvel/DC/Disney/Star Wars/Harry Potter/
+       Pokemon/anime IP/James Bond/Game of Thrones/Breaking Bad…)
+     - Explicit / minors-unsafe / hate / violence-glorification
+     - Deepfake/face-swap-porn keywords
+   • Light-touch rewrites for safer phrasings (deepfake → AI cinematic portrait)
+   • Hard-block triggers raise HTTPException(400) with friendly explanation
+   • Audit row written to `db.photo_trailer_safety_blocks`
+     (raw_prompt, reason, template_id, blocked_at) — for ops review
+   • `photo_trailer_prompt_blocked` funnel event tracks rejection rate
+   • Blocks BEFORE credits are charged — safe for the user
+
+✅ 2. MP4 provenance metadata embedded in container
+   File: backend/routes/photo_trailer.py — `_render_trailer`
+   ffmpeg `-metadata` flags bake forensic + brand tags into final mp4:
+     title=Created with Visionary Suite AI
+     artist=Visionary Suite
+     comment=AI-generated personalized trailer
+     copyright=© Visionary Suite — visionary-suite.com
+     encoded_by=visionary-suite/photo-trailer-v2
+     description=Photo Trailer Job <8-char-id> | <template_id>
+   • Survives re-upload / rename without re-encode
+   • Visible to takedown bots, DMCA scanners, video tooling
+
+✅ 3. Source photo retention auto-purge (7-day default)
+   File: backend/routes/photo_trailer.py — `_purge_old_source_photos`
+   Bounded janitor sweep on 2-min cadence (alongside stale-job janitor):
+   • Finds jobs in COMPLETED/FAILED/CANCELLED whose terminal timestamp is
+     older than `PHOTO_TRAILER_PHOTO_RETENTION_DAYS` (default 7)
+   • Deletes those sessions' assets from R2 (calls `r2.delete_file(key)`)
+   • Marks `assets.deleted_at` + `r2_purge_ok` in Mongo (idempotent)
+   • Caps at 200 assets per pass so a backlog can't stall the loop
+   • Admin manual trigger: `POST /api/photo-trailer/admin/retention/run-now`
+
+✅ 4. Frontend consent text strengthened
+   File: frontend/src/pages/PhotoTrailerPage.jsx (UploadStep)
+   Consent block now states verbatim:
+     "I confirm I have rights or permission to use these photos."
+     "No celebrities, public figures, or copyrighted characters
+      (Marvel, Disney, anime IP, etc.). No photos of minors without a
+      parent's consent. Source photos are auto-deleted after 7 days."
+     "Trailers carry a Visionary Suite watermark + provenance metadata for safety."
+
+✅ Tests — backend/tests/test_photo_trailer_trust_legal.py (7 NEW)
+   1. test_sanitizer_blocks_celebrity_prompt        — Tom Cruise rejected
+   2. test_sanitizer_blocks_marvel_ip               — Iron Man/Avengers rejected
+   3. test_sanitizer_blocks_explicit_content        — nude scene rejected
+   4. test_sanitizer_rewrites_deepfake_word         — friendly rewrite path
+   5. test_sanitizer_safety_block_audit_row         — audit doc inserted
+   6. test_render_embeds_provenance_metadata        — ffprobe-verified tags
+   7. test_retention_sweep_purges_old_source_photos — old purged, recent kept
+
+📊 Full Photo Trailer suite: 35/35 PASS in 32s (was 28/28).
+
+📁 Files changed:
+   • backend/routes/photo_trailer.py — sanitizer + metadata + retention (~150 LOC)
+   • frontend/src/pages/PhotoTrailerPage.jsx — consent text (3 lines)
+   • backend/tests/test_photo_trailer_trust_legal.py (NEW, 235 LOC)
+

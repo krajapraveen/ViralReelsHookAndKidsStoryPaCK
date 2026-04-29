@@ -216,6 +216,62 @@ async def list_templates():
 async def credit_estimate(duration: int = Query(45, ge=15, le=60), user: dict = Depends(get_current_user)):
     return {"duration_seconds": duration, "credits": _credits_for(duration), "user_credits": user.get("credits", 0)}
 
+# ─── Trust & Legal: prompt sanitizer ──────────────────────────────────────────
+# Hard-block list of phrases we will not generate. Three categories:
+#   1. Real public figures & celebrities (likeness rights + defamation risk)
+#   2. Copyrighted franchises / characters (IP infringement)
+#   3. Explicit / minors-unsafe / hate / violence-glorification content
+# We REJECT loudly at job creation time so credits are never charged. Frontend
+# shows the reason verbatim; the user can reword and retry.
+_BLOCK_PATTERNS = [
+    # Politicians / heads of state / activists (small public list — not exhaustive,
+    # serves as a deterrent + audit trail; full coverage requires an LLM-side filter).
+    r"\b(donald\s*trump|joe\s*biden|narendra\s*modi|vladimir\s*putin|xi\s*jinping|kamala\s*harris|barack\s*obama|elon\s*musk|kim\s*jong[\-\s]*un|emmanuel\s*macron|rishi\s*sunak|mark\s*zuckerberg|jeff\s*bezos)\b",
+    # Top-tier celebrities / actors / athletes (likeness)
+    r"\b(taylor\s*swift|beyonc[eé]|rihanna|drake|kanye\s*west|ariana\s*grande|justin\s*bieber|selena\s*gomez|lady\s*gaga|tom\s*cruise|tom\s*holland|robert\s*downey|leonardo\s*dicaprio|brad\s*pitt|angelina\s*jolie|johnny\s*depp|will\s*smith|dwayne\s*johnson|the\s*rock|chris\s*hemsworth|chris\s*evans|scarlett\s*johansson|gal\s*gadot|jennifer\s*lawrence|emma\s*watson|harry\s*styles|virat\s*kohli|lionel\s*messi|cristiano\s*ronaldo|ms\s*dhoni|shahrukh\s*khan|salman\s*khan|deepika\s*padukone|priyanka\s*chopra)\b",
+    # Copyrighted franchises / characters
+    r"\b(marvel|avengers|iron\s*man|spider[\-\s]*man|spiderman|captain\s*america|thor|hulk|black\s*widow|hawkeye|black\s*panther|wakanda|loki|thanos|wanda|doctor\s*strange|deadpool|wolverine|x[\-\s]*men)\b",
+    r"\b(dc\s+comics|batman|superman|wonder\s*woman|the\s*joker|aquaman|the\s*flash|green\s*lantern|harley\s*quinn|justice\s*league)\b",
+    r"\b(disney|pixar|mickey\s*mouse|donald\s*duck|elsa|anna|frozen|moana|ariel|cinderella|simba|nemo|woody|buzz\s*lightyear|toy\s*story)\b",
+    r"\b(star\s*wars|jedi|sith|darth\s*vader|luke\s*skywalker|yoda|baby\s*yoda|grogu|mandalorian|kylo\s*ren)\b",
+    r"\b(harry\s*potter|hogwarts|voldemort|hermione|dumbledore|gryffindor|slytherin)\b",
+    r"\b(pokemon|pokémon|pikachu|charizard|nintendo|mario|luigi|princess\s*peach|zelda|sonic\s*the\s*hedgehog)\b",
+    r"\b(naruto|goku|dragon\s*ball|one\s*piece|luffy|sasuke|kakashi|attack\s*on\s*titan|demon\s*slayer|jujutsu\s*kaisen)\b",
+    r"\b(james\s*bond|007|mission\s*impossible|john\s*wick|fast\s*&?\s*furious|the\s*matrix|neo|john\s*rambo|rocky\s*balboa|terminator|t-800|t-1000)\b",
+    r"\b(game\s*of\s*thrones|jon\s*snow|daenerys|stark|lannister|targaryen|breaking\s*bad|walter\s*white|stranger\s*things|eleven|squid\s*game)\b",
+    # Explicit / NSFW / minors-unsafe / illegal / hate
+    r"\b(nude|naked|nsfw|porn|sex\s*scene|erotic|fetish|onlyfans)\b",
+    r"\b(child\s*(soldier|abuse|porn)|minor\s*(naked|nude|sexual)|underage\s*(sex|nude)|loli|shota)\b",
+    r"\b(kill\s+(real|all)\s+\w+|behead|terrorist\s+attack|isis|al[\-\s]*qaeda|nazi\s+(victory|propaganda)|hitler\s+(portrait|hero|biography)|genocide|mass\s+shooting)\b",
+    r"\b(deepfake|deep[\-\s]*fake|face[\-\s]*swap\s+(porn|nude|celeb))\b",
+]
+_BLOCK_REGEX = re.compile("|".join(_BLOCK_PATTERNS), re.IGNORECASE)
+
+# Friendly rewrites — when the prompt LOOKS like an unsafe ask but we can
+# soften it. Currently used for "deepfake" → "AI cinematic portrait".
+_REWRITE_MAP = {
+    r"\bdeep[\-\s]*fake\b": "AI cinematic portrait",
+    r"\bface[\-\s]*swap\b": "AI character likeness",
+}
+
+def _sanitize_prompt(text: str) -> tuple[str, Optional[str]]:
+    """Returns (cleaned_prompt, reject_reason). If reject_reason is non-None
+    the caller MUST refuse the job. Otherwise the cleaned prompt is safe to
+    forward downstream."""
+    if not text: return ("", None)
+    # 1. Light-touch rewrites first
+    cleaned = text
+    for pat, repl in _REWRITE_MAP.items():
+        cleaned = re.sub(pat, repl, cleaned, flags=re.IGNORECASE)
+    # 2. Hard-block check on the rewritten text
+    m = _BLOCK_REGEX.search(cleaned)
+    if m:
+        bad = m.group(0)
+        return (cleaned, f"Your prompt mentions \"{bad}\". To protect copyrights and likeness rights, "
+                         "please reword without celebrities, public figures, or copyrighted characters.")
+    return (cleaned, None)
+
+
 # ─── Job creation ─────────────────────────────────────────────────────────────
 @router.post("/jobs")
 async def create_job(body: JobCreateIn, bg: BackgroundTasks, user: dict = Depends(get_current_user)):
@@ -236,6 +292,21 @@ async def create_job(body: JobCreateIn, bg: BackgroundTasks, user: dict = Depend
     cred = _credits_for(body.duration_target_seconds)
     if (user.get("credits") or 0) < cred and role != "ADMIN":
         raise HTTPException(402, f"Need {cred} credits. You have {user.get('credits', 0)}.")
+
+    # ── Trust & Legal: prompt sanitizer (blocks before credits are charged) ──
+    raw_prompt = (body.custom_prompt or "").strip()
+    cleaned_prompt, reject_reason = _sanitize_prompt(raw_prompt)
+    if reject_reason:
+        # Audit trail for review without blowing up the user's credits.
+        try:
+            await db.photo_trailer_safety_blocks.insert_one({
+                "_id": str(uuid.uuid4()), "user_id": user["id"],
+                "raw_prompt": raw_prompt[:1000], "reason": reject_reason,
+                "template_id": body.template_id, "blocked_at": _now(),
+            })
+        except Exception: pass
+        await _emit("photo_trailer_prompt_blocked", user["id"], {"reason": reject_reason[:200]})
+        raise HTTPException(400, reject_reason)
     job_id = str(uuid.uuid4())
     tpl = TEMPLATES[body.template_id]
     job = {
@@ -244,7 +315,7 @@ async def create_job(body: JobCreateIn, bg: BackgroundTasks, user: dict = Depend
         "hero_asset_id": body.hero_asset_id, "villain_asset_id": body.villain_asset_id,
         "supporting_asset_ids": body.supporting_asset_ids,
         "template_id": body.template_id, "template_name": tpl["title"],
-        "custom_prompt": (body.custom_prompt or "").strip()[:500],
+        "custom_prompt": cleaned_prompt[:500],
         "duration_target_seconds": body.duration_target_seconds,
         "estimated_credits": cred, "charged_credits": 0, "refunded_credits": 0,
         "narrator_style": tpl["narrator"], "music_mood": tpl["music_mood"],
@@ -507,30 +578,41 @@ async def _ffmpeg(args: List[str]) -> None:
 # so movement is continuous regardless of clip length.
 def _motion_filter(idx: int, frames: int) -> str:
     """Pick a motion style by index. zoompan paints one frame per `d` step;
-    we drive `d=frames` so the move plays exactly once across the clip."""
-    f = max(1, int(frames))
-    # All motions use `on` (current output frame number) directly so the
-    # ffmpeg zoom variable's accumulation quirks can never freeze a clip.
-    # Each style produces visibly continuous motion at every frame.
-    h = 2.6  # horizontal sweep px/frame
-    v = 1.8  # vertical sweep px/frame
+    we drive `d=frames` so the move plays exactly once across the clip.
+
+    All motion rates are normalized against `last` (= f-1) so the camera
+    traverses its FULL valid range over the clip duration — never running
+    out of pan room and clamping mid-clip (the bug that caused the second
+    half of pan styles to freeze in v2)."""
+    f = max(2, int(frames))
+    last = f - 1  # final output frame index — denominator for normalised pans
+    # Zoom ramps: total delta over the clip (e.g. 0.22 = 1.00→1.22).
+    z_in   = f"1.0+on*{0.22/last:.6f}"   # slow_push: 1.00 → 1.22
+    z_in_h = f"1.0+on*{0.30/last:.6f}"   # push_to_face: 1.00 → 1.30
+    z_out  = f"1.32-on*{0.22/last:.6f}"  # pull_back: 1.32 → 1.10
+    z_drift= f"1.0+on*{0.20/last:.6f}"   # diagonal_drift: 1.00 → 1.20
+    # Pan factors stay in [0, 1] of the available range (iw-iw/zoom).
+    px_full   = f"on/{last}"                # 0 → 1
+    px_invert = f"(1-on/{last})"            # 1 → 0
+    px_drift  = f"(0.20+on*{0.55/last:.6f})" # 0.20 → 0.75 — gentle off-axis
+    py_drift  = f"(0.30+on*{0.40/last:.6f})" # 0.30 → 0.70
     styles = [
-        # 0: slow_push — 1.00 → ~1.22 over the clip
-        f"zoompan=z='1.0+on*0.0030':d={f}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1280x720:fps=25",
-        # 1: pan_right — fixed zoom, horizontal sweep
-        f"zoompan=z='1.20':d={f}:x='(iw-iw/zoom)/2+on*{h}':y='(ih-ih/zoom)/2':s=1280x720:fps=25",
-        # 2: pull_back — 1.32 → ~1.10
-        f"zoompan=z='1.32-on*0.0030':d={f}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1280x720:fps=25",
-        # 3: push_to_face — 1.00 → ~1.30, anchored toward upper third
-        f"zoompan=z='1.0+on*0.0040':d={f}:x='iw/2-(iw/zoom/2)':y='ih/3-(ih/zoom/3)':s=1280x720:fps=25",
-        # 4: pan_left
-        f"zoompan=z='1.20':d={f}:x='(iw-iw/zoom)/2-on*{h}':y='(ih-ih/zoom)/2':s=1280x720:fps=25",
-        # 5: diagonal_drift — zoom + diagonal sweep
-        f"zoompan=z='1.0+on*0.0022':d={f}:x='(iw-iw/zoom)/2+on*{h}':y='(ih-ih/zoom)/2+on*{v}':s=1280x720:fps=25",
-        # 6: handheld_shake — micro shake with sin/cos
+        # 0: slow_push — center-anchored zoom-in
+        f"zoompan=z='{z_in}':d={f}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1280x720:fps=25",
+        # 1: pan_right — fixed zoom, full left→right traversal
+        f"zoompan=z='1.20':d={f}:x='{px_full}*(iw-iw/zoom)':y='(ih-ih/zoom)/2':s=1280x720:fps=25",
+        # 2: pull_back — center-anchored zoom-out from 1.32 to 1.10
+        f"zoompan=z='{z_out}':d={f}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1280x720:fps=25",
+        # 3: push_to_face — zoom-in anchored on upper third (face area)
+        f"zoompan=z='{z_in_h}':d={f}:x='iw/2-(iw/zoom/2)':y='ih/3-(ih/zoom/3)':s=1280x720:fps=25",
+        # 4: pan_left — fixed zoom, full right→left traversal
+        f"zoompan=z='1.20':d={f}:x='{px_invert}*(iw-iw/zoom)':y='(ih-ih/zoom)/2':s=1280x720:fps=25",
+        # 5: diagonal_drift — gentle zoom + bounded diagonal sweep
+        f"zoompan=z='{z_drift}':d={f}:x='{px_drift}*(iw-iw/zoom)':y='{py_drift}*(ih-ih/zoom)':s=1280x720:fps=25",
+        # 6: handheld_shake — fixed zoom + sub-pixel sin/cos shake
         f"zoompan=z='1.22':d={f}:x='iw/2-(iw/zoom/2)+sin(on/2.8)*22':y='ih/2-(ih/zoom/2)+cos(on/2.4)*14':s=1280x720:fps=25",
-        # 7: vertical_reveal — pan upward
-        f"zoompan=z='1.22':d={f}:x='iw/2-(iw/zoom/2)':y='(ih-ih/zoom)-on*{v}':s=1280x720:fps=25",
+        # 7: vertical_reveal — fixed zoom, full bottom→top reveal
+        f"zoompan=z='1.22':d={f}:x='iw/2-(iw/zoom/2)':y='{px_invert}*(ih-ih/zoom)':s=1280x720:fps=25",
     ]
     return styles[idx % len(styles)]
 
@@ -643,21 +725,33 @@ async def _render_trailer(job: dict, scenes_data: List[dict], tmp: str) -> str:
     # Music bed (if available) — duck under voiceover
     music_path = os.path.join(MUSIC_PACK_DIR, MUSIC_TRACK_BY_MOOD.get(job.get("music_mood", ""), ""))
     if not os.path.exists(music_path): music_path = None
-    # Watermark + optional music
+    # Watermark + optional music + provenance metadata embedded in MP4 container
     final = os.path.join(tmp, "final.mp4")
     wm_filter = ("[0:v]drawtext=text='Visionary Suite':fontcolor=white@0.65:fontsize=18:"
                  "x=w-tw-22:y=h-th-22:box=1:boxcolor=black@0.25:boxborderw=8[v]")
+    # Provenance metadata — forensic + brand tag baked into the container.
+    # Lets reviewers / takedown bots identify origin even if the file is
+    # re-uploaded / renamed without re-encoding.
+    job_id_short = str(job.get("_id", ""))[:8]
+    meta_args = [
+        "-metadata", "title=Created with Visionary Suite AI",
+        "-metadata", "artist=Visionary Suite",
+        "-metadata", "comment=AI-generated personalized trailer",
+        "-metadata", "copyright=© Visionary Suite — visionary-suite.com",
+        "-metadata", "encoded_by=visionary-suite/photo-trailer-v2",
+        "-metadata", f"description=Photo Trailer Job {job_id_short} | {job.get('template_id', 'custom')}",
+    ]
     if music_path:
         await _ffmpeg([ffmpeg, "-y", "-i", stitched, "-stream_loop", "-1", "-i", music_path,
                      "-filter_complex", wm_filter + ";[1:a]volume=0.18[m];[0:a][m]amix=inputs=2:duration=shortest[a]",
                      "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
                      "-c:a", "aac", "-b:a", "160k", "-ar", "44100", "-shortest",
-                     "-movflags", "+faststart", final])
+                     *meta_args, "-movflags", "+faststart", final])
     else:
         await _ffmpeg([ffmpeg, "-y", "-i", stitched, "-vf", "drawtext=text='Visionary Suite':fontcolor=white@0.65:fontsize=18:"
                      "x=w-tw-22:y=h-th-22:box=1:boxcolor=black@0.25:boxborderw=8",
                      "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
-                     "-c:a", "copy", "-movflags", "+faststart", final])
+                     "-c:a", "copy", *meta_args, "-movflags", "+faststart", final])
     return final
 
 async def _run_pipeline(job_id: str):
@@ -918,7 +1012,9 @@ async def _reap_stale_pipelines() -> Dict[str, Any]:
 
 async def stale_pipeline_janitor_loop():
     """Forever loop wired up at server startup. Runs `_reap_stale_pipelines`
-    every JANITOR_INTERVAL_SECONDS seconds. Survives individual sweep errors."""
+    every JANITOR_INTERVAL_SECONDS seconds. Survives individual sweep errors.
+    Also runs the source-photo retention sweep on the same cadence (it's
+    cheap when there's nothing to purge)."""
     log.info(f"[trailer-janitor] starting (every {JANITOR_INTERVAL_SECONDS}s, threshold {STALE_THRESHOLD_MINUTES}min)")
     # Small delay so other startup tasks settle first.
     await asyncio.sleep(15)
@@ -929,10 +1025,90 @@ async def stale_pipeline_janitor_loop():
                 log.info(f"[trailer-janitor] sweep result: {result}")
         except Exception as e:
             log.exception(f"[trailer-janitor] sweep crashed: {e}")
+        try:
+            purged = await _purge_old_source_photos()
+            if purged.get("purged", 0) > 0:
+                log.info(f"[trailer-retention] purged {purged}")
+        except Exception as e:
+            log.exception(f"[trailer-retention] sweep crashed: {e}")
         await asyncio.sleep(JANITOR_INTERVAL_SECONDS)
+
+
+# ─── Trust & Legal: source photo retention sweep ─────────────────────────────
+# Promise to users: source photos are deleted from R2 within
+# PHOTO_RETENTION_DAYS days after the job ends (COMPLETED, FAILED, CANCELLED).
+# Idempotent: marks `assets.deleted_at` on first sweep; later sweeps skip
+# already-deleted assets.
+PHOTO_RETENTION_DAYS = int(os.environ.get("PHOTO_TRAILER_PHOTO_RETENTION_DAYS", "7"))
+
+async def _purge_old_source_photos() -> Dict[str, Any]:
+    """Find jobs that finished > PHOTO_RETENTION_DAYS days ago and purge
+    their source photo assets from R2. Bounded sweep — at most 200 assets
+    per pass so a backlog can't stall the loop."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=PHOTO_RETENTION_DAYS)).isoformat()
+    purged = 0
+    failed = 0
+    skipped = 0
+    asset_ids: List[str] = []
+    sessions_seen: set = set()
+    cursor = db.photo_trailer_jobs.find(
+        {"status": {"$in": ["COMPLETED", "FAILED", "CANCELLED"]},
+         "$or": [
+             {"completed_at": {"$lt": cutoff, "$ne": None}},
+             {"failed_at":    {"$lt": cutoff, "$ne": None}},
+             {"updated_at":   {"$lt": cutoff}, "status": "CANCELLED"},
+         ]},
+        {"upload_session_id": 1, "_id": 1},
+    ).limit(50)
+    async for j in cursor:
+        sid = j.get("upload_session_id")
+        if sid: sessions_seen.add(sid)
+
+    if not sessions_seen:
+        return {"purged": 0, "failed": 0, "skipped": 0, "sessions_swept": 0}
+
+    # Look up all undeleted assets for those sessions (cap at 200)
+    assets_cursor = db.photo_trailer_assets.find(
+        {"upload_session_id": {"$in": list(sessions_seen)},
+         "deleted_at": {"$exists": False}},
+    ).limit(200)
+    from services.cloudflare_r2_storage import get_r2_storage
+    r2 = get_r2_storage()
+    async for a in assets_cursor:
+        aid = a["_id"]
+        key = a.get("storage_key")
+        if not key:
+            skipped += 1; continue
+        ok = False
+        if r2:
+            try:
+                ok = await r2.delete_file(key)
+            except Exception as e:
+                log.warning(f"[trailer-retention] r2 delete {key} failed: {e}")
+        # Mark deleted in DB regardless (so we don't loop on the same row);
+        # if R2 delete failed we keep a flag for ops review.
+        await db.photo_trailer_assets.update_one(
+            {"_id": aid, "deleted_at": {"$exists": False}},
+            {"$set": {"deleted_at": _now(), "r2_purge_ok": bool(ok)}},
+        )
+        if ok: purged += 1
+        else: failed += 1
+        asset_ids.append(aid)
+
+    return {
+        "purged": purged, "failed": failed, "skipped": skipped,
+        "sessions_swept": len(sessions_seen), "asset_ids_processed": len(asset_ids),
+        "retention_days": PHOTO_RETENTION_DAYS, "cutoff": cutoff,
+    }
 
 
 @router.post("/admin/janitor/run-now")
 async def admin_run_janitor(user: dict = Depends(get_admin_user)):
     """Admin manual trigger — used by tests + ops."""
     return await _reap_stale_pipelines()
+
+
+@router.post("/admin/retention/run-now")
+async def admin_run_retention(user: dict = Depends(get_admin_user)):
+    """Admin manual trigger for the photo retention sweep."""
+    return await _purge_old_source_photos()
