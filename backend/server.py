@@ -1283,6 +1283,16 @@ async def startup():
         logger.info("[Referrals] Expiry loop scheduled")
     except Exception as e:
         logger.warning(f"Referral expiry loop startup warning: {e}")
+
+    # Photo Trailer stuck-job janitor — reaps PROCESSING jobs older than 5 min,
+    # marks them FAILED with STALE_PIPELINE, refunds credits idempotently.
+    # Hardens against backend restart drops and orphaned pipelines.
+    try:
+        from routes.photo_trailer import stale_pipeline_janitor_loop
+        asyncio.create_task(stale_pipeline_janitor_loop())
+        logger.info("[PhotoTrailer] Stale-job janitor scheduled (every 2 min, 5 min threshold)")
+    except Exception as e:
+        logger.warning(f"PhotoTrailer janitor startup warning: {e}")
     
     # Initialize download expiry service
     try:

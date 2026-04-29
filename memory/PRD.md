@@ -1038,6 +1038,86 @@ Scope strictly: route + dashboard entry + e2e verification. NO admin panel, NO m
 ─────────────────────────────────────────────────────────
 Founder directive: Photo Trailer must never degrade core app responsiveness.
 
+✅ Architecture: dedicated `concurrent.futures.ThreadPoolExecutor`
+   (max_workers=8, _PIPELINE_EXEC) owns all blocking work — Claude script
+   LLM, Nano Banana per-scene image gen, OpenAI TTS per-scene, ffmpeg
+   passes. System-wide `_PIPELINE_GATE = asyncio.Semaphore(2)` caps
+   concurrent pipelines. DB/credits remain on main loop (motor unchanged).
+   Single file changed: backend/routes/photo_trailer.py (~80 LOC).
+
+✅ Latency before vs after (/api/photo-trailer/templates, localhost):
+   - Idle:      18 ms (unchanged)
+   - 1 pipeline rendering:  8,020 ms → 17–60 ms  (~150× improvement)
+   - 3 pipelines submitted: 90,000 ms (502'd) → 18–82 ms
+
+✅ Tests: 24/24 PASS in 13.51s (was 22/24 in 151s before this fix).
+
+─────────────────────────────────────────────────────────
+[2026-04-29 P0] PHOTO TRAILER STUCK-JOB JANITOR — SHIPPED
+─────────────────────────────────────────────────────────
+Founder directive: small hardening only. Reap PROCESSING jobs > 5 min,
+refund credits exactly once, log every cleanup, run every 2 minutes.
+
+✅ Code changed
+   • backend/routes/photo_trailer.py  (+103 LOC at file end)
+       - `_reap_stale_pipelines()` — single sweep, atomic transition,
+         exactly-once refund via `update_one({_id, status:PROCESSING})`
+         + `update_one({_id, refunded_credits:0})` belt-and-braces guards
+       - `stale_pipeline_janitor_loop()` — forever loop, 15s startup
+         delay, 120s interval, survives sweep errors
+       - `POST /api/photo-trailer/admin/janitor/run-now` — admin-only
+         manual trigger (used by tests + ops)
+       - Constants: STALE_THRESHOLD_MINUTES=5, JANITOR_INTERVAL_SECONDS=120
+   • backend/server.py  (+6 LOC in startup_event)
+       - Schedules `stale_pipeline_janitor_loop()` alongside other
+         existing loops (referrals, drafts cleanup, etc.)
+   • backend/tests/test_photo_trailer_janitor.py  (NEW, 168 LOC)
+       - 4 tests covering all 4 guarantees
+
+✅ Test results
+   • Janitor suite alone: 4/4 PASS in 1.31s
+   • Full Photo Trailer suite (24 + 4): **28/28 PASS in 15.13s**
+   • Tests prove:
+       1. 6-min PROCESSING job → reaped + refunded
+       2. Double-run on same job → refund stays at original amount
+       3. 1-min PROCESSING job → NOT touched (selectivity)
+       4. Old COMPLETED job → NOT touched (status filter works)
+
+✅ Refund idempotency proof (live demo, admin user)
+   Setup:  user.credits = 1,000,000,016; PROCESSING job aged 7 min,
+           charged_credits=25, refunded_credits=0
+   Run 1:  reaped=1, refunded_credits_total=25
+           → credits = 1,000,000,041 (+25)
+           → job.status=FAILED, error_code=STALE_PIPELINE,
+             refunded_credits=25
+   Run 2:  reaped=0, refunded_credits_total=0
+           → credits unchanged at 1,000,000,041
+           → job.refunded_credits unchanged at 25
+   Result: NO double-refund. Idempotency confirmed end-to-end.
+
+✅ Per-task worker thread architecture (clarification)
+   • Each scene image gen (Nano Banana) = 1 worker thread (asyncio.gather
+     submits N scenes in parallel — each lands on its own _PIPELINE_EXEC
+     thread)
+   • Each TTS narration = 1 worker thread (also parallel via gather)
+   • Each ffmpeg pass = 1 worker thread (sequential, bounded by I/O)
+   • Pool max=8 prevents OS thread explosion + bounds memory.
+     With Semaphore(2), the worst case is 2 pipelines × 4 parallel
+     tasks ≈ 8 threads in flight — exactly the pool size.
+
+📁 Files Changed:
+   • backend/routes/photo_trailer.py — janitor logic
+   • backend/server.py — startup hook
+   • backend/tests/test_photo_trailer_janitor.py — NEW
+
+🚦 Production-safety verdict: tightened. Backend restart drops are
+   now self-healing within 2 minutes. No user is left with a stuck
+   PROCESSING job + locked credits.
+
+
+─────────────────────────────────────────────────────────
+Founder directive: Photo Trailer must never degrade core app responsiveness.
+
 ✅ Architecture chosen
    • Dedicated `concurrent.futures.ThreadPoolExecutor` (max_workers=8)
      named `_PIPELINE_EXEC` owns ALL blocking work:

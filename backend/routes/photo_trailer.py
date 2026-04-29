@@ -676,3 +676,108 @@ async def _upload_video_bytes(data: bytes, name: str, user_id: str) -> (bool, st
         return ok, (url or key)
     except Exception as e:
         return False, str(e)
+
+
+
+# ═════════════════════════ STALE-JOB JANITOR ════════════════════════════════════
+# Reaps Photo Trailer jobs stuck in PROCESSING > STALE_THRESHOLD minutes.
+# Hardens against backend restart drops + orphaned pipelines (e.g. a worker
+# crash mid-render). Marks them FAILED with STALE_PIPELINE and refunds the
+# user's credits exactly once. Idempotent — re-running is safe.
+
+STALE_THRESHOLD_MINUTES = 5
+JANITOR_INTERVAL_SECONDS = 120
+
+async def _reap_stale_pipelines() -> Dict[str, Any]:
+    """Single sweep — find + reap PROCESSING jobs older than the threshold.
+    Returns metrics dict for logging/testing. Atomic + idempotent:
+    the status update is gated on `status: PROCESSING`, so if two janitors
+    or a real completion race the reap, only one wins and only that one
+    issues a refund."""
+    cutoff_dt = datetime.now(timezone.utc) - timedelta(minutes=STALE_THRESHOLD_MINUTES)
+    cutoff_iso = cutoff_dt.isoformat()
+    reaped, refunded_total, refund_failures, skipped_already_terminal = 0, 0, 0, 0
+
+    cursor = db.photo_trailer_jobs.find({
+        "status": "PROCESSING",
+        "started_at": {"$lt": cutoff_iso, "$ne": None},
+    })
+    async for j in cursor:
+        jid = j["_id"]
+        # Atomic transition: only flip if STILL PROCESSING. Loses race -> skip.
+        upd = await db.photo_trailer_jobs.update_one(
+            {"_id": jid, "status": "PROCESSING"},
+            {"$set": {
+                "status": "FAILED", "current_stage": "FAILED",
+                "error_code": "STALE_PIPELINE",
+                "error_message": "Trailer didn't complete in time. Credits refunded — please retry.",
+                "failed_at": _now(), "updated_at": _now(),
+            }},
+        )
+        if upd.modified_count == 0:
+            skipped_already_terminal += 1
+            continue
+
+        # Refund exactly once: only if charged > 0 AND not previously refunded.
+        # The atomic guard above ensures only one janitor instance can reach here.
+        charged = j.get("charged_credits") or 0
+        prior_refund = j.get("refunded_credits") or 0
+        if charged > 0 and prior_refund == 0:
+            try:
+                await add_credits(j["user_id"], charged, f"Refund stale trailer {jid}", tx_type="REFUND")
+                # Belt-and-braces: the refunded_credits write is itself idempotent
+                # (set to charged value, won't double if re-run somehow).
+                await db.photo_trailer_jobs.update_one(
+                    {"_id": jid, "refunded_credits": 0},
+                    {"$set": {"refunded_credits": charged}},
+                )
+                refunded_total += charged
+                age_min = round((datetime.now(timezone.utc) - cutoff_dt).total_seconds() / 60 + STALE_THRESHOLD_MINUTES, 1)
+                log.warning(
+                    f"[trailer-janitor] Reaped stale job {jid} user={j['user_id']} "
+                    f"template={j.get('template_id')} age>={age_min}min refunded={charged}cr"
+                )
+            except Exception as e:
+                refund_failures += 1
+                log.error(f"[trailer-janitor] Refund failed for {jid}: {e}")
+        else:
+            log.warning(
+                f"[trailer-janitor] Reaped stale job {jid} user={j['user_id']} "
+                f"template={j.get('template_id')} (no refund needed: charged={charged} prior_refund={prior_refund})"
+            )
+        try:
+            await _emit("photo_trailer_generation_failed", j["user_id"],
+                        {"job_id": jid, "code": "STALE_PIPELINE", "via": "janitor"})
+        except Exception:
+            pass
+        reaped += 1
+
+    return {
+        "reaped": reaped,
+        "refunded_credits_total": refunded_total,
+        "refund_failures": refund_failures,
+        "skipped_already_terminal": skipped_already_terminal,
+        "cutoff_iso": cutoff_iso,
+    }
+
+
+async def stale_pipeline_janitor_loop():
+    """Forever loop wired up at server startup. Runs `_reap_stale_pipelines`
+    every JANITOR_INTERVAL_SECONDS seconds. Survives individual sweep errors."""
+    log.info(f"[trailer-janitor] starting (every {JANITOR_INTERVAL_SECONDS}s, threshold {STALE_THRESHOLD_MINUTES}min)")
+    # Small delay so other startup tasks settle first.
+    await asyncio.sleep(15)
+    while True:
+        try:
+            result = await _reap_stale_pipelines()
+            if result["reaped"] > 0:
+                log.info(f"[trailer-janitor] sweep result: {result}")
+        except Exception as e:
+            log.exception(f"[trailer-janitor] sweep crashed: {e}")
+        await asyncio.sleep(JANITOR_INTERVAL_SECONDS)
+
+
+@router.post("/admin/janitor/run-now")
+async def admin_run_janitor(user: dict = Depends(get_admin_user)):
+    """Admin manual trigger — used by tests + ops."""
+    return await _reap_stale_pipelines()
