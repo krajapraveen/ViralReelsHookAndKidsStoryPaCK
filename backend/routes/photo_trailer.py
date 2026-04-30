@@ -2136,7 +2136,10 @@ async def admin_kpi_dashboard(
     # ═══ CONVERSION ════════════════════════════════════════════════════════════
     make_your_own_clicks = await _unique_sessions("make_your_own_clicked", cutoff)
     signup_started = await _unique_sessions("signup_started", cutoff)
-    signup_completed = await _unique_sessions("signup_completed", cutoff)
+    # 2026-04-30: canonical event name is `signup_success` (see
+    # funnel_tracking.py whitelist + Login.js:188). The old key
+    # `signup_completed` was a dashboard-side typo that always returned 0.
+    signup_completed = await _unique_sessions("signup_success", cutoff)
     first_trailer_created = await _unique_users("first_trailer_created", cutoff)
 
     # ═══ REVENUE ═══════════════════════════════════════════════════════════════
