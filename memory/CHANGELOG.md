@@ -509,3 +509,50 @@ deviations. Ship, watch 6h, report.
    + rebuild, OR drop drawtext from scene render filter chain. Awaiting
    founder directive to dig.
 
+
+
+─────────────────────────────────────────────────────────
+[2026-04-30] PHOTO TRAILER — FFMPEG DRAWTEXT ENV FIX SHIPPED
+─────────────────────────────────────────────────────────
+Founder directive: fix the binary, not the pipeline. Preserve drawtext.
+
+✅ Environment fix (no code change):
+   apt-get install -y ffmpeg libfreetype6 libfreetype6-dev fontconfig
+   → /usr/bin/ffmpeg now = ffmpeg 5.1.8 with --enable-libfreetype
+     + --enable-libfontconfig; drawtext filter present.
+   → Pipeline code at photo_trailer.py:1040/1148 already prefers
+     /usr/bin/ffmpeg when it exists — no code change needed.
+
+✅ Capability verified:
+   /usr/bin/ffmpeg -filters | grep drawtext
+   T.C drawtext  V->V  Draw text on top of video frames using libfreetype library.
+   Fonts: FreeSans + Liberation + WenQuanYi available via fc-list
+   (fc-match default = wqy-zenhei).
+
+✅ Mandatory real-job validation (admin):
+   Job d2f2ffcc — superhero_origin, 15s, RGB hero
+   COMPLETED in 95s — full traversal: WRITING_TRAILER_SCRIPT →
+   GENERATING_SCENES → RENDERING_TRAILER → COMPLETED
+   Output: 1280×720 H.264 + AAC stereo, 20.56s, 2.44 MB
+   Drawtext overlay verified by pixel scan — 1.8% bright pixels in
+   bottom 80-px strip (watermark region). PASS.
+
+─── Readout (format per founder spec; actual window 3.1 min post-env-fix) ───
+
+POST-ENV-FIX window (3.1 min, n=1 — directional, not statistical):
+  completion_rate    100%
+  IMAGE_GEN_FAIL     0    (stays at 0)
+  RENDER_FAIL        0    (collapsed from 100% of drawtext-broken period)
+  new bottleneck     none observed yet
+
+Full post-normalize window (12.1 min, n=3, spans drawtext-broken + fix):
+  completion_rate    33.3%
+  IMAGE_GEN_FAIL     0
+  RENDER_FAIL        2    (both pre-env-fix)
+
+Delta vs 48h baseline (28.7% completion): post-env-fix +71.3 pts.
+
+Verdict: both clusters eliminated. 45–50% threshold needs 6h of real traffic
+to verify; if it doesn't land, next cluster to peel = STALE_PIPELINE.
+
+📁 Files Changed: NONE (env-only fix).
