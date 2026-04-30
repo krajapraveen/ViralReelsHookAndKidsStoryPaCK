@@ -220,68 +220,145 @@ function UploadStep({ sessionId, setSessionId, photos, setPhotos, consent, setCo
 
 // ─── Step 2: Hero / Villain / Supporting ─────────────────────────────────────
 function CharactersStep({ photos, hero, setHero, villain, setVillain, supporting, setSupporting, onBack, onNext }) {
-  const pick = (asset_id) => {
-    if (hero === asset_id) return;
-    setHero(asset_id);
+  // P0 UX fix (2026-04-29): founder spec —
+  //   1. Role selectors must live OUTSIDE the photo card (not overlay buttons)
+  //   2. Use checkboxes, not overlay buttons
+  //   3. Continue enables if ANY of Hero / Villain / Supporting is selected
+  //   4. If nothing selected → Continue disabled with a clear hint
+  //
+  // Implementation choices:
+  //   • Photo card = clean image only, no role badges ON the image
+  //   • Separate checkbox row BELOW the card (structurally distinct element,
+  //     not an overlay, not sharing the card's `overflow-hidden` container)
+  //   • Hero + Villain are mutually-exclusive roles (only one photo can be
+  //     each) — checking one auto-unchecks conflicting role on the same photo
+  //   • Supporting is multi-select (up to 4)
+  //
+  // Backend contract: hero_asset_id is REQUIRED on /jobs. If the user only
+  // tagged a photo as Villain or Supporting, we promote that photo to
+  // `hero_asset_id` on submit — see the hero-fallback in onNext below.
+  const pickHero = (asset_id) => {
+    setHero(cur => cur === asset_id ? null : asset_id);
+    // Hero+Villain on the same photo is nonsensical — clear the other.
+    setVillain(cur => cur === asset_id ? null : cur);
+    setSupporting(arr => arr.filter(x => x !== asset_id));
     try { trackFunnel('photo_trailer_hero_selected', { meta: { asset_id } }); } catch {}
   };
-  const toggleVillain = (asset_id) => setVillain(v => v === asset_id ? null : asset_id);
-  const toggleSupport = (asset_id) =>
-    setSupporting(arr => arr.includes(asset_id) ? arr.filter(x => x !== asset_id) : [...arr, asset_id].slice(0, 4));
+  const pickVillain = (asset_id) => {
+    setVillain(cur => cur === asset_id ? null : asset_id);
+    setHero(cur => cur === asset_id ? null : cur);
+    setSupporting(arr => arr.filter(x => x !== asset_id));
+  };
+  const pickSupport = (asset_id) => {
+    setSupporting(arr => arr.includes(asset_id)
+      ? arr.filter(x => x !== asset_id)
+      : [...arr, asset_id].slice(0, 4));
+    setHero(cur => cur === asset_id ? null : cur);
+    setVillain(cur => cur === asset_id ? null : cur);
+  };
+
+  // Any role counts — founder spec rule 3.
+  const anyRoleSelected = Boolean(hero) || Boolean(villain) || supporting.length > 0;
+
+  const handleNext = () => {
+    if (!anyRoleSelected) return;
+    // Hero is required on the backend — promote whichever photo the user
+    // tagged with ANY role if hero is empty. First villain, else first
+    // supporting. This keeps the UX promise ("any role works") without
+    // changing the backend contract.
+    if (!hero) {
+      const fallback = villain || supporting[0];
+      if (fallback) setHero(fallback);
+    }
+    onNext();
+  };
+
+  // Reusable checkbox row control. Mobile-safe (44px tap target).
+  const RoleCheckbox = ({ checked, onClick, label, color, testid }) => (
+    <label
+      onClick={(e) => { e.preventDefault(); onClick(); }}
+      data-testid={testid}
+      data-checked={checked ? 'true' : 'false'}
+      className={`flex items-center gap-2 px-3 py-2.5 min-h-[44px] rounded-lg border cursor-pointer select-none transition-colors ${
+        checked
+          ? `${color.border} ${color.bg} ${color.text}`
+          : 'border-white/15 bg-white/[0.03] text-slate-300 hover:bg-white/[0.06]'
+      }`}
+    >
+      <span
+        className={`w-4 h-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors ${
+          checked ? `${color.checkBorder} ${color.checkBg}` : 'border-white/40 bg-transparent'
+        }`}
+        aria-hidden="true"
+      >
+        {checked && <Check className="w-3 h-3 text-black" strokeWidth={3} />}
+      </span>
+      <span className="text-sm font-semibold">{label}</span>
+    </label>
+  );
+  const HERO_C    = { border: 'border-amber-400', bg: 'bg-amber-500/15',  text: 'text-amber-100',
+                      checkBorder: 'border-amber-400',  checkBg: 'bg-amber-400' };
+  const VILLAIN_C = { border: 'border-rose-500',  bg: 'bg-rose-500/15',   text: 'text-rose-100',
+                      checkBorder: 'border-rose-500',   checkBg: 'bg-rose-400' };
+  const SUPPORT_C = { border: 'border-cyan-400',  bg: 'bg-cyan-500/15',   text: 'text-cyan-100',
+                      checkBorder: 'border-cyan-400',   checkBg: 'bg-cyan-400' };
+
   return (
     <div className="space-y-6" data-testid="trailer-step-characters">
       <div>
-        <h2 className="text-2xl font-bold text-white">Choose your hero</h2>
-        <p className="text-sm text-slate-400 mt-1">Tap one photo to be the main hero. Optionally pick a villain and supporting cast.</p>
+        <h2 className="text-2xl font-bold text-white">Choose your cast</h2>
+        <p className="text-sm text-slate-400 mt-1">Pick a role for each photo. Hero, Villain, or Supporting Character — at least one role gets you going.</p>
       </div>
-      {/* Each card stacks: photo on top, large 3-button role row below.
-          Min 44px tap target on mobile. Clear color states. */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {photos.map(p => {
           const isHero = hero === p.asset_id;
           const isVillain = villain === p.asset_id;
           const isSupport = supporting.includes(p.asset_id);
           let frame = 'border-white/10';
-          if (isHero)        frame = 'border-amber-400 ring-2 ring-amber-400/60 shadow-[0_0_24px_-8px_rgba(251,191,36,0.7)]';
-          else if (isVillain) frame = 'border-rose-500 ring-2 ring-rose-500/60 shadow-[0_0_24px_-8px_rgba(244,63,94,0.7)]';
-          else if (isSupport) frame = 'border-cyan-400 ring-2 ring-cyan-400/60 shadow-[0_0_24px_-8px_rgba(34,211,238,0.7)]';
-
-          // Reusable role-button class generator. 44px tap target on mobile.
-          const roleBtn = (active, activeCls, label, testid, onClick) => (
-            <button
-              type="button"
-              onClick={onClick}
-              data-testid={testid}
-              aria-pressed={active}
-              className={`flex-1 min-h-[44px] sm:min-h-[40px] px-2 text-sm font-bold tracking-wide rounded-lg border-2 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 ${
-                active ? activeCls
-                       : 'border-white/15 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:border-white/25 cursor-pointer'
-              }`}
-            >
-              {label}
-            </button>
-          );
+          if (isHero)        frame = 'border-amber-400 ring-2 ring-amber-400/60';
+          else if (isVillain) frame = 'border-rose-500 ring-2 ring-rose-500/60';
+          else if (isSupport) frame = 'border-cyan-400 ring-2 ring-cyan-400/60';
 
           return (
-            <div key={p.asset_id} className={`rounded-2xl bg-black/30 border-2 ${frame} overflow-hidden transition-all`} data-testid={`character-card-${p.asset_id}`}>
-              <div className="relative aspect-square">
+            // Container wraps (card + separate checkbox row). Image and
+            // checkboxes are SIBLINGS, not parent/child — satisfies the
+            // "not inside the photo" requirement.
+            <div key={p.asset_id} className="space-y-2" data-testid={`character-card-${p.asset_id}`}>
+              {/* Photo card: image only, no overlay text/buttons */}
+              <div className={`rounded-2xl bg-black/30 border-2 ${frame} overflow-hidden transition-all aspect-square`}
+                   data-testid={`character-photo-${p.asset_id}`}>
                 <img src={p.url} alt="" className="w-full h-full object-cover" />
-                {isHero    && <div className="absolute top-2 left-2 px-2 py-1 rounded-md text-xs font-extrabold bg-amber-400 text-black shadow-md">★ HERO</div>}
-                {isVillain && <div className="absolute top-2 left-2 px-2 py-1 rounded-md text-xs font-extrabold bg-rose-500 text-white shadow-md">⚔ VILLAIN</div>}
-                {isSupport && <div className="absolute top-2 left-2 px-2 py-1 rounded-md text-xs font-extrabold bg-cyan-500 text-white shadow-md">✓ SUPPORT</div>}
               </div>
-              <div className="flex gap-2 p-2.5 bg-black/50 border-t border-white/10">
-                {roleBtn(isHero,    'border-amber-400 bg-amber-500 text-black cursor-pointer',          'Hero',    `pick-hero-${p.asset_id}`,    () => pick(p.asset_id))}
-                {roleBtn(isVillain, 'border-rose-500 bg-rose-500 text-white cursor-pointer',            'Villain', `pick-villain-${p.asset_id}`, () => toggleVillain(p.asset_id))}
-                {roleBtn(isSupport, 'border-cyan-400 bg-cyan-500 text-white cursor-pointer',            'Support', `pick-support-${p.asset_id}`, () => toggleSupport(p.asset_id))}
+              {/* Role checkboxes — OUTSIDE the photo card. 3 distinct controls. */}
+              <div className="grid grid-cols-3 gap-1.5" role="group"
+                   aria-label="Role for this photo"
+                   data-testid={`role-checkboxes-${p.asset_id}`}>
+                <RoleCheckbox checked={isHero}    onClick={() => pickHero(p.asset_id)}
+                              label="Hero"    color={HERO_C}
+                              testid={`pick-hero-${p.asset_id}`} />
+                <RoleCheckbox checked={isVillain} onClick={() => pickVillain(p.asset_id)}
+                              label="Villain" color={VILLAIN_C}
+                              testid={`pick-villain-${p.asset_id}`} />
+                <RoleCheckbox checked={isSupport} onClick={() => pickSupport(p.asset_id)}
+                              label="Supporting" color={SUPPORT_C}
+                              testid={`pick-support-${p.asset_id}`} />
               </div>
             </div>
           );
         })}
       </div>
+      {/* Hint line — only shown when nothing is selected, so the user knows
+          exactly why Continue is grey. Matches founder acceptance copy. */}
+      {!anyRoleSelected && (
+        <p className="text-xs text-amber-300" data-testid="trailer-step2-hint">
+          Select at least one role to continue.
+        </p>
+      )}
       <div className="flex gap-2">
         <button onClick={onBack} className="flex-1 py-3 rounded-xl border border-white/10 text-white text-sm" data-testid="trailer-step2-back">Back</button>
-        <button onClick={onNext} disabled={!hero} className="flex-1 py-3.5 rounded-xl font-bold text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 disabled:opacity-50" data-testid="trailer-step2-next">
+        <button onClick={handleNext} disabled={!anyRoleSelected}
+                className="flex-1 py-3.5 rounded-xl font-bold text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                data-testid="trailer-step2-next">
           Continue → Pick template
         </button>
       </div>
