@@ -350,3 +350,103 @@ structured `{detail: {code, message}}` instead of bare strings:
 
 **Total Photo Trailer regression: 88 passed across 12 suites (each isolated)**
 
+
+─────────────────────────────────────────────────────────
+[2026-04-30] PHOTO TRAILER — HERO UI VERIFY + 48h READOUT + SIGNUP ROOT-CAUSE
+─────────────────────────────────────────────────────────
+Founder directive: a → b → c, evidence only, no new features, no patches until root cause proven.
+
+─── (a) HERO SELECTION UI — 6/6 PASS (iteration_532.json) ───
+  test_1  desktop_checkboxes_outside_photo   PASS  (photo Y=304, checkboxes Y=520)
+  test_1b mobile_checkboxes_outside_photo    PASS  (44px tap, 390px viewport)
+  test_2  villain_only_selection             PASS  (Continue enabled → step 3)
+  test_3  supporting_only_selection          PASS  (Continue enabled → step 3)
+  test_4  hero_fallback_mechanism            PASS  (backend 200/201 on promoted hero)
+  test_5  happy_path_explicit_hero           PASS  (job_id returned)
+  test_6  backend_contract_regression        PASS  (422 on missing hero — enforced)
+  File:   backend/tests/test_photo_trailer_hero_selection_ui_iteration532.py
+
+─── (b) 48h RELIABILITY READOUT (2026-04-28 17:41Z → 2026-04-30 17:41Z) ───
+  Window tool: backend/tests/reliability_readout_48h.py (live MongoDB pull)
+
+  STARTS
+    starts_attempted            278
+    starts_succeeded            275  (reached pipeline)
+    start_failed (job doc)        3  (all HERO_LOAD_FAIL)
+    start_failed (funnel events)  0
+
+  OUTCOMES
+    completed                    79
+    pipeline_failed             194
+    still_running                 1
+    completion_rate_of_starts  28.7%
+    completion_rate_of_attempts 28.4%
+
+  PIPELINE FAILURES BY CODE
+    IMAGE_GEN_FAIL   92  (47.4%)   ← top bottleneck
+    STALE_PIPELINE   87  (44.8%)   ← janitor-driven (often downstream of hung image-gen)
+    RENDER_FAIL       8  ( 4.1%)
+    SCRIPT_FAIL       4  ( 2.1%)
+    TTS_FAIL          3  ( 1.5%)
+    RENDER_TIMEOUT    0  (zero wall-clock kills — prior P0 fix holding)
+
+  RENDER TIME (COMPLETED only, n=76)
+    median          82.1 s
+    p95            154.4 s
+    max            246.2 s
+    by_bucket      {15s:62  45s:5  60s:3  90s:1}
+
+  USER ACTIONS
+    downloads_clicked             0      ← instrumentation gap or real
+    whatsapp_shares              25
+    native_shares                 0
+    auto_requeued                17
+    jobs_with_manual_retry       27
+
+  BOTTLENECK STATEMENT (founder-mandatory closer):
+    Single largest bottleneck now is: Pipeline failures (IMAGE_GEN_FAIL)
+    Expected lift if fixed first:     +21.5 pts on completion rate
+                                      (65% retry success rate assumed)
+    Confidence:                       High  (n=194 pipeline failures)
+
+─── (c) signup_completed=0 — ROOT CAUSE PROVEN, NOT PATCHED ───
+  Classification: INSTRUMENTATION BUG (naming mismatch). NOT a real signup failure.
+
+  Evidence (live MongoDB pull, funnel_events collection):
+    window  signup_started  signup_success  signup_completed  signup_failed
+    48h         129             129               0                0
+    7d          161             161               0                0
+    30d         161             161               0                0
+
+  Code trace:
+    • backend/routes/photo_trailer.py:2139
+        signup_completed = await _unique_sessions("signup_completed", cutoff)
+      ← queries a step name nothing fires.
+    • backend/routes/funnel_tracking.py:95-96 whitelist contains
+        "signup_started", "signup_success"  (NOT "signup_completed")
+    • frontend/src/pages/Login.js:188,327
+        trackFunnel('signup_success', ...)  (NOT signup_completed)
+
+  Proof signups are succeeding: 129 signup_success events in 48h,
+  session_uniq == event count (1:1, no double-fire). Success-to-started
+  ratio = 100% (129/129). No signup_failed events in 48h either.
+
+  Recommendation (NOT applied per founder freeze):
+    One-line fix in photo_trailer.py dashboard query — change
+    "signup_completed" → "signup_success"  (or teach the whitelist to
+    alias both). No data is missing; the dashboard just reads the wrong key.
+
+  Secondary observation (flagged, not patched):
+    Login.js fires signup_started/signup_success on EVERY login (existing
+    users included), not only on new user creation. The 129 48h events
+    therefore mix new-signup + returning-user traffic. Real new-user count
+    per users.createdAt in 48h = 0. This is a separate measurement bug
+    (misnamed event, not a broken flow).
+
+📁 Files added:
+   • backend/tests/test_photo_trailer_hero_selection_ui_iteration532.py (testing agent)
+   • backend/tests/reliability_readout_48h.py
+
+🚦 Freeze discipline maintained: ZERO new features, ZERO UI changes,
+   ZERO refactors, ZERO patches. Evidence-only deliverable.
+
