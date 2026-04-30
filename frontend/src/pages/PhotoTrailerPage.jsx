@@ -279,7 +279,10 @@ function CharactersStep({ photos, hero, setHero, villain, setVillain, supporting
       onClick={(e) => { e.preventDefault(); onClick(); }}
       data-testid={testid}
       data-checked={checked ? 'true' : 'false'}
-      className={`flex items-center gap-2 px-3 py-2.5 min-h-[44px] rounded-lg border cursor-pointer select-none transition-colors ${
+      aria-pressed={checked ? 'true' : 'false'}
+      role="button"
+      tabIndex={0}
+      className={`flex items-center justify-center gap-2.5 min-w-[140px] h-12 px-3 rounded-lg border cursor-pointer select-none transition-colors ${
         checked
           ? `${color.border} ${color.bg} ${color.text}`
           : 'border-white/15 bg-white/[0.03] text-slate-300 hover:bg-white/[0.06]'
@@ -329,8 +332,11 @@ function CharactersStep({ photos, hero, setHero, villain, setVillain, supporting
                    data-testid={`character-photo-${p.asset_id}`}>
                 <img src={p.url} alt="" className="w-full h-full object-cover" />
               </div>
-              {/* Role checkboxes — OUTSIDE the photo card. 3 distinct controls. */}
-              <div className="grid grid-cols-3 gap-1.5" role="group"
+              {/* Role checkboxes — OUTSIDE the photo card. Segmented-control
+                  layout: single flex row with 140×48 equal-width options,
+                  centered, wraps cleanly on narrow viewports. */}
+              <div className="flex flex-wrap justify-center items-center gap-4 p-2 rounded-xl border border-white/15 bg-transparent"
+                   role="group"
                    aria-label="Role for this photo"
                    data-testid={`role-checkboxes-${p.asset_id}`}>
                 <RoleCheckbox checked={isHero}    onClick={() => pickHero(p.asset_id)}

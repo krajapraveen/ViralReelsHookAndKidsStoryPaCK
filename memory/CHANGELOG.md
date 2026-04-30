@@ -556,3 +556,48 @@ Verdict: both clusters eliminated. 45–50% threshold needs 6h of real traffic
 to verify; if it doesn't land, next cluster to peel = STALE_PIPELINE.
 
 📁 Files Changed: NONE (env-only fix).
+
+─────────────────────────────────────────────────────────
+[2026-04-30] PHOTO TRAILER — HERO/VILLAIN/SUPPORT ALIGNMENT FIX
+─────────────────────────────────────────────────────────
+Founder-approved exception to freeze: "purely alignment + layout fix" on
+Step 2 role selectors (attached screenshot showed uneven spacing, mis-aligned
+checkboxes, floating buttons, not centered under photo).
+
+✅ Implemented exactly to spec (frontend/src/pages/PhotoTrailerPage.jsx):
+
+  1. ONE flex container wrapping all three options:
+       flex flex-wrap justify-center items-center gap-4 p-2
+       rounded-xl border border-white/15 bg-transparent
+
+  2. Each option (Hero / Villain / Supporting) is identical:
+       min-w-[140px] h-12 flex items-center justify-center gap-2.5
+       px-3 rounded-lg border
+
+  3. Checkbox + label perfectly vertically centered (flex items-center).
+
+  4. Container reads as a segmented control (outer border, inner pills).
+
+  5. Mobile: flex-wrap kicks in when width is tight; each button keeps
+     its 140×48 footprint and wraps cleanly centered.
+
+  6. aria-pressed attribute added on each button (preserves the existing
+     test_clicking_hero_marks_button_active_with_aria contract).
+
+✅ Zero logic changes: pickHero/pickVillain/pickSupport unchanged.
+   Continue button behavior unchanged (anyRoleSelected). Hero-fallback
+   still promotes villain/supporting to hero_asset_id on submit. Backend
+   contract untouched.
+
+✅ Existing visibility regression PASS (5/5 in 53.76s):
+   - consent_checkbox square 22px / 24px (desktop / mobile)
+   - role buttons ≥40px H + ≥48px W (now 48H × 140W)
+   - role buttons ≥44px H on mobile (now 48H)
+   - click-hero aria-pressed flip (still works with new layout)
+
+📁 Files Changed: frontend/src/pages/PhotoTrailerPage.jsx (2 small edits —
+   RoleCheckbox className, outer grid → flex container).
+
+🚦 Freeze discipline: no animations, no logic shift, no new components,
+   no backend change, no refactor, no dashboard work.
+
