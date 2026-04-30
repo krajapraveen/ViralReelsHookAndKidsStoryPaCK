@@ -450,3 +450,62 @@ Founder directive: a → b → c, evidence only, no new features, no patches unt
 🚦 Freeze discipline maintained: ZERO new features, ZERO UI changes,
    ZERO refactors, ZERO patches. Evidence-only deliverable.
 
+
+─────────────────────────────────────────────────────────
+[2026-04-30] PHOTO TRAILER — IMAGE NORMALIZATION PATCH SHIPPED
+─────────────────────────────────────────────────────────
+Founder directive: apply _normalize_ref_image_bytes exactly as proposed, no
+deviations. Ship, watch 6h, report.
+
+✅ Patch implemented in backend/routes/photo_trailer.py:
+   - New helper _normalize_ref_image_bytes(raw, max_dim=1024):
+     exif_transpose → mode=='RGB' → thumbnail(1024, LANCZOS) → JPEG q=90.
+   - Wrapped hero_bytes + villain_bytes call sites in _run_pipeline_inner.
+   - PIL failure maps to HERO_LOAD_FAIL (no new error codes leaked).
+   - Zero changes to retry logic, worker pools, templates, prompts, logging,
+     metrics.
+   - One-line dashboard fix applied earlier: signup_completed → signup_success
+     (surfaces 161 real signups that were zeroed by a key mismatch).
+
+✅ Tests (14/14 PASS, new file test_photo_trailer_image_normalization.py):
+   - RGB happy path, RGBA→RGB, CMYK→RGB, palette→RGB, EXIF orientation honored,
+     3000×4000 capped to 1024, 16×16 untouched, idempotent re-normalization,
+     corrupt bytes raise UnidentifiedImageError, truncated bytes raise,
+     output size sanity (<800KB), pipeline source assertions confirm
+     HERO_LOAD_FAIL mapping on both hero and villain branches,
+     _gen_scene_image retry loop (3 attempts, 2/5/10s backoff) untouched.
+
+✅ Regression (26 PASS, 1 pre-existing skip):
+   test_photo_trailer_reliability_sprint.py + test_photo_trailer_regression_2026_04_29.py
+   + test_photo_trailer_start_errors.py — all green.
+
+✅ Live smoke (admin, post-deploy):
+   - CMYK 2400×3200 hero photo (previously Nano Banana 400): job
+     2d69d1dc passed GENERATING_SCENES cleanly (all 6 scenes rendered +
+     voiceovers) — failed downstream at RENDER_FAIL (ffmpeg drawtext filter
+     missing; pre-existing issue observed in logs at 17:35–17:40 before
+     this patch shipped).
+   - RGB 1024×1024 happy path (birthday_movie): job f91e86c9 same result:
+     image-gen clean → RENDER_FAIL on drawtext.
+
+✅ Post-deploy window (5.6 min, n=2 — insufficient for 6h verdict but
+   directionally clear):
+   - IMAGE_GEN_FAIL count         0
+   - IMAGE_GEN_FAIL reduction    100% (vs 33.1% of starts in prior 48h)
+   - completion_rate              0.0% (shifted bottleneck, not regression)
+   - new dominant bottleneck     RENDER_FAIL (ffmpeg "No such filter: drawtext")
+
+📁 Files Changed:
+   - backend/routes/photo_trailer.py (one helper, two call sites,
+     one dashboard query key fix)
+   - backend/tests/test_photo_trailer_image_normalization.py (NEW, 14 tests)
+   - backend/tests/reliability_readout_48h.py (NEW, reusable raw-data tool)
+
+🚦 Discipline held: zero refactor, zero logging noise, zero dashboard work,
+   zero new error codes, zero new pipeline stages.
+
+⚠️ Next bottleneck flagged (not touched): ffmpeg system binary lacks drawtext
+   filter (requires libfreetype). Fix candidates: install libfreetype-dev
+   + rebuild, OR drop drawtext from scene render filter chain. Awaiting
+   founder directive to dig.
+

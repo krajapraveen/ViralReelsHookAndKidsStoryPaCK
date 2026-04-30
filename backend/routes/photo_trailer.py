@@ -812,6 +812,24 @@ async def _load_asset_bytes(asset_id: str) -> Optional[bytes]:
         log.warning(f"load asset {asset_id} failed: {e}")
         return None
 
+def _normalize_ref_image_bytes(raw: bytes, max_dim: int = 1024) -> bytes:
+    """Make any user-uploaded photo Nano-Banana-safe: honor EXIF rotation,
+    drop alpha/CMYK/palette, cap longest side to 1024, re-encode JPEG q=90.
+    Deterministic on valid inputs. Raises on corrupt/unidentified bytes so
+    callers can map to HERO_LOAD_FAIL."""
+    from PIL import Image, ImageOps
+    from io import BytesIO
+    img = Image.open(BytesIO(raw))
+    img = ImageOps.exif_transpose(img)
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+    w, h = img.size
+    if max(w, h) > max_dim:
+        img.thumbnail((max_dim, max_dim), Image.LANCZOS)
+    out = BytesIO()
+    img.save(out, format="JPEG", quality=90, optimize=True)
+    return out.getvalue()
+
 async def _llm_script(job: dict, hero_role_hint: str) -> List[Dict[str, str]]:
     """Returns list of {'narration': str, 'visual': str} per scene.
     Offloaded to worker thread — emergentintegrations blocks the loop."""
@@ -1241,11 +1259,20 @@ async def _run_pipeline_inner(job_id: str):
         await _set_stage(job_id, "ANALYZING_PHOTOS")
         hero_bytes = await _load_asset_bytes(j["hero_asset_id"])
         if not hero_bytes: return await _fail(job_id, "HERO_LOAD_FAIL", "Could not load hero photo. Try uploading again.")
+        try:
+            hero_bytes = _normalize_ref_image_bytes(hero_bytes)
+        except Exception:
+            return await _fail(job_id, "HERO_LOAD_FAIL", "Could not load hero photo. Try uploading again.")
         hero_b64 = base64.b64encode(hero_bytes).decode("utf-8")
         villain_b64 = None
         if j.get("villain_asset_id"):
             vb = await _load_asset_bytes(j["villain_asset_id"])
-            if vb: villain_b64 = base64.b64encode(vb).decode("utf-8")
+            if vb:
+                try:
+                    vb = _normalize_ref_image_bytes(vb)
+                    villain_b64 = base64.b64encode(vb).decode("utf-8")
+                except Exception:
+                    return await _fail(job_id, "HERO_LOAD_FAIL", "Could not load hero photo. Try uploading again.")
 
         # Script
         await _set_stage(job_id, "BUILDING_CHARACTER")
