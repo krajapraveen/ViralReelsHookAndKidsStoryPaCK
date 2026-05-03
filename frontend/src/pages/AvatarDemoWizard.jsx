@@ -185,6 +185,51 @@ export default function AvatarDemoWizard() {
     resetForm();
   };
 
+  /** Retry with a different motion_style without walking the whole wizard.
+   *  Keeps every other form field identical, just swaps motion_style +
+   *  re-submits to the anon endpoint. Rate-limited server-side. */
+  const handleRetryVariant = async (newMotion) => {
+    if (!newMotion || submitting) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const payload = {
+        session_id: anonSessionId,
+        avatar_type: form.avatarType,
+        motion_style: newMotion,
+        duration_seconds: form.duration,
+        script: form.script?.trim() || null,
+        clone_name: form.cloneName?.trim() || null,
+        safety_confirmed: form.acceptedRules.length === 5,
+        assets: {
+          photo_name: form.photo?.name || null,
+          photo_is_sample: form.photo?.is_sample === true,
+        },
+      };
+      const r = await fetch(`${API}/api/avatar/studio/anon-mock-generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const code = body?.detail?.code || 'ANON_GENERATE_FAIL';
+        if (code === 'ANON_LIMIT_REACHED') {
+          nav('/signup?from=avatar_demo&reason=limit_reached');
+          return;
+        }
+        throw new Error(body?.detail?.message || 'Could not start generation.');
+      }
+      setForm(f => ({ ...f, motionStyle: newMotion }));
+      setJob({ id: body.job_id, eta: body.eta_seconds });
+      setStep('progress');
+    } catch (e) {
+      setSubmitError(String(e.message || e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const currentStepIdx = WIZARD_STEPS.findIndex(s => s.id === step);
 
   return (
@@ -262,6 +307,8 @@ export default function AvatarDemoWizard() {
             onMakeAnother={handleMakeAnother}
             onBackToLibrary={null}
             onSignupGate={handleSignupGate}
+            uploadedPhotoUrl={form.photo?.dataUrl || null}
+            onRetryVariant={handleRetryVariant}
           />
         )}
       </main>

@@ -69,6 +69,16 @@ export default function AvatarTypeStep({ value, onChange, onBack, onNext }) {
         title="What kind of avatar do you want?"
         sub="Pick the style that matches your content. You can switch types later — this is just your starting point."
       />
+      <div
+        className="flex items-start gap-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] leading-relaxed text-amber-100"
+        data-testid="avatar-studio-type-expectation-hint"
+      >
+        <span className="text-amber-300">⚡</span>
+        <span>
+          <span className="font-bold text-amber-200">This is a demo preview.</span>{' '}
+          Your real avatar (face + voice) renders in the full version — we're collecting demand signal first.
+        </span>
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {TYPES.map(t => {
           const Icon = t.icon;

@@ -221,6 +221,7 @@ export default function AICloningStudio() {
             etaSeconds={job.eta}
             onMakeAnother={() => { resetAndStartNew(); }}
             onBackToLibrary={() => { fetchClones(); setStep('library'); }}
+            uploadedPhotoUrl={form.photo?.dataUrl || null}
           />
         )}
       </main>

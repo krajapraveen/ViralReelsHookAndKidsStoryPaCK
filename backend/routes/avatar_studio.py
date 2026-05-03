@@ -22,7 +22,7 @@ import base64
 import logging
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 
 from fastapi import (APIRouter, BackgroundTasks, Depends, File, Form,
@@ -1119,11 +1119,11 @@ async def _mock_studio_illusion_worker(job_id: str, total_seconds: int,
     If the worker dies mid-flight (e.g. hot-reload), the reconciliation path
     in the polling endpoints will auto-finalize on the next GET."""
     stages = [
-        ("Analyzing your input",       10),
-        ("Preparing avatar model",     30),
-        ("Synthesizing voice",         55),
-        ("Rendering motion + scene",   80),
-        ("Applying disclosure label",  95),
+        ("Analyzing face",         10),
+        ("Mapping voice",          30),
+        ("Generating motion",      55),
+        ("Rendering video",        80),
+        ("Applying disclosure",    95),
     ]
     try:
         await db.avatar_jobs.update_one({"_id": job_id}, {
@@ -1164,6 +1164,11 @@ ALLOWED_FUNNEL_STEPS = {
     "signup_after_demo",
     "retry_after_demo",
     "share_after_demo",
+    # Signal-quality events (2026-05-03, Phase 1 directive)
+    "avatar_use_again_yes",
+    "avatar_use_again_no",
+    "avatar_use_case_selected",
+    "retry_variant_selected",
 }
 
 
@@ -1357,3 +1362,70 @@ async def admin_funnel_table(days: int = 14, user: dict = Depends(get_admin_user
                         and totals["shares"] >= 1,
     }
     return {"rows": rows, "last7_totals": totals, "day7_gate": gate}
+
+
+
+@router.get("/admin/signal-ratios")
+async def admin_signal_ratios(user: dict = Depends(get_admin_user), days: int = 7):
+    """At-a-glance demand-validation decision panel.
+
+    Ratios computed against demo_completed (the denominator that matters):
+      - use_again_rate   = avatar_use_again_yes / demo_completed
+      - no_rate          = avatar_use_again_no  / demo_completed
+      - retry_rate       = retry_after_demo    / demo_completed
+      - share_rate       = share_after_demo    / demo_completed
+      - signup_rate      = avatar_signup_from_avatar / demo_completed
+    Also returns use-case breakdown and recommendation hint.
+    """
+    window = max(1, min(30, days))
+    cutoff = (datetime.now(timezone.utc)
+              - timedelta(days=window)).isoformat()
+
+    async def _count(step):
+        return await db.funnel_events.count_documents({
+            "step": step,
+            "timestamp": {"$gte": cutoff},
+        })
+
+    demo_completed = await _count("demo_completed")
+    denom = max(1, demo_completed)  # avoid div-zero while keeping numerator accurate
+    use_yes = await _count("avatar_use_again_yes")
+    use_no  = await _count("avatar_use_again_no")
+    retry   = await _count("retry_after_demo")
+    share   = await _count("share_after_demo")
+    signup  = await _count("avatar_signup_from_avatar")
+
+    # Use-case breakdown
+    use_cases = {}
+    async for ev in db.funnel_events.find({
+        "step": "avatar_use_case_selected",
+        "timestamp": {"$gte": cutoff},
+    }, {"_id": 0, "meta": 1}):
+        uc = (ev.get("meta") or {}).get("use_case") or "unknown"
+        use_cases[uc] = use_cases.get(uc, 0) + 1
+
+    def pct(n):
+        return round(100.0 * n / denom, 1)
+
+    ratios = {
+        "window_days": window,
+        "demo_completed": demo_completed,
+        "use_again_yes": use_yes,
+        "use_again_no": use_no,
+        "use_again_rate_pct": pct(use_yes),
+        "retry_rate_pct": pct(retry),
+        "share_rate_pct": pct(share),
+        "signup_rate_pct": pct(signup),
+        "use_cases": use_cases,
+    }
+    # Decision hint — ruthless, not generous
+    if demo_completed < 10:
+        recommendation = "INSUFFICIENT_DATA"
+    elif ratios["use_again_rate_pct"] >= 30 and ratios["signup_rate_pct"] >= 5:
+        recommendation = "GREEN_LIGHT_PHASE_2"
+    elif ratios["use_again_rate_pct"] >= 15:
+        recommendation = "WEAK_SIGNAL_DISTRIBUTION_PROBLEM"
+    else:
+        recommendation = "KILL_OR_PIVOT"
+    ratios["recommendation"] = recommendation
+    return ratios

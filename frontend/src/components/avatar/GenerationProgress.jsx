@@ -19,6 +19,8 @@ export default function GenerationProgress({
   anonymous = false,
   anonSessionId = null,
   onSignupGate = null,   // called with a reason string when anon user hits a gated action
+  uploadedPhotoUrl = null,
+  onRetryVariant = null,
 }) {
   const [job, setJob] = useState(null);
   const [err, setErr] = useState(null);
@@ -102,6 +104,8 @@ export default function GenerationProgress({
         onBackToLibrary={onBackToLibrary}
         anonymous={anonymous}
         onSignupGate={onSignupGate}
+        uploadedPhotoUrl={uploadedPhotoUrl}
+        onRetryVariant={onRetryVariant}
       />
     );
   }
@@ -134,8 +138,8 @@ export default function GenerationProgress({
       <div className="flex items-center justify-between">
         <div>
           <div className="text-[10px] uppercase tracking-[0.18em] text-violet-300 font-bold mb-2">Step 5 of 5</div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white">Generating your avatar…</h1>
-          <p className="text-sm text-slate-400 mt-2">Hang tight — this usually takes {etaSeconds || 30}s. You can leave this page and come back later.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">Creating your AI avatar…</h1>
+          <p className="text-sm text-slate-400 mt-2">Analyzing face · mapping voice · generating motion. You can stay on this page — we'll flip to the result the moment it's ready.</p>
         </div>
         <DemoBadge />
       </div>
@@ -166,11 +170,11 @@ export default function GenerationProgress({
 
 function StageList({ progress, stageLabel }) {
   const stages = [
-    { label: 'Analyzing your input',       pct: 10 },
-    { label: 'Preparing avatar model',     pct: 30 },
-    { label: 'Synthesizing voice',         pct: 55 },
-    { label: 'Rendering motion + scene',   pct: 80 },
-    { label: 'Applying disclosure label',  pct: 95 },
+    { label: 'Analyzing face',       pct: 10 },
+    { label: 'Mapping voice',        pct: 30 },
+    { label: 'Generating motion',    pct: 55 },
+    { label: 'Rendering video',      pct: 80 },
+    { label: 'Applying disclosure',  pct: 95 },
   ];
   return (
     <ul className="space-y-2" data-testid="avatar-studio-progress-stage-list">
@@ -196,20 +200,54 @@ function StageList({ progress, stageLabel }) {
   );
 }
 
-function ResultView({ job, onMakeAnother, onBackToLibrary, anonymous = false, onSignupGate = null }) {
+function ResultView({
+  job, onMakeAnother, onBackToLibrary,
+  anonymous = false, onSignupGate = null,
+  uploadedPhotoUrl = null,
+  onRetryVariant = null,    // (motion_style) => void — wires to new anon gen
+}) {
   const videoUrl = job?.output_url;
   const [copied, setCopied] = useState(false);
   const [videoError, setVideoError] = useState(false);
-  const [videoKey, setVideoKey] = useState(0);    // forces reload on retry
+  const [videoKey, setVideoKey] = useState(0);
+  const [useAgainAnswer, setUseAgainAnswer] = useState(null);     // null | 'yes' | 'no'
+  const [useCase, setUseCase] = useState(null);
   const videoRef = useRef(null);
 
   const retryVideo = () => {
     setVideoError(false);
     setVideoKey(k => k + 1);
-    // defer play attempt to next tick after remount
     setTimeout(() => {
       try { videoRef.current?.play?.().catch(() => {}); } catch {}
     }, 100);
+  };
+
+  const emit = (step, meta = {}) => {
+    try {
+      fetch(`${API}/api/avatar/funnel/track`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          step,
+          session_id: localStorage.getItem('avatar_demo_session_id') || null,
+          meta: { job_id: job?.id, is_demo_output: true, ...meta },
+        }),
+      }).catch(() => {});
+    } catch {}
+  };
+
+  const pickUseAgain = (ans) => {
+    if (useAgainAnswer) return; // one-shot
+    setUseAgainAnswer(ans);
+    emit(ans === 'yes' ? 'avatar_use_again_yes' : 'avatar_use_again_no',
+         { avatar_type: job?.input?.avatar_type,
+           motion_style: job?.input?.motion_style });
+  };
+
+  const pickUseCase = (uc) => {
+    if (useCase) return;
+    setUseCase(uc);
+    emit('avatar_use_case_selected', { use_case: uc });
   };
 
   // Attempt playback once the element mounts. iOS Safari ignores autoplay
@@ -305,6 +343,30 @@ function ResultView({ job, onMakeAnother, onBackToLibrary, anonymous = false, on
           <span className="font-bold text-amber-200">This is a simulated preview.</span> In the full version, this will be <span className="font-bold text-amber-200">your face speaking in your voice</span>. We're collecting demand signal before wiring the real AI — that's why this is a stylized placeholder, not a stranger's video.
         </div>
       </div>
+
+      {/* Input → Output bridge: user's uploaded photo + arrow + preview label.
+          Bridges the mental gap between what they uploaded and what they see. */}
+      {uploadedPhotoUrl && (
+        <div className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.04] border border-white/10"
+             data-testid="avatar-studio-result-thumbnail-bridge">
+          <div className="flex flex-col items-center gap-1">
+            <img src={uploadedPhotoUrl} alt="Your input"
+                 className="w-14 h-14 rounded-xl object-cover border-2 border-violet-500/40"
+                 data-testid="avatar-studio-result-thumbnail-user" />
+            <span className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">Your input</span>
+          </div>
+          <div className="text-violet-300 text-xl font-bold">→</div>
+          <div className="flex flex-col items-center gap-1">
+            <div className="w-14 h-14 rounded-xl border-2 border-amber-500/40 bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
+              <Sparkles className="w-6 h-6 text-white" />
+            </div>
+            <span className="text-[9px] uppercase tracking-wider text-amber-300 font-semibold">Your future avatar</span>
+          </div>
+          <div className="text-[11px] text-slate-400 leading-snug flex-1">
+            Phase 2 will render your face + voice into this preview slot.
+          </div>
+        </div>
+      )}
 
       <div className="rounded-2xl overflow-hidden bg-black border border-white/10 relative" data-testid="avatar-studio-result-video-wrap">
         {videoError ? (
@@ -425,6 +487,118 @@ function ResultView({ job, onMakeAnother, onBackToLibrary, anonymous = false, on
         <div>Motion style: <span className="text-slate-300">{job?.input?.motion_style}</span></div>
         <div>Duration: <span className="text-slate-300">{job?.input?.duration_seconds}s</span></div>
       </div>
+
+      {/* STRONGEST SIGNAL: would you use this again? Binary, one tap. */}
+      <div
+        className="rounded-2xl border-2 border-violet-500/40 bg-gradient-to-br from-violet-500/10 via-fuchsia-500/5 to-transparent p-4"
+        data-testid="avatar-studio-result-use-again-block"
+      >
+        <div className="text-sm font-bold text-white mb-3">Would you use this again?</div>
+        {useAgainAnswer === null ? (
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => pickUseAgain('yes')}
+              className="py-3 rounded-xl font-bold text-white bg-emerald-500/20 border border-emerald-500/40 hover:bg-emerald-500/30 active:scale-[0.98] transition"
+              style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
+              data-testid="avatar-studio-result-use-again-yes"
+            >
+              Yes
+            </button>
+            <button
+              type="button"
+              onClick={() => pickUseAgain('no')}
+              className="py-3 rounded-xl font-bold text-white bg-rose-500/20 border border-rose-500/40 hover:bg-rose-500/30 active:scale-[0.98] transition"
+              style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
+              data-testid="avatar-studio-result-use-again-no"
+            >
+              No
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className={`text-xs font-semibold ${useAgainAnswer === 'yes' ? 'text-emerald-300' : 'text-rose-300'}`}
+                 data-testid={`avatar-studio-result-use-again-recorded-${useAgainAnswer}`}>
+              {useAgainAnswer === 'yes'
+                ? 'Noted — glad it clicked.'
+                : 'Got it. We\u2019ll use this signal.'}
+            </div>
+            {useAgainAnswer === 'yes' && !useCase && (
+              <div data-testid="avatar-studio-result-use-case-block">
+                <div className="text-xs text-white font-semibold mb-2">What would you use this for?</div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {[
+                    {id: 'content_creation', label: 'Content creation'},
+                    {id: 'reels_shorts',    label: 'Instagram / Reels'},
+                    {id: 'business_videos', label: 'Business videos'},
+                    {id: 'just_for_fun',    label: 'Just for fun'},
+                    {id: 'other',           label: 'Other'},
+                  ].map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => pickUseCase(c.id)}
+                      className="py-2 rounded-lg text-xs font-semibold text-slate-200 bg-white/5 border border-white/10 hover:bg-white/10 active:scale-[0.98] transition"
+                      style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
+                      data-testid={`avatar-studio-result-use-case-${c.id}`}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {useCase && (
+              <div className="text-xs text-violet-300 font-semibold"
+                   data-testid="avatar-studio-result-use-case-recorded">
+                Thanks — {useCase.replace(/_/g, ' ')} logged.
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Curiosity-depth signal: try a different style. Triggers a fresh
+          anon generation with a new motion_style. */}
+      {onRetryVariant && (
+        <div
+          className="rounded-2xl border border-white/10 bg-white/[0.02] p-4"
+          data-testid="avatar-studio-result-retry-variants"
+        >
+          <div className="flex items-center gap-2 text-sm font-bold text-white mb-3">
+            <Repeat className="w-4 h-4 text-violet-300" /> Try a different style?
+          </div>
+          <div className="grid grid-cols-3 gap-1.5">
+            {[
+              {id: 'talking_head', label: 'Talking Head'},
+              {id: 'gesture',      label: 'Gesture'},
+              {id: 'full_body',    label: 'Full Body'},
+            ].map(v => {
+              const isCurrent = v.id === job?.input?.motion_style;
+              return (
+                <button
+                  key={v.id}
+                  type="button"
+                  disabled={isCurrent}
+                  onClick={() => {
+                    emit('retry_variant_selected', { from: job?.input?.motion_style, to: v.id });
+                    onRetryVariant(v.id);
+                  }}
+                  className={`py-2.5 rounded-lg text-xs font-semibold transition ${
+                    isCurrent
+                      ? 'bg-white/[0.03] border border-white/10 text-slate-500 cursor-not-allowed'
+                      : 'bg-violet-500/15 border border-violet-500/40 text-violet-100 hover:bg-violet-500/25 active:scale-[0.98]'
+                  }`}
+                  style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
+                  data-testid={`avatar-studio-result-retry-variant-${v.id}`}
+                >
+                  {v.label}{isCurrent ? ' · current' : ''}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col sm:flex-row gap-2">
         <button
