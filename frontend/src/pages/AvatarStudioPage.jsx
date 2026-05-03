@@ -507,12 +507,19 @@ function ResultStep({ clone, lastJob, onBack, onMakeAnother }) {
   };
   const shareWA = (e) => {
     trackShare('whatsapp', e.id);
-    const text = `I made this with my AI avatar — labeled AI-generated. Make yours in 60s: ${inviteUrl}`;
+    const text =
+      `I didn't record this video.\n` +
+      `This is an AI version of me.\n` +
+      `I used it to make 5 reels in under 10 minutes.\n` +
+      `Want your own AI avatar? → ${inviteUrl}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
   const shareIG = async (e) => {
     trackShare('instagram', e.id);
-    const caption = `Made with my AI avatar (labeled AI-generated). Make yours in 60s — link in profile.`;
+    const caption =
+      `I didn't record this video.\n` +
+      `This is an AI version of me.\n` +
+      `Made it in under a minute. Link in profile.`;
     try { await navigator.clipboard.writeText(caption); } catch {}
     const a = document.createElement('a');
     a.href = e.file_url; a.download = `ai_avatar_${e.id}.mp4`;

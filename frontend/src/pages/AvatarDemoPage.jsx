@@ -163,11 +163,11 @@ export default function AvatarDemoPage() {
           </div>
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight"
               data-testid="avatar-demo-headline">
-            {cfg?.above_fold_headline || 'I replaced 2 hours of daily content creation with this AI avatar.'}
+            {cfg?.above_fold_headline || "I didn't shoot this video. My AI avatar did."}
           </h1>
           <p className="text-base sm:text-lg text-slate-300 max-w-2xl"
              data-testid="avatar-demo-subhead">
-            {cfg?.above_fold_subhead || 'Verified personal AI avatar. Disclosure-labeled. YouTube + Instagram safe.'}
+            {cfg?.above_fold_subhead || 'I made 5 reels in 8 minutes using this AI version of me. Every clip is disclosure-labeled, YouTube + EU AI Act safe.'}
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <button onClick={() => goSignup('hero_above_fold')}
