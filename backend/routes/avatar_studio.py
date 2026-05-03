@@ -288,14 +288,43 @@ async def get_latest_consent(clone_id: str, user: dict = Depends(get_current_use
 
 
 # ─── Voice profile (mock) ─────────────────────────────────────────────────
+def _train_err(code: str, message: str, http: int = 400):
+    """Structured train/voice error. Detail is a dict so the frontend can
+    map to friendly UX without parsing free-form strings (which is what let
+    Safari's 'Body is disturbed or locked' leak in)."""
+    return HTTPException(status_code=http, detail={"code": code, "message": message})
+
+
+async def _audit_train(user_id: str, clone_id: str, consent_status: Optional[str],
+                       training_state: Optional[str], error_code: Optional[str],
+                       extra: Optional[dict] = None):
+    log.info("avatar_train_attempt user=%s clone=%s consent=%s state=%s code=%s extra=%s ts=%s",
+             user_id, clone_id, consent_status, training_state, error_code, extra or {}, _now())
+
+
 @router.post("/clones/{clone_id}/voice-profile")
 async def create_voice_profile(clone_id: str, user: dict = Depends(get_current_user)):
     clone = await db.avatar_clones.find_one({"_id": clone_id, "user_id": user["id"]})
     if not clone:
-        raise HTTPException(404, "Clone not found")
+        await _audit_train(user["id"], clone_id, None, None, "AVATAR_SESSION_MISSING",
+                           {"endpoint": "voice-profile"})
+        raise _train_err("AVATAR_SESSION_MISSING",
+                         "Avatar session not initialized. Please refresh and try again.", 404)
+    if clone.get("status") == "disabled":
+        await _audit_train(user["id"], clone_id, None, clone.get("status"),
+                           "AVATAR_LOCKED", {"endpoint": "voice-profile"})
+        raise _train_err("AVATAR_LOCKED",
+                         "Avatar training is temporarily unavailable. Please retry in a few minutes.", 423)
     consent = await db.clone_consents.find_one({"clone_id": clone_id, "consent_status": "approved"})
     if not consent:
-        raise HTTPException(403, "Approved consent required")
+        latest = await db.clone_consents.find_one({"clone_id": clone_id},
+                                                  sort=[("created_at", -1)],
+                                                  projection={"consent_status": 1})
+        cs = (latest or {}).get("consent_status") or "none"
+        await _audit_train(user["id"], clone_id, cs, clone.get("status"),
+                           "CONSENT_NOT_APPROVED", {"endpoint": "voice-profile"})
+        raise _train_err("CONSENT_NOT_APPROVED",
+                         "Your consent is still under review. Training unlocks once an admin approves.", 403)
     voice_ref = f"mock_voice::{clone_id}::{uuid.uuid4().hex[:8]}"
     await db.avatar_clones.update_one(
         {"_id": clone_id},
@@ -309,31 +338,62 @@ async def create_voice_profile(clone_id: str, user: dict = Depends(get_current_u
 async def train_clone(clone_id: str, bg: BackgroundTasks, user: dict = Depends(get_current_user)):
     clone = await db.avatar_clones.find_one({"_id": clone_id, "user_id": user["id"]})
     if not clone:
-        raise HTTPException(404, "Clone not found")
+        await _audit_train(user["id"], clone_id, None, None, "AVATAR_SESSION_MISSING")
+        raise _train_err("AVATAR_SESSION_MISSING",
+                         "Avatar session not initialized. Please refresh and try again.", 404)
+    if clone.get("status") == "disabled":
+        await _audit_train(user["id"], clone_id, None, clone.get("status"), "AVATAR_LOCKED")
+        raise _train_err("AVATAR_LOCKED",
+                         "Avatar training is temporarily unavailable. Please retry in a few minutes.", 423)
     consent = await db.clone_consents.find_one({"clone_id": clone_id, "consent_status": "approved"})
     if not consent:
-        raise HTTPException(403, "Verified consent required before training")
+        latest = await db.clone_consents.find_one({"clone_id": clone_id},
+                                                  sort=[("created_at", -1)],
+                                                  projection={"consent_status": 1})
+        cs = (latest or {}).get("consent_status") or "none"
+        await _audit_train(user["id"], clone_id, cs, clone.get("status"), "CONSENT_NOT_APPROVED")
+        raise _train_err("CONSENT_NOT_APPROVED",
+                         "Your consent is still under review. Training unlocks once an admin approves.", 403)
     if clone["status"] == "ready":
+        await _audit_train(user["id"], clone_id, "approved", "ready", None,
+                           {"already_ready": True})
         return {"job_id": None, "status": "already_ready"}
-    job = {
-        "_id": str(uuid.uuid4()),
-        "user_id": user["id"],
-        "clone_id": clone_id,
-        "job_type": "train_avatar",
-        "status": "queued",
-        "progress": 0,
-        "worker_name": "mock_avatar_training_worker",
-        "input": {},
-        "output_url": None,
-        "error_code": None,
-        "started_at": None,
-        "completed_at": None,
-        "created_at": _now(),
-    }
-    await db.avatar_jobs.insert_one(job)
-    await db.avatar_clones.update_one({"_id": clone_id}, {"$set": {"status": "training", "updated_at": _now()}})
-    bg.add_task(_mock_training_worker, job["_id"])
-    return {"job_id": job["_id"], "status": "queued"}
+    if clone["status"] not in {"consent_approved", "training", "consent_review"}:
+        await _audit_train(user["id"], clone_id, "approved", clone.get("status"),
+                           "AVATAR_STATE_INVALID")
+        raise _train_err("AVATAR_STATE_INVALID",
+                         "Something went wrong while preparing your avatar. Please retry.", 409)
+    try:
+        job = {
+            "_id": str(uuid.uuid4()),
+            "user_id": user["id"],
+            "clone_id": clone_id,
+            "job_type": "train_avatar",
+            "status": "queued",
+            "progress": 0,
+            "worker_name": "mock_avatar_training_worker",
+            "input": {},
+            "output_url": None,
+            "error_code": None,
+            "started_at": None,
+            "completed_at": None,
+            "created_at": _now(),
+        }
+        await db.avatar_jobs.insert_one(job)
+        await db.avatar_clones.update_one({"_id": clone_id},
+                                          {"$set": {"status": "training", "updated_at": _now()}})
+        bg.add_task(_mock_training_worker, job["_id"])
+        await _audit_train(user["id"], clone_id, "approved", "training", None,
+                           {"job_id": job["_id"]})
+        return {"job_id": job["_id"], "status": "queued"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.exception("train init failed user=%s clone=%s: %s", user["id"], clone_id, e)
+        await _audit_train(user["id"], clone_id, "approved", clone.get("status"),
+                           "TRAINING_INIT_FAILED", {"exception": str(e)[:300]})
+        raise _train_err("TRAINING_INIT_FAILED",
+                         "Could not start training. Please retry.", 500)
 
 
 async def _mock_training_worker(job_id: str):

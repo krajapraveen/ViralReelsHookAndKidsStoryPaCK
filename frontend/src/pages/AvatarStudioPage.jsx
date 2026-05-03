@@ -353,30 +353,101 @@ function ConsentStep({ clone, onBack, onSubmitted }) {
 }
 
 // ─── Step 3: Train (mock job poller) ──────────────────────────────────────
+const TRAIN_ERROR_MAP = {
+  AVATAR_SESSION_MISSING: 'Avatar session not initialized. Please refresh and try again.',
+  AVATAR_LOCKED: 'Avatar training is temporarily unavailable. Please retry in a few minutes.',
+  AVATAR_STATE_INVALID: 'Something went wrong while preparing your avatar. Please retry.',
+  CONSENT_NOT_APPROVED: 'Your consent is still under review. Training unlocks once an admin approves.',
+  TRAINING_INIT_FAILED: 'Could not start training. Please retry.',
+};
+
+// Native browser fetch errors (Safari "Body is disturbed or locked",
+// Chrome/Firefox "Failed to fetch", etc.) must NEVER reach the user. This
+// scrub maps them to a clean retry message.
+function scrubBrowserNoise(msg) {
+  const s = String(msg || '');
+  if (/body is disturbed|body is unusable|body stream|body is locked|failed to fetch|networkerror|typeerror.*fetch/i.test(s)) {
+    return 'Network hiccup. Please retry.';
+  }
+  return s;
+}
+
 function TrainStep({ clone, onBack, onReady }) {
   const [job, setJob] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
+  const [errCode, setErrCode] = useState(null);
   const [voice, setVoice] = useState(false);
+  const [stateCheck, setStateCheck] = useState({ loading: true, consent_status: null, clone_status: clone.status });
+  const inFlightRef = useRef(false);  // prevents double-clicks reading the same Response twice
+
+  // Pre-flight: re-fetch latest consent + clone state. Disables Start
+  // Training when state is invalid; offers Refresh-status retry.
+  const refreshState = useCallback(async () => {
+    setStateCheck(s => ({ ...s, loading: true }));
+    try {
+      const [cr, cs] = await Promise.all([
+        fetch(`${API}/api/avatar/clones/${clone.id}`, { headers: authHeaders() }),
+        fetch(`${API}/api/avatar/clones/${clone.id}/consent`, { headers: authHeaders() }),
+      ]);
+      const c = cr.ok ? await cr.json() : null;
+      const co = cs.ok ? await cs.json() : null;
+      setStateCheck({
+        loading: false,
+        clone_status: c?.status || clone.status,
+        consent_status: co?.consent_status || 'none',
+      });
+    } catch (e) {
+      setStateCheck({ loading: false, clone_status: clone.status,
+                      consent_status: 'unknown', fetch_error: scrubBrowserNoise(e?.message) });
+    }
+  }, [clone.id, clone.status]);
+
+  useEffect(() => { refreshState(); }, [refreshState]);
+
+  const consentApproved = stateCheck.consent_status === 'approved';
+  const cloneLocked = stateCheck.clone_status === 'disabled';
+  const cloneAlreadyReady = stateCheck.clone_status === 'ready';
+  const stateValid = consentApproved && !cloneLocked && !cloneAlreadyReady;
 
   const startTrain = async () => {
-    setBusy(true); setErr(null);
+    if (inFlightRef.current) return;       // double-click guard — root cause of "Body is disturbed or locked"
+    if (!stateValid) return;
+    inFlightRef.current = true;
+    setBusy(true); setErr(null); setErrCode(null);
     try {
-      // ensure voice profile (mock) exists
-      await fetch(`${API}/api/avatar/clones/${clone.id}/voice-profile`, {
+      // Voice profile (mock). Read body ONCE, branch on ok.
+      const vr = await fetch(`${API}/api/avatar/clones/${clone.id}/voice-profile`, {
         method: 'POST', headers: authHeaders(),
       });
+      const vBody = await vr.json().catch(() => ({}));
+      if (!vr.ok) {
+        const code = vBody?.detail?.code || 'TRAINING_INIT_FAILED';
+        setErrCode(code);
+        setErr(TRAIN_ERROR_MAP[code] || vBody?.detail?.message || 'Could not start training.');
+        return;
+      }
       setVoice(true);
+
       const r = await fetch(`${API}/api/avatar/clones/${clone.id}/train`, {
         method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }), body: '{}',
       });
-      if (!r.ok) throw new Error((await r.json()).detail || 'Could not start training');
-      const d = await r.json();
-      if (d.job_id) setJob({ id: d.job_id, status: 'queued', progress: 0 });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const code = body?.detail?.code || 'TRAINING_INIT_FAILED';
+        setErrCode(code);
+        setErr(TRAIN_ERROR_MAP[code] || body?.detail?.message || 'Could not start training.');
+        return;
+      }
+      if (body.job_id) setJob({ id: body.job_id, status: 'queued', progress: 0 });
       else onReady(); // already_ready
     } catch (e) {
-      setErr(String(e.message || e));
-    } finally { setBusy(false); }
+      setErrCode('TRAINING_INIT_FAILED');
+      setErr(scrubBrowserNoise(e?.message) || 'Could not start training. Please retry.');
+    } finally {
+      setBusy(false);
+      inFlightRef.current = false;
+    }
   };
 
   useEffect(() => {
@@ -401,14 +472,44 @@ function TrainStep({ clone, onBack, onReady }) {
       <DisclosureBanner inline />
       {!job && (
         <div className="space-y-3">
-          <p className="text-sm text-slate-400">
-            Consent approved. We'll create a mock voice profile and train your face model. (Real training lands next session — this run is a fast simulation.)
-          </p>
-          {err && <div className="text-xs text-rose-300" data-testid="avatar-train-error">{err}</div>}
-          <button onClick={startTrain} disabled={busy}
-                  className="w-full py-3.5 rounded-xl font-bold text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 disabled:opacity-50"
+          {stateCheck.loading ? (
+            <p className="text-sm text-slate-400" data-testid="avatar-train-state-loading">Checking avatar status…</p>
+          ) : !consentApproved ? (
+            <div className="space-y-2" data-testid="avatar-train-state-pending-consent">
+              <p className="text-sm text-amber-200">
+                Your consent is still under review. Training unlocks once an admin approves.
+              </p>
+              <button onClick={refreshState}
+                      className="text-xs px-3 py-1.5 rounded-md bg-amber-500/15 text-amber-200 border border-amber-500/40 font-bold"
+                      data-testid="avatar-train-refresh-status">
+                Refresh status
+              </button>
+            </div>
+          ) : cloneLocked ? (
+            <p className="text-sm text-rose-300" data-testid="avatar-train-state-locked">
+              {TRAIN_ERROR_MAP.AVATAR_LOCKED}
+            </p>
+          ) : cloneAlreadyReady ? (
+            <p className="text-sm text-emerald-300" data-testid="avatar-train-state-ready">
+              Avatar already ready. Continue to generation.
+            </p>
+          ) : (
+            <p className="text-sm text-slate-400">
+              Consent approved. We'll create a mock voice profile and train your face model.
+              (Real training lands next session — this run is a fast simulation.)
+            </p>
+          )}
+          {err && (
+            <div className="text-xs text-rose-300 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30"
+                 data-testid="avatar-train-error">
+              {err}
+              {errCode && <div className="mt-1 text-[10px] uppercase tracking-wider text-rose-400/70">code: {errCode}</div>}
+            </div>
+          )}
+          <button onClick={startTrain} disabled={busy || !stateValid}
+                  className="w-full py-3.5 rounded-xl font-bold text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 disabled:opacity-50 disabled:cursor-not-allowed"
                   data-testid="avatar-train-start">
-            {busy ? 'Starting…' : 'Start training'}
+            {busy ? 'Starting…' : err ? 'Retry training' : 'Start training'}
           </button>
         </div>
       )}
