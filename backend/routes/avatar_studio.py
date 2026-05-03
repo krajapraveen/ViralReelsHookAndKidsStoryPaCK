@@ -38,9 +38,16 @@ router = APIRouter(prefix="/avatar", tags=["avatar"])
 DISCLOSURE_TEXT = "This video uses an AI-generated avatar with verified consent."
 VISIBLE_LABEL = "AI-generated avatar"
 REQUIRED_CONSENT_PHRASE = (
-    "I consent to creating an AI avatar of myself for my own content. "
+    "I consent to creating an AI avatar of myself and my content. "
     "I understand all output will be labeled AI-generated."
 )
+
+
+def _normalize_consent_phrase(s: str) -> str:
+    """Safe-only normalization: trim ends, collapse internal whitespace,
+    case-fold. NO word reordering, NO partial matches, NO punctuation
+    stripping."""
+    return re.sub(r"\s+", " ", (s or "")).strip().lower()
 MIN_CONSENT_SECONDS = 5
 MAX_SCRIPT_CHARS = 1200
 MOCK_TRAIN_SECONDS = 8       # simulated training duration
@@ -226,14 +233,13 @@ async def submit_consent(
 
     if duration_seconds < MIN_CONSENT_SECONDS:
         raise HTTPException(400, f"Consent video must be at least {MIN_CONSENT_SECONDS}s")
-    expected = REQUIRED_CONSENT_PHRASE.lower().strip()
-    given = consent_phrase.lower().strip()
-    # Loose match: 80%+ of expected words must appear in given text
-    expected_words = set(re.findall(r"\w+", expected))
-    given_words = set(re.findall(r"\w+", given))
-    overlap = len(expected_words & given_words) / max(len(expected_words), 1)
-    if overlap < 0.8:
-        raise HTTPException(400, "Consent phrase doesn't match. Please read the required text.")
+    # Exact-match after safe normalization. 80%-overlap was too lenient
+    # (let "Kichi Kichi kavaakika"-style noise through).
+    if _normalize_consent_phrase(consent_phrase) != _normalize_consent_phrase(REQUIRED_CONSENT_PHRASE):
+        raise HTTPException(
+            400,
+            "Typed phrase must exactly match the required consent phrase."
+        )
 
     # Mock storage: we record file size + first-100-bytes hash as proof-of-upload.
     # Production must persist to R2 and store storage_url.

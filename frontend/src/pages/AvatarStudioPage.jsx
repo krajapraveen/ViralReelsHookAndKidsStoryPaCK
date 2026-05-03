@@ -3,8 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { Shield, Video, Mic, Sparkles, Send, AlertTriangle, ArrowLeft, ChevronRight, CheckCircle2, Loader2, FileText, Lock } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL;
-const REQUIRED_PHRASE = 'I consent to creating an AI avatar of myself for my own content. I understand all output will be labeled AI-generated.';
+const REQUIRED_PHRASE = 'I consent to creating an AI avatar of myself and my content. I understand all output will be labeled AI-generated.';
 const VISIBLE_LABEL = 'AI-generated avatar';
+
+// Same safe-only normalization as the backend.
+const normalizeConsent = (s) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+const phraseMatches = (typed) => normalizeConsent(typed) === normalizeConsent(REQUIRED_PHRASE);
 
 const authHeaders = (extra = {}) => {
   const t = localStorage.getItem('token');
@@ -195,6 +199,7 @@ function ConsentStep({ clone, onBack, onSubmitted }) {
   const [recorded, setRecorded] = useState(null); // { blob, url, duration }
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
+  const [copied, setCopied] = useState(false);
   const videoRef = useRef(null);
   const mediaRef = useRef(null);
   const chunksRef = useRef([]);
@@ -234,6 +239,7 @@ function ConsentStep({ clone, onBack, onSubmitted }) {
   const submit = async () => {
     if (!recorded) { setErr('Please record a 5-second consent video first.'); return; }
     if (recorded.duration < 5) { setErr('Consent video must be at least 5 seconds.'); return; }
+    if (!phraseMatches(phrase)) { setErr('Typed phrase must exactly match the required consent phrase.'); return; }
     setBusy(true); setErr(null);
     try {
       const fd = new FormData();
@@ -257,6 +263,15 @@ function ConsentStep({ clone, onBack, onSubmitted }) {
     }
   };
 
+  const copyRequiredPhrase = async () => {
+    try { await navigator.clipboard.writeText(REQUIRED_PHRASE); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch {}
+  };
+
+  const phraseOK = phrase.length > 0 && phraseMatches(phrase);
+  const phraseDirty = phrase.length > 0;
+  const durationOK = !!(recorded && recorded.duration >= 5);
+  const canSubmit = !busy && durationOK && phraseOK;
+
   return (
     <div className="space-y-5" data-testid="avatar-step-consent">
       <Header onBack={onBack} />
@@ -264,9 +279,16 @@ function ConsentStep({ clone, onBack, onSubmitted }) {
       <p className="text-sm text-slate-400">
         Read the exact phrase below into your camera for 5+ seconds. This video is stored securely and reviewed before your clone is trained. You can revoke consent any time.
       </p>
-      <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-100" data-testid="avatar-consent-phrase">
-        <div className="text-[10px] uppercase tracking-wider font-bold text-amber-300 mb-1">Required phrase</div>
-        <div className="text-sm leading-relaxed">{REQUIRED_PHRASE}</div>
+      <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-100 relative" data-testid="avatar-consent-phrase">
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <div className="text-[10px] uppercase tracking-wider font-bold text-amber-300">Required phrase</div>
+          <button type="button" onClick={copyRequiredPhrase}
+                  className="text-[10px] px-2 py-1 rounded-md bg-amber-500/20 text-amber-200 border border-amber-500/40 font-bold uppercase tracking-wider"
+                  data-testid="avatar-consent-copy-required">
+            {copied ? 'Copied ✓' : 'Copy required phrase'}
+          </button>
+        </div>
+        <div className="text-sm leading-relaxed select-text" data-testid="avatar-consent-phrase-text">{REQUIRED_PHRASE}</div>
       </div>
       <div className="rounded-2xl overflow-hidden bg-black aspect-video border border-white/10">
         {recorded ? (
@@ -299,13 +321,30 @@ function ConsentStep({ clone, onBack, onSubmitted }) {
       <label className="block">
         <span className="text-sm text-slate-300">Type the phrase you just spoke (we cross-check):</span>
         <textarea value={phrase} onChange={e => setPhrase(e.target.value)}
-                  rows={3} className="mt-1 w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm"
+                  rows={3} className={`mt-1 w-full px-3 py-2.5 rounded-lg bg-white/5 border text-white text-sm ${
+                    !phraseDirty ? 'border-white/10' : (phraseOK ? 'border-emerald-500/50' : 'border-rose-500/50')
+                  }`}
                   data-testid="avatar-consent-phrase-input"
                   placeholder="Paste or type the required phrase here…" />
+        {phraseDirty && !phraseOK && (
+          <div className="mt-1.5 text-xs text-rose-300" data-testid="avatar-consent-phrase-mismatch">
+            Typed phrase must exactly match the required consent phrase.
+          </div>
+        )}
+        {phraseDirty && phraseOK && (
+          <div className="mt-1.5 text-xs text-emerald-300" data-testid="avatar-consent-phrase-match">
+            Phrase matches ✓
+          </div>
+        )}
       </label>
+      {recorded && !durationOK && (
+        <div className="text-xs text-rose-300" data-testid="avatar-consent-duration-warning">
+          Consent video must be at least 5 seconds. Please re-record.
+        </div>
+      )}
       {err && <div className="text-xs text-rose-300" data-testid="avatar-consent-error">{err}</div>}
-      <button onClick={submit} disabled={busy || !recorded || !phrase}
-              className="w-full py-3.5 rounded-xl font-bold text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 disabled:opacity-50"
+      <button onClick={submit} disabled={!canSubmit}
+              className="w-full py-3.5 rounded-xl font-bold text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 disabled:opacity-50 disabled:cursor-not-allowed"
               data-testid="avatar-consent-submit">
         {busy ? 'Submitting…' : 'Submit consent for review'}
       </button>
