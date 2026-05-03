@@ -863,12 +863,14 @@ async def studio_anon_job(job_id: str, session_id: str):
 ALLOWED_AVATAR_TYPES = {"quick_avatar", "voice_matched", "motion", "template"}
 ALLOWED_MOTION_STYLES = {"talking_head", "gesture", "full_body", "static"}
 
-# Demo sample outputs (publicly hostable placeholders — never real generation)
+# Demo sample outputs (publicly hostable iOS-safe MP4s — not tied to any
+# real AI provider. Hosted by Mozilla / W3Schools / learningcontainer —
+# known to play inline on iOS Safari + Android Chrome + Desktop).
 DEMO_OUTPUT_URLS = {
-    "talking_head": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-    "gesture":      "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
-    "full_body":    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-    "static":       "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+    "talking_head": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+    "gesture":      "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4",
+    "full_body":    "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+    "static":       "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
 }
 
 DEMO_SIMULATED_LABEL = "Demo / simulated output"

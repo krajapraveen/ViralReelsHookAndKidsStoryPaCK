@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, ShieldCheck, Shield, Lock } from 'lucide-react';
+import { ArrowLeft, ShieldCheck, Shield, Lock, Check } from 'lucide-react';
 import { SectionTitle } from './shared';
 
 const CHECKLIST = [
@@ -57,24 +57,35 @@ export default function SafetyReviewStep({
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-300 mb-3">
           <ShieldCheck className="w-4 h-4" /> Usage policy — tick all
         </div>
-        <ul className="space-y-2.5">
+        <ul className="space-y-2">
           {CHECKLIST.map(rule => {
             const checked = acceptedRules.includes(rule.id);
             return (
               <li key={rule.id}>
-                <label
-                  className={`flex items-start gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-white/[0.03] transition-colors ${checked ? 'bg-emerald-500/5' : ''}`}
+                {/* Custom button-based checkbox — bypasses iOS Safari quirks
+                    with native <input> + accent-color rendering. Entire row
+                    is one big tap target; visible Check icon in square box. */}
+                <button
+                  type="button"
+                  onClick={() => onToggleRule(rule.id)}
+                  aria-pressed={checked}
+                  className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors active:bg-white/[0.08] ${
+                    checked ? 'bg-emerald-500/10 border border-emerald-500/40' : 'bg-white/[0.03] border border-white/10 hover:bg-white/[0.05]'
+                  }`}
                   data-testid={`avatar-studio-safety-rule-${rule.id}`}
+                  style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
                 >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => onToggleRule(rule.id)}
-                    className="mt-0.5 w-[22px] h-[22px] rounded-[5px] border-2 border-white/30 accent-emerald-500 cursor-pointer shrink-0"
+                  <span
+                    aria-hidden="true"
+                    className={`shrink-0 w-6 h-6 rounded-[6px] border-2 flex items-center justify-center transition-colors ${
+                      checked ? 'border-emerald-400 bg-emerald-500' : 'border-white/30 bg-white/[0.04]'
+                    }`}
                     data-testid={`avatar-studio-safety-rule-${rule.id}-checkbox`}
-                  />
-                  <span className={`text-sm ${checked ? 'text-white' : 'text-slate-300'}`}>{rule.text}</span>
-                </label>
+                  >
+                    {checked && <Check className="w-4 h-4 text-white" strokeWidth={3} />}
+                  </span>
+                  <span className={`text-sm flex-1 ${checked ? 'text-white' : 'text-slate-300'}`}>{rule.text}</span>
+                </button>
               </li>
             );
           })}

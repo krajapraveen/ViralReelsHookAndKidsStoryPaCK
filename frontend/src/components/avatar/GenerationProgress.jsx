@@ -175,6 +175,28 @@ function StageList({ progress, stageLabel }) {
 function ResultView({ job, onMakeAnother, onBackToLibrary, anonymous = false, onSignupGate = null }) {
   const videoUrl = job?.output_url;
   const [copied, setCopied] = useState(false);
+  const [videoError, setVideoError] = useState(false);
+  const [videoKey, setVideoKey] = useState(0);    // forces reload on retry
+  const videoRef = useRef(null);
+
+  const retryVideo = () => {
+    setVideoError(false);
+    setVideoKey(k => k + 1);
+    // defer play attempt to next tick after remount
+    setTimeout(() => {
+      try { videoRef.current?.play?.().catch(() => {}); } catch {}
+    }, 100);
+  };
+
+  // Attempt playback once the element mounts. iOS Safari ignores autoplay
+  // on some configs even with muted — we call .play() after mount and
+  // silently catch rejections (user can still tap the big Play control).
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try { videoRef.current?.play?.().catch(() => {}); } catch {}
+    }, 300);
+    return () => clearTimeout(t);
+  }, [videoKey, videoUrl]);
 
   const shareText = `I didn't record this video — my AI avatar did.\nMade in under a minute.\nWant your own? → ${window.location.origin}/avatar-demo`;
 
@@ -249,16 +271,42 @@ function ResultView({ job, onMakeAnother, onBackToLibrary, anonymous = false, on
       </div>
 
       <div className="rounded-2xl overflow-hidden bg-black border border-white/10 relative" data-testid="avatar-studio-result-video-wrap">
-        <video
-          src={videoUrl}
-          controls
-          autoPlay
-          muted
-          playsInline
-          className="w-full aspect-video object-cover"
-          data-testid="avatar-studio-result-video"
-        />
-        <div className="absolute top-3 left-3 flex flex-col gap-1.5">
+        {videoError ? (
+          <div className="w-full aspect-video flex flex-col items-center justify-center bg-slate-900 text-center p-6" data-testid="avatar-studio-result-video-error">
+            <AlertTriangle className="w-8 h-8 text-amber-300 mb-3" />
+            <div className="text-sm font-bold text-white">Demo video failed to load</div>
+            <div className="text-xs text-slate-400 mt-1 max-w-sm">Your network or browser blocked the demo sample. Tap below to retry.</div>
+            <button
+              onClick={retryVideo}
+              className="mt-4 px-4 py-2 rounded-lg bg-violet-600 text-white text-sm font-bold"
+              data-testid="avatar-studio-result-video-retry-btn"
+            >
+              Retry video
+            </button>
+          </div>
+        ) : (
+          <video
+            key={videoKey}
+            ref={videoRef}
+            src={videoUrl}
+            controls
+            muted
+            playsInline
+            preload="auto"
+            poster={undefined}
+            className="w-full aspect-video object-contain bg-black"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
+            onError={(e) => {
+              try { console.error('video error', e?.nativeEvent || e); } catch {}
+              setVideoError(true);
+            }}
+            onCanPlay={() => {
+              try { videoRef.current?.play?.().catch(() => {}); } catch {}
+            }}
+            data-testid="avatar-studio-result-video"
+          />
+        )}
+        <div className="absolute top-3 left-3 flex flex-col gap-1.5 pointer-events-none">
           <span className="px-2 py-1 rounded-md bg-black/70 text-amber-200 text-[10px] uppercase tracking-wider font-bold border border-amber-500/40"
                 data-testid="avatar-studio-result-label-visible">
             {VISIBLE_LABEL}
