@@ -30,6 +30,7 @@ export default function GenerationProgress({
     if (!jobId) return;
     const start = Date.now();
     timerRef.current = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 500);
+    let sawCompletion = false;
     const poll = async () => {
       try {
         const url = anonymous
@@ -39,9 +40,31 @@ export default function GenerationProgress({
         if (!r.ok) return;
         const d = await r.json();
         setJob(d);
+        try {
+          // eslint-disable-next-line no-console
+          console.log('[avatar-poll]', {
+            job_id: d.id || jobId, status: d.status, progress: d.progress,
+            stage: d.stage_label, duration: d?.input?.duration_seconds,
+            elapsed: Math.floor((Date.now() - start) / 1000),
+            eta: d.eta_seconds || etaSeconds,
+          });
+        } catch {}
         if (d.status === 'completed' || d.status === 'failed') {
+          sawCompletion = true;
           clearInterval(pollRef.current);
           clearInterval(timerRef.current);
+          return;
+        }
+        // Frontend hard timeout: if overdue by > eta + 10s and backend still
+        // hasn't reconciled → force-fail with retry card.
+        const elapsedSec = (Date.now() - start) / 1000;
+        const target = d.eta_seconds || etaSeconds || 30;
+        if (!sawCompletion && elapsedSec > target + 12) {
+          try { console.warn('[avatar-poll] overdue, forcing local failure'); } catch {}
+          clearInterval(pollRef.current);
+          clearInterval(timerRef.current);
+          setJob({ ...(d || {}), status: 'failed',
+                   error_code: 'TIMEOUT_DEMO_GENERATION' });
         }
       } catch {}
     };
@@ -51,7 +74,7 @@ export default function GenerationProgress({
       clearInterval(pollRef.current);
       clearInterval(timerRef.current);
     };
-  }, [jobId, anonymous, anonSessionId]);
+  }, [jobId, anonymous, anonSessionId, etaSeconds]);
 
   if (err) {
     return (
@@ -84,14 +107,15 @@ export default function GenerationProgress({
   }
 
   if (failed) {
+    const isTimeout = job?.error_code === 'TIMEOUT_DEMO_GENERATION';
     return (
       <div className="space-y-4" data-testid="avatar-studio-progress-step">
         <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-200 flex items-start gap-2"
              data-testid="avatar-studio-progress-failed">
           <AlertTriangle className="w-4 h-4 mt-0.5" />
           <div>
-            <div className="font-bold">Generation hiccuped</div>
-            <div className="text-xs mt-1">{job?.error_code || 'MOCK_STUDIO_FAIL'} — please retry.</div>
+            <div className="font-bold">{isTimeout ? 'Demo generation took too long' : 'Generation hiccuped'}</div>
+            <div className="text-xs mt-1">{isTimeout ? 'Please retry — this is a mocked Phase 1 demo and should finish in under a minute.' : (job?.error_code || 'MOCK_STUDIO_FAIL') + ' — please retry.'}</div>
           </div>
         </div>
         <button onClick={onMakeAnother} className="px-4 py-2 rounded-lg bg-violet-600 text-white text-sm font-bold"

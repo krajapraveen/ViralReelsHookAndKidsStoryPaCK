@@ -432,6 +432,9 @@ async def get_job(job_id: str, user: dict = Depends(get_current_user)):
          "output_export_id": 1, "input": 1})
     if not j:
         raise HTTPException(404, "Job not found")
+    # Self-heal zombie jobs killed by a hot-reload (Phase 1 mock only).
+    if j.get("job_type") == "studio_mock_generate":
+        j = await _reconcile_stuck_job_if_needed(j) or j
     return _strip_id(j)
 
 
@@ -833,16 +836,18 @@ async def studio_anon_mock_generate(body: AnonStudioGenerateRequest, bg: Backgro
 @router.get("/studio/anon-jobs/{job_id}")
 async def studio_anon_job(job_id: str, session_id: str):
     """Anonymous job polling. Session-scoped — no cross-session leaks.
+    Self-heals zombie jobs (e.g. when a hot-reload killed the worker).
     Returns the same shape as the authenticated /jobs/{id}."""
+    proj = {"_id": 1, "job_type": 1, "status": 1, "progress": 1,
+            "output_url": 1, "error_code": 1, "started_at": 1, "completed_at": 1,
+            "created_at": 1, "stage_label": 1, "eta_seconds": 1, "is_demo_output": 1,
+            "demo_label": 1, "output_export_id": 1, "input": 1, "anonymous": 1}
     j = await db.avatar_jobs.find_one(
-        {"_id": job_id, "anonymous_session_id": session_id},
-        {"_id": 1, "job_type": 1, "status": 1, "progress": 1,
-         "output_url": 1, "error_code": 1, "started_at": 1, "completed_at": 1,
-         "created_at": 1, "stage_label": 1, "eta_seconds": 1, "is_demo_output": 1,
-         "demo_label": 1, "output_export_id": 1, "input": 1, "anonymous": 1},
-    )
+        {"_id": job_id, "anonymous_session_id": session_id}, proj)
     if not j:
         raise HTTPException(404, "Job not found")
+    # Self-heal: if the mock worker died mid-flight, finalize now.
+    j = await _reconcile_stuck_job_if_needed(j) or j
     # Server-side emit of demo_completed on first observation of terminal state.
     if j.get("status") == "completed":
         already = await db.funnel_events.find_one(
@@ -982,9 +987,117 @@ async def studio_mock_generate(body: StudioGenerateRequest, bg: BackgroundTasks,
             "is_demo_output": True}
 
 
+async def _finalize_mock_job(job_id: str, motion_style: str, avatar_type: str,
+                              reason: str = "worker") -> bool:
+    """Idempotent finalizer. Safe to call from the worker OR from a
+    reconciliation path. Picks up an already-completed job and exits fast.
+    Returns True if this call performed the finalize, False if already done
+    or job missing."""
+    job = await db.avatar_jobs.find_one({"_id": job_id})
+    if not job:
+        log.warning("[mock_finalize] job %s missing (reason=%s)", job_id, reason)
+        return False
+    if job.get("status") == "completed":
+        return False  # idempotent — someone else already finalized
+
+    demo_url = DEMO_OUTPUT_URLS.get(motion_style, DEMO_OUTPUT_URLS["talking_head"])
+    forensic_id = f"DEMO-WM-{uuid.uuid4().hex[:14]}"
+    export = {
+        "_id": str(uuid.uuid4()),
+        "user_id": job.get("user_id"),
+        "clone_id": None,
+        "job_id": job_id,
+        "export_type": "video",
+        "file_url": demo_url,
+        "visible_label_applied": True,
+        "visible_label_text": VISIBLE_LABEL,
+        "demo_label": DEMO_SIMULATED_LABEL,
+        "is_demo_output": True,
+        "forensic_watermark_id": forensic_id,
+        "disclosure_text": DISCLOSURE_TEXT,
+        "platform": "generic",
+        "metadata": {
+            "ai_generated": True,
+            "ai_provider": "mock_studio_illusion",
+            "avatar_type": avatar_type,
+            "motion_style": motion_style,
+            "watermark_id": forensic_id,
+            "visible_label": VISIBLE_LABEL,
+            "demo_label": DEMO_SIMULATED_LABEL,
+            "is_demo_output": True,
+            "disclosure": DISCLOSURE_TEXT,
+            "finalize_reason": reason,
+        },
+        "created_at": _now(),
+    }
+    await db.avatar_exports.insert_one(export)
+    if job.get("user_id"):
+        prior = await db.avatar_exports.count_documents({"user_id": job["user_id"]})
+        step = "avatar_first_export" if prior <= 1 else "avatar_repeat_export"
+        await _emit_funnel(step, user_id=job["user_id"],
+                           meta={"export_id": export["_id"], "is_demo_output": True,
+                                 "avatar_type": avatar_type,
+                                 "finalize_reason": reason})
+    await db.avatar_jobs.update_one({"_id": job_id}, {
+        "$set": {"status": "completed", "progress": 100,
+                 "stage_label": "Ready",
+                 "completed_at": _now(), "output_url": demo_url,
+                 "output_export_id": export["_id"]}})
+    log.info("[mock_finalize] job=%s reason=%s url=%s", job_id, reason, demo_url)
+    return True
+
+
+async def _reconcile_stuck_job_if_needed(j: dict) -> dict:
+    """Self-healing reconciliation for Phase-1 mocked demo jobs.
+
+    FastAPI BackgroundTasks are fragile — a backend hot-reload mid-job
+    (common in dev) kills in-flight tasks and leaves the job stuck at its
+    last progress tick. On every poll we check: is this job running past
+    its eta + grace period? If yes, we either auto-complete it (demo output)
+    or mark it failed.
+
+    Returns the possibly-updated job dict (always re-fetched on mutation)."""
+    if not j:
+        return j
+    if j.get("status") != "running":
+        return j
+    started = j.get("started_at")
+    if not started:
+        return j
+    # parse ISO timestamp (stored as isoformat string in _now())
+    try:
+        if isinstance(started, str):
+            from datetime import datetime as _dt
+            started_dt = _dt.fromisoformat(started.replace("Z", "+00:00"))
+        else:
+            started_dt = started
+        elapsed = (datetime.now(timezone.utc) - started_dt).total_seconds()
+    except Exception:
+        return j
+    eta = j.get("eta_seconds") or 30
+    # Grace: let real jobs finish within eta+5s. Beyond that, reconcile.
+    if elapsed < eta + 5:
+        return j
+    # Hard cap: never let a mock job linger past 65s
+    hard_cap = 65
+    job_id = j["_id"]
+    input_dict = j.get("input") or {}
+    motion_style = input_dict.get("motion_style", "talking_head")
+    avatar_type = input_dict.get("avatar_type", "quick_avatar")
+    reason = "reconcile_overdue" if elapsed < hard_cap else "reconcile_hard_cap"
+    log.warning("[reconcile] job=%s elapsed=%.1fs eta=%ds progress=%s — forcing finalize (%s)",
+                job_id, elapsed, eta, j.get("progress"), reason)
+    finalized = await _finalize_mock_job(job_id, motion_style, avatar_type, reason=reason)
+    if finalized:
+        return await db.avatar_jobs.find_one({"_id": job_id}) or j
+    return j
+
+
 async def _mock_studio_illusion_worker(job_id: str, total_seconds: int,
                                         motion_style: str, avatar_type: str):
-    """Fake the full pipeline: 5 named stages, progress ticks, final demo URL."""
+    """Fake the full pipeline: 5 named stages, progress ticks, final demo URL.
+    If the worker dies mid-flight (e.g. hot-reload), the reconciliation path
+    in the polling endpoints will auto-finalize on the next GET."""
     stages = [
         ("Analyzing your input",       10),
         ("Preparing avatar model",     30),
@@ -1002,52 +1115,9 @@ async def _mock_studio_illusion_worker(job_id: str, total_seconds: int,
             await db.avatar_jobs.update_one({"_id": job_id}, {
                 "$set": {"progress": pct, "stage_label": label}})
         await asyncio.sleep(tick)
-        # Finalize — always succeed with demo output
-        demo_url = DEMO_OUTPUT_URLS.get(motion_style, DEMO_OUTPUT_URLS["talking_head"])
-        forensic_id = f"DEMO-WM-{uuid.uuid4().hex[:14]}"
-        job = await db.avatar_jobs.find_one({"_id": job_id})
-        if not job:
-            return
-        export = {
-            "_id": str(uuid.uuid4()),
-            "user_id": job["user_id"],
-            "clone_id": None,
-            "job_id": job_id,
-            "export_type": "video",
-            "file_url": demo_url,
-            "visible_label_applied": True,
-            "visible_label_text": VISIBLE_LABEL,
-            "demo_label": DEMO_SIMULATED_LABEL,
-            "is_demo_output": True,
-            "forensic_watermark_id": forensic_id,
-            "disclosure_text": DISCLOSURE_TEXT,
-            "platform": "generic",
-            "metadata": {
-                "ai_generated": True,
-                "ai_provider": "mock_studio_illusion",
-                "avatar_type": avatar_type,
-                "motion_style": motion_style,
-                "watermark_id": forensic_id,
-                "visible_label": VISIBLE_LABEL,
-                "demo_label": DEMO_SIMULATED_LABEL,
-                "is_demo_output": True,
-                "disclosure": DISCLOSURE_TEXT,
-            },
-            "created_at": _now(),
-        }
-        await db.avatar_exports.insert_one(export)
-        prior = await db.avatar_exports.count_documents({"user_id": job["user_id"]})
-        step = "avatar_first_export" if prior <= 1 else "avatar_repeat_export"
-        await _emit_funnel(step, user_id=job["user_id"],
-                           meta={"export_id": export["_id"], "is_demo_output": True,
-                                 "avatar_type": avatar_type})
-        await db.avatar_jobs.update_one({"_id": job_id}, {
-            "$set": {"status": "completed", "progress": 100,
-                     "stage_label": "Ready",
-                     "completed_at": _now(), "output_url": demo_url,
-                     "output_export_id": export["_id"]}})
+        await _finalize_mock_job(job_id, motion_style, avatar_type, reason="worker")
     except Exception as e:
-        log.exception(f"mock studio worker failed: {e}")
+        log.exception("mock studio worker failed: %s", e)
         await db.avatar_jobs.update_one({"_id": job_id}, {
             "$set": {"status": "failed", "error_code": "MOCK_STUDIO_FAIL",
                      "stage_label": "Failed — please retry"}})
