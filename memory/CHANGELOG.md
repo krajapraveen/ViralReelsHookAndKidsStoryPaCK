@@ -601,3 +601,94 @@ checkboxes, floating buttons, not centered under photo).
 🚦 Freeze discipline: no animations, no logic shift, no new components,
    no backend change, no refactor, no dashboard work.
 
+
+─────────────────────────────────────────────────────────
+[2026-05-03] AI PERSONAL AVATAR STUDIO — VERTICAL SLICE SHIPPED
+─────────────────────────────────────────────────────────
+Founder directive: build consent-based avatar studio independent of Photo
+Trailer. Phase 1 = end-to-end clickable vertical slice with mocked AI;
+no real face/voice/training providers wired this session.
+
+✅ Backend (NEW): /app/backend/routes/avatar_studio.py
+  Router prefix: /api/avatar (mounted in server.py)
+  - DB collections (new):
+      avatar_clones, clone_consents, avatar_jobs, avatar_exports,
+      clone_abuse_reports
+  - Public endpoints:
+      GET    /health
+      GET    /billing/plans                        (4 plans + 4 topups, INR)
+      POST   /clones                                (create — self/authorized_person)
+      GET    /clones                                (user's clones)
+      GET    /clones/{id}                           (single)
+      POST   /clones/{id}/consent                  (multipart: phrase + 5s+
+                                                    webm + duration + UA)
+      GET    /clones/{id}/consent                  (latest consent state)
+      POST   /clones/{id}/voice-profile            (mock voice ref)
+      POST   /clones/{id}/train                    (mock training, BG task)
+      GET    /jobs/{id}                            (poll progress)
+      POST   /generate-video                       (mock render, BG task)
+      POST   /clones/{id}/chat                     (mock reply with label)
+      GET    /clones/{id}/exports                  (list with metadata)
+      POST   /abuse-report
+  - Admin-only:
+      GET    /admin/clones
+      GET    /admin/consents/pending
+      POST   /admin/clones/{id}/action             (approve|reject|disable|enable)
+      GET    /admin/abuse-reports
+      POST   /admin/abuse-reports/{id}/action
+
+  Hard rules baked into code:
+    - DISCLOSURE_TEXT = "This video uses an AI-generated avatar with verified
+      consent." stamped on every export
+    - VISIBLE_LABEL = "AI-generated avatar" stamped on every export
+    - REQUIRED_CONSENT_PHRASE enforced (≥80% word overlap match)
+    - MIN_CONSENT_SECONDS = 5
+    - MAX_SCRIPT_CHARS = 1200
+    - BANNED_SUBSTRINGS list refuses celebrity/politician names, OTP/banking,
+      medical/legal impersonation, sexual material, "this is real"
+      deception phrases. Triggers HTTP 400 with code='DISALLOWED_CONTENT'.
+    - Admin disable_clone REVOKES all approved consents (consent_status →
+      revoked, revoked_at set) — defensive default.
+
+✅ Frontend (NEW):
+  - /app/frontend/src/pages/AvatarStudioPage.jsx
+      7-state machine: dashboard → create → consent → train → generate
+      → result → pricing.
+      DisclosureBanner shown on Dashboard / Train / Generate / Result.
+      Browser MediaRecorder for 5s+ consent video capture (webm).
+      All interactive elements have data-testid (kebab-case).
+  - /app/frontend/src/pages/AdminCloneModerationPage.jsx
+      Three sections: pending consents, all clones (with disable/enable),
+      abuse reports (mark reviewing/actioned/rejected).
+  - App.js routes:
+      /app/avatar                        (auth-gated)
+      /app/admin/avatar/moderation       (auth-gated; admin role check
+                                          enforced at API layer too)
+
+✅ Test results (iteration 533): 24/24 backend, all frontend tests PASS.
+   - Mocked AI providers documented in code + report.
+   - Photo Trailer isolation confirmed (no regression on /api/photo-trailer/*).
+   - One LOW-priority UX nit fixed in this session (submit button cursor).
+
+🛑 Photo Trailer freeze HELD: zero changes to photo_trailer.py, pipeline,
+   workers, templates, frontend, or KPI dashboard. 6h reliability readout
+   still scheduled at 00:13 UTC.
+
+📁 Files Added:
+  - backend/routes/avatar_studio.py
+  - frontend/src/pages/AvatarStudioPage.jsx
+  - frontend/src/pages/AdminCloneModerationPage.jsx
+  - backend/tests/test_avatar_studio_iteration533.py (testing agent)
+
+📁 Files Touched:
+  - backend/server.py (2 lines: import + include_router)
+  - frontend/src/App.js (3 lines: lazy imports + 2 routes)
+
+🚦 Next session (Phase 2) — provider adapter plug-ins:
+   - fal.ai face/lip-sync (replace _mock_render_worker — adapter shape
+     already in place: input = face_model_ref + audio_url; output = url)
+   - ElevenLabs voice cloning (replace _mock_training_worker voice phase)
+   - Real liveness vendor (Onfido / Persona) for third-party clones
+   - SynthID-equivalent forensic watermark (real bit injection)
+   - Cashfree billing wire-up (display already shipped)
+

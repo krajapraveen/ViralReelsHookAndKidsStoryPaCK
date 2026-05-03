@@ -174,7 +174,7 @@ function CreateStep({ onBack, onCreated }) {
       </fieldset>
       {err && <div className="text-xs text-rose-300" data-testid="avatar-create-error">{err}</div>}
       <button onClick={submit} disabled={busy || name.trim().length < 2}
-              className="w-full py-3.5 rounded-xl font-bold text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 disabled:opacity-50"
+              className="w-full py-3.5 rounded-xl font-bold text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 disabled:opacity-50 disabled:cursor-not-allowed"
               data-testid="avatar-create-submit">
         {busy ? 'Creating…' : 'Continue → Record consent'}
       </button>
