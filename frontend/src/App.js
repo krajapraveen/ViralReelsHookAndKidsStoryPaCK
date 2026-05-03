@@ -118,7 +118,6 @@ const PublicTrailerPage = lazy(() => import('./pages/PublicTrailerPage'));
 
 // Navigation / user pages
 const MySpacePage = lazy(() => import('./pages/MySpacePage'));
-const CreatePage = lazy(() => import('./pages/CreatePage'));
 const BrowsePage = lazy(() => import('./pages/BrowsePage'));
 const CharactersPage = lazy(() => import('./pages/CharactersPage'));
 const UserDashboardPage = lazy(() => import('./pages/UserDashboardPage'));
@@ -352,7 +351,7 @@ function App() {
         {/* ═══ NAVIGATION PAGES ═══ */}
         <Route path="/app/my-space" element={isAuthenticated ? <L><MySpacePage /></L> : <Navigate to="/login" />} />
         <Route path="/app/my-space/:assetId" element={isAuthenticated ? <L><MySpacePage /></L> : <Navigate to="/login" />} />
-        <Route path="/app/create" element={isAuthenticated ? <L><CreatePage /></L> : <Navigate to="/login" />} />
+        {/* /app/create routes to CreateMenuPage (see line below) — old CreatePage removed 2026-05-03 */}
         <Route path="/app/browse" element={isAuthenticated ? <L><BrowsePage /></L> : <Navigate to="/login" />} />
         <Route path="/app/characters" element={isAuthenticated ? <L><CharacterLibrary /></L> : <Navigate to="/login" />} />
         <Route path="/app/dashboard" element={isAuthenticated ? <L><UserDashboardPage /></L> : <Navigate to="/login" />} />
