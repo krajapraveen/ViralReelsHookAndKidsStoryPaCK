@@ -863,14 +863,14 @@ async def studio_anon_job(job_id: str, session_id: str):
 ALLOWED_AVATAR_TYPES = {"quick_avatar", "voice_matched", "motion", "template"}
 ALLOWED_MOTION_STYLES = {"talking_head", "gesture", "full_body", "static"}
 
-# Demo sample outputs (publicly hostable iOS-safe MP4s — not tied to any
-# real AI provider. Hosted by Mozilla / W3Schools / learningcontainer —
-# known to play inline on iOS Safari + Android Chrome + Desktop).
+# Demo sample outputs — self-hosted on our R2 bucket. No external CDN
+# dependency, no iOS hotlink issues, full Range support verified.
+# Seeded via /app/backend/scripts/seed_avatar_demo_r2.py (one-shot, idempotent).
 DEMO_OUTPUT_URLS = {
-    "talking_head": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
-    "gesture":      "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4",
-    "full_body":    "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
-    "static":       "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+    "talking_head": "https://pub-c251248e414545848d34b8c1b97ecdb3.r2.dev/videos/avatar_demo/talking_head.mp4",
+    "gesture":      "https://pub-c251248e414545848d34b8c1b97ecdb3.r2.dev/videos/avatar_demo/gesture.mp4",
+    "full_body":    "https://pub-c251248e414545848d34b8c1b97ecdb3.r2.dev/videos/avatar_demo/talking_head.mp4",
+    "static":       "https://pub-c251248e414545848d34b8c1b97ecdb3.r2.dev/videos/avatar_demo/talking_head.mp4",
 }
 
 DEMO_SIMULATED_LABEL = "Demo / simulated output"

@@ -46,6 +46,15 @@ const TYPES = [
 ];
 
 export default function AvatarTypeStep({ value, onChange, onBack, onNext }) {
+  const pickAndAdvance = (typeId) => {
+    try { console.log('avatar type selected', typeId); } catch (_) {}
+    onChange(typeId);
+    // advance on next tick so the state update flushes before route change
+    setTimeout(() => {
+      try { console.log('advancing to step', 'upload'); } catch (_) {}
+      onNext();
+    }, 0);
+  };
   return (
     <div className="space-y-6" data-testid="avatar-studio-type-step">
       <div className="flex items-center justify-between">
@@ -66,13 +75,15 @@ export default function AvatarTypeStep({ value, onChange, onBack, onNext }) {
           const active = value === t.id;
           return (
             <button
+              type="button"
               key={t.id}
-              onClick={() => onChange(t.id)}
+              onClick={() => pickAndAdvance(t.id)}
               className={`group text-left p-5 rounded-2xl border-2 transition-all ${
                 active ? `${t.border} bg-white/[0.06] ring-2 ring-violet-500/30` : 'border-white/10 bg-white/[0.02] hover:border-white/20'
               }`}
               data-testid={`avatar-studio-type-tile-${t.id}`}
               aria-pressed={active}
+              style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
             >
               <div className="flex items-start gap-3">
                 <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${t.color} flex items-center justify-center shrink-0`}>
