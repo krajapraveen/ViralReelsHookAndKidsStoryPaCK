@@ -809,3 +809,119 @@ Hard rule: no Phase 2 spend until 7-day distribution gate passes.
    - frontend/src/pages/AvatarStudioPage.jsx (Dashboard signature +
      Funnel button + ResultStep share row + lazy attribution effect)
 
+
+
+─────────────────────────────────────────────────────────
+[2026-05-03] AI CLONING STUDIO — 5-STEP MOCKED WIZARD SHIPPED (Phase 1)
+─────────────────────────────────────────────────────────
+Founder directive: rebuild AI Cloning Studio into a polished 5-step wizard
+for demand validation. STRICT — keep backend fully MOCKED, no real AI
+providers, no queues, no workers. "Convincing illusion" to test user intent
+before incurring Phase 2 (fal.ai / ElevenLabs) spend.
+
+User-confirmed choices (no re-opened decisions):
+  1. Route: REPLACE /app/avatar (legacy archived, no dual paths)
+  2. Avatar Library: inline Step 0 of the wizard
+  3. Illusion: auto-complete in 20–60s with demo output (short=~20s, long=~55s)
+  4. TestID convention: avatar-studio-<step>-<element>
+
+✅ Frontend (NEW, modular):
+   • /app/frontend/src/pages/AICloningStudio.jsx (orchestrator, 6 steps)
+   • /app/frontend/src/components/avatar/LibraryStep.jsx (Step 0 — saved + create-new)
+   • /app/frontend/src/components/avatar/AvatarTypeStep.jsx (Step 1 — 4 tiles:
+     quick_avatar, voice_matched, motion, template)
+   • /app/frontend/src/components/avatar/AssetUploadStep.jsx (Step 2 — photo +
+     conditional voice-sample upload for voice_matched type, name required)
+   • /app/frontend/src/components/avatar/MotionStep.jsx (Step 3 — 4 motion
+     styles + 5 duration chips 15/30/45/60/90s)
+   • /app/frontend/src/components/avatar/SafetyReviewStep.jsx (Step 4 — script
+     + 5-rule checklist; Generate disabled until all ticked)
+   • /app/frontend/src/components/avatar/GenerationProgress.jsx (Step 5 — polling
+     job, staged progress + ETA + Result view with demo video + labels + share)
+   • /app/frontend/src/components/avatar/shared.jsx (DisclosureBanner, DemoBadge,
+     StepperHeader, SectionTitle)
+
+✅ Backend (single file, +~180 LOC, zero existing code modified):
+   • POST /api/avatar/studio/mock-generate (new): accepts {avatar_type,
+     motion_style, duration_seconds, script?, safety_confirmed, clone_name?,
+     assets?} → returns {job_id, eta_seconds, demo_label, is_demo_output:true}
+   • Structured 400 errors: INVALID_AVATAR_TYPE, INVALID_MOTION_STYLE,
+     SAFETY_NOT_CONFIRMED, DISALLOWED_CONTENT (reuses existing banned-substrings)
+   • GET /api/avatar/studio/templates (new): 6 pre-built templates for the
+     "From Template" avatar_type tile
+   • _mock_studio_illusion_worker: 5 named stages (Analyzing → Preparing →
+     Synthesizing voice → Rendering → Disclosure), total wall-clock capped at
+     _mock_progress_for_duration (20s/35s/55s buckets), always succeeds with
+     demo BigBuckBunny/ElephantsDream URL; writes avatar_exports row with
+     is_demo_output=true + demo_label="Demo / simulated output" + forensic
+     watermark id
+   • /api/avatar/jobs/{id} projection now exposes stage_label, eta_seconds,
+     is_demo_output, demo_label for the progress UI
+   • Emits avatar_first_export / avatar_repeat_export funnel events on
+     completion (preserves existing funnel contract)
+
+✅ Route swap:
+   • /app/avatar now points to AICloningStudio (old AvatarStudioPage moved
+     to AvatarStudioPage.legacy.jsx — unreachable, not imported)
+   • /app/admin/avatar/moderation + /app/admin/avatar/funnel unchanged
+   • /avatar-demo (public demand page) unchanged
+
+✅ Live E2E smoke (admin login, preview):
+   login → /app/avatar → Library (21 saved avatars + Create-new tile render
+   correctly) → Create-new → Type (quick_avatar) → Upload (photo preview +
+   name "Smoke") → Motion (talking_head + 15s) → Safety (all 5 rules ticked +
+   script) → Generate → Progress polling → Result view with demo video,
+   visible "AI-generated avatar" label, "Demo / simulated output" label,
+   share row, Make-another + Back-to-library buttons.
+   Total time: ~21.5s for 15s clip (matches 20s backend ETA).
+
+✅ testing_agent_v3_fork iteration 534:
+   • Backend: 29/29 PASS (100%)
+   • Frontend: 100% PASS — all testids verified, all 5 steps transition,
+     all 4 avatar types + 4 motion styles + 5 durations work, demo labels
+     visible throughout
+   • Photo Trailer regression PASS: /api/photo-trailer/templates still
+     returns 9 templates (freeze held)
+   • Existing avatar endpoints untouched: /funnel/track, /referral/attribute,
+     /admin/funnel-table all still green
+   • 0 critical issues, 0 minor issues, 0 integration issues
+
+📁 Files Added:
+   • frontend/src/pages/AICloningStudio.jsx (241 LOC)
+   • frontend/src/components/avatar/LibraryStep.jsx (95 LOC)
+   • frontend/src/components/avatar/AvatarTypeStep.jsx (105 LOC)
+   • frontend/src/components/avatar/AssetUploadStep.jsx (170 LOC)
+   • frontend/src/components/avatar/MotionStep.jsx (120 LOC)
+   • frontend/src/components/avatar/SafetyReviewStep.jsx (115 LOC)
+   • frontend/src/components/avatar/GenerationProgress.jsx (235 LOC)
+   • frontend/src/components/avatar/shared.jsx (65 LOC)
+
+📁 Files Touched:
+   • backend/routes/avatar_studio.py (appended new studio block + 1-line
+     projection change on /jobs/{id})
+   • frontend/src/App.js (1 lazy-import swap + 1 route element swap)
+   • frontend/src/pages/AvatarStudioPage.jsx → renamed to
+     AvatarStudioPage.legacy.jsx (archived, unreachable)
+
+🚦 Still honoured (non-negotiables from founder):
+   ❌ No real AI provider wired (fal.ai, ElevenLabs, HeyGen)
+   ❌ No queues / workers / celery
+   ❌ No universal negative prompts
+   ❌ No backend complexity creep (1 new endpoint + 1 new worker + 1 new
+       templates catalog — that's it)
+   ❌ No Photo Trailer changes
+   ❌ No second UX path — old studio archived, single source of truth
+   ✅ Clean 5-step wizard, clickable end-to-end, fast completion loop,
+      clear DEMO labeling on every surface
+
+📊 Demand-validation data flow (unchanged from prior sprint):
+   avatar_landing_view → avatar_demo_played → avatar_signup_from_avatar →
+   avatar_consent_submitted → avatar_first_export → avatar_repeat_export
+   + avatar_share_click
+   Watch /app/admin/avatar/funnel daily — Day-7 gate still the same threshold
+   (>=20 first_exports, >=5 repeats, >=1 share).
+
+Next session (blocked pending 7-day gate pass):
+   Phase 2 adapters (fal.ai lip-sync, ElevenLabs voice clone, real watermark
+   embedding, Whisper/Mediapipe liveness), rule-based Safety Engine, Discovery
+   Feed. Do not start until founder unlocks.
