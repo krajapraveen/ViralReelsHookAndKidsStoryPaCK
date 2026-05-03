@@ -111,7 +111,7 @@ const PromoVideos = lazy(() => import('./pages/PromoVideos'));
 const PhotoTrailerPage = lazy(() => import('./pages/PhotoTrailerPage'));
 const AICloningStudio = lazy(() => import('./pages/AICloningStudio'));
 const AdminCloneModerationPage = lazy(() => import('./pages/AdminCloneModerationPage'));
-const AvatarDemoPage = lazy(() => import('./pages/AvatarDemoPage'));
+const AvatarDemoWizard = lazy(() => import('./pages/AvatarDemoWizard'));
 const AvatarFunnelTablePage = lazy(() => import('./pages/AvatarFunnelTablePage'));
 const CreateMenuPage = lazy(() => import('./pages/CreateMenuPage'));
 const PublicTrailerPage = lazy(() => import('./pages/PublicTrailerPage'));
@@ -312,7 +312,7 @@ function App() {
         <Route path="/reset-password" element={<L><ResetPassword /></L>} />
         <Route path="/forgot-password" element={<L><ForgotPassword /></L>} />
         <Route path="/share/:shareId" element={<L><SharePage /></L>} />
-        <Route path="/avatar-demo" element={<L><AvatarDemoPage /></L>} />
+        <Route path="/avatar-demo" element={<L><AvatarDemoWizard /></L>} />
         <Route path="/viral/:jobId" element={<L><ViralPackShare /></L>} />
         <Route path="/gallery" element={<L><Gallery /></L>} />
         <Route path="/explore" element={<L><ExplorePage /></L>} />

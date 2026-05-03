@@ -1,20 +1,24 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Loader2, CheckCircle2, Download, Share2, Repeat, AlertTriangle, Copy, MessageCircle } from 'lucide-react';
+import { Loader2, CheckCircle2, Download, Share2, Repeat, AlertTriangle, Copy, MessageCircle, Lock, Sparkles } from 'lucide-react';
 import { API, authHeaders, DemoBadge, DEMO_LABEL, VISIBLE_LABEL } from './shared';
 
 const POLL_INTERVAL_MS = 1200;
 
 /**
  * Step 5 — Generation Progress + Result.
- * Polls the mock backend job. When it completes, shows the demo output
- * with share buttons + "Make another" CTA. Labels every surface with
- * DEMO / SIMULATED OUTPUT so the user is never misled.
+ * Two modes:
+ *   • Authenticated: polls /api/avatar/jobs/{id} with Bearer token.
+ *   • Anonymous (try-before-signup): polls /api/avatar/studio/anon-jobs/{id}?session_id=...
+ *     and gates Save/Download/Copy/Make-another behind a sign-up CTA.
  */
 export default function GenerationProgress({
   jobId,
   etaSeconds,
   onMakeAnother,
   onBackToLibrary,
+  anonymous = false,
+  anonSessionId = null,
+  onSignupGate = null,   // called with a reason string when anon user hits a gated action
 }) {
   const [job, setJob] = useState(null);
   const [err, setErr] = useState(null);
@@ -28,7 +32,10 @@ export default function GenerationProgress({
     timerRef.current = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 500);
     const poll = async () => {
       try {
-        const r = await fetch(`${API}/api/avatar/jobs/${jobId}`, { headers: authHeaders() });
+        const url = anonymous
+          ? `${API}/api/avatar/studio/anon-jobs/${jobId}?session_id=${encodeURIComponent(anonSessionId || '')}`
+          : `${API}/api/avatar/jobs/${jobId}`;
+        const r = await fetch(url, { headers: anonymous ? {} : authHeaders() });
         if (!r.ok) return;
         const d = await r.json();
         setJob(d);
@@ -44,7 +51,7 @@ export default function GenerationProgress({
       clearInterval(pollRef.current);
       clearInterval(timerRef.current);
     };
-  }, [jobId]);
+  }, [jobId, anonymous, anonSessionId]);
 
   if (err) {
     return (
@@ -65,7 +72,15 @@ export default function GenerationProgress({
   const failed = job?.status === 'failed';
 
   if (completed) {
-    return <ResultView job={job} onMakeAnother={onMakeAnother} onBackToLibrary={onBackToLibrary} />;
+    return (
+      <ResultView
+        job={job}
+        onMakeAnother={onMakeAnother}
+        onBackToLibrary={onBackToLibrary}
+        anonymous={anonymous}
+        onSignupGate={onSignupGate}
+      />
+    );
   }
 
   if (failed) {
@@ -157,11 +172,24 @@ function StageList({ progress, stageLabel }) {
   );
 }
 
-function ResultView({ job, onMakeAnother, onBackToLibrary }) {
+function ResultView({ job, onMakeAnother, onBackToLibrary, anonymous = false, onSignupGate = null }) {
   const videoUrl = job?.output_url;
   const [copied, setCopied] = useState(false);
 
   const shareText = `I didn't record this video — my AI avatar did.\nMade in under a minute.\nWant your own? → ${window.location.origin}/avatar-demo`;
+
+  const trackShare = (channel) => {
+    try {
+      fetch(`${API}/api/avatar/funnel/track`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          step: anonymous ? 'share_after_demo' : 'avatar_share_click',
+          meta: { channel, job_id: job?.id, is_demo_output: true },
+        }),
+      }).catch(() => {});
+    } catch {}
+  };
 
   const shareWA = () => {
     window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, '_blank');
@@ -175,7 +203,14 @@ function ResultView({ job, onMakeAnother, onBackToLibrary }) {
       trackShare('copy_link');
     } catch {}
   };
+  const requireSignup = (reason) => {
+    if (onSignupGate) onSignupGate(reason);
+  };
   const download = () => {
+    if (anonymous) {
+      requireSignup('download');
+      return;
+    }
     if (!videoUrl) return;
     const a = document.createElement('a');
     a.href = videoUrl;
@@ -185,15 +220,19 @@ function ResultView({ job, onMakeAnother, onBackToLibrary }) {
     a.remove();
     trackShare('download');
   };
-
-  const trackShare = (channel) => {
-    try {
-      fetch(`${API}/api/avatar/funnel/track`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ step: 'avatar_share_click', meta: { channel, job_id: job?.id, is_demo_output: true } }),
-      }).catch(() => {});
-    } catch {}
+  const makeAnother = () => {
+    if (anonymous) {
+      // anonymous users get a retry tick *without* forcing signup; the gate
+      // kicks in when they hit the free-demo limit at generation time.
+      try {
+        fetch(`${API}/api/avatar/funnel/track`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ step: 'retry_after_demo', meta: { prior_job_id: job?.id } }),
+        }).catch(() => {});
+      } catch {}
+    }
+    onMakeAnother?.();
   };
 
   return (
@@ -204,7 +243,9 @@ function ResultView({ job, onMakeAnother, onBackToLibrary }) {
           <DemoBadge />
         </div>
         <h1 className="text-2xl sm:text-3xl font-bold text-white">Your avatar video is ready</h1>
-        <p className="text-sm text-slate-400 mt-2">Preview below. This is a <span className="text-amber-300 font-semibold">{DEMO_LABEL.toLowerCase()}</span> — real AI rendering with your face and voice ships in Phase 2.</p>
+        <p className="text-sm text-slate-400 mt-2">
+          Preview below. This is a <span className="text-amber-300 font-semibold">{DEMO_LABEL.toLowerCase()}</span> — {anonymous ? 'sign up to save, download, or make it fully yours.' : 'real AI rendering with your face and voice ships in Phase 2.'}
+        </p>
       </div>
 
       <div className="rounded-2xl overflow-hidden bg-black border border-white/10 relative" data-testid="avatar-studio-result-video-wrap">
@@ -229,6 +270,40 @@ function ResultView({ job, onMakeAnother, onBackToLibrary }) {
         </div>
       </div>
 
+      {/* Anonymous gate CTA — lives above the (gated) action row */}
+      {anonymous && (
+        <div
+          className="p-4 rounded-2xl border border-violet-500/40 bg-gradient-to-br from-violet-500/15 via-fuchsia-500/10 to-transparent"
+          data-testid="avatar-studio-result-anon-signup-gate"
+        >
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-violet-500/20 border border-violet-500/40 flex items-center justify-center shrink-0">
+              <Sparkles className="w-5 h-5 text-violet-200" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-bold text-white">Sign up to download your video</div>
+              <div className="text-xs text-slate-300 mt-0.5">Save this avatar for reuse · Export watermarked clip · Remix in your own voice.</div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  onClick={() => requireSignup('signup_cta')}
+                  className="px-4 py-2.5 rounded-xl font-bold text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 text-sm flex items-center gap-1.5"
+                  data-testid="avatar-studio-result-signup-btn"
+                >
+                  Sign up free <Lock className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={makeAnother}
+                  className="px-4 py-2.5 rounded-xl border border-white/15 text-slate-200 text-sm font-semibold hover:bg-white/5"
+                  data-testid="avatar-studio-result-anon-try-again-btn"
+                >
+                  Try a different style
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2" data-testid="avatar-studio-result-share-row">
         <button
           onClick={shareWA}
@@ -239,10 +314,15 @@ function ResultView({ job, onMakeAnother, onBackToLibrary }) {
         </button>
         <button
           onClick={download}
-          className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-fuchsia-500/15 border border-fuchsia-500/40 text-fuchsia-100 text-sm font-bold hover:bg-fuchsia-500/20"
+          className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border text-sm font-bold ${
+            anonymous
+              ? 'bg-white/5 border-white/15 text-slate-300 hover:bg-white/10'
+              : 'bg-fuchsia-500/15 border-fuchsia-500/40 text-fuchsia-100 hover:bg-fuchsia-500/20'
+          }`}
           data-testid="avatar-studio-result-download-btn"
         >
-          <Download className="w-4 h-4" /> Download MP4
+          {anonymous ? <Lock className="w-4 h-4" /> : <Download className="w-4 h-4" />}
+          {anonymous ? 'Sign up to download' : 'Download MP4'}
         </button>
         <button
           onClick={copyLink}
@@ -264,19 +344,21 @@ function ResultView({ job, onMakeAnother, onBackToLibrary }) {
 
       <div className="flex flex-col sm:flex-row gap-2">
         <button
-          onClick={onMakeAnother}
+          onClick={makeAnother}
           className="flex-1 py-3.5 rounded-xl font-bold text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 flex items-center justify-center gap-2"
           data-testid="avatar-studio-result-make-another-btn"
         >
           <Repeat className="w-4 h-4" /> Make another avatar
         </button>
-        <button
-          onClick={onBackToLibrary}
-          className="px-5 py-3.5 rounded-xl border border-white/10 text-slate-200 text-sm font-semibold hover:bg-white/5"
-          data-testid="avatar-studio-result-library-btn"
-        >
-          Back to library
-        </button>
+        {onBackToLibrary && (
+          <button
+            onClick={onBackToLibrary}
+            className="px-5 py-3.5 rounded-xl border border-white/10 text-slate-200 text-sm font-semibold hover:bg-white/5"
+            data-testid="avatar-studio-result-library-btn"
+          >
+            Back to library
+          </button>
+        )}
       </div>
     </div>
   );

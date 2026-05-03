@@ -1,0 +1,87 @@
+{
+  "summary": "Anonymous Avatar Demo Wizard (/avatar-demo) Testing Complete - 21/21 backend tests PASSED, all frontend UI flows verified. P0 try-before-signup flow works: anonymous generation, rate limiting (2 per session per 24h), 5 new funnel events, signup gate on result screen. Photo Trailer regression confirmed (9 templates). Authenticated /app/avatar 5-step wizard unaffected.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_avatar_demo_anon_iteration535.py",
+    "/app/test_reports/pytest/pytest_avatar_demo_anon_iteration535.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Anonymous generation endpoint /api/avatar/studio/anon-mock-generate is INTENTIONALLY MOCKED per founder Phase 1 directive",
+    "Rate limit correctly enforced: 2 generations per session_id per 24h window, 3rd returns 429 ANON_LIMIT_REACHED",
+    "All 5 new funnel steps accepted: demo_generate_clicked, demo_completed, signup_after_demo, retry_after_demo, share_after_demo",
+    "Frontend correctly gates Download/Save behind signup - redirects to /signup?from=avatar_demo&reason=download",
+    "Server-side funnel emits work: demo_generate_clicked on job creation, demo_completed on first poll of completed job"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_avatar_demo_anon_iteration535.py"
+  ],
+  "success_rate": {
+    "backend": "100% (21/21 tests passed)",
+    "frontend": "100% (all UI flows verified)"
+  },
+  "test_credentials": "Anonymous (no auth for /avatar-demo), Admin: admin@creatorstudio.ai / Cr3@t0rStud!o#2026, Test User: test@visionary-suite.com / Test@2026#",
+  "seed_data_creation": "Multiple anonymous mock jobs created during backend tests with fresh session_ids",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Anonymous Avatar Demo Wizard at /avatar-demo is fully functional. Flow: Type → Upload → Motion → Safety → Generate → Progress → Result (gated). Prefills: sample_face.svg photo, 'My Demo Avatar' name, 'talking_head' motion, 15s duration, sample script. Rate limit: 2 generations per session per 24h. Signup gate on result: Download/Save/Create buttons redirect to /signup?from=avatar_demo. Photo Trailer isolation confirmed. Authenticated /app/avatar 5-step wizard with Library step unaffected.",
+  "pass_matrix": {
+    "BACKEND_anon_generate_invalid_avatar_type": "PASS - Returns 400 with INVALID_AVATAR_TYPE",
+    "BACKEND_anon_generate_invalid_motion_style": "PASS - Returns 400 with INVALID_MOTION_STYLE",
+    "BACKEND_anon_generate_safety_not_confirmed": "PASS - Returns 400 with SAFETY_NOT_CONFIRMED",
+    "BACKEND_anon_generate_banned_script": "PASS - Returns 400 with DISALLOWED_CONTENT",
+    "BACKEND_anon_generate_valid_payload": "PASS - Returns job_id, eta_seconds, demo_label, is_demo_output=true, anonymous=true, remaining_in_window",
+    "BACKEND_anon_generate_no_auth_required": "PASS - Works without Authorization header",
+    "BACKEND_anon_job_poll_correct_session": "PASS - Returns job status with is_demo_output=true, anonymous=true",
+    "BACKEND_anon_job_poll_wrong_session": "PASS - Returns 404 for wrong session_id",
+    "BACKEND_anon_job_auto_completes": "PASS - Job completes in ~20s with stage_label + output_url",
+    "BACKEND_rate_limit_3rd_generation_429": "PASS - 3rd generation returns 429 ANON_LIMIT_REACHED with limit=2, window_hours=24",
+    "BACKEND_funnel_demo_generate_clicked": "PASS - POST /api/avatar/funnel/track accepts demo_generate_clicked",
+    "BACKEND_funnel_demo_completed": "PASS - POST /api/avatar/funnel/track accepts demo_completed",
+    "BACKEND_funnel_signup_after_demo": "PASS - POST /api/avatar/funnel/track accepts signup_after_demo",
+    "BACKEND_funnel_retry_after_demo": "PASS - POST /api/avatar/funnel/track accepts retry_after_demo",
+    "BACKEND_funnel_share_after_demo": "PASS - POST /api/avatar/funnel/track accepts share_after_demo",
+    "BACKEND_funnel_rejects_unknown": "PASS - Rejects unknown step with 400",
+    "BACKEND_photo_trailer_regression": "PASS - GET /api/photo-trailer/templates returns 9 templates",
+    "BACKEND_authenticated_studio_templates": "PASS - GET /api/avatar/studio/templates returns 6 templates, 4 motion_styles, 4 avatar_types",
+    "BACKEND_authenticated_mock_generate": "PASS - POST /api/avatar/studio/mock-generate works for authenticated users",
+    "BACKEND_server_emit_demo_generate_clicked": "PASS - Server emits demo_generate_clicked on job creation",
+    "BACKEND_server_emit_demo_completed": "PASS - Server emits demo_completed on first poll of completed job",
+    "FRONTEND_avatar_demo_page_loads": "PASS - /avatar-demo loads AvatarDemoWizard anonymously",
+    "FRONTEND_welcome_banner_visible": "PASS - Welcome banner shows 'Try the AI Cloning Studio — no signup'",
+    "FRONTEND_exit_demo_button": "PASS - Exit demo button visible in header",
+    "FRONTEND_type_step_quick_avatar": "PASS - Type step shows Quick Avatar pre-selected",
+    "FRONTEND_upload_step_prefilled": "PASS - Upload step shows prefilled sample_face and 'My Demo Avatar'",
+    "FRONTEND_motion_step_options": "PASS - Motion step shows 4 motion styles + 5 duration options",
+    "FRONTEND_safety_step_script_prefilled": "PASS - Safety step shows prefilled script 'Hey — I didn't record...'",
+    "FRONTEND_safety_step_5_checkboxes": "PASS - Safety step has 5 checkboxes for usage policy",
+    "FRONTEND_progress_step_visible": "PASS - Progress step shows after clicking Generate",
+    "FRONTEND_result_view_appears": "PASS - Result view appears after ~20s with video",
+    "FRONTEND_anon_signup_gate_visible": "PASS - Anonymous signup gate visible on result",
+    "FRONTEND_download_btn_signup_label": "PASS - Download button shows 'Sign up to download'",
+    "FRONTEND_signup_cta_visible": "PASS - Signup CTA button visible",
+    "FRONTEND_make_another_btn_visible": "PASS - Make another avatar button visible",
+    "FRONTEND_demo_label_visible": "PASS - 'Demo / simulated output' label visible",
+    "FRONTEND_ai_label_visible": "PASS - 'AI-generated avatar' label visible",
+    "FRONTEND_download_redirects_signup": "PASS - Download click redirects to /signup?from=avatar_demo&reason=download",
+    "FRONTEND_authenticated_avatar_loads": "PASS - /app/avatar loads authenticated 5-step wizard with Library step",
+    "FRONTEND_authenticated_create_btn": "PASS - Create new avatar button visible in authenticated flow"
+  },
+  "mocked_apis": {
+    "has_mocked_apis": true,
+    "mocked_apis_list": [
+      "/api/avatar/studio/anon-mock-generate — anonymous, session_id-bound, returns demo BigBuckBunny/ElephantsDream URL",
+      "/api/avatar/studio/anon-jobs/{id} — anonymous polling by session_id, no auth required",
+      "Full generation pipeline (face, voice, motion, watermark) simulated via asyncio.sleep stages",
+      "ETA calculation: <=20s duration → 20s, 20-45s → 35s, >45s → 55s"
+    ]
+  }
+}

@@ -719,6 +719,142 @@ async def health():
 
 
 # ═════════════════════════════════════════════════════════════════════════
+#  ANONYMOUS DEMO WIZARD (2026-05-03 — P0 try-before-signup flow)
+#  Founder directive: /avatar-demo lands directly in the wizard. No login
+#  before Generate. Login gate ONLY at Save / Download / Create / Export.
+#  Session-scoped abuse guard: max 2 generations per session per rolling 24h.
+# ═════════════════════════════════════════════════════════════════════════
+
+ANON_SESSION_LIMIT = 2            # per session id per 24h
+ANON_SESSION_WINDOW_HOURS = 24
+
+
+class AnonStudioGenerateRequest(BaseModel):
+    session_id: str = Field(..., min_length=8, max_length=80)
+    avatar_type: str
+    motion_style: str = "talking_head"
+    duration_seconds: int = Field(15, ge=5, le=90)
+    script: Optional[str] = Field(None, max_length=MAX_SCRIPT_CHARS)
+    clone_name: Optional[str] = None
+    safety_confirmed: bool = True
+    assets: Optional[dict] = None
+
+
+async def _count_recent_anon_jobs(session_id: str) -> int:
+    cutoff = (datetime.now(timezone.utc).timestamp()
+              - ANON_SESSION_WINDOW_HOURS * 3600)
+    from datetime import datetime as _dt, timezone as _tz
+    cutoff_iso = _dt.fromtimestamp(cutoff, tz=_tz.utc).isoformat()
+    return await db.avatar_jobs.count_documents({
+        "anonymous_session_id": session_id,
+        "created_at": {"$gte": cutoff_iso},
+    })
+
+
+@router.post("/studio/anon-mock-generate")
+async def studio_anon_mock_generate(body: AnonStudioGenerateRequest, bg: BackgroundTasks):
+    """NO auth. Creates an anonymous mock avatar job bound to a client
+    session_id so we can rate-limit abuse without accounts. Every job
+    returned is_demo_output=true + anonymous=true.
+
+    Login gate is applied ONLY client-side when the user tries to Save /
+    Download / Create a real avatar / Export — that's intentional per the
+    founder's directive (demo first, signup second)."""
+    if body.avatar_type not in ALLOWED_AVATAR_TYPES:
+        raise HTTPException(400, {"code": "INVALID_AVATAR_TYPE",
+                                  "message": "Unknown avatar type."})
+    if body.motion_style not in ALLOWED_MOTION_STYLES:
+        raise HTTPException(400, {"code": "INVALID_MOTION_STYLE",
+                                  "message": "Unknown motion style."})
+    if not body.safety_confirmed:
+        raise HTTPException(400, {"code": "SAFETY_NOT_CONFIRMED",
+                                  "message": "Please confirm the safety checklist before generating."})
+    if body.script:
+        safety = await _run_script_safety_check(body.script)
+        if not safety["allowed"]:
+            raise HTTPException(400, {"code": safety.get("code", "DISALLOWED_CONTENT"),
+                                      "message": safety["reason"]})
+
+    recent = await _count_recent_anon_jobs(body.session_id)
+    if recent >= ANON_SESSION_LIMIT:
+        raise HTTPException(429, {
+            "code": "ANON_LIMIT_REACHED",
+            "message": "You've hit the free demo limit. Sign up to keep generating.",
+            "limit": ANON_SESSION_LIMIT,
+            "window_hours": ANON_SESSION_WINDOW_HOURS,
+        })
+
+    total_progress_seconds = _mock_progress_for_duration(body.duration_seconds)
+    job = {
+        "_id": str(uuid.uuid4()),
+        "user_id": None,
+        "anonymous_session_id": body.session_id,
+        "clone_id": None,
+        "job_type": "studio_anon_mock_generate",
+        "status": "queued",
+        "progress": 0,
+        "worker_name": "mock_studio_illusion_worker",
+        "input": {
+            "avatar_type": body.avatar_type,
+            "motion_style": body.motion_style,
+            "duration_seconds": body.duration_seconds,
+            "clone_name": (body.clone_name or "").strip()[:60] or None,
+            "script": (body.script or "").strip()[:MAX_SCRIPT_CHARS] or None,
+            "assets": body.assets or {},
+            "disclosure_text": DISCLOSURE_TEXT,
+        },
+        "is_demo_output": True,
+        "anonymous": True,
+        "demo_label": DEMO_SIMULATED_LABEL,
+        "eta_seconds": total_progress_seconds,
+        "output_url": None,
+        "error_code": None,
+        "started_at": None,
+        "completed_at": None,
+        "created_at": _now(),
+    }
+    await db.avatar_jobs.insert_one(job)
+    bg.add_task(_mock_studio_illusion_worker, job["_id"], total_progress_seconds,
+                body.motion_style, body.avatar_type)
+    # Funnel: client also emits demo_generate_clicked, but we stamp it server-side
+    # so session_id attribution is guaranteed.
+    await _emit_funnel("demo_generate_clicked", session_id=body.session_id,
+                       meta={"avatar_type": body.avatar_type,
+                             "motion_style": body.motion_style,
+                             "duration_seconds": body.duration_seconds})
+    return {"job_id": job["_id"], "status": "queued",
+            "eta_seconds": total_progress_seconds,
+            "demo_label": DEMO_SIMULATED_LABEL,
+            "is_demo_output": True,
+            "anonymous": True,
+            "remaining_in_window": max(0, ANON_SESSION_LIMIT - recent - 1)}
+
+
+@router.get("/studio/anon-jobs/{job_id}")
+async def studio_anon_job(job_id: str, session_id: str):
+    """Anonymous job polling. Session-scoped — no cross-session leaks.
+    Returns the same shape as the authenticated /jobs/{id}."""
+    j = await db.avatar_jobs.find_one(
+        {"_id": job_id, "anonymous_session_id": session_id},
+        {"_id": 1, "job_type": 1, "status": 1, "progress": 1,
+         "output_url": 1, "error_code": 1, "started_at": 1, "completed_at": 1,
+         "created_at": 1, "stage_label": 1, "eta_seconds": 1, "is_demo_output": 1,
+         "demo_label": 1, "output_export_id": 1, "input": 1, "anonymous": 1},
+    )
+    if not j:
+        raise HTTPException(404, "Job not found")
+    # Server-side emit of demo_completed on first observation of terminal state.
+    if j.get("status") == "completed":
+        already = await db.funnel_events.find_one(
+            {"step": "demo_completed", "meta.job_id": job_id})
+        if not already:
+            await _emit_funnel("demo_completed", session_id=session_id,
+                               meta={"job_id": job_id,
+                                     "avatar_type": (j.get("input") or {}).get("avatar_type")})
+    return _strip_id(j)
+
+
+# ═════════════════════════════════════════════════════════════════════════
 #  AI CLONING STUDIO — Phase 1 MOCKED WIZARD (2026-05-04)
 #  Strict: frontend demand-validation illusion. No real AI providers.
 #  Auto-completes in 20-60s based on duration. Always returns demo output.
@@ -930,6 +1066,12 @@ ALLOWED_FUNNEL_STEPS = {
     "avatar_first_export",
     "avatar_repeat_export",
     "avatar_share_click",
+    # Anonymous try-before-signup wizard (2026-05-03)
+    "demo_generate_clicked",
+    "demo_completed",
+    "signup_after_demo",
+    "retry_after_demo",
+    "share_after_demo",
 }
 
 
