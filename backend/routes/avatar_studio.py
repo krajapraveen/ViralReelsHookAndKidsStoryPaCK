@@ -874,12 +874,25 @@ ALLOWED_MOTION_STYLES = {"talking_head", "gesture", "full_body", "static"}
 # silhouette + rotating subtitle text: "your face speaking in your voice").
 # No external CDN. No random flower or nature footage. Keeps the user's
 # mental model: "this is what YOUR avatar will look like in Phase 2".
+#
+# The ?v=2 cache-buster forces every browser/CDN to re-fetch and invalidates
+# any previously-cached <video> blob from the v1 era.
+_DEMO_VERSION = "v2"
 DEMO_OUTPUT_URLS = {
-    "talking_head": "https://pub-c251248e414545848d34b8c1b97ecdb3.r2.dev/videos/avatar_demo_v2/talking_head.mp4",
-    "gesture":      "https://pub-c251248e414545848d34b8c1b97ecdb3.r2.dev/videos/avatar_demo_v2/gesture.mp4",
-    "full_body":    "https://pub-c251248e414545848d34b8c1b97ecdb3.r2.dev/videos/avatar_demo_v2/full_body.mp4",
-    "static":       "https://pub-c251248e414545848d34b8c1b97ecdb3.r2.dev/videos/avatar_demo_v2/static.mp4",
+    "talking_head": f"https://pub-c251248e414545848d34b8c1b97ecdb3.r2.dev/videos/avatar_demo_v2/talking_head.mp4?v={_DEMO_VERSION}",
+    "gesture":      f"https://pub-c251248e414545848d34b8c1b97ecdb3.r2.dev/videos/avatar_demo_v2/gesture.mp4?v={_DEMO_VERSION}",
+    "full_body":    f"https://pub-c251248e414545848d34b8c1b97ecdb3.r2.dev/videos/avatar_demo_v2/full_body.mp4?v={_DEMO_VERSION}",
+    "static":       f"https://pub-c251248e414545848d34b8c1b97ecdb3.r2.dev/videos/avatar_demo_v2/static.mp4?v={_DEMO_VERSION}",
 }
+
+# Hard assertion at import time — boots the process with a visible error if
+# anyone ever sneaks an off-theme URL back in. Prevents silent regressions.
+for _mk, _mu in DEMO_OUTPUT_URLS.items():
+    if "avatar_demo_v2" not in _mu:
+        raise RuntimeError(
+            f"DEMO_OUTPUT_URLS[{_mk!r}] must point to avatar_demo_v2/*.mp4 "
+            f"(got {_mu!r}). Off-theme content = broken trust = dead funnel."
+        )
 
 DEMO_SIMULATED_LABEL = "Demo / simulated output"
 
@@ -1004,6 +1017,10 @@ async def _finalize_mock_job(job_id: str, motion_style: str, avatar_type: str,
         return False  # idempotent — someone else already finalized
 
     demo_url = DEMO_OUTPUT_URLS.get(motion_style, DEMO_OUTPUT_URLS["talking_head"])
+    if "avatar_demo_v2" not in demo_url:
+        log.error("[mock_finalize] BLOCKED off-theme demo_url=%r for job=%s — "
+                  "forcing safe fallback.", demo_url, job_id)
+        demo_url = DEMO_OUTPUT_URLS["talking_head"]
     forensic_id = f"DEMO-WM-{uuid.uuid4().hex[:14]}"
     export = {
         "_id": str(uuid.uuid4()),

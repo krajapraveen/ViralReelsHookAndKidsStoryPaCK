@@ -322,7 +322,7 @@ function ResultView({ job, onMakeAnother, onBackToLibrary, anonymous = false, on
           </div>
         ) : (
           <video
-            key={videoKey}
+            key={`${videoKey}-${videoUrl || 'none'}`}
             ref={videoRef}
             src={videoUrl}
             controls
