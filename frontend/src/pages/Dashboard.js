@@ -597,7 +597,7 @@ function StickyBottomNav({ navigate, currentPath }) {
   const items = [
     { label: 'Home', icon: Home, path: '/app' },
     { label: 'Explore', icon: Search, path: '/app/explore' },
-    { label: 'Create', icon: Plus, path: '/app/story-video-studio', isCenter: true },
+    { label: 'Create', icon: Plus, path: '/app/create', isCenter: true },
     { label: 'Stories', icon: Heart, path: '/app/my-stories' },
     { label: 'Profile', icon: User, path: '/app/profile' },
   ];
@@ -1353,8 +1353,9 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* 4. FEATURE BLOCKS — API-determined order */}
-      <FeaturesGrid features={featureList} navigate={navigate} />
+      {/* 4. FEATURE BLOCKS — moved to /app/create (Phase 1 restructure 2026-05-03).
+           Home stays content-discovery focused; features live in +Create tab. */}
+      {/* <FeaturesGrid features={featureList} navigate={navigate} /> */}
 
       {/* 5. TOP STORIES LEADERBOARD */}
       {topStories.length > 0 && (

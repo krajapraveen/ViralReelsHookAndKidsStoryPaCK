@@ -69,6 +69,7 @@ COLD_START_THRESHOLD = 5
 # Monetization priority per feature (static business config)
 FEATURE_MONETIZATION_PRIORITY = {
     "avatar": 1.1,             # AI Cloning — keep above Story Video
+    "photo-trailer": 1.05,     # My Movie Trailer — NEW badge, keep above Story Video
     "story-video-studio": 1.0,
     "story-series": 0.9,
     "comic-storybook": 0.8,
@@ -448,6 +449,7 @@ def rank_features(profile: dict) -> list:
     # Default feature list with metadata
     FEATURES = [
         {"name": "AI Cloning", "desc": "Verified AI avatar of yourself — disclosure-labeled", "icon": "UserCheck", "path": "/app/avatar", "key": "avatar", "gradient": "from-fuchsia-500 to-pink-700", "badge": "NEW"},
+        {"name": "My Movie Trailer", "desc": "Upload photos → 20-60s personalized AI trailer", "icon": "Camera", "path": "/app/photo-trailer", "key": "photo-trailer", "gradient": "from-violet-500 to-fuchsia-700", "badge": "NEW"},
         {"name": "Story Video", "desc": "Turn ideas into cinematic stories", "icon": "Film", "path": "/app/story-video-studio", "key": "story-video-studio", "gradient": "from-indigo-500 to-blue-700"},
         {"name": "Story Series", "desc": "Multi-episode sagas with memory", "icon": "BookOpen", "path": "/app/story-series", "key": "story-series", "gradient": "from-purple-500 to-fuchsia-700"},
         {"name": "Character Memory", "desc": "Persistent characters across stories", "icon": "User", "path": "/app/characters", "key": "characters", "gradient": "from-cyan-500 to-blue-700"},
