@@ -109,6 +109,8 @@ const ContentChallengePlanner = lazy(() => import('./pages/ContentChallengePlann
 const CaptionRewriterPro = lazy(() => import('./pages/CaptionRewriterPro'));
 const PromoVideos = lazy(() => import('./pages/PromoVideos'));
 const PhotoTrailerPage = lazy(() => import('./pages/PhotoTrailerPage'));
+const AvatarStudioPage = lazy(() => import('./pages/AvatarStudioPage'));
+const AdminCloneModerationPage = lazy(() => import('./pages/AdminCloneModerationPage'));
 const PublicTrailerPage = lazy(() => import('./pages/PublicTrailerPage'));
 
 // Navigation / user pages
@@ -382,6 +384,8 @@ function App() {
         <Route path="/app/caption-rewriter" element={isAuthenticated ? <L><CaptionRewriterPro /></L> : <Navigate to="/login" />} />
         <Route path="/app/promo-videos" element={isAuthenticated ? <L><PromoVideos /></L> : <Navigate to="/login" />} />
         <Route path="/app/photo-trailer" element={isAuthenticated ? <L><PhotoTrailerPage /></L> : <Navigate to="/login" />} />
+        <Route path="/app/avatar" element={isAuthenticated ? <L><AvatarStudioPage /></L> : <Navigate to="/login" />} />
+        <Route path="/app/admin/avatar/moderation" element={isAuthenticated ? <L><AdminCloneModerationPage /></L> : <Navigate to="/login" />} />
         <Route path="/app/youstar" element={isAuthenticated ? <L><PhotoTrailerPage /></L> : <Navigate to="/login" />} />
         <Route path="/app/my-movie-trailer" element={isAuthenticated ? <L><PhotoTrailerPage /></L> : <Navigate to="/login" />} />
         {/* Public share page — no auth, slug is the access token */}
