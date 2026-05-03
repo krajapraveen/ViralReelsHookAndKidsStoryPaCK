@@ -13,6 +13,38 @@ import { trackSignupCompleted, linkSessionToUser } from '../utils/growthAnalytic
 import { trackConversion } from '../lib/abTesting';
 import { useGoogleLogin } from '@react-oauth/google';
 
+// Fire avatar_signup_from_avatar when a user converts from /avatar-demo.
+// Payload: reason (from ?reason=), session_id (avatar_demo_session_id),
+// utm_source / utm_campaign / ref (captured into avatar_attribution).
+// Backend endpoint is public + idempotent on the funnel event itself.
+function emitAvatarSignupAttribution() {
+  try {
+    const search = new URLSearchParams(window.location.search);
+    if (search.get('from') !== 'avatar_demo') return;
+    const reason = search.get('reason') || null;
+    const session_id = localStorage.getItem('avatar_demo_session_id') || null;
+    let attribution = {};
+    try { attribution = JSON.parse(localStorage.getItem('avatar_attribution') || '{}'); } catch (_) {}
+    const payload = {
+      step: 'avatar_signup_from_avatar',
+      session_id,
+      meta: {
+        reason,
+        session_id,
+        utm_source: attribution.utm_source || search.get('utm_source') || null,
+        utm_campaign: attribution.utm_campaign || search.get('utm_campaign') || null,
+        ref: attribution.referrer_user_id || search.get('ref') || null,
+      },
+    };
+    const apiBase = process.env.REACT_APP_BACKEND_URL || '';
+    fetch(`${apiBase}/api/avatar/funnel/track`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).catch(() => {});
+  } catch (_) { /* never block auth */ }
+}
+
 export default function Signup({ setAuth }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -257,6 +289,7 @@ export default function Signup({ setAuth }) {
       const userId = response.data.user?.id;
       localStorage.setItem('user_id', userId || '');
       trackSignupCompleted({ source_page: '/signup', meta: { method: 'email' } });
+      emitAvatarSignupAttribution();
       // Link anonymous session events to this new user
       if (userId) linkSessionToUser(userId);
 
@@ -350,6 +383,7 @@ export default function Signup({ setAuth }) {
         analytics.setUserId(user.id);
         linkSessionToUser(user.id);
         trackSignupCompleted(user.id, 'google');
+        emitAvatarSignupAttribution();
         trackConversion('signup_google');
       }
       setAuth(true);
