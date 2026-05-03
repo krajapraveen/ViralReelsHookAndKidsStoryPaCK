@@ -111,6 +111,8 @@ const PromoVideos = lazy(() => import('./pages/PromoVideos'));
 const PhotoTrailerPage = lazy(() => import('./pages/PhotoTrailerPage'));
 const AvatarStudioPage = lazy(() => import('./pages/AvatarStudioPage'));
 const AdminCloneModerationPage = lazy(() => import('./pages/AdminCloneModerationPage'));
+const AvatarDemoPage = lazy(() => import('./pages/AvatarDemoPage'));
+const AvatarFunnelTablePage = lazy(() => import('./pages/AvatarFunnelTablePage'));
 const PublicTrailerPage = lazy(() => import('./pages/PublicTrailerPage'));
 
 // Navigation / user pages
@@ -310,6 +312,7 @@ function App() {
         <Route path="/reset-password" element={<L><ResetPassword /></L>} />
         <Route path="/forgot-password" element={<L><ForgotPassword /></L>} />
         <Route path="/share/:shareId" element={<L><SharePage /></L>} />
+        <Route path="/avatar-demo" element={<L><AvatarDemoPage /></L>} />
         <Route path="/viral/:jobId" element={<L><ViralPackShare /></L>} />
         <Route path="/gallery" element={<L><Gallery /></L>} />
         <Route path="/explore" element={<L><ExplorePage /></L>} />
@@ -386,6 +389,7 @@ function App() {
         <Route path="/app/photo-trailer" element={isAuthenticated ? <L><PhotoTrailerPage /></L> : <Navigate to="/login" />} />
         <Route path="/app/avatar" element={isAuthenticated ? <L><AvatarStudioPage /></L> : <Navigate to="/login" />} />
         <Route path="/app/admin/avatar/moderation" element={isAuthenticated ? <L><AdminCloneModerationPage /></L> : <Navigate to="/login" />} />
+        <Route path="/app/admin/avatar/funnel" element={isAuthenticated ? <L><AvatarFunnelTablePage /></L> : <Navigate to="/login" />} />
         <Route path="/app/youstar" element={isAuthenticated ? <L><PhotoTrailerPage /></L> : <Navigate to="/login" />} />
         <Route path="/app/my-movie-trailer" element={isAuthenticated ? <L><PhotoTrailerPage /></L> : <Navigate to="/login" />} />
         {/* Public share page — no auth, slug is the access token */}

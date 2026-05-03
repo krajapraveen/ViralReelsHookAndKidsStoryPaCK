@@ -264,6 +264,8 @@ async def submit_consent(
         {"_id": clone_id},
         {"$set": {"status": "consent_review", "updated_at": _now()}},
     )
+    await _emit_funnel("avatar_consent_submitted", user_id=user["id"],
+                       meta={"clone_id": clone_id, "consent_type": consent["consent_type"]})
     return {"consent_id": consent["_id"], "status": "pending"}
 
 
@@ -453,6 +455,12 @@ async def _mock_render_worker(job_id: str):
             "created_at": _now(),
         }
         await db.avatar_exports.insert_one(export)
+        # Funnel emit: first vs repeat export per user.
+        prior = await db.avatar_exports.count_documents({"user_id": job["user_id"]})
+        step = "avatar_first_export" if prior <= 1 else "avatar_repeat_export"
+        await _emit_funnel(step, user_id=job["user_id"],
+                           meta={"clone_id": clone_id, "export_id": export["_id"],
+                                 "platform": job["input"]["platform"]})
         await db.avatar_jobs.update_one({"_id": job_id}, {
             "$set": {"status": "completed", "progress": 100,
                      "completed_at": _now(), "output_url": mock_video_url,
@@ -640,3 +648,213 @@ async def admin_abuse_action(report_id: str, body: AdminAbuseActionIn,
 @router.get("/health")
 async def health():
     return {"ok": True, "service": "avatar_studio", "mode": "vertical_slice_mock"}
+
+
+# ═════════════════════════════════════════════════════════════════════════
+#  DEMAND VALIDATION SCAFFOLDING (2026-05-03) — funnel, referral, demo cfg.
+#  Founder directive: track only, no AI spend, no Phase 2 dependencies.
+#  All emits go to db.funnel_events (shared collection, namespaced step
+#  names: avatar_*). Photo Trailer untouched.
+# ═════════════════════════════════════════════════════════════════════════
+
+ALLOWED_FUNNEL_STEPS = {
+    "avatar_landing_view",
+    "avatar_demo_played",
+    "avatar_signup_from_avatar",
+    "avatar_consent_submitted",
+    "avatar_first_export",
+    "avatar_repeat_export",
+    "avatar_share_click",
+}
+
+
+async def _emit_funnel(step: str, *, user_id: Optional[str] = None,
+                       session_id: Optional[str] = None, meta: Optional[dict] = None) -> None:
+    """Append-only emit. Shared funnel_events collection (same one Photo
+    Trailer + signup tracking use). Step names are avatar_* namespaced."""
+    if step not in ALLOWED_FUNNEL_STEPS:
+        return
+    try:
+        await db.funnel_events.insert_one({
+            "_id": str(uuid.uuid4()),
+            "step": step,
+            "user_id": user_id,
+            "session_id": session_id,
+            "meta": meta or {},
+            "timestamp": _now(),
+        })
+    except Exception as e:
+        log.warning(f"funnel emit failed step={step}: {e}")
+
+
+class FunnelTrackIn(BaseModel):
+    step: str
+    session_id: Optional[str] = None
+    meta: Optional[dict] = None
+
+
+@router.post("/funnel/track")
+async def funnel_track(body: FunnelTrackIn):
+    """Public client-side emit (used for landing/demo/share events).
+    Server-side emits (consent, export) happen automatically inside the
+    pipeline. Anonymous calls are allowed — session_id is the only key."""
+    if body.step not in ALLOWED_FUNNEL_STEPS:
+        raise HTTPException(400, "Unknown step")
+    await _emit_funnel(body.step, session_id=body.session_id, meta=body.meta)
+    return {"ok": True}
+
+
+class ReferralAttributeIn(BaseModel):
+    utm_source: Optional[str] = None
+    utm_campaign: Optional[str] = None
+    referrer_user_id: Optional[str] = None
+    landing_path: Optional[str] = None
+    landed_at: Optional[str] = None
+
+
+@router.post("/referral/attribute")
+async def referral_attribute(body: ReferralAttributeIn,
+                             user: dict = Depends(get_current_user)):
+    """Idempotent. First call per user attaches attribution and emits
+    avatar_signup_from_avatar. Subsequent calls are no-ops. Never overwrites
+    once set, so a returning user can't game attribution by re-hitting the
+    demo page."""
+    u = await db.users.find_one({"id": user["id"]}, {"_id": 0, "avatar_attribution": 1})
+    if u and u.get("avatar_attribution"):
+        return {"ok": True, "attributed": False, "reason": "already_attributed"}
+    attribution = {
+        "utm_source": (body.utm_source or "")[:80] or None,
+        "utm_campaign": (body.utm_campaign or "")[:80] or None,
+        "referrer_user_id": body.referrer_user_id,
+        "landing_path": (body.landing_path or "")[:200] or None,
+        "landed_at": body.landed_at,
+        "attributed_at": _now(),
+    }
+    await db.users.update_one({"id": user["id"]},
+                              {"$set": {"avatar_attribution": attribution}})
+    await _emit_funnel("avatar_signup_from_avatar", user_id=user["id"], meta=attribution)
+    return {"ok": True, "attributed": True}
+
+
+# ─── Demo videos config (admin-editable, public read) ─────────────────────
+DEFAULT_DEMO_CFG = {
+    "_id": "default",
+    "above_fold_headline": "I replaced 2 hours of daily content creation with this AI avatar.",
+    "above_fold_subhead": "Verified personal AI avatar. Disclosure-labeled. YouTube + Instagram safe.",
+    "videos": [
+        {
+            "id": "demo_1",
+            "title": "Daily reel in 60 seconds",
+            "url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+            "poster_url": None,
+            "is_placeholder": True,
+            "used_by": "Coaches",
+            "time_saved": "~90 minutes per day",
+            "caption": "Hello, I'm Anand. Here's my Tuesday morning kickoff for cohort 12.",
+        },
+        {
+            "id": "demo_2",
+            "title": "Course welcome video",
+            "url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+            "poster_url": None,
+            "is_placeholder": True,
+            "used_by": "Course creators",
+            "time_saved": "~90 minutes per day",
+            "caption": "Welcome to the program. Let me walk you through Week 1.",
+        },
+        {
+            "id": "demo_3",
+            "title": "Founder update",
+            "url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+            "poster_url": None,
+            "is_placeholder": True,
+            "used_by": "Founders",
+            "time_saved": "~90 minutes per day",
+            "caption": "Quick founder update for the angel sync this Thursday.",
+        },
+    ],
+}
+
+
+@router.get("/demo-config")
+async def demo_config():
+    """Public read. Returns the demo videos config — DB doc if present,
+    else the placeholder default. Frontend renders this verbatim."""
+    cfg = await db.avatar_demo_config.find_one({"_id": "default"})
+    out = cfg or DEFAULT_DEMO_CFG
+    out = {k: v for k, v in out.items() if k != "_id"}
+    return out
+
+
+class DemoConfigIn(BaseModel):
+    above_fold_headline: Optional[str] = None
+    above_fold_subhead: Optional[str] = None
+    videos: Optional[list] = None
+
+
+@router.post("/admin/demo-config")
+async def admin_set_demo_config(body: DemoConfigIn,
+                                user: dict = Depends(get_admin_user)):
+    """Admin-only: update demo videos. Founder uses this to swap real
+    self-recorded clips in once the 3 are ready."""
+    update = {k: v for k, v in body.dict().items() if v is not None}
+    if not update:
+        raise HTTPException(400, "Nothing to update")
+    update["updated_at"] = _now()
+    update["updated_by"] = user["id"]
+    await db.avatar_demo_config.update_one(
+        {"_id": "default"},
+        {"$set": {**update, "_id": "default"}},
+        upsert=True,
+    )
+    return {"ok": True}
+
+
+# ─── Admin funnel table (one tiny row-table, no charts) ───────────────────
+@router.get("/admin/funnel-table")
+async def admin_funnel_table(days: int = 14, user: dict = Depends(get_admin_user)):
+    """Returns the single table the founder asked for:
+        day  views  demo_plays  signups  consents  first_exports  repeats  shares
+    No fancy charts. Last `days` days, oldest-first."""
+    days = max(1, min(days, 60))
+    from datetime import timedelta as _td
+    from datetime import datetime as _dt
+    from datetime import timezone as _tz
+    today = _dt.now(_tz.utc).date()
+    rows = []
+    for offset in range(days - 1, -1, -1):
+        d = today - _td(days=offset)
+        start = _dt(d.year, d.month, d.day, 0, 0, 0, tzinfo=_tz.utc).isoformat()
+        end = _dt(d.year, d.month, d.day, 23, 59, 59, tzinfo=_tz.utc).isoformat()
+        cnt = {}
+        for step in ("avatar_landing_view", "avatar_demo_played",
+                     "avatar_signup_from_avatar", "avatar_consent_submitted",
+                     "avatar_first_export", "avatar_repeat_export",
+                     "avatar_share_click"):
+            cnt[step] = await db.funnel_events.count_documents({
+                "step": step, "timestamp": {"$gte": start, "$lte": end},
+            })
+        rows.append({
+            "day": d.isoformat(),
+            "views": cnt["avatar_landing_view"],
+            "demo_plays": cnt["avatar_demo_played"],
+            "signups": cnt["avatar_signup_from_avatar"],
+            "consents": cnt["avatar_consent_submitted"],
+            "first_exports": cnt["avatar_first_export"],
+            "repeats": cnt["avatar_repeat_export"],
+            "shares": cnt["avatar_share_click"],
+        })
+    # Day-7 gate snapshot (uses last 7 days only)
+    last7 = rows[-7:] if len(rows) >= 7 else rows
+    totals = {k: sum(r[k] for r in last7) for k in
+              ("views", "demo_plays", "signups", "consents",
+               "first_exports", "repeats", "shares")}
+    gate = {
+        "users_completed_full_flow": totals["first_exports"],
+        "users_repeated": totals["repeats"],
+        "organic_shares": totals["shares"],
+        "passes_gate": totals["first_exports"] >= 20
+                        and totals["repeats"] >= 5
+                        and totals["shares"] >= 1,
+    }
+    return {"rows": rows, "last7_totals": totals, "day7_gate": gate}

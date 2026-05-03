@@ -692,3 +692,120 @@ no real face/voice/training providers wired this session.
    - SynthID-equivalent forensic watermark (real bit injection)
    - Cashfree billing wire-up (display already shipped)
 
+
+─────────────────────────────────────────────────────────
+[2026-05-03] AVATAR STUDIO — DEMAND-VALIDATION SCAFFOLDING SHIPPED
+─────────────────────────────────────────────────────────
+Founder directive: STEP 1 of the 4-step plan from prior turn (public demo
+page + share buttons + 6-event funnel + referral capture + Day-7 gate).
+Hard rule: no Phase 2 spend until 7-day distribution gate passes.
+
+✅ Backend extensions (no new file; appended to avatar_studio.py):
+  - 7 namespaced funnel steps allowed (avatar_landing_view, avatar_demo_played,
+    avatar_signup_from_avatar, avatar_consent_submitted, avatar_first_export,
+    avatar_repeat_export, avatar_share_click).
+  - POST /api/avatar/funnel/track            (public, anonymous, anti-spam
+                                              by step whitelist + 400 on
+                                              unknown step)
+  - POST /api/avatar/referral/attribute       (auth required, idempotent —
+                                              first call sets users.avatar_attribution
+                                              and emits avatar_signup_from_avatar;
+                                              second call no-ops with
+                                              {attributed: false, reason: 'already_attributed'})
+  - GET  /api/avatar/demo-config              (public read; serves placeholder
+                                              defaults until founder POSTs real
+                                              video URLs)
+  - POST /api/avatar/admin/demo-config        (admin-only; founder uses to
+                                              swap real recordings without
+                                              redeploy)
+  - GET  /api/avatar/admin/funnel-table       (admin-only; row-table for last
+                                              N days + last-7 totals + Day-7
+                                              gate verdict {first_exports>=20,
+                                              repeats>=5, shares>=1})
+  - Server-side emits wired into existing endpoints:
+      submit_consent → avatar_consent_submitted
+      _mock_render_worker → avatar_first_export OR avatar_repeat_export
+      (decided by the user's prior export count)
+
+✅ Frontend (NEW):
+  - /app/frontend/src/pages/AvatarDemoPage.jsx
+      Public route /avatar-demo (no auth, in App.js after /share/:shareId).
+      Above-the-fold:
+        H1: "I replaced 2 hours of daily content creation with this AI avatar."
+        Subhead: "Verified personal AI avatar. Disclosure-labeled. YouTube +
+                  Instagram safe."
+      3-card vertical 9:16 demo grid with mandatory "AI-generated avatar"
+      label overlay on every card. Each card shows:
+        - Used by: <Coaches | Course creators | Founders>
+        - Time saved: ~90 minutes per day
+        - Caption (founder-editable)
+        - Placeholder badge while default URLs are still BigBuckBunny
+      Sections: How It Works (3 steps), Disclosure-First manifesto, final CTA.
+      On mount: captures utm_source/utm_campaign/ref from URL, persists once
+      to localStorage.avatar_attribution, emits avatar_landing_view.
+      Demo videos auto-play muted, loop. avatar_demo_played fires at 50%
+      playthrough (idempotent per video).
+      All CTAs route to /signup with attribution preserved in query string.
+  - /app/frontend/src/pages/AvatarFunnelTablePage.jsx (admin)
+      Single-table, no charts. Daily rows + last-7 totals + Day-7 gate
+      verdict (PASS/FAIL with three checkmarks).
+      Mounted at /app/admin/avatar/funnel.
+
+✅ Existing frontend changes (small, surgical):
+  - AvatarStudioPage.jsx → ResultStep:
+      Share row added: Share to WhatsApp (wa.me/?text=...), Download for
+      Instagram (downloads MP4 + copies caption), Copy invite link
+      (links to /avatar-demo?utm_source=user_share&utm_campaign=avatar_referral
+      &ref=<user_id>). Each click fires avatar_share_click with channel meta.
+  - AvatarStudioPage.jsx → Dashboard:
+      "Funnel table" admin button added (alongside Admin moderation).
+      Lazy attribution: first dashboard mount per user reads
+      localStorage.avatar_attribution and POSTs to /referral/attribute. Sets
+      localStorage.avatar_attribution_attached='1' to ensure single-shot.
+
+✅ Smoke (9/9 backend checks pass — admin token + test user token):
+  1. /demo-config returns 3 placeholder videos with founder copy
+  2. /funnel/track accepts 3 valid steps, rejects unknown step (400)
+  3. /referral/attribute first-call attaches; second-call idempotent
+  4. /admin/funnel-table returns N rows + last-7 totals + Day-7 gate
+  5. /admin/demo-config writes; /demo-config reflects override; reset OK
+  6. Non-admin user gets 403 on admin endpoints
+  7. /api/photo-trailer/templates still returns 9 templates (Photo Trailer
+     freeze HELD, no regression)
+
+✅ Lint clean: AvatarDemoPage.jsx, AvatarFunnelTablePage.jsx,
+   AvatarStudioPage.jsx, avatar_studio.py.
+
+🛑 What is NOT shipped (re-confirmed freezes):
+  - No fal.ai integration
+  - No ElevenLabs integration
+  - No Cashfree wire-up
+  - No real watermark embedding
+  - No safety rule engine implementation (Phase 2 parallel work, gated on
+    founder explicit "begin" — separate from this STEP 1 task)
+  - No Photo Trailer changes
+  - No universal negative prompt
+  - No new AI model calls of any kind
+
+🚦 Founder action items for the 7-day distribution sprint:
+  1. Record 3 self-avatar demo clips (vertical 9:16, ≤15s each, visible
+     "AI-generated avatar" label burned in via current pipeline OR added
+     in a video editor). Upload URLs via POST /api/avatar/admin/demo-config
+     {videos: [...]}.
+  2. Execute the Day-1 → Day-7 distribution checklist from prior plan
+     (IG / LinkedIn / X / WhatsApp DMs).
+  3. Watch /app/admin/avatar/funnel daily.
+  4. At Day 7: read the Day-7 gate verdict. PASS → unlock Phase 2.
+     FAIL → kill or pivot per founder directive (no "iterate UI more").
+
+📁 Files Added:
+   - frontend/src/pages/AvatarDemoPage.jsx
+   - frontend/src/pages/AvatarFunnelTablePage.jsx
+
+📁 Files Touched:
+   - backend/routes/avatar_studio.py (appended ~210 lines, no existing
+     code modified except 2 small emit-additions inside existing handlers)
+   - frontend/src/App.js (3 lines: 2 lazy imports + 2 routes)
+   - frontend/src/pages/AvatarStudioPage.jsx (Dashboard signature +
+     Funnel button + ResultStep share row + lazy attribution effect)
+

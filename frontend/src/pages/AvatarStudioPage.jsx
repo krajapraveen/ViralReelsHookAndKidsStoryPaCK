@@ -48,7 +48,7 @@ function DisclosureBanner({ inline = false }) {
 }
 
 // ─── Step 0: Dashboard / Pick or Create ────────────────────────────────────
-function Dashboard({ clones, onCreate, onPick, onAdmin, isAdmin, onPricing }) {
+function Dashboard({ clones, onCreate, onPick, onAdmin, onFunnel, isAdmin, onPricing }) {
   return (
     <div className="space-y-6" data-testid="avatar-step-dashboard">
       <div>
@@ -68,10 +68,16 @@ function Dashboard({ clones, onCreate, onPick, onAdmin, isAdmin, onPricing }) {
           See pricing
         </button>
         {isAdmin && (
-          <button onClick={onAdmin} data-testid="avatar-admin-btn"
-                  className="px-4 py-3 rounded-xl border border-amber-500/40 text-amber-200 text-sm">
-            Admin moderation
-          </button>
+          <>
+            <button onClick={onAdmin} data-testid="avatar-admin-btn"
+                    className="px-4 py-3 rounded-xl border border-amber-500/40 text-amber-200 text-sm">
+              Admin moderation
+            </button>
+            <button onClick={onFunnel} data-testid="avatar-funnel-btn"
+                    className="px-4 py-3 rounded-xl border border-cyan-500/40 text-cyan-200 text-sm">
+              Funnel table
+            </button>
+          </>
         )}
       </div>
       <div>
@@ -490,6 +496,33 @@ function ResultStep({ clone, lastJob, onBack, onMakeAnother }) {
       .then(r => r.json()).then(d => setExports(d.exports || []));
   }, [clone.id, lastJob?.id]);
 
+  // Share helpers
+  const userId = (() => { try { return JSON.parse(localStorage.getItem('user') || 'null')?.id || ''; } catch { return ''; } })();
+  const inviteUrl = `${window.location.origin}/avatar-demo?utm_source=user_share&utm_campaign=avatar_referral${userId ? `&ref=${encodeURIComponent(userId)}` : ''}`;
+  const trackShare = (channel, exportId) => {
+    fetch(`${API}/api/avatar/funnel/track`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ step: 'avatar_share_click', meta: { channel, export_id: exportId } }),
+    }).catch(() => {});
+  };
+  const shareWA = (e) => {
+    trackShare('whatsapp', e.id);
+    const text = `I made this with my AI avatar — labeled AI-generated. Make yours in 60s: ${inviteUrl}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  };
+  const shareIG = async (e) => {
+    trackShare('instagram', e.id);
+    const caption = `Made with my AI avatar (labeled AI-generated). Make yours in 60s — link in profile.`;
+    try { await navigator.clipboard.writeText(caption); } catch {}
+    const a = document.createElement('a');
+    a.href = e.file_url; a.download = `ai_avatar_${e.id}.mp4`;
+    document.body.appendChild(a); a.click(); a.remove();
+  };
+  const copyInvite = async () => {
+    trackShare('copy_link', null);
+    try { await navigator.clipboard.writeText(inviteUrl); } catch {}
+  };
+
   return (
     <div className="space-y-5" data-testid="avatar-step-result">
       <Header onBack={onBack} />
@@ -513,6 +546,24 @@ function ResultStep({ clone, lastJob, onBack, onMakeAnother }) {
                 <div><span className="text-slate-500">Forensic ID:</span> <code className="text-slate-300">{e.forensic_watermark_id}</code></div>
                 <div><span className="text-slate-500">Platform:</span> {e.platform}</div>
                 <div><span className="text-slate-500">Disclosure:</span> {e.disclosure_text}</div>
+              </div>
+              {/* Share row */}
+              <div className="mt-3 flex flex-wrap gap-2" data-testid={`avatar-share-row-${e.id}`}>
+                <button onClick={() => shareWA(e)}
+                        className="px-3 py-2 rounded-lg bg-emerald-500/20 text-emerald-200 text-xs font-bold border border-emerald-500/40"
+                        data-testid={`avatar-share-whatsapp-${e.id}`}>
+                  Share to WhatsApp
+                </button>
+                <button onClick={() => shareIG(e)}
+                        className="px-3 py-2 rounded-lg bg-fuchsia-500/20 text-fuchsia-200 text-xs font-bold border border-fuchsia-500/40"
+                        data-testid={`avatar-share-instagram-${e.id}`}>
+                  Download for Instagram
+                </button>
+                <button onClick={copyInvite}
+                        className="px-3 py-2 rounded-lg bg-white/5 text-slate-200 text-xs font-bold border border-white/15"
+                        data-testid={`avatar-share-copy-${e.id}`}>
+                  Copy invite link
+                </button>
               </div>
             </li>
           ))}
@@ -599,6 +650,25 @@ export default function AvatarStudioPage() {
 
   useEffect(() => { refresh(); }, [refresh]);
 
+  // Lazy referral attribution: first time the authenticated user lands on
+  // the studio, attach any stored attribution to their account. Idempotent
+  // both client-side (key flip) and server-side (no-op if already set).
+  useEffect(() => {
+    if (localStorage.getItem('avatar_attribution_attached') === '1') return;
+    let attribution = null;
+    try { attribution = JSON.parse(localStorage.getItem('avatar_attribution') || 'null'); } catch {}
+    if (!attribution) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch(`${API}/api/avatar/referral/attribute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(attribution),
+    })
+      .then(r => r.ok && localStorage.setItem('avatar_attribution_attached', '1'))
+      .catch(() => {});
+  }, []);
+
   // Auto-advance: when a user clicks a clone card, route to the right step.
   const pick = (c) => {
     setActive(c);
@@ -620,6 +690,7 @@ export default function AvatarStudioPage() {
             onCreate={() => setStep('create')}
             onPick={pick}
             onAdmin={() => nav('/app/admin/avatar/moderation')}
+            onFunnel={() => nav('/app/admin/avatar/funnel')}
             isAdmin={isAdmin}
             onPricing={() => setStep('pricing')} />
         )}
