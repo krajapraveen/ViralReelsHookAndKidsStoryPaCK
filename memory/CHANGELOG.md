@@ -925,3 +925,81 @@ Next session (blocked pending 7-day gate pass):
    Phase 2 adapters (fal.ai lip-sync, ElevenLabs voice clone, real watermark
    embedding, Whisper/Mediapipe liveness), rule-based Safety Engine, Discovery
    Feed. Do not start until founder unlocks.
+
+─────────────────────────────────────────────────────────
+[2026-05-03] AVATAR DEMO WIZARD — ANONYMOUS TRY-BEFORE-SIGNUP (Phase 1.5)
+─────────────────────────────────────────────────────────
+Founder directive: "Ship /avatar-demo as anonymous wizard. Users experience
+value first, then hit signup gate. Do NOT ask login before Generate."
+
+✅ Backend (+130 LOC, zero existing code broken):
+  • POST /api/avatar/studio/anon-mock-generate — no auth, session_id bound.
+    Returns {job_id, eta_seconds, demo_label, is_demo_output=true, anonymous=true,
+    remaining_in_window}.
+  • GET /api/avatar/studio/anon-jobs/{id}?session_id=X — anon polling;
+    cross-session reads return 404.
+  • Rate limit: 2 generations per session_id per rolling 24h. 3rd call →
+    429 with {code: "ANON_LIMIT_REACHED", limit: 2, window_hours: 24}.
+  • 5 new funnel events: demo_generate_clicked, demo_completed,
+    signup_after_demo, retry_after_demo, share_after_demo.
+  • Server-side emits: demo_generate_clicked on anon-mock-generate +
+    demo_completed (idempotent) on first poll of a completed anon job.
+
+✅ Frontend (NEW AvatarDemoWizard.jsx):
+  • Lands DIRECTLY on Step 1 Type — library step skipped.
+  • Pre-fills: quick_avatar type, "My Demo Avatar" name, sample_face.svg
+    preview, talking_head motion, 15s duration, sample script. Users can
+    hit Generate in under 30s without touching anything.
+  • Persistent anon session_id in localStorage.avatar_demo_session_id.
+  • UTM / ref attribution captured into localStorage.avatar_attribution
+    (preserves signup-time attribution).
+
+✅ Frontend (EXTENDED GenerationProgress.jsx):
+  • New anonymous + anonSessionId + onSignupGate props (fully backwards-
+    compatible — /app/avatar unaffected).
+  • ResultView in anonymous mode renders "Sign up to download your video"
+    signup-gate card. Download button flips to "Sign up to download" +
+    Lock icon. Clicking Download → fires signup_after_demo + nav()s to
+    /signup?from=avatar_demo&reason=download.
+  • Make-another fires retry_after_demo before resetting the form.
+  • Share clicks fire share_after_demo (vs avatar_share_click) when anon.
+
+✅ Routing:
+  • /avatar-demo → new AvatarDemoWizard. Old AvatarDemoPage.jsx archived
+    as .legacy.jsx (unreachable, not imported). Existing share-link
+    traffic (?utm_source=user_share&ref=X) lands on the wizard — attribution
+    still captured, zero broken links.
+
+✅ testing_agent_v3_fork iteration 535:
+  • Backend: 21/21 PASS (100%) — anon generate, rate limit 429,
+    cross-session 404, all 4 types + 4 motion styles, banned script,
+    funnel whitelist, session_id length bounds.
+  • Frontend: 100% PASS — wizard lands anonymously, all fields pre-filled,
+    full flow reaches Result in ~21.5s for 15s clip, signup gate renders,
+    Download redirects to /signup?from=avatar_demo&reason=download.
+  • Photo Trailer freeze: /api/photo-trailer/templates still returns 9.
+  • Authenticated /app/avatar 5-step wizard: untouched.
+  • 0 critical, 0 minor, 0 integration issues.
+
+📁 Files Added:
+  • frontend/src/pages/AvatarDemoWizard.jsx (240 LOC)
+
+📁 Files Touched:
+  • backend/routes/avatar_studio.py (+anon endpoints, +5 funnel steps)
+  • frontend/src/components/avatar/GenerationProgress.jsx (anonymous mode)
+  • frontend/src/App.js (1 lazy import + 1 route element)
+  • frontend/src/pages/AvatarDemoPage.jsx → .legacy.jsx (archived)
+
+🎯 Founder's Day-7 gate (what to watch at /app/admin/avatar/funnel):
+  demo_generate_clicked → demo_completed → signup_after_demo is the key
+  conversion chain. retry_after_demo = intent signal. share_after_demo =
+  output is share-worthy. If signup_after_demo / demo_completed ≥ 5% →
+  green light Phase 2. Below 2% → rethink the feature.
+
+🚦 Still honoured (non-negotiables):
+  ❌ No Phase 2 (no fal.ai, no ElevenLabs, no real generation)
+  ❌ No voice cloning / better rendering / workers / pricing tweaks
+  ❌ No Photo Trailer changes
+  ✅ Single flow per route. Hard signup gate ONLY at Save/Download/Create.
+  ✅ DEMO / SIMULATED OUTPUT labels everywhere.
+
