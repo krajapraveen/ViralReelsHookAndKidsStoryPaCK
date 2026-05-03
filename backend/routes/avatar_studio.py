@@ -427,7 +427,9 @@ async def get_job(job_id: str, user: dict = Depends(get_current_user)):
     j = await db.avatar_jobs.find_one(
         {"_id": job_id, "user_id": user["id"]},
         {"_id": 1, "clone_id": 1, "job_type": 1, "status": 1, "progress": 1,
-         "output_url": 1, "error_code": 1, "started_at": 1, "completed_at": 1, "created_at": 1})
+         "output_url": 1, "error_code": 1, "started_at": 1, "completed_at": 1, "created_at": 1,
+         "stage_label": 1, "eta_seconds": 1, "is_demo_output": 1, "demo_label": 1,
+         "output_export_id": 1, "input": 1})
     if not j:
         raise HTTPException(404, "Job not found")
     return _strip_id(j)
@@ -714,6 +716,203 @@ async def admin_abuse_action(report_id: str, body: AdminAbuseActionIn,
 @router.get("/health")
 async def health():
     return {"ok": True, "service": "avatar_studio", "mode": "vertical_slice_mock"}
+
+
+# ═════════════════════════════════════════════════════════════════════════
+#  AI CLONING STUDIO — Phase 1 MOCKED WIZARD (2026-05-04)
+#  Strict: frontend demand-validation illusion. No real AI providers.
+#  Auto-completes in 20-60s based on duration. Always returns demo output.
+# ═════════════════════════════════════════════════════════════════════════
+
+ALLOWED_AVATAR_TYPES = {"quick_avatar", "voice_matched", "motion", "template"}
+ALLOWED_MOTION_STYLES = {"talking_head", "gesture", "full_body", "static"}
+
+# Demo sample outputs (publicly hostable placeholders — never real generation)
+DEMO_OUTPUT_URLS = {
+    "talking_head": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+    "gesture":      "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+    "full_body":    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+    "static":       "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+}
+
+DEMO_SIMULATED_LABEL = "Demo / simulated output"
+
+STUDIO_TEMPLATES = [
+    {"id": "intro_reel",     "name": "Intro Reel",         "duration_seconds": 15, "motion_style": "talking_head",
+     "description": "Short hook with your face + script. Perfect for YouTube Shorts or Reels."},
+    {"id": "course_welcome", "name": "Course Welcome",     "duration_seconds": 30, "motion_style": "talking_head",
+     "description": "Warm welcome video for your students. Re-use for every cohort."},
+    {"id": "product_demo",   "name": "Product Demo",       "duration_seconds": 45, "motion_style": "gesture",
+     "description": "Show off a feature with gestures and energy."},
+    {"id": "founder_update", "name": "Founder Update",     "duration_seconds": 60, "motion_style": "talking_head",
+     "description": "Weekly update format. Changelog, wins, asks."},
+    {"id": "testimonial",    "name": "Testimonial",        "duration_seconds": 20, "motion_style": "talking_head",
+     "description": "Customer quote delivered by your avatar with disclosure."},
+    {"id": "wellness_tip",   "name": "Daily Wellness Tip", "duration_seconds": 15, "motion_style": "gesture",
+     "description": "Bite-sized lifestyle content in your voice."},
+]
+
+
+class StudioGenerateRequest(BaseModel):
+    avatar_type: str = Field(..., description="quick_avatar|voice_matched|motion|template")
+    motion_style: str = Field("talking_head")
+    duration_seconds: int = Field(15, ge=5, le=90)
+    script: Optional[str] = Field(None, max_length=MAX_SCRIPT_CHARS)
+    template_id: Optional[str] = None
+    clone_name: Optional[str] = None
+    safety_confirmed: bool = True
+    assets: Optional[dict] = None  # { photo_name, voice_sample_name, etc. } — names only, fully mocked
+
+
+@router.get("/studio/templates")
+async def studio_templates():
+    """Public read of template catalog for the wizard."""
+    return {"templates": STUDIO_TEMPLATES, "motion_styles": sorted(ALLOWED_MOTION_STYLES),
+            "avatar_types": sorted(ALLOWED_AVATAR_TYPES)}
+
+
+def _mock_progress_for_duration(duration: int) -> int:
+    """Total seconds of fake progress based on output length.
+    Short clips (<20s) → 20s total, Medium (20-45s) → 35s, Long (>45s) → 55s."""
+    if duration <= 20:
+        return 20
+    if duration <= 45:
+        return 35
+    return 55
+
+
+@router.post("/studio/mock-generate")
+async def studio_mock_generate(body: StudioGenerateRequest, bg: BackgroundTasks,
+                                user: dict = Depends(get_current_user)):
+    """PHASE 1 MOCK: accepts any valid wizard input, creates a job that
+    auto-completes in 20-60s with a demo output URL. No real generation.
+
+    Every output is stamped `is_demo_output: true` and labeled
+    `Demo / simulated output` on both the job record and the export row.
+    Frontend must surface this label prominently.
+    """
+    if body.avatar_type not in ALLOWED_AVATAR_TYPES:
+        raise HTTPException(400, {"code": "INVALID_AVATAR_TYPE",
+                                  "message": "Unknown avatar type. Pick one of the 4 options."})
+    if body.motion_style not in ALLOWED_MOTION_STYLES:
+        raise HTTPException(400, {"code": "INVALID_MOTION_STYLE",
+                                  "message": "Unknown motion style."})
+    if not body.safety_confirmed:
+        raise HTTPException(400, {"code": "SAFETY_NOT_CONFIRMED",
+                                  "message": "Please confirm the safety checklist before generating."})
+    if body.script:
+        safety = await _run_script_safety_check(body.script)
+        if not safety["allowed"]:
+            raise HTTPException(400, {"code": safety.get("code", "DISALLOWED_CONTENT"),
+                                      "message": safety["reason"]})
+
+    total_progress_seconds = _mock_progress_for_duration(body.duration_seconds)
+
+    job = {
+        "_id": str(uuid.uuid4()),
+        "user_id": user["id"],
+        "clone_id": None,
+        "job_type": "studio_mock_generate",
+        "status": "queued",
+        "progress": 0,
+        "worker_name": "mock_studio_illusion_worker",
+        "input": {
+            "avatar_type": body.avatar_type,
+            "motion_style": body.motion_style,
+            "duration_seconds": body.duration_seconds,
+            "template_id": body.template_id,
+            "clone_name": (body.clone_name or "").strip()[:60] or None,
+            "script": (body.script or "").strip()[:MAX_SCRIPT_CHARS] or None,
+            "assets": body.assets or {},
+            "disclosure_text": DISCLOSURE_TEXT,
+        },
+        "is_demo_output": True,
+        "demo_label": DEMO_SIMULATED_LABEL,
+        "eta_seconds": total_progress_seconds,
+        "output_url": None,
+        "error_code": None,
+        "started_at": None,
+        "completed_at": None,
+        "created_at": _now(),
+    }
+    await db.avatar_jobs.insert_one(job)
+    bg.add_task(_mock_studio_illusion_worker, job["_id"], total_progress_seconds,
+                body.motion_style, body.avatar_type)
+    return {"job_id": job["_id"], "status": "queued",
+            "eta_seconds": total_progress_seconds,
+            "demo_label": DEMO_SIMULATED_LABEL,
+            "is_demo_output": True}
+
+
+async def _mock_studio_illusion_worker(job_id: str, total_seconds: int,
+                                        motion_style: str, avatar_type: str):
+    """Fake the full pipeline: 5 named stages, progress ticks, final demo URL."""
+    stages = [
+        ("Analyzing your input",       10),
+        ("Preparing avatar model",     30),
+        ("Synthesizing voice",         55),
+        ("Rendering motion + scene",   80),
+        ("Applying disclosure label",  95),
+    ]
+    try:
+        await db.avatar_jobs.update_one({"_id": job_id}, {
+            "$set": {"status": "running", "progress": 3, "started_at": _now(),
+                     "stage_label": stages[0][0]}})
+        tick = total_seconds / (len(stages) + 1)
+        for label, pct in stages:
+            await asyncio.sleep(tick)
+            await db.avatar_jobs.update_one({"_id": job_id}, {
+                "$set": {"progress": pct, "stage_label": label}})
+        await asyncio.sleep(tick)
+        # Finalize — always succeed with demo output
+        demo_url = DEMO_OUTPUT_URLS.get(motion_style, DEMO_OUTPUT_URLS["talking_head"])
+        forensic_id = f"DEMO-WM-{uuid.uuid4().hex[:14]}"
+        job = await db.avatar_jobs.find_one({"_id": job_id})
+        if not job:
+            return
+        export = {
+            "_id": str(uuid.uuid4()),
+            "user_id": job["user_id"],
+            "clone_id": None,
+            "job_id": job_id,
+            "export_type": "video",
+            "file_url": demo_url,
+            "visible_label_applied": True,
+            "visible_label_text": VISIBLE_LABEL,
+            "demo_label": DEMO_SIMULATED_LABEL,
+            "is_demo_output": True,
+            "forensic_watermark_id": forensic_id,
+            "disclosure_text": DISCLOSURE_TEXT,
+            "platform": "generic",
+            "metadata": {
+                "ai_generated": True,
+                "ai_provider": "mock_studio_illusion",
+                "avatar_type": avatar_type,
+                "motion_style": motion_style,
+                "watermark_id": forensic_id,
+                "visible_label": VISIBLE_LABEL,
+                "demo_label": DEMO_SIMULATED_LABEL,
+                "is_demo_output": True,
+                "disclosure": DISCLOSURE_TEXT,
+            },
+            "created_at": _now(),
+        }
+        await db.avatar_exports.insert_one(export)
+        prior = await db.avatar_exports.count_documents({"user_id": job["user_id"]})
+        step = "avatar_first_export" if prior <= 1 else "avatar_repeat_export"
+        await _emit_funnel(step, user_id=job["user_id"],
+                           meta={"export_id": export["_id"], "is_demo_output": True,
+                                 "avatar_type": avatar_type})
+        await db.avatar_jobs.update_one({"_id": job_id}, {
+            "$set": {"status": "completed", "progress": 100,
+                     "stage_label": "Ready",
+                     "completed_at": _now(), "output_url": demo_url,
+                     "output_export_id": export["_id"]}})
+    except Exception as e:
+        log.exception(f"mock studio worker failed: {e}")
+        await db.avatar_jobs.update_one({"_id": job_id}, {
+            "$set": {"status": "failed", "error_code": "MOCK_STUDIO_FAIL",
+                     "stage_label": "Failed — please retry"}})
 
 
 # ═════════════════════════════════════════════════════════════════════════

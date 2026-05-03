@@ -109,7 +109,7 @@ const ContentChallengePlanner = lazy(() => import('./pages/ContentChallengePlann
 const CaptionRewriterPro = lazy(() => import('./pages/CaptionRewriterPro'));
 const PromoVideos = lazy(() => import('./pages/PromoVideos'));
 const PhotoTrailerPage = lazy(() => import('./pages/PhotoTrailerPage'));
-const AvatarStudioPage = lazy(() => import('./pages/AvatarStudioPage'));
+const AICloningStudio = lazy(() => import('./pages/AICloningStudio'));
 const AdminCloneModerationPage = lazy(() => import('./pages/AdminCloneModerationPage'));
 const AvatarDemoPage = lazy(() => import('./pages/AvatarDemoPage'));
 const AvatarFunnelTablePage = lazy(() => import('./pages/AvatarFunnelTablePage'));
@@ -387,7 +387,7 @@ function App() {
         <Route path="/app/caption-rewriter" element={isAuthenticated ? <L><CaptionRewriterPro /></L> : <Navigate to="/login" />} />
         <Route path="/app/promo-videos" element={isAuthenticated ? <L><PromoVideos /></L> : <Navigate to="/login" />} />
         <Route path="/app/photo-trailer" element={isAuthenticated ? <L><PhotoTrailerPage /></L> : <Navigate to="/login" />} />
-        <Route path="/app/avatar" element={isAuthenticated ? <L><AvatarStudioPage /></L> : <Navigate to="/login" />} />
+        <Route path="/app/avatar" element={isAuthenticated ? <L><AICloningStudio /></L> : <Navigate to="/login" />} />
         <Route path="/app/admin/avatar/moderation" element={isAuthenticated ? <L><AdminCloneModerationPage /></L> : <Navigate to="/login" />} />
         <Route path="/app/admin/avatar/funnel" element={isAuthenticated ? <L><AvatarFunnelTablePage /></L> : <Navigate to="/login" />} />
         <Route path="/app/create" element={isAuthenticated ? <L><CreateMenuPage /></L> : <Navigate to="/login" />} />
