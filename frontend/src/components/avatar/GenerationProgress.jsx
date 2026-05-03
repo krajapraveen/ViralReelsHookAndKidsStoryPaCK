@@ -294,6 +294,18 @@ function ResultView({ job, onMakeAnother, onBackToLibrary, anonymous = false, on
         </p>
       </div>
 
+      {/* Critical honesty banner — tells the user exactly what they're about
+          to see so there's no "wait, that's not my face?" cognitive break. */}
+      <div
+        className="p-3 rounded-xl border-2 border-amber-500/40 bg-amber-500/10 text-amber-100 flex items-start gap-2.5"
+        data-testid="avatar-studio-result-preview-notice"
+      >
+        <Sparkles className="w-4 h-4 mt-0.5 shrink-0 text-amber-300" />
+        <div className="text-xs leading-relaxed">
+          <span className="font-bold text-amber-200">This is a simulated preview.</span> In the full version, this will be <span className="font-bold text-amber-200">your face speaking in your voice</span>. We're collecting demand signal before wiring the real AI — that's why this is a stylized placeholder, not a stranger's video.
+        </div>
+      </div>
+
       <div className="rounded-2xl overflow-hidden bg-black border border-white/10 relative" data-testid="avatar-studio-result-video-wrap">
         {videoError ? (
           <div className="w-full aspect-video flex flex-col items-center justify-center bg-slate-900 text-center p-6" data-testid="avatar-studio-result-video-error">
