@@ -125,8 +125,13 @@ api.interceptors.response.use(
       const url = error.config?.url || '';
       const isAuthEndpoint = url.includes('/auth/');
       const isFunnelEndpoint = url.includes('/funnel/');
+      // 2026-05 AI Cloning free-testing exception — these routes are
+      // explicitly whitelisted from subscription gating. Even if the
+      // backend ever returns 402 here (it shouldn't), do NOT surface the
+      // mandatory-subscription modal for them.
+      const isAvatarRoute = url.includes('/avatar/') || url.includes('/api/avatar');
       const isBlockingError =
-        !isAuthEndpoint && !isFunnelEndpoint && (
+        !isAuthEndpoint && !isFunnelEndpoint && !isAvatarRoute && (
           (status === 402) ||
           code === 'INSUFFICIENT_CREDITS' ||
           code === 'insufficient_credits' ||

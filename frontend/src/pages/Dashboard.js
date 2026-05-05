@@ -509,7 +509,7 @@ const ICON_MAP = {
 
 // REGRESSION GUARD: Static default feature list — NEVER let features section be empty
 const DEFAULT_FEATURES = [
-  { name: 'AI Cloning', desc: 'Verified AI avatar of yourself — disclosure-labeled', icon: 'UserCheck', path: '/app/avatar', key: 'avatar', gradient: 'from-fuchsia-500 to-pink-700', score: 110, badge: 'NEW' },
+  { name: 'AI Cloning', desc: 'Verified AI avatar — free during testing', icon: 'UserCheck', path: '/app/avatar', key: 'avatar', gradient: 'from-fuchsia-500 to-pink-700', score: 110, badge: 'FREE · TESTING' },
   { name: 'Story Video', desc: 'Turn ideas into cinematic stories', icon: 'Film', path: '/app/story-video-studio', key: 'story-video-studio', gradient: 'from-indigo-500 to-blue-700', score: 100 },
   { name: 'Story Series', desc: 'Multi-episode sagas with memory', icon: 'BookOpen', path: '/app/story-series', key: 'story-series', gradient: 'from-purple-500 to-fuchsia-700', score: 90 },
   { name: 'My Movie Trailer', desc: 'Upload photos → 20-60s personalized AI trailer', icon: 'Camera', path: '/app/photo-trailer', key: 'photo-trailer', gradient: 'from-violet-500 to-fuchsia-700', score: 80, badge: 'NEW' },

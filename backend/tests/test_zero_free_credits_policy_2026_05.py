@@ -105,5 +105,50 @@ def test_migration_script_protects_purchased_credits():
     assert compute_new_credits(0, 0) == 0
 
 
+def test_ai_cloning_free_testing_kill_switch():
+    """AI_CLONING_FREE_ENABLED kill switch must exist and default to True
+    (controlled exception under the 2026-05 mandatory-subscription policy)."""
+    from routes.avatar_studio import AI_CLONING_FREE_ENABLED
+    assert AI_CLONING_FREE_ENABLED is True
+
+
+def test_ai_cloning_funnel_event_allowlisted_globally():
+    """ai_cloning_used_free_testing must be in BOTH the global FUNNEL_STEPS
+    list (public /api/funnel/track) AND the avatar_studio ALLOWED_FUNNEL_STEPS
+    set (server-side _emit_funnel) — defense-in-depth."""
+    from routes.funnel_tracking import FUNNEL_STEPS
+    from routes.avatar_studio import ALLOWED_FUNNEL_STEPS
+    assert "ai_cloning_used_free_testing" in FUNNEL_STEPS
+    assert "ai_cloning_used_free_testing" in ALLOWED_FUNNEL_STEPS
+
+
+def test_avatar_studio_does_not_call_credits_service():
+    """Avatar Studio handlers must NOT import or call credits_service.
+    Re-checked at file level to catch future regressions where someone
+    accidentally adds gating to the free-testing routes."""
+    import inspect
+    import re
+    from routes import avatar_studio
+    src = inspect.getsource(avatar_studio)
+    # Strip docstrings + line comments before checking — we want zero CODE usage,
+    # not zero text mentions (the kill-switch doc comment legitimately names it).
+    code_only = re.sub(r"#.*$", "", src, flags=re.MULTILINE)
+    code_only = re.sub(r'""".*?"""', "", code_only, flags=re.DOTALL)
+    # Hard rule: no actual import or call of credits_service in the router code
+    assert "from services.credits_service" not in code_only, (
+        "avatar_studio.py must NOT import credits_service while "
+        "AI_CLONING_FREE_ENABLED is True"
+    )
+    assert "import credits_service" not in code_only
+    assert ".deduct_credits(" not in code_only, (
+        "avatar_studio.py must NOT call .deduct_credits() while "
+        "AI_CLONING_FREE_ENABLED is True"
+    )
+    assert "get_credits_service(" not in code_only, (
+        "avatar_studio.py must NOT instantiate credits_service while "
+        "AI_CLONING_FREE_ENABLED is True"
+    )
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

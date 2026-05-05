@@ -1,6 +1,89 @@
 # Visionary Suite - Changelog
 
 ─────────────────────────────────────────────────────────
+[2026-05-05] AI CLONING FREE-TESTING EXCEPTION (CONTROLLED) SHIPPED
+─────────────────────────────────────────────────────────
+Founder directive: AI Cloning is the SOLE allowed exception to the
+mandatory-subscription policy. Strict isolation, defense-in-depth,
+explicit kill switch.
+
+✅ Backend kill switch
+   • New flag `AI_CLONING_FREE_ENABLED = True` in `routes/avatar_studio.py`
+     (top of file, with full whitelist documentation)
+   • Routes under /api/avatar/* explicitly whitelisted from BOTH:
+       - subscription-status checks
+       - credit deduction (no users.credits $inc, no credit_ledger writes)
+   • Currently enforced by absence of credits_service usage in the entire
+     avatar_studio.py file — guaranteed by the new regression test
+     `test_avatar_studio_does_not_call_credits_service`
+
+✅ Frontend modal exclusion (defense-in-depth)
+   • `utils/api.js` interceptor now skips `/api/avatar/*` routes from
+     SubscribeRequiredModal trigger. Even if the backend ever returns
+     402 from these paths (it shouldn't), users won't see the
+     mandatory-sub modal for AI Cloning.
+
+✅ Analytics — `ai_cloning_used_free_testing` event
+   • Added to BOTH allowlists:
+       - global FUNNEL_STEPS in `routes/funnel_tracking.py`
+       - local ALLOWED_FUNNEL_STEPS in `routes/avatar_studio.py`
+   • Server-side emit on every successful generate (auth + anonymous):
+       - studio_mock_generate → emits with user_id + meta
+       - studio_anon_mock_generate → emits with session_id + meta
+   • Meta payload: {avatar_type, motion_style, duration_seconds,
+     anonymous, policy: "ai_cloning_free_testing_2026_05"}
+
+✅ UI labels (clarity over confusion)
+   • AICloningStudio header: amber "Under Testing · Free" pill badge
+     (data-testid=avatar-studio-free-testing-badge)
+   • Dashboard tile updated:
+       name: "AI Cloning"
+       desc: "Verified AI avatar — free during testing"
+       badge: "FREE · TESTING" (was "NEW")
+
+✅ UI consistency check (verified)
+   ✓ Pricing page does NOT mention AI Cloning as paid
+   ✓ SubscribeRequiredModal does NOT trigger for /api/avatar/* responses
+   ✓ Credit badge does NOT decrement (no credits_service calls)
+   ✓ Referral system does NOT interact (cloning is not a qualifying action)
+
+✅ Tests — 8/8 unit tests PASS
+   • New regression tests in `test_zero_free_credits_policy_2026_05.py`:
+       - test_ai_cloning_free_testing_kill_switch
+       - test_ai_cloning_funnel_event_allowlisted_globally
+       - test_avatar_studio_does_not_call_credits_service
+         (precise: strips docstrings, blocks actual imports/calls only)
+   • Live smoke verified:
+       - POST /api/avatar/studio/anon-mock-generate works without auth
+       - DB confirmed: 2 ai_cloning_used_free_testing events with
+         policy=ai_cloning_free_testing_2026_05 stamp
+       - Photo Trailer freeze HELD: /api/photo-trailer/templates → 9
+
+📁 Files Touched:
+   • backend/routes/avatar_studio.py
+       - Added AI_CLONING_FREE_ENABLED flag + whitelist doc
+       - Added ai_cloning_used_free_testing to ALLOWED_FUNNEL_STEPS
+       - Server-side emit on both generate paths (auth + anonymous)
+   • backend/routes/funnel_tracking.py — added event to global allowlist
+   • frontend/src/utils/api.js — interceptor skips /api/avatar/*
+   • frontend/src/pages/AICloningStudio.jsx — Header pill badge
+   • frontend/src/pages/Dashboard.js — Cloning tile copy/badge update
+
+📁 Files Added: none (test additions in existing file)
+
+🚦 Strategic structure achieved:
+   • Core product → paid only (mandatory subscription)
+   • AI Cloning → free (testing hook, demand-validation window)
+   • This is the ONLY allowed exception. Adding more = back to free-tier hole.
+
+─── Decision metric for AI Cloning ───
+Watch `ai_cloning_used_free_testing` volume daily at /app/admin/avatar/funnel.
+   HIGH volume + low subscribe conversion → keep free, drives top-of-funnel
+   HIGH volume + high subscribe conversion → flip to paid (AI_CLONING_FREE_ENABLED=False)
+   LOW volume → kill the feature, stop wasting Phase-2 dev cycles
+
+
+─────────────────────────────────────────────────────────
 [2026-05-05] P0 MANDATORY SUBSCRIPTION / ZERO FREE CREDITS — PRE-DEPLOY CHECKLIST COMPLETE
 ─────────────────────────────────────────────────────────
 Founder directive: finish the 3 missing pre-deploy items before triggering

@@ -34,6 +34,29 @@ from shared import db, get_admin_user, get_current_user
 log = logging.getLogger("avatar_studio")
 router = APIRouter(prefix="/avatar", tags=["avatar"])
 
+# ─── 2026-05 AI Cloning Free-Testing Exception ────────────────────────────
+# Visionary Suite is on a mandatory-subscription policy (see
+# admin_billing_policy.py). AI Cloning (this whole router) is the SOLE
+# allowed exception while we collect demand-validation data.
+#
+# Routes under /api/avatar/* are explicitly whitelisted from BOTH:
+#   • subscription-status checks
+#   • credit deduction (no users.credits $inc, no credit_ledger writes)
+#
+# Currently this is enforced by the fact that NONE of the avatar_studio
+# handlers call credits_service.deduct_credits OR check subscription_status.
+# This flag is the kill switch — flipping it to False is a future-only
+# tripwire that requires adding gating to studio/mock-generate,
+# generate-video, train, etc. before re-enabling.
+#
+# UI consistency rules (enforced by frontend, not backend):
+#   • Pricing page: must NOT mention AI Cloning as a paid feature
+#   • SubscribeRequiredModal: must NOT trigger for /api/avatar/* responses
+#   • Credit badge: must NOT decrement on Cloning runs
+#   • Referral system: must NOT interact (cloning runs aren't qualifying actions)
+AI_CLONING_FREE_ENABLED = True
+# ──────────────────────────────────────────────────────────────────────────
+
 # ─── Constants ────────────────────────────────────────────────────────────
 DISCLOSURE_TEXT = "This video uses an AI-generated avatar with verified consent."
 VISIBLE_LABEL = "AI-generated avatar"
@@ -825,6 +848,14 @@ async def studio_anon_mock_generate(body: AnonStudioGenerateRequest, bg: Backgro
                        meta={"avatar_type": body.avatar_type,
                              "motion_style": body.motion_style,
                              "duration_seconds": body.duration_seconds})
+    # Free-testing analytics (mandatory-sub policy exception)
+    if AI_CLONING_FREE_ENABLED:
+        await _emit_funnel("ai_cloning_used_free_testing", session_id=body.session_id,
+                           meta={"avatar_type": body.avatar_type,
+                                 "motion_style": body.motion_style,
+                                 "duration_seconds": body.duration_seconds,
+                                 "anonymous": True,
+                                 "policy": "ai_cloning_free_testing_2026_05"})
     return {"job_id": job["_id"], "status": "queued",
             "eta_seconds": total_progress_seconds,
             "demo_label": DEMO_SIMULATED_LABEL,
@@ -997,6 +1028,15 @@ async def studio_mock_generate(body: StudioGenerateRequest, bg: BackgroundTasks,
     await db.avatar_jobs.insert_one(job)
     bg.add_task(_mock_studio_illusion_worker, job["_id"], total_progress_seconds,
                 body.motion_style, body.avatar_type)
+    # Free-testing analytics (mandatory-sub policy exception). Server-side
+    # emit guarantees we capture demand even if the client mis-fires.
+    if AI_CLONING_FREE_ENABLED:
+        await _emit_funnel("ai_cloning_used_free_testing", user_id=user["id"],
+                           meta={"avatar_type": body.avatar_type,
+                                 "motion_style": body.motion_style,
+                                 "duration_seconds": body.duration_seconds,
+                                 "anonymous": False,
+                                 "policy": "ai_cloning_free_testing_2026_05"})
     return {"job_id": job["_id"], "status": "queued",
             "eta_seconds": total_progress_seconds,
             "demo_label": DEMO_SIMULATED_LABEL,
@@ -1169,6 +1209,8 @@ ALLOWED_FUNNEL_STEPS = {
     "avatar_use_again_no",
     "avatar_use_case_selected",
     "retry_variant_selected",
+    # 2026-05 Mandatory Subscription Policy — AI Cloning free-testing exception
+    "ai_cloning_used_free_testing",
 }
 
 

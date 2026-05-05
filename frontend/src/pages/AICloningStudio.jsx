@@ -240,6 +240,14 @@ function Header({ onBack }) {
         >
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
+        <span
+          className="ml-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[11px] font-semibold tracking-wide"
+          data-testid="avatar-studio-free-testing-badge"
+          title="AI Cloning is currently free while we collect feedback. This is the only feature exempt from subscription during the testing window."
+        >
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+          Under Testing · Free
+        </span>
         <div className="ml-auto flex items-center gap-2 text-xs text-slate-400">
           <Lock className="w-3.5 h-3.5 text-emerald-400" /> Consent + disclosure enforced
         </div>
