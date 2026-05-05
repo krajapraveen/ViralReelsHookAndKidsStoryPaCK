@@ -114,18 +114,30 @@ async def create_series(request: CreateSeriesRequest, user: dict = Depends(get_c
     user_id = user["id"]
     user_plan = user.get("plan", "free")
 
+    # ─── 2026-05 Admin/Unlimited bypass ───────────────────────────────────
+    # Internal testing surface: admin/dev/qa/test/owner + is_unlimited users
+    # must bypass ALL quota gates (series limits, credits, daily caps).
+    role = (user.get("role") or "").lower()
+    is_unlimited_user = (
+        bool(user.get("is_unlimited", False))
+        or role in {"admin", "owner", "dev", "qa", "test"}
+    )
+
     # Safety pipeline — sanitize user inputs
     from services.rewrite_engine import check_and_rewrite
     safety = await check_and_rewrite(user_id, "story_series", request, ["title", "initial_prompt"])
     if safety.blocked:
         raise HTTPException(status_code=400, detail=safety.block_reason)
 
-    # Enforce series limit
-    from config.monetization import check_series_limit
-    current_count = await db.story_series.count_documents({"user_id": user_id, "status": {"$in": ["active", "paused"]}})
-    limit_check = check_series_limit(user_plan, current_count)
-    if not limit_check["can_create"]:
-        raise HTTPException(status_code=403, detail=limit_check["upgrade_message"])
+    # Enforce series limit (skipped for unlimited roles)
+    if not is_unlimited_user:
+        from config.monetization import check_series_limit
+        current_count = await db.story_series.count_documents({"user_id": user_id, "status": {"$in": ["active", "paused"]}})
+        limit_check = check_series_limit(user_plan, current_count)
+        if not limit_check["can_create"]:
+            raise HTTPException(status_code=403, detail=limit_check["upgrade_message"])
+    else:
+        logger.info(f"[series/create] unlimited bypass for {user_id[:8]} role={role}")
 
     series_id = _uuid()
     character_bible_id = _uuid()
@@ -735,13 +747,21 @@ async def plan_episode(series_id: str, request: PlanEpisodeRequest, user: dict =
     if not series:
         raise HTTPException(status_code=404, detail="Series not found")
 
-    # Enforce episode limit
-    from config.monetization import check_episode_limit
-    user_plan = user.get("plan", "free")
-    ep_count = await db.story_episodes.count_documents({"series_id": series_id})
-    ep_check = check_episode_limit(user_plan, ep_count)
-    if not ep_check["can_create"]:
-        raise HTTPException(status_code=403, detail=ep_check["upgrade_message"])
+    # Enforce episode limit (skipped for unlimited roles)
+    role = (user.get("role") or "").lower()
+    is_unlimited_user = (
+        bool(user.get("is_unlimited", False))
+        or role in {"admin", "owner", "dev", "qa", "test"}
+    )
+    if not is_unlimited_user:
+        from config.monetization import check_episode_limit
+        user_plan = user.get("plan", "free")
+        ep_count = await db.story_episodes.count_documents({"series_id": series_id})
+        ep_check = check_episode_limit(user_plan, ep_count)
+        if not ep_check["can_create"]:
+            raise HTTPException(status_code=403, detail=ep_check["upgrade_message"])
+    else:
+        logger.info(f"[series/episode] unlimited bypass for {user['id'][:8]} role={role}")
 
     char_bible = await db.character_bibles.find_one({"series_id": series_id}, {"_id": 0})
     world_bible = await db.world_bibles.find_one({"series_id": series_id}, {"_id": 0})

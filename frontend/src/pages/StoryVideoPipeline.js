@@ -405,7 +405,18 @@ function StoryVideoPipelineInner() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [showUpsell, setShowUpsell] = useState(false);
   const [userCredits, setUserCredits] = useState(null);
-  const [isUnlimitedUser, setIsUnlimitedUser] = useState(false); // admin/dev/qa/test bypass
+  // 2026-05 Admin/QA bypass — determined upfront from the user object so
+  // even a transient /credit-check network error cannot block internal
+  // testing. Backend enforces the same bypass server-side (defense in depth).
+  const [isUnlimitedUser, setIsUnlimitedUser] = useState(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('user') || '{}');
+      const role = (u?.role || '').toLowerCase();
+      return Boolean(u?.is_unlimited) || ['admin', 'owner', 'dev', 'qa', 'test'].includes(role);
+    } catch (_) {
+      return false;
+    }
+  });
   const [creditGate, setCreditGate] = useState(null); // { required, current, shortfall }
   const [remixData, setRemixData] = useState(null);
   const [showRemixBanner, setShowRemixBanner] = useState(false);
@@ -957,25 +968,27 @@ function StoryVideoPipelineInner() {
     }
 
     // ═══ STRICT CREDIT GATE — Pre-flight check before ANY generation ═══
-    try {
-      const creditRes = await api.get('/api/story-engine/credit-check');
-      const { sufficient, required, current, shortfall, is_unlimited } = creditRes.data;
-      setUserCredits(current);
-      if (is_unlimited) {
-        setIsUnlimitedUser(true); // admin/dev/qa/test — bypass all gates
-      } else if (!sufficient) {
-        setCreditGate({ required, current, shortfall });
-        return; // Block generation — modal will show
-      }
-    } catch (creditErr) {
-      if (creditErr.response?.status === 401) {
-        // Not logged in — let the create call handle the login gate
-      } else if (isUnlimitedUser) {
-        // Admin / unlimited — endpoint hiccup must NOT block internal testing
-        console.warn('[credit-check] endpoint failed for unlimited user — bypassing');
-      } else {
-        setFormError('Could not verify your credit balance. Please try again.');
-        return;
+    // Admin / unlimited users skip the network call entirely. Backend still
+    // enforces the same bypass so this is purely a UX optimization + safety
+    // net against transient network errors on an internal-testing surface.
+    if (!isUnlimitedUser) {
+      try {
+        const creditRes = await api.get('/api/story-engine/credit-check');
+        const { sufficient, required, current, shortfall, is_unlimited } = creditRes.data;
+        setUserCredits(current);
+        if (is_unlimited) {
+          setIsUnlimitedUser(true);
+        } else if (!sufficient) {
+          setCreditGate({ required, current, shortfall });
+          return; // Block generation — modal will show
+        }
+      } catch (creditErr) {
+        if (creditErr.response?.status === 401) {
+          // Not logged in — let the create call handle the login gate
+        } else {
+          setFormError('Could not verify your credit balance. Please try again.');
+          return;
+        }
       }
     }
 
