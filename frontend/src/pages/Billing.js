@@ -100,6 +100,34 @@ export default function Billing() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ─── Tab deep-link from credit-gate modals ─────────────────────────────
+  // Routes like /app/billing?tab=credits or ?tab=plans should:
+  //   • auto-scroll the matching section into view
+  //   • briefly ring it so the user's eye lands on it
+  // Source: StoryVideoPipeline credit-gate Buy/View Plans buttons.
+  const tabParam = (searchParams.get('tab') || '').toLowerCase();
+  useEffect(() => {
+    if (pageLoading || pageError || verifyingReturn) return;
+    if (tabParam !== 'credits' && tabParam !== 'plans') return;
+    const targetId = tabParam === 'credits' ? 'credit-packs-section' : 'subscription-plans-section';
+    // Wait one frame so the section is in the DOM
+    const t = setTimeout(() => {
+      const el = document.getElementById(targetId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        el.classList.add('billing-section-highlight');
+        setTimeout(() => el.classList.remove('billing-section-highlight'), 2400);
+      }
+      try {
+        trackFunnel('billing_section_opened_from_gate', {
+          source_page: 'billing',
+          meta: { tab: tabParam },
+        });
+      } catch (_) { /* never break UX */ }
+    }, 120);
+    return () => clearTimeout(t);
+  }, [pageLoading, pageError, verifyingReturn, tabParam]);
+
   const handlePurchase = async (productId) => {
     if (loading[productId]) return; // prevent double-click
     setLoading(prev => ({...prev, [productId]: true}));
@@ -304,7 +332,11 @@ export default function Billing() {
 
         {!pageLoading && !pageError && !verifyingReturn && (<>
         {/* Subscriptions Section */}
-        <div className="mb-12">
+        <div
+          id="subscription-plans-section"
+          className="mb-12 scroll-mt-24 rounded-2xl transition-shadow"
+          data-testid="billing-plans-section"
+        >
           <h2 className="text-3xl font-bold mb-2 text-white">Subscription Plans</h2>
           <p className="text-slate-400 mb-8">Save more with longer commitments</p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -349,7 +381,11 @@ export default function Billing() {
         </div>
 
         {/* Credit Packs Section */}
-        <div>
+        <div
+          id="credit-packs-section"
+          className="scroll-mt-24 rounded-2xl transition-shadow"
+          data-testid="billing-credits-section"
+        >
           <h2 className="text-3xl font-bold mb-2 text-white">Credit Packs</h2>
           <p className="text-slate-400 mb-8">One-time purchase, no commitment</p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">

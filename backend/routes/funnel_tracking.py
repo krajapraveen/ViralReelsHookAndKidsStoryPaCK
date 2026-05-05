@@ -193,6 +193,10 @@ FUNNEL_STEPS = [
     "ai_cloning_used_free_testing",
     # Public Creator Tools grid (Landing page) — measures interest per tool
     "public_creator_tool_clicked",
+    # Credit-gate modal — revenue P0 routing fix (2026-05)
+    "credit_gate_buy_credits_clicked",
+    "credit_gate_view_plans_clicked",
+    "billing_section_opened_from_gate",
 ]
 
 

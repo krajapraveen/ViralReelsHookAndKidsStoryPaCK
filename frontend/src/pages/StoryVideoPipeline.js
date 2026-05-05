@@ -1304,14 +1304,22 @@ function StoryVideoPipelineInner() {
               {/* Actions */}
               <div className="px-6 pb-6 space-y-2">
                 <button
-                  onClick={() => { setCreditGate(null); navigate('/app/profile?tab=billing'); }}
+                  onClick={() => {
+                    setCreditGate(null);
+                    trackFunnel('credit_gate_buy_credits_clicked', { source_page: 'story_video_pipeline', meta: { shortfall: creditGate.shortfall } });
+                    navigate('/app/billing?tab=credits');
+                  }}
                   className="w-full h-11 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white font-bold text-sm hover:opacity-90 flex items-center justify-center gap-2"
                   data-testid="credit-gate-buy-btn"
                 >
                   <Zap className="w-4 h-4" /> Buy Credits
                 </button>
                 <button
-                  onClick={() => { setCreditGate(null); navigate('/pricing'); }}
+                  onClick={() => {
+                    setCreditGate(null);
+                    trackFunnel('credit_gate_view_plans_clicked', { source_page: 'story_video_pipeline', meta: { shortfall: creditGate.shortfall } });
+                    navigate('/app/billing?tab=plans');
+                  }}
                   className="w-full h-11 rounded-xl border border-white/10 text-slate-300 font-medium text-sm hover:bg-white/[0.03] flex items-center justify-center gap-2"
                   data-testid="credit-gate-plans-btn"
                 >

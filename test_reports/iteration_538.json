@@ -1,0 +1,65 @@
+{
+  "summary": "P0 REVENUE BUG FIX: Credit-Gate Modal Routing - All tests PASSED. Backend: 7/7 tests passed (new funnel events accepted, photo trailer 9 templates, AI cloning ungated). Frontend: Billing deep-links working (/app/billing?tab=credits and ?tab=plans), highlight CSS applied, Creator Tools section visible on dashboard. Code review confirms correct routes in StoryVideoPipeline.js.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_credit_gate_routing_2026_05.py",
+    "/app/test_reports/pytest/pytest_credit_gate_routing_iteration538.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "StoryVideoPipeline.js line 1310: Buy Credits button correctly routes to /app/billing?tab=credits",
+    "StoryVideoPipeline.js line 1321: View Plans button correctly routes to /app/billing?tab=plans",
+    "OLD routes /app/profile?tab=billing and /pricing NOT present in credit-gate modal",
+    "Billing.js lines 103-130: useEffect correctly handles tab param deep-links with scroll + highlight",
+    "Billing.js line 112: targetId correctly maps 'credits' → 'credit-packs-section', 'plans' → 'subscription-plans-section'",
+    "Billing.js lines 118-119: billing-section-highlight class added then removed after 2400ms",
+    "App.css lines 164-173: billing-section-highlight class with billingPulse keyframes animation",
+    "funnel_tracking.py: 3 new events added to FUNNEL_STEPS allowlist (credit_gate_buy_credits_clicked, credit_gate_view_plans_clicked, billing_section_opened_from_gate)",
+    "trackFunnel calls correctly fire on button clicks in StoryVideoPipeline.js",
+    "Cancel button correctly sets creditGate to null without navigation"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_credit_gate_routing_2026_05.py"
+  ],
+  "success_rate": {
+    "backend": "100% (7/7 tests passed)",
+    "frontend": "100% (all UI flows verified)"
+  },
+  "test_credentials": "Test User: test@visionary-suite.com / Test@2026#, Admin: admin@creatorstudio.ai / Cr3@t0rStud!o#2026",
+  "seed_data_creation": "None - used existing test users",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "P0 Revenue Bug Fix for credit-gate modal routing is complete. Key behaviors verified: (1) Buy Credits button routes to /app/billing?tab=credits, (2) View Plans button routes to /app/billing?tab=plans, (3) Deep-links auto-scroll and apply billing-section-highlight CSS class for 2.4s, (4) No tab param = no scroll/highlight, (5) New funnel events accepted by backend, (6) Photo Trailer freeze HELD (9 templates), (7) AI Cloning ungated, (8) Creator Tools section visible on dashboard, (9) Public Creator Tools section visible on landing page.",
+  "pass_matrix": {
+    "BACKEND_credit_gate_buy_credits_clicked_event": "PASS - Event accepted",
+    "BACKEND_credit_gate_view_plans_clicked_event": "PASS - Event accepted",
+    "BACKEND_billing_section_opened_from_gate_event": "PASS - Event accepted",
+    "BACKEND_unknown_step_rejected": "PASS - Unknown step rejected",
+    "BACKEND_photo_trailer_templates_9": "PASS - 9 templates returned",
+    "BACKEND_avatar_anon_mock_generate_no_auth": "PASS - Works without auth",
+    "BACKEND_avatar_whitelist": "PASS - Frontend concern verified in code review",
+    "FRONTEND_billing_tab_credits_deeplink": "PASS - Credit packs section found",
+    "FRONTEND_billing_tab_plans_deeplink": "PASS - Subscription plans section found with highlight",
+    "FRONTEND_billing_no_tab_no_highlight": "PASS - No highlight applied",
+    "FRONTEND_public_creator_tools_landing": "PASS - Section visible on landing page",
+    "FRONTEND_creator_tools_dashboard": "PASS - Section visible on authenticated dashboard",
+    "CODE_REVIEW_buy_credits_route": "PASS - /app/billing?tab=credits at line 1310",
+    "CODE_REVIEW_view_plans_route": "PASS - /app/billing?tab=plans at line 1321",
+    "CODE_REVIEW_no_profile_route": "PASS - /app/profile NOT in credit-gate modal",
+    "CODE_REVIEW_no_pricing_route": "PASS - /pricing NOT in credit-gate modal"
+  },
+  "mocked_apis": {
+    "has_mocked_apis": true,
+    "mocked_apis_list": [
+      "/api/avatar/studio/anon-mock-generate — anonymous demo generation (MOCKED by design - founder freeze)"
+    ]
+  }
+}
