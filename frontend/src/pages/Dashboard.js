@@ -12,6 +12,7 @@ import { safeMediaUrl } from '../components/SafeImage';
 import { sendFeedEvent, fetchMoreStories, updateScrollSpeed, getDynamicHookDelay, wasSkippedFast } from '../utils/feedTracker';
 import { startSession, endSession, trackAction } from '../utils/sessionTracker';
 import ReviewModal from '../components/ReviewModal';
+import { DEFAULT_FEATURES } from '../data/creatorTools';
 import {
   Play, ChevronRight, ChevronLeft, Sparkles, Zap,
   Flame, Clock, Search, Plus,
@@ -509,7 +510,6 @@ const ICON_MAP = {
 
 // REGRESSION GUARD: Static default feature list — NEVER let features section be empty
 // Source of truth lives in /src/data/creatorTools.js (also used by Landing.js)
-import { DEFAULT_FEATURES } from '../data/creatorTools';
 
 // REGRESSION GUARD: Default rows when API returns empty
 const DEFAULT_ROWS = [
@@ -1004,13 +1004,38 @@ export default function Dashboard() {
 
   useEffect(() => {
     refreshCredits();
+    let didCancel = false;
+
+    // 2026-05 P0 hardening — stuck-skeleton kill switch.
+    // Production reports of /app hanging on skeleton indefinitely. Network
+    // hiccups (CORS, slow ingress, backend cold-start) could leave Promise.all
+    // pending forever. Force-flip loading=false at 8s no matter what — the
+    // page already has REGRESSION_GUARD fallbacks (DEFAULT_FEATURES, SEED_CARDS)
+    // so an empty feed still renders full content.
+    const skelKillSwitch = setTimeout(() => {
+      if (didCancel) return;
+      setLoading((prev) => {
+        if (prev) {
+          console.warn('[Dashboard] kill-switch tripped — forcing render with fallback data');
+          setFeed((f) => f || { hero: null, rows: [], features: [], live_stats: {} });
+        }
+        return false;
+      });
+    }, 8000);
+
     const load = async () => {
       try {
         // Single consolidated API call replaces 7 separate calls
+        // Both calls now wrap in catch so one slow/failed endpoint doesn't
+        // block the entire dashboard render.
         const [feedRes, initRes] = await Promise.all([
-          axios.get(`${API}/api/engagement/story-feed`, auth()),
+          axios.get(`${API}/api/engagement/story-feed`, auth()).catch((err) => {
+            console.error('[Dashboard] story-feed failed:', err.message);
+            return { data: { hero: null, rows: [], features: [], live_stats: {} } };
+          }),
           axios.get(`${API}/api/dashboard/init`, auth()).catch(() => ({ data: {} })),
         ]);
+        if (didCancel) return;
         setFeed(feedRes.data);
         if (feedRes.data.cdn_base) setCdnBase(feedRes.data.cdn_base);
 
@@ -1026,12 +1051,18 @@ export default function Dashboard() {
         setScrollOffset(initialStories);
       } catch (e) {
         console.error('[Dashboard] Feed load failed:', e.message);
-        setFeed({ hero: null, rows: [], features: [], live_stats: {} });
-        toast.error('Failed to load your feed. Try refreshing the page.');
+        if (!didCancel) {
+          setFeed({ hero: null, rows: [], features: [], live_stats: {} });
+          toast.error('Failed to load your feed. Try refreshing the page.');
+        }
       }
-      setLoading(false);
+      if (!didCancel) setLoading(false);
     };
     load();
+    return () => {
+      didCancel = true;
+      clearTimeout(skelKillSwitch);
+    };
   }, []);
 
   // ── Session tracking ──

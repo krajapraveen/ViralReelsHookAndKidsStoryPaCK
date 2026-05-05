@@ -515,7 +515,10 @@ function StoryVideoPipelineInner() {
 
   const onViewJob = useCallback((job) => {
     if (job?.job_id) {
-      navigate(`/app/story-video-studio?projectId=${job.job_id}`);
+      // Route to My Space (canonical progress surface), not back to the
+      // creation form. Previously navigated to /app/story-video-studio
+      // which made users think the click did nothing.
+      navigate(`/app/my-space?projectId=${job.job_id}`);
     }
   }, [navigate]);
   const [showLoginGate, setShowLoginGate] = useState(false);
@@ -1059,11 +1062,14 @@ function StoryVideoPipelineInner() {
           toast.info(res.data.rewrite_note, { duration: 5000 });
         }
 
-        // Auto-redirect to My Space so user can watch live progress
-        toast.success('Redirecting to My Space to track progress...');
+        // Auto-redirect to My Space so user can watch live progress.
+        // Reduce the gap to <300ms so users never see a blank window.
+        // The post-success state itself (`phase='processing'`) already shows
+        // a clear "Generating your story..." panel before navigation lands.
+        toast.success('Redirecting to track progress...', { duration: 1200 });
         setTimeout(() => {
           navigate(`/app/my-space?projectId=${res.data.job_id}`);
-        }, 1500);
+        }, 300);
       } else {
         setFormError(res.data.detail || res.data.message || 'Failed to create video.');
       }
@@ -1388,6 +1394,7 @@ function StoryVideoPipelineInner() {
           showLoginGate={showLoginGate}
           seriesContext={seriesContext}
           isFreshSession={!!location.state?.freshSession}
+          typingStartedRef={typingStartedRef}
         />}
 
         {phase === 'processing' && (
@@ -1510,7 +1517,7 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
   qualityMode, setQualityMode,
   onGenerate, submitting, userJobs, onViewJob, rateLimitStatus, formError,
   showRemixBanner, remixSourceTool, remixSourceTitle, onDismissRemix, userCredits,
-  showLoginGate, seriesContext, isFreshSession }) {
+  showLoginGate, seriesContext, isFreshSession, typingStartedRef }) {
 
   const styles = options?.animation_styles || [];
   const ages = options?.age_groups || [];
@@ -1910,10 +1917,30 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
                 !canCreate ? 'bg-white/[0.06] hover:bg-white/[0.08] text-white/60 border border-white/[0.06]' : 'vs-btn-primary'
               }`}
               data-testid="generate-btn">
-              {submitting ? <><Loader2 className="w-5 h-5 animate-spin" /> Creating Job...</>
+              {submitting ? <><Loader2 className="w-5 h-5 animate-spin" /> Starting your video...</>
                 : !canCreate ? <><Clock className="w-5 h-5" /> Slots Busy — Wait or Cancel</>
                 : <><Wand2 className="w-5 h-5" /> Generate Video</>}
             </button>
+          )}
+
+          {/* Immediate-feedback overlay — appears within 100ms of click,
+              eliminates the perceived blank/skeleton gap before /my-space loads */}
+          {submitting && (
+            <div
+              className="fixed inset-0 z-[9990] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+              data-testid="generate-starting-overlay"
+              role="status"
+              aria-live="polite"
+            >
+              <div className="rounded-2xl border border-violet-500/30 bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/60 px-8 py-7 shadow-[0_30px_80px_-20px_rgba(99,102,241,0.45)] max-w-sm w-[92%] text-center">
+                <div className="inline-flex w-14 h-14 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/20 to-rose-500/20 border border-violet-400/30 mb-4">
+                  <Loader2 className="w-7 h-7 text-violet-300 animate-spin" />
+                </div>
+                <h3 className="text-lg font-bold text-white mb-1.5">Starting your video...</h3>
+                <p className="text-sm text-slate-300">Preparing scenes and animation.</p>
+                <p className="text-[11px] text-slate-500 mt-3">Do not close this tab.</p>
+              </div>
+            </div>
           )}
 
           {rateLimitStatus && !rateLimitStatus.exempt && (
