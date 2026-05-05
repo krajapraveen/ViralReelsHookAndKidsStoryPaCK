@@ -221,7 +221,27 @@ function SkeletonCard() {
   );
 }
 
-function SkeletonLoading() {
+function SkeletonLoading({ highlightId }) {
+  // When arriving from Generate Video with ?projectId=<id>, show a focused
+  // "preparing your video" card instead of the generic placeholder grid —
+  // avoids the perceived blank-screen flash during the handoff.
+  if (highlightId) {
+    return (
+      <div
+        className="max-w-4xl mx-auto px-4 py-10 flex flex-col items-center justify-center min-h-[60vh]"
+        data-testid="myspace-project-loading"
+      >
+        <div className="relative inline-flex items-center justify-center w-16 h-16 mb-5">
+          <div className="absolute inset-0 rounded-full border-2 border-violet-500/20" />
+          <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-violet-400 animate-spin" />
+          <Sparkles className="w-6 h-6 text-violet-300" />
+        </div>
+        <h2 className="text-xl font-bold text-white mb-1.5">Loading your video progress...</h2>
+        <p className="text-sm text-slate-400 mb-4">Fetching the latest status.</p>
+        <p className="text-[11px] text-slate-500">Do not close this tab.</p>
+      </div>
+    );
+  }
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-6" data-testid="myspace-skeleton">
       <div className="flex items-center justify-between">
@@ -1133,7 +1153,7 @@ export default function MySpacePage() {
   const failed = jobs.filter(j => ['FAILED'].includes(j.status));
 
   // ─── Skeleton Loading ───
-  if (loading) return <SkeletonLoading />;
+  if (loading) return <SkeletonLoading highlightId={highlightId} />;
 
   if (jobs.length === 0) {
     return (
