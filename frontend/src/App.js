@@ -18,6 +18,7 @@ import CookieConsent from './components/CookieConsent';
 import useSessionTracker from './utils/useSessionTracker';
 import { PurchaseSurveyMount } from './pages/PurchaseSurvey';
 import { ActionGuideMount } from './utils/ActionGuide';
+import SubscribeRequiredModal from './components/SubscribeRequiredModal';
 import './App.css';
 
 // ═══ CRITICAL PATH — Eager imports (landing, auth, dashboard) ═══
@@ -293,6 +294,7 @@ function App() {
       {isAuthenticated && <GlobalUserBar />}
       <PurchaseSurveyMount />
       <ActionGuideMount />
+      <SubscribeRequiredModal />
       <Suspense fallback={<PageLoader />}>
       <Routes>
         {/* ═══ PUBLIC — Eager loaded ═══ */}

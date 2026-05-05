@@ -114,6 +114,48 @@ api.interceptors.response.use(
       toast.error(msg, { duration: 5000, id: 'service-unavailable' });
     }
 
+    // ─── 2026-05 Mandatory Subscription / Zero Free Credits ──────────────
+    // Surface the global SubscribeRequiredModal whenever the backend signals
+    // a credit / plan block. Toast + modal per founder directive.
+    try {
+      const status = error.response?.status || 0;
+      const data = error.response?.data || {};
+      const detail = data.detail || data;
+      const code = (detail && (detail.code || detail.error)) || data.error || data.code;
+      const url = error.config?.url || '';
+      const isAuthEndpoint = url.includes('/auth/');
+      const isFunnelEndpoint = url.includes('/funnel/');
+      const isBlockingError =
+        !isAuthEndpoint && !isFunnelEndpoint && (
+          (status === 402) ||
+          code === 'INSUFFICIENT_CREDITS' ||
+          code === 'insufficient_credits' ||
+          code === 'UPGRADE_REQUIRED' ||
+          code === 'FREE_QUOTA_EXCEEDED' ||
+          code === 'subscription_required'
+        );
+      if (isBlockingError) {
+        toast.error('Free credits have been removed. Subscribe to continue creating.', {
+          duration: 6000,
+          id: 'subscribe-required-toast',
+        });
+        const feature = (() => {
+          if (url.includes('/photo-trailer')) return 'photo_trailer';
+          if (url.includes('/avatar')) return 'avatar';
+          if (url.includes('/pipeline') || url.includes('/story-video')) return 'story_video';
+          if (url.includes('/reel')) return 'reel';
+          if (url.includes('/comix') || url.includes('/comic')) return 'comix';
+          if (url.includes('/gif')) return 'gif';
+          if (url.includes('/coloring')) return 'coloring_book';
+          if (url.includes('/bedtime')) return 'bedtime_story';
+          return 'generic';
+        })();
+        window.dispatchEvent(new CustomEvent('subscribe-required-modal', {
+          detail: { feature, source: 'api_interceptor', http_status: status, code: code || null },
+        }));
+      }
+    } catch (_) { /* never break UX */ }
+
     return Promise.reject(error);
   }
 );

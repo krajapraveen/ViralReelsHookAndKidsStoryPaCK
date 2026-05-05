@@ -103,12 +103,12 @@ const EmailVerificationBanner = ({ user, onVerified }) => {
           </h3>
           
           <p className="text-amber-100/80 text-sm mt-2">
-            Your <span className="font-bold text-amber-300">{pendingCredits} free credits</span> are locked until you verify your email address.
+            Verify your email to keep your account secure and access subscription features.
           </p>
           
           <div className="flex items-center gap-2 mt-2 text-amber-200/60 text-xs">
             <Clock className="w-4 h-4" />
-            <span>Verify within 24 hours or lose access to your credits</span>
+            <span>Required before you can subscribe and start creating</span>
           </div>
           
           <div className="mt-4 flex items-center gap-3">

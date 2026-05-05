@@ -29,14 +29,9 @@ export default function CreditStatusBadge({ credits, onCreditsUpdate }) {
   };
 
   const checkDailyReward = async () => {
-    try {
-      const res = await api.get('/api/monetization/daily-reward/status');
-      if (res.data.success) {
-        setDailyRewardAvailable(!res.data.claimed_today);
-      }
-    } catch (error) {
-      console.error('Failed to check daily reward:', error);
-    }
+    // 2026-05 Mandatory Subscription Policy — no free credit grants.
+    // Daily-reward UI gated off; backend endpoint still exists for compat.
+    setDailyRewardAvailable(false);
   };
 
   const claimDailyReward = async () => {

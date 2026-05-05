@@ -224,7 +224,7 @@ export default function Landing() {
     <div className="vs-page overflow-x-hidden" data-testid="landing-page">
       <Helmet>
         <title>Visionary Suite | AI Content Creator for Viral Reels & Kids Stories</title>
-        <meta name="description" content="Write any story and our AI generates scenes, creates images, adds voiceover, and renders a complete video. Start free with 10 credits." />
+        <meta name="description" content="Write any story and our AI generates scenes, creates images, adds voiceover, and renders a complete video. Subscribe to start creating." />
         <link rel="canonical" href="https://www.visionary-suite.com" />
         <meta property="og:title" content="Visionary Suite | Turn Stories into AI Videos in 90 Seconds" />
         <meta property="og:description" content="Write any story. Our AI generates scenes, creates images, adds voiceover, and renders a complete video — all in under 90 seconds." />
@@ -619,13 +619,14 @@ export default function Landing() {
       {/* ═══════ PRICING TEASER ═══════ */}
       <section className="py-16 px-4 border-t border-white/[0.04]" data-testid="pricing-teaser">
         <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-3">Start free. Upgrade when you love it.</h2>
-          <p className="text-sm text-slate-400 mb-8">Subscribe to start creating. No credit card to look — just see what you get.</p>
+          <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-3">Subscribe to start creating.</h2>
+          <p className="text-sm text-slate-400 mb-2">No free credits. Subscription required for all generation features.</p>
+          <p className="text-xs text-slate-500 mb-8">Cancel anytime. Every plan unlocks the full toolset immediately.</p>
           <div className="grid sm:grid-cols-2 gap-4 max-w-xl mx-auto mb-8">
             <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6 text-left">
-              <div className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2">Free</div>
-              <div className="text-2xl font-black text-white mb-1">₹0</div>
-              <p className="text-xs text-slate-400 mb-4">10 credits to start</p>
+              <div className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2">Weekly</div>
+              <div className="text-2xl font-black text-white mb-1">₹149<span className="text-sm text-slate-400 font-normal">/week</span></div>
+              <p className="text-xs text-slate-400 mb-4">40 credits weekly</p>
               <ul className="space-y-2 text-xs text-slate-300">
                 <li className="flex items-center gap-2"><Zap className="w-3 h-3 text-emerald-400" /> Create story videos</li>
                 <li className="flex items-center gap-2"><Zap className="w-3 h-3 text-emerald-400" /> All AI tools included</li>
@@ -633,9 +634,9 @@ export default function Landing() {
               </ul>
             </div>
             <div className="rounded-2xl border border-violet-500/30 bg-gradient-to-br from-violet-500/[0.08] to-rose-500/[0.06] p-6 text-left">
-              <div className="text-xs font-bold text-violet-400 uppercase tracking-wider mb-2">Pro</div>
-              <div className="text-2xl font-black text-white mb-1">₹149<span className="text-sm text-slate-400 font-normal">/week</span></div>
-              <p className="text-xs text-slate-400 mb-4">40 credits weekly</p>
+              <div className="text-xs font-bold text-violet-400 uppercase tracking-wider mb-2">Monthly</div>
+              <div className="text-2xl font-black text-white mb-1">₹499<span className="text-sm text-slate-400 font-normal">/month</span></div>
+              <p className="text-xs text-slate-400 mb-4">200 credits monthly</p>
               <ul className="space-y-2 text-xs text-slate-300">
                 <li className="flex items-center gap-2"><Zap className="w-3 h-3 text-violet-400" /> Faster generation</li>
                 <li className="flex items-center gap-2"><Zap className="w-3 h-3 text-violet-400" /> Premium styles</li>
@@ -738,7 +739,7 @@ export default function Landing() {
             Create your first AI video now
           </h2>
           <p className="text-lg text-slate-400 mb-3">
-            It takes less than 30 seconds. No editing needed. Completely free to start.
+            It takes less than 30 seconds. No editing needed. Subscribe to start creating.
           </p>
           <p className="text-sm text-slate-500 mb-8">Creators are making viral AI videos every day — and the library is growing fast</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -747,7 +748,7 @@ export default function Landing() {
               className="h-14 px-10 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white font-bold text-lg hover:shadow-[0_0_40px_-8px_rgba(139,92,246,0.5)] transition-all hover:scale-[1.02] flex items-center gap-2"
               data-testid="final-cta-create"
             >
-              <Zap className="w-5 h-5" /> Start Creating — Free <ArrowRight className="w-5 h-5" />
+              <Zap className="w-5 h-5" /> Subscribe to Start Creating <ArrowRight className="w-5 h-5" />
             </button>
             <Link to="/explore">
               <button className="h-14 px-10 rounded-xl border border-white/10 text-white font-medium text-lg hover:bg-white/[0.04] transition-colors" data-testid="final-cta-explore">
@@ -764,15 +765,15 @@ export default function Landing() {
         <div className="py-8 px-4 bg-gradient-to-r from-violet-600/[0.06] to-rose-600/[0.06] border-b border-white/[0.04]" data-testid="footer-cta-strip">
           <div className="max-w-3xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
             <div>
-              <p className="text-base font-bold text-white">Create your first AI video in seconds — free</p>
-              <p className="text-xs text-slate-400 mt-0.5">No credit card. No editing skills. Just your idea.</p>
+              <p className="text-base font-bold text-white">Subscribe to start creating AI videos in seconds</p>
+              <p className="text-xs text-slate-400 mt-0.5">No editing skills. Just your idea. Cancel anytime.</p>
             </div>
             <button
               onClick={goCreateFresh}
               className="h-11 px-6 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white font-bold text-sm hover:opacity-90 transition-opacity flex items-center gap-2 whitespace-nowrap flex-shrink-0"
               data-testid="footer-cta-btn"
             >
-              <Zap className="w-4 h-4" /> Start Creating
+              <Zap className="w-4 h-4" /> Subscribe to Start Creating
             </button>
           </div>
         </div>

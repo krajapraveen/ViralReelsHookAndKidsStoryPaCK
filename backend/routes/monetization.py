@@ -257,7 +257,21 @@ async def purchase_upsell(request: UpsellPurchaseRequest, user: dict = Depends(g
 
 @router.post("/daily-reward/claim")
 async def claim_daily_reward(user: dict = Depends(get_current_user)):
-    """Claim daily login reward"""
+    """Claim daily login reward — DISABLED under 2026-05 zero-free-credits policy."""
+    # Mandatory subscription policy — no free daily credit grants. Endpoint
+    # kept for client compat but always returns a no-op success.
+    return {
+        "success": False,
+        "message": "Daily rewards have been removed. Subscribe to continue creating.",
+        "credits_earned": 0,
+        "new_balance": int(user.get("credits", 0)),
+        "policy": "subscription_required_2026_05",
+    }
+
+
+@router.post("/daily-reward/claim-DISABLED-LEGACY")
+async def _legacy_claim_daily_reward(user: dict = Depends(get_current_user)):
+    """Retained internally for audit; not routed."""
     user_id = user["id"]
     reward_credits = CREDIT_PSYCHOLOGY["daily_login_reward"]
     

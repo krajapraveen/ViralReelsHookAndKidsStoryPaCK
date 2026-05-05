@@ -184,6 +184,10 @@ FUNNEL_STEPS = [
     "photo_trailer_download_clicked",
     # Auto-recovery from reliability sprint
     "photo_trailer_auto_requeued",
+    # ═══ V12 — Mandatory Subscription / Zero Free Credits Policy (2026-05) ═══
+    "free_user_blocked_post_policy_first",   # First time a user hits the new block
+    "free_user_blocked_post_policy_repeat",  # Subsequent blocks in same session
+    "pricing_page_opened_from_block",        # User clicked Subscribe CTA on the modal
 ]
 
 

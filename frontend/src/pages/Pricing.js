@@ -86,10 +86,10 @@ export default function Pricing() {
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950/80 to-slate-950 text-white">
       <Helmet>
         <title>Pricing | Visionary Suite - AI Story Video Creator</title>
-        <meta name="description" content="Start free with 10 credits. Create AI-generated story videos, reels, and animations. Affordable plans for creators." />
+        <meta name="description" content="Subscribe to start creating. AI story videos, reels, and animations. No free credits — every plan unlocks the full toolset." />
         <link rel="canonical" href="https://www.visionary-suite.com/pricing" />
         <meta property="og:title" content="Pricing | Visionary Suite" />
-        <meta property="og:description" content="Start free with 10 credits. Affordable AI video creation plans." />
+        <meta property="og:description" content="Subscribe to start creating with Visionary Suite. Affordable AI video creation plans." />
         <meta property="og:url" content="https://www.visionary-suite.com/pricing" />
       </Helmet>
       <div className="max-w-6xl mx-auto px-4 py-12">
@@ -101,31 +101,41 @@ export default function Pricing() {
         </Link>
 
         {/* Header */}
-        <div className="text-center mb-16">
+        <div className="text-center mb-10">
           <div className="inline-flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 rounded-full px-6 py-2 mb-6">
             <Sparkles className="w-4 h-4 text-indigo-400" />
             <span className="text-indigo-400 text-sm font-medium">Simple, Transparent Pricing</span>
           </div>
-          <h1 className="text-4xl sm:text-5xl font-bold text-white mb-4">Choose Your Plan</h1>
+          <h1 className="text-4xl sm:text-5xl font-bold text-white mb-4" data-testid="pricing-hero-title">Subscribe to Start Creating</h1>
           <p className="text-lg text-slate-300 max-w-2xl mx-auto">
-            Subscribe to start creating. Choose monthly credits or top up as you go.
+            Choose monthly credits or top up as you go. Cancel anytime.
           </p>
         </div>
 
-        {/* Free Tier */}
+        {/* Inline policy guard */}
+        <div
+          className="max-w-2xl mx-auto mb-12 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] px-5 py-3 text-center"
+          data-testid="pricing-policy-guard"
+        >
+          <p className="text-sm text-amber-200">
+            <span className="font-semibold">No free credits.</span> Subscription required for all generation features.
+          </p>
+        </div>
+
+        {/* Subscription CTA tile (replaces former "free tier" block) */}
         <div className="mb-16">
           <div className="max-w-md mx-auto bg-white/[0.03] border border-white/[0.08] rounded-2xl p-8 text-center">
             <h3 className="text-xl font-bold text-white mb-2">Subscription Required</h3>
             <div className="text-5xl font-black text-white mb-1">⚡</div>
             <p className="text-slate-400 mb-6">to use Visionary Suite features</p>
             <ul className="space-y-2 mb-6 text-left max-w-xs mx-auto">
-              <li className="flex items-center gap-2 text-sm text-slate-300"><Check className="w-4 h-4 text-emerald-400 flex-shrink-0" /> 1 Story Video</li>
-              <li className="flex items-center gap-2 text-sm text-slate-300"><Check className="w-4 h-4 text-emerald-400 flex-shrink-0" /> 1 Reel Script</li>
-              <li className="flex items-center gap-2 text-sm text-slate-300"><Check className="w-4 h-4 text-emerald-400 flex-shrink-0" /> All features unlocked</li>
+              <li className="flex items-center gap-2 text-sm text-slate-300"><Check className="w-4 h-4 text-emerald-400 flex-shrink-0" /> All AI tools unlocked</li>
+              <li className="flex items-center gap-2 text-sm text-slate-300"><Check className="w-4 h-4 text-emerald-400 flex-shrink-0" /> Story videos, reels, comics</li>
+              <li className="flex items-center gap-2 text-sm text-slate-300"><Check className="w-4 h-4 text-emerald-400 flex-shrink-0" /> Cancel anytime</li>
             </ul>
             <Link to="/signup">
-              <Button className="bg-white/[0.06] hover:bg-white/10 text-white border border-white/[0.1] rounded-full px-8 py-3 font-medium" data-testid="pricing-free-btn">
-                Get Started Free
+              <Button className="bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-full px-8 py-3 font-medium" data-testid="pricing-free-btn">
+                Subscribe to Start Creating
               </Button>
             </Link>
           </div>

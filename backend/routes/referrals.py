@@ -38,6 +38,13 @@ PURCHASE_BONUS_EXPIRY_DAYS = 60  # purchase-bonus credits expire
 ATTRIBUTION_WINDOW_DAYS = 30
 PURCHASE_BONUS_WINDOW_DAYS = 30  # referred user must purchase within 30d to trigger bonus
 
+# ─── 2026-05 Mandatory Subscription / Zero Free Credits Policy ───────────
+# Hard-kill referral credit grants on BOTH sides (signup-qualifying + purchase
+# bonus). Profiles, attributions, click tracking, and the dashboard remain
+# fully functional — only the credit emission is gated. Set to False to
+# re-enable rewards (e.g. once mandatory-sub policy is rolled back).
+REFERRAL_CREDITS_DISABLED = True
+
 STATUS_VALUES = [
     "CLICKED", "SIGNED_UP", "VERIFIED", "ACTIVATED",
     "QUALIFIED", "REJECTED", "REWARDED",
@@ -296,6 +303,31 @@ async def _grant_reward(referrer_id: str, referred_user_id: str, attribution_id:
     if existing:
         return {"granted": False, "reason": "ALREADY_GRANTED", "credits": 0}
 
+    # ─── 2026-05 Hard-kill: zero-free-credits policy ──────────────────────
+    # No new referral credits are emitted. Attribution is preserved with a
+    # POLICY_DISABLED reward stub so the dashboard / counters still see the
+    # qualified referral, but no credits ever land in users.credits.
+    if REFERRAL_CREDITS_DISABLED:
+        now = datetime.now(timezone.utc).isoformat()
+        await db.referral_rewards.insert_one({
+            "id": str(uuid.uuid4()),
+            "attribution_id": attribution_id,
+            "referrer_user_id": referrer_id,
+            "referred_user_id": referred_user_id,
+            "credits": 0,
+            "tier": "POLICY_DISABLED",
+            "status": "BLOCKED_BY_POLICY",
+            "granted_at": now,
+            "policy": "zero_free_credits_2026_05",
+        })
+        await _ensure_profile_by_id(referrer_id)
+        await db.referral_profiles.update_one(
+            {"user_id": referrer_id},
+            {"$inc": {"valid_referrals": 1, "pending_referrals": -1, "lifetime_referrals": 1}},
+        )
+        logger.info(f"[REF] POLICY_DISABLED — no credits granted to {referrer_id[:8]} (attrib {attribution_id[:8]})")
+        return {"granted": False, "reason": "REFERRAL_CREDITS_DISABLED_POLICY", "credits": 0}
+
     # Tier + cap check
     cap_state = await _compute_cap_state(referrer_id)
     if cap_state["cap_reached"]:
@@ -440,6 +472,27 @@ async def grant_referral_purchase_bonus(user_id: str, payment_amount: float = 0.
     }, {"_id": 0})
     if already:
         return {"granted": False, "reason": "ALREADY_GRANTED"}
+
+    # ─── 2026-05 Hard-kill: zero-free-credits policy ──────────────────────
+    # Purchase bonus is also referral-derived → blocked. Stub doc preserves
+    # observability without crediting the referrer.
+    if REFERRAL_CREDITS_DISABLED:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        await db.referral_rewards.insert_one({
+            "id": str(uuid.uuid4()),
+            "attribution_id": attr["id"],
+            "type": "PURCHASE_BONUS",
+            "referrer_user_id": attr["referrer_user_id"],
+            "referred_user_id": user_id,
+            "credits": 0,
+            "tier": "POLICY_DISABLED",
+            "status": "BLOCKED_BY_POLICY",
+            "granted_at": now_iso,
+            "payment_amount": payment_amount,
+            "policy": "zero_free_credits_2026_05",
+        })
+        logger.info(f"[REF] POLICY_DISABLED — purchase bonus blocked for {attr['referrer_user_id'][:8]}")
+        return {"granted": False, "reason": "REFERRAL_CREDITS_DISABLED_POLICY"}
 
     referrer_id = attr["referrer_user_id"]
     cap_state = await _compute_cap_state(referrer_id)

@@ -14,15 +14,15 @@ export default function UpgradeBanner({ credits, isFreeTier, type = 'low' }) {
             <AlertTriangle className="w-6 h-6 text-red-500" />
           </div>
           <div className="flex-1">
-            <h3 className="text-lg font-bold text-red-700 mb-1">Credits Exhausted!</h3>
+            <h3 className="text-lg font-bold text-red-700 mb-1">Subscription required</h3>
             <p className="text-red-600 text-sm mb-4">
-              You've used all your free credits. Upgrade to continue generating amazing content.
+              Free credits have been removed. Subscribe to continue creating.
             </p>
             <div className="flex gap-3">
               <Link to="/pricing">
                 <Button className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white" data-testid="upgrade-btn-exhausted">
                   <Crown className="w-4 h-4 mr-2" />
-                  View Plans & Upgrade
+                  Subscribe to Start Creating
                 </Button>
               </Link>
             </div>
