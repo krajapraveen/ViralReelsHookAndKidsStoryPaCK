@@ -1,5 +1,159 @@
 # Visionary Suite - Changelog
 
+─────────────────────────────────────────────────────────
+[2026-05-05] P0 MANDATORY SUBSCRIPTION / ZERO FREE CREDITS — PRE-DEPLOY CHECKLIST COMPLETE
+─────────────────────────────────────────────────────────
+Founder directive: finish the 3 missing pre-deploy items before triggering
+the production migration. No new pricing experiments. No UI redesign. No
+plan changes.
+
+✅ Issue #1 — Graceful Block Modal + Toast (BOTH per founder choice)
+   • New `frontend/src/components/SubscribeRequiredModal.jsx` (130 LOC)
+     - Listens for `window` event `subscribe-required-modal`
+     - Title: "Free credits have been removed"
+     - Body:  "Subscribe to continue creating."
+     - Primary CTA: "Subscribe to Start Creating" → /app/pricing
+     - Secondary: "Already a subscriber? Go to billing" → /app/billing
+     - Inline policy line at bottom: "No free credits. Subscription required for all generation features."
+     - data-testids: subscribe-required-modal, sr-modal-{title,body,subscribe-cta,checkout-cta,close}
+   • Globally mounted via `<SubscribeRequiredModal />` in App.js
+   • `utils/api.js` interceptor enhanced — on 402 / INSUFFICIENT_CREDITS /
+     UPGRADE_REQUIRED / FREE_QUOTA_EXCEEDED:
+        - Toast "Free credits have been removed. Subscribe to continue creating."
+        - dispatchEvent('subscribe-required-modal', {detail: {feature, source}})
+   • Funnel events fired:
+        free_user_blocked_post_policy_first   (sessionStorage gate)
+        free_user_blocked_post_policy_repeat
+        pricing_page_opened_from_block        (on CTA click)
+   • Feature inferred from URL path (photo_trailer / avatar / story_video /
+     reel / comix / gif / coloring_book / bedtime_story / generic)
+
+✅ Issue #2 — Referral Loophole HARD-KILLED
+   • New global flag `REFERRAL_CREDITS_DISABLED = True` in `routes/referrals.py`
+   • `_grant_reward()` early-returns POLICY_DISABLED — no users.credits $inc,
+     no credit_ledger write. A status="BLOCKED_BY_POLICY" stub doc is still
+     inserted so observability + dashboard counters keep working.
+   • `grant_referral_purchase_bonus()` same guard — purchase-bonus referral
+     credits also blocked.
+   • Profile counters (valid_referrals, lifetime_referrals, pending_referrals)
+     still increment so the dashboard shows the qualified referral.
+   • Tracking, click attribution, signup attribution UNCHANGED.
+
+✅ Issue #3 — Scope-Locked Copy Refresh
+   • `pages/Pricing.js`:
+     - Hero: "Choose Your Plan" → "Subscribe to Start Creating"
+       (data-testid=pricing-hero-title)
+     - Subhead: "Choose monthly credits or top up as you go. Cancel anytime."
+     - NEW inline guard banner: "No free credits. Subscription required for
+       all generation features." (amber border, data-testid=pricing-policy-guard)
+     - Primary CTA: "Get Started Free" → "Subscribe to Start Creating"
+     - Meta description updated (no more "Start free with 10 credits")
+   • `pages/Landing.js`:
+     - Hero meta description rewrite
+     - Pricing teaser hero: "Start free. Upgrade when you love it." →
+       "Subscribe to start creating."
+     - Removed "10 credits to start" / "Free ₹0" tile → replaced with Weekly tile
+     - Final CTA: "Start Creating — Free" → "Subscribe to Start Creating"
+     - Footer CTA strip: "Create your first AI video in seconds — free" →
+       "Subscribe to start creating AI videos in seconds"
+     - FAQ #1 already correct ("Subscribe to one of our plans...")
+   • `components/UpgradeBanner.js`:
+     - "Credits Exhausted!" → "Subscription required"
+     - "You've used all your free credits. Upgrade to continue generating
+       amazing content." → "Free credits have been removed. Subscribe to
+       continue creating."
+     - "View Plans & Upgrade" → "Subscribe to Start Creating"
+   • `components/EmailVerificationBanner.js`:
+     - Removed "Your X free credits are locked" copy → "Verify your email to
+       keep your account secure and access subscription features."
+   • `components/CreditStatusBadge.jsx`:
+     - Daily-reward UI gated off (always invisible) — backend endpoint also
+       returns no-op now (see below)
+
+✅ Daily Reward backend endpoint disabled
+   • POST /api/monetization/daily-reward/claim now returns
+     {success: false, message: "Daily rewards have been removed. Subscribe
+     to continue creating.", credits_earned: 0, policy: "subscription_required_2026_05"}
+   • Old logic preserved in `_legacy_claim_daily_reward` for audit only
+   • No /credits $inc fires from this path under any condition
+
+✅ Funnel allowlist
+   • 3 new events appended to FUNNEL_STEPS in `routes/funnel_tracking.py`:
+     free_user_blocked_post_policy_first
+     free_user_blocked_post_policy_repeat
+     pricing_page_opened_from_block
+
+✅ Tests — 5/5 unit + 24/24 integration
+   • New `backend/tests/test_zero_free_credits_policy_2026_05.py` (5 tests):
+     funnel allowlist, REFERRAL_CREDITS_DISABLED flag, _grant_reward block,
+     purchase-bonus block, migration purchased-credit math
+   • testing_agent_v3_fork iteration 537: 9/9 backend + all frontend UI
+     flows passed.
+        - All 3 new funnel events accepted, unknown step rejected
+        - Referral qualify path emits no credits
+        - Daily reward returns no-op
+        - Admin billing-policy verification still healthy
+        - /api/avatar/studio/anon-mock-generate STILL ungated (no auth)
+        - /api/photo-trailer/templates returns 9 (freeze HELD)
+        - Pricing/Landing copy verified, modal verified end-to-end including
+          first vs repeat sessionStorage tracking + CTA pricing route
+
+✅ Migration script verified — preview state after prior patch:
+        total_users: 54
+        users_with_credits_gt_zero (excl admin/unlimited/subscribed): 0
+        users_revoked_free_credits: 38
+        Dry-run on current state: 0 users would be affected (already migrated)
+   The script's purchased-credit protection logic:
+        new_credits = min(old_credits, purchased) if purchased > 0 else 0
+   • Test user `test@visionary-suite.com` (1413 credits, all purchased): protected ✓
+
+📁 Files Added:
+   • frontend/src/components/SubscribeRequiredModal.jsx (130 LOC)
+   • backend/tests/test_zero_free_credits_policy_2026_05.py (105 LOC, 5 tests)
+
+📁 Files Touched:
+   • frontend/src/App.js — 1 import + 1 mount
+   • frontend/src/utils/api.js — 402/INSUFFICIENT_CREDITS interceptor (~50 LOC)
+   • frontend/src/pages/Pricing.js — hero, guard banner, CTA, meta
+   • frontend/src/pages/Landing.js — pricing teaser, final CTA, footer CTA, meta
+   • frontend/src/components/UpgradeBanner.js — exhausted-state copy
+   • frontend/src/components/EmailVerificationBanner.js — removed free-credits copy
+   • frontend/src/components/CreditStatusBadge.jsx — daily-reward UI off
+   • backend/routes/funnel_tracking.py — 3 new events allowlisted
+   • backend/routes/referrals.py — REFERRAL_CREDITS_DISABLED flag + 2 early-returns
+   • backend/routes/monetization.py — daily-reward claim now no-op
+
+🚦 Photo Trailer freeze + Avatar Demo freeze HELD throughout.
+🛑 Production migration NOT yet executed — staged rollout pending founder go.
+
+─── PRODUCTION ROLLOUT INSTRUCTIONS (when you're ready) ───
+Step 1 (PROD only):
+    cd /app/backend && python scripts/backup_users_credits.py
+        → Saves /tmp/billing_backup_<TS>.json — KEEP THIS PATH
+
+Step 2 (1-hour observation window per founder choice — verify the snapshot
+        looks right, then proceed):
+    cd /app/backend && python scripts/migrate_zero_free_credits.py --dry-run
+        → confirm "Affected:" matches expected free-credit user count
+    cd /app/backend && python scripts/migrate_zero_free_credits.py --apply
+        → commits the wipe
+
+Step 3 (verify):
+    curl -s "$API/api/admin/billing-policy/verification" \
+        -H "Authorization: Bearer $ADMIN_TOKEN" | python3 -m json.tool
+    Expect: users_with_credits_gt_zero=0, users_with_free_credit_flag=0,
+    signup_credit_grants_last_7_days=0
+
+Step 4 (rollback if needed within minutes):
+    cd /app/backend && python scripts/restore_credits_from_backup.py \
+        /tmp/billing_backup_<TS>.json --apply
+
+Step 5 (24h observation):
+    Watch funnel for free_user_blocked_post_policy_first count — measures
+    real volume of blocked free-tier users. High signal for conversion lift.
+
+
+─────────────────────────────────────────────────────────
 ## 2026-02-28: Admin Credentials Update & CI/CD Integration (Iteration 109)
 
 ### Admin Credentials Changed
