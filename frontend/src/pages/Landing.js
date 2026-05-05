@@ -620,7 +620,7 @@ export default function Landing() {
       <section className="py-16 px-4 border-t border-white/[0.04]" data-testid="pricing-teaser">
         <div className="max-w-3xl mx-auto text-center">
           <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-3">Start free. Upgrade when you love it.</h2>
-          <p className="text-sm text-slate-400 mb-8">Get 10 free credits to try everything. No credit card required.</p>
+          <p className="text-sm text-slate-400 mb-8">Subscribe to start creating. No credit card to look — just see what you get.</p>
           <div className="grid sm:grid-cols-2 gap-4 max-w-xl mx-auto mb-8">
             <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6 text-left">
               <div className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2">Free</div>
@@ -657,7 +657,7 @@ export default function Landing() {
           <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight text-center mb-10">Frequently asked questions</h2>
           <div className="space-y-3" data-testid="faq-list">
             {[
-              { q: 'Is it really free to try?', a: 'Yes. You get 10 free credits when you sign up — no credit card needed. That\'s enough to create your first video.' },
+              { q: 'How do I start using Visionary Suite?', a: 'Subscribe to one of our plans. We removed free credits to keep generation costs sustainable — every plan unlocks the full toolset immediately.' },
               { q: 'How long does it take to create a video?', a: 'Usually about 60 seconds. You type a prompt, and AI handles scenes, images, voiceover, and music automatically.' },
               { q: 'Do I need editing skills?', a: 'Not at all. Visionary Suite is designed for non-technical creators. Type one sentence and get a complete video.' },
               { q: 'Can I use videos for business?', a: 'Paid plans include commercial usage rights. You can use generated videos for social media, marketing, and content.' },

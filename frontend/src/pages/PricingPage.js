@@ -51,7 +51,7 @@ export default function PricingPage() {
     {
       id: 'free', name: 'Free', period: 'free', price_inr: 0,
       credits: 50, duration_days: 0, badge: null,
-      features: ['50 free credits on signup', 'All tools unlocked', 'Watermarked outputs', 'Standard queue'],
+      features: ['Subscription required to use Visionary Suite features', 'All tools unlocked once subscribed', 'Watermarked outputs', 'Standard queue'],
     },
     ...plans,
   ];

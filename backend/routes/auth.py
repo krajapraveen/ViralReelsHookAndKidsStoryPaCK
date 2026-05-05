@@ -349,7 +349,7 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
             "name": clean_name,
             "password": hash_password(data.password),
             "role": "user",
-            "credits": 50,  # 50 free credits for new users
+            "credits": 0,  # FREE-CREDIT POLICY REMOVED 2026-05-03 — subscription required
             "emailVerified": True,  # Auto-verified (verification disabled)
             "createdAt": datetime.now(timezone.utc).isoformat(),
             "lastLogin": datetime.now(timezone.utc).isoformat(),
@@ -362,6 +362,7 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
             "subscription_status": "inactive",
             "subscription_expires_at": None,
             "topup_credits": 0,
+            "signup_bonus_granted": False,
         }
         
         # Check if first user - make admin (with extra credits)
@@ -381,19 +382,19 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
             phone_number=phone_number
         )
         
-        # Log account creation
+        # Log account creation (no welcome bonus — subscription-only model)
         await db.credit_ledger.insert_one({
             "id": str(uuid.uuid4()),
             "userId": user_id,
-            "amount": 50,
+            "amount": 0,
             "type": "SIGNUP",
-            "description": "Welcome bonus - 50 free credits",
+            "description": "Account created — subscription required to generate",
             "createdAt": datetime.now(timezone.utc).isoformat()
         })
         
-        # Send welcome email in background
+        # Send welcome email in background (subscription-required messaging)
         from services.welcome_email_service import send_welcome_email
-        background_tasks.add_task(send_welcome_email, clean_email, clean_name, 50)
+        background_tasks.add_task(send_welcome_email, clean_email, clean_name, 0)
 
         # ── Referral attribution ──
         if data.referral_code:
@@ -412,7 +413,7 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
 
         token = create_token(user_id, user["role"])
         
-        logger.info(f"New user registered: {clean_email} from IP: {ip_address} - 50 credits")
+        logger.info(f"New user registered: {clean_email} from IP: {ip_address} - 0 credits (subscription-required)")
         
         return {
             "token": token,
@@ -425,11 +426,11 @@ async def register(request: Request, data: UserCreate, background_tasks: Backgro
                 "emailVerified": True,
                 "credits_locked": False
             },
-            "message": "Registration successful! You have been granted 50 free credits to start creating.",
+            "message": "Account created. Subscribe to start creating.",
             "email_verification_required": False,
             "credits_info": {
-                "current_credits": 50,
-                "message": "Enjoy your 50 free credits!"
+                "current_credits": user["credits"],
+                "message": "Subscription required to use Visionary Suite features."
             }
         }
     except HTTPException:
@@ -682,7 +683,7 @@ async def google_callback(request: Request, data: GoogleCallback):
                 "picture": picture,
                 "password": "",
                 "role": "user",
-                "credits": 50,  # 50 free credits for new Google users
+                "credits": 0,  # FREE-CREDIT POLICY REMOVED 2026-05-03
                 "authProvider": "google",
                 "createdAt": datetime.now(timezone.utc).isoformat(),
                 "lastLogin": datetime.now(timezone.utc).isoformat(),
@@ -691,17 +692,18 @@ async def google_callback(request: Request, data: GoogleCallback):
                 "subscription_status": "inactive",
                 "subscription_expires_at": None,
                 "topup_credits": 0,
+                "signup_bonus_granted": False,
             }
             
             await db.users.insert_one(user)
             
-            # Log account creation
+            # Log account creation (no welcome bonus)
             await db.credit_ledger.insert_one({
                 "id": str(uuid.uuid4()),
                 "userId": user_id,
-                "amount": 50,
+                "amount": 0,
                 "type": "SIGNUP",
-                "description": "Welcome bonus via Google Sign-In - 50 free credits",
+                "description": "Account created via Google — subscription required",
                 "createdAt": datetime.now(timezone.utc).isoformat()
             })
             
@@ -716,7 +718,7 @@ async def google_callback(request: Request, data: GoogleCallback):
             
             token = create_token(user_id, "user")
             
-            logger.info(f"New Google user registered: {email}")
+            logger.info(f"New Google user registered: {email} - 0 credits (subscription-required)")
             
             return {
                 "token": token,
@@ -725,7 +727,7 @@ async def google_callback(request: Request, data: GoogleCallback):
                     "email": email,
                     "name": name,
                     "role": "user",
-                    "credits": 50,
+                    "credits": 0,
                     "picture": picture
                 }
             }
@@ -963,7 +965,7 @@ async def google_signin(request: Request, data: GoogleSignInRequest):
                 "picture": picture,
                 "password": "",
                 "role": "user",
-                "credits": 50,
+                "credits": 0,  # FREE-CREDIT POLICY REMOVED 2026-05-03
                 "authProvider": "google",
                 "googleSub": google_sub,
                 "emailVerified": True,
@@ -973,6 +975,7 @@ async def google_signin(request: Request, data: GoogleSignInRequest):
                 "subscription_status": "inactive",
                 "subscription_expires_at": None,
                 "topup_credits": 0,
+                "signup_bonus_granted": False,
             }
 
             await db.users.insert_one(user)
@@ -980,9 +983,9 @@ async def google_signin(request: Request, data: GoogleSignInRequest):
             await db.credit_ledger.insert_one({
                 "id": str(uuid.uuid4()),
                 "userId": user_id,
-                "amount": 50,
+                "amount": 0,
                 "type": "SIGNUP",
-                "description": "Welcome bonus via Google Sign-In - 50 free credits",
+                "description": "Account created via Google (direct) — subscription required",
                 "createdAt": datetime.now(timezone.utc).isoformat()
             })
 
@@ -995,7 +998,7 @@ async def google_signin(request: Request, data: GoogleSignInRequest):
             )
 
             token = create_token(user_id, "user")
-            logger.info(f"New Google user registered (direct): {email}")
+            logger.info(f"New Google user registered (direct): {email} - 0 credits (subscription-required)")
 
             return {
                 "token": token,
@@ -1004,7 +1007,7 @@ async def google_signin(request: Request, data: GoogleSignInRequest):
                     "email": email,
                     "name": name,
                     "role": "user",
-                    "credits": 50,
+                    "credits": 0,
                     "picture": picture,
                 }
             }

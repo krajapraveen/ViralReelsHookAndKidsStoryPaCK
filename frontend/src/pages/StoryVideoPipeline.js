@@ -1885,7 +1885,7 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
                   Sign Up Free
                 </button>
               </div>
-              <p className="text-[10px] text-slate-500">50 free credits on signup</p>
+              <p className="text-[10px] text-slate-500">Subscribe to start creating</p>
             </div>
           )}
 

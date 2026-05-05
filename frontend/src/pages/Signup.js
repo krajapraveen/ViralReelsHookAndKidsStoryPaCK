@@ -461,7 +461,7 @@ export default function Signup({ setAuth }) {
             <h2 className="text-3xl font-bold text-white mb-2">Get Started Free</h2>
             <div className="flex items-center justify-center gap-2 text-emerald-400">
               <Gift className="w-5 h-5" />
-              <p className="font-medium">50 free credits on signup!</p>
+              <p className="font-medium">Subscribe to start creating</p>
             </div>
           </div>
 

@@ -40,7 +40,7 @@ export function CreditProvider({ children }) {
         const res = await api.get('/api/auth/me');
         if (res.data?.show_credit_banner) {
           toast.success(
-            `You've received ${res.data.credits || 50} free credits to explore Visionary Suite. Use them to create your first story, comic, or video!`,
+            `Subscribe to start creating with Visionary Suite. Pick a plan to unlock generation.`,
             { duration: 8000 }
           );
           api.post('/api/auth/dismiss-credit-banner').catch(() => {});

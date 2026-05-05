@@ -172,6 +172,7 @@ from routes.admin_metrics import router as admin_metrics_router
 from routes.admin_websocket import router as admin_ws_router
 from routes.production_metrics import router as production_metrics_router
 from routes.admin_payments import router as admin_payments_router
+from routes.admin_billing_policy import router as admin_billing_policy_router
 from routes.universe_routes import router as universe_router
 from routes.download_expiry_routes import router as download_expiry_router
 from routes.notification_routes import router as notification_router
@@ -398,6 +399,7 @@ api_router.include_router(generate_router)
 # api_router.include_router(payments_router)
 api_router.include_router(feedback_router)
 api_router.include_router(admin_router)
+api_router.include_router(admin_billing_policy_router)
 api_router.include_router(health_router)
 api_router.include_router(genstudio_router)
 api_router.include_router(creator_pro_router)

@@ -91,11 +91,11 @@ export default function ReferLanding() {
             <div className="mt-10 grid grid-cols-3 gap-4 text-xs text-slate-500">
               <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
                 <Check className="w-3 h-3 text-emerald-400 mx-auto mb-1" />
-                50 free credits
+                Subscribe to start
               </div>
               <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
                 <Check className="w-3 h-3 text-emerald-400 mx-auto mb-1" />
-                No credit card
+                Full toolset
               </div>
               <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
                 <ShieldCheck className="w-3 h-3 text-emerald-400 mx-auto mb-1" />
