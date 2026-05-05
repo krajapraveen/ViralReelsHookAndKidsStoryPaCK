@@ -1321,9 +1321,38 @@ async def track_recovery_event(request: Request, current_user: dict = Depends(ge
 
 @router.get("/credit-check")
 async def credit_check(user: dict = Depends(get_current_user)):
-    """Pre-flight credit check."""
-    user_doc = await db.users.find_one({"id": user["id"]}, {"_id": 0, "credits": 1})
+    """Pre-flight credit check.
+
+    2026-05 patch: respect the unlimited bypass (admin/dev/qa/test roles +
+    is_unlimited flag). Without this, admin gets a raw credits=0 read after
+    the zero-free-credits migration and gets blocked from internal testing.
+    """
+    user_doc = await db.users.find_one(
+        {"id": user["id"]},
+        {"_id": 0, "credits": 1, "is_unlimited": 1, "role": 1},
+    )
     credits = user_doc.get("credits", 0) if user_doc else 0
+    role = (user_doc or {}).get("role", "user")
+    is_unlimited = bool((user_doc or {}).get("is_unlimited", False)) or role in {
+        "admin", "ADMIN", "dev", "qa", "test"
+    }
+
+    if is_unlimited:
+        # Admin / unlimited roles — bypass cleanly. Reported credits is a
+        # large sentinel so the frontend never renders "0" or low-balance UX.
+        # Logged for observability.
+        logger.info(f"[credit-check] unlimited bypass for {user['id'][:8]} role={role}")
+        return {
+            "success": True,
+            "sufficient": True,
+            "required": 0,
+            "current": 999999,
+            "shortfall": 0,
+            "breakdown": {},
+            "is_unlimited": True,
+            "role": role,
+        }
+
     estimate = pre_flight_check(credits)
     return {
         "success": True,
@@ -1332,6 +1361,8 @@ async def credit_check(user: dict = Depends(get_current_user)):
         "current": credits,
         "shortfall": estimate.shortfall,
         "breakdown": estimate.breakdown,
+        "is_unlimited": False,
+        "role": role,
     }
 
 

@@ -405,6 +405,7 @@ function StoryVideoPipelineInner() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [showUpsell, setShowUpsell] = useState(false);
   const [userCredits, setUserCredits] = useState(null);
+  const [isUnlimitedUser, setIsUnlimitedUser] = useState(false); // admin/dev/qa/test bypass
   const [creditGate, setCreditGate] = useState(null); // { required, current, shortfall }
   const [remixData, setRemixData] = useState(null);
   const [showRemixBanner, setShowRemixBanner] = useState(false);
@@ -955,15 +956,20 @@ function StoryVideoPipelineInner() {
     // ═══ STRICT CREDIT GATE — Pre-flight check before ANY generation ═══
     try {
       const creditRes = await api.get('/api/story-engine/credit-check');
-      const { sufficient, required, current, shortfall } = creditRes.data;
+      const { sufficient, required, current, shortfall, is_unlimited } = creditRes.data;
       setUserCredits(current);
-      if (!sufficient) {
+      if (is_unlimited) {
+        setIsUnlimitedUser(true); // admin/dev/qa/test — bypass all gates
+      } else if (!sufficient) {
         setCreditGate({ required, current, shortfall });
         return; // Block generation — modal will show
       }
     } catch (creditErr) {
       if (creditErr.response?.status === 401) {
         // Not logged in — let the create call handle the login gate
+      } else if (isUnlimitedUser) {
+        // Admin / unlimited — endpoint hiccup must NOT block internal testing
+        console.warn('[credit-check] endpoint failed for unlimited user — bypassing');
       } else {
         setFormError('Could not verify your credit balance. Please try again.');
         return;
