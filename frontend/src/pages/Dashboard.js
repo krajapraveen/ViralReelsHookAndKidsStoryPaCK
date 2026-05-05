@@ -508,20 +508,8 @@ const ICON_MAP = {
 };
 
 // REGRESSION GUARD: Static default feature list — NEVER let features section be empty
-const DEFAULT_FEATURES = [
-  { name: 'AI Cloning', desc: 'Verified AI avatar — free during testing', icon: 'UserCheck', path: '/app/avatar', key: 'avatar', gradient: 'from-fuchsia-500 to-pink-700', score: 110, badge: 'FREE · TESTING' },
-  { name: 'Story Video', desc: 'Turn ideas into cinematic stories', icon: 'Film', path: '/app/story-video-studio', key: 'story-video-studio', gradient: 'from-indigo-500 to-blue-700', score: 100 },
-  { name: 'Story Series', desc: 'Multi-episode sagas with memory', icon: 'BookOpen', path: '/app/story-series', key: 'story-series', gradient: 'from-purple-500 to-fuchsia-700', score: 90 },
-  { name: 'My Movie Trailer', desc: 'Upload photos → 20-60s personalized AI trailer', icon: 'Camera', path: '/app/photo-trailer', key: 'photo-trailer', gradient: 'from-violet-500 to-fuchsia-700', score: 80, badge: 'NEW' },
-  { name: 'Character Memory', desc: 'Persistent characters across stories', icon: 'User', path: '/app/characters', key: 'characters', gradient: 'from-cyan-500 to-blue-700', score: 0 },
-  { name: 'Reel Generator', desc: 'Viral short-form video reels', icon: 'Play', path: '/app/reels', key: 'reels', gradient: 'from-rose-500 to-pink-700', score: 0 },
-  { name: 'Photo to Comic', desc: 'Transform photos into comic panels', icon: 'Camera', path: '/app/photo-to-comic', key: 'photo-to-comic', gradient: 'from-amber-500 to-orange-700', score: 0 },
-  { name: 'Comic Storybook', desc: 'Panel-by-panel illustrated stories', icon: 'Palette', path: '/app/comic-storybook', key: 'comic-storybook', gradient: 'from-emerald-500 to-green-700', score: 0 },
-  { name: 'Bedtime Stories', desc: 'Narrated sleep tales with visuals', icon: 'Star', path: '/app/bedtime-stories', key: 'bedtime-stories', gradient: 'from-indigo-500 to-purple-700', score: 0 },
-  { name: 'Reaction GIF', desc: 'Photo-to-reaction GIF in seconds', icon: 'ImageIcon', path: '/app/gif-maker', key: 'gif-maker', gradient: 'from-pink-500 to-rose-700', score: 0 },
-  { name: 'Brand Story', desc: 'Cinematic brand narratives', icon: 'Megaphone', path: '/app/brand-story-builder', key: 'brand-story-builder', gradient: 'from-teal-500 to-cyan-700', score: 0 },
-  { name: 'Daily Viral Ideas', desc: 'AI-generated trending prompts', icon: 'Lightbulb', path: '/app/daily-viral-ideas', key: 'daily-viral-ideas', gradient: 'from-amber-500 to-red-700', score: 0 },
-];
+// Source of truth lives in /src/data/creatorTools.js (also used by Landing.js)
+import { DEFAULT_FEATURES } from '../data/creatorTools';
 
 // REGRESSION GUARD: Default rows when API returns empty
 const DEFAULT_ROWS = [
@@ -529,6 +517,86 @@ const DEFAULT_ROWS = [
   { key: 'fresh_stories', title: 'Fresh Stories', icon: 'Sparkles', icon_color: 'text-violet-400', stories: [...SEED_CARDS].reverse().map(s => ({ ...s, badge: 'FRESH' })) },
   { key: 'unfinished_worlds', title: 'Unfinished Worlds', icon: 'Clock', icon_color: 'text-emerald-400', stories: SEED_CARDS.slice(0, 4) },
 ];
+
+/* ═══════════════════════════════════════════════════════════════════
+   HIGHLIGHTED CREATOR TOOLS — Top-of-fold action area
+   Brand-loud container that surfaces all 12 tools immediately after the
+   battle hero. Replaces the legacy buried FeaturesGrid placement.
+   ═══════════════════════════════════════════════════════════════════ */
+function HighlightedCreatorTools({ features, navigate }) {
+  return (
+    <section
+      className="relative overflow-hidden rounded-3xl border border-violet-500/25 bg-gradient-to-br from-violet-600/[0.10] via-fuchsia-600/[0.06] to-rose-600/[0.04] px-5 py-7 sm:px-7 sm:py-9"
+      data-testid="creator-tools-highlighted"
+    >
+      {/* ambient glow */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-24 left-1/3 w-[420px] h-[420px] bg-violet-500/[0.10] rounded-full blur-[140px]" />
+        <div className="absolute -bottom-24 right-1/4 w-[360px] h-[360px] bg-rose-500/[0.08] rounded-full blur-[120px]" />
+      </div>
+
+      <div className="relative">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6 sm:mb-7">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-300 text-[11px] font-semibold tracking-wide mb-3">
+              <Zap className="w-3.5 h-3.5" /> Creator Tools
+            </div>
+            <h2
+              className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white tracking-tight"
+              data-testid="creator-tools-title"
+            >
+              Start creating right now
+            </h2>
+            <p className="mt-2 text-sm sm:text-base text-slate-300/90 max-w-2xl">
+              Start creating videos, reels, comics, stories, avatars, and viral content with AI.
+            </p>
+          </div>
+        </div>
+
+        <div
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4"
+          data-testid="creator-tools-grid"
+        >
+          {features.map((f) => {
+            const Icon = ICON_MAP[f.icon] || Zap;
+            return (
+              <button
+                key={f.key}
+                onClick={() => navigate(f.path, { state: { freshSession: true } })}
+                className="group relative text-left rounded-2xl border border-white/[0.08] bg-[#121218]/80 backdrop-blur-sm p-4 sm:p-5 hover:border-violet-400/40 hover:bg-[#16161e] hover:shadow-[0_14px_36px_-12px_rgba(139,92,246,0.45)] hover:-translate-y-0.5 transition-all duration-200"
+                data-testid={`feature-${f.key}`}
+              >
+                <div className="flex items-start justify-between gap-3 mb-3.5">
+                  <div className={`inline-flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${f.gradient} shadow-[0_4px_14px_rgba(0,0,0,0.3)] group-hover:scale-110 transition-transform`}>
+                    <Icon className="w-5 h-5 text-white" />
+                  </div>
+                  {f.badge && (
+                    <span
+                      className={`text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-full whitespace-nowrap ${
+                        f.badge.includes('FREE')
+                          ? 'bg-amber-500/15 border border-amber-400/40 text-amber-300'
+                          : 'bg-violet-500/15 border border-violet-400/40 text-violet-300'
+                      }`}
+                      data-testid={`feature-${f.key}-badge`}
+                    >
+                      {f.badge}
+                    </span>
+                  )}
+                </div>
+                <h3 className="text-white text-base sm:text-lg font-bold tracking-tight mb-1">{f.name}</h3>
+                <p className="text-xs sm:text-sm text-slate-400 leading-relaxed line-clamp-2 min-h-[2.5em]">{f.desc}</p>
+                <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-violet-300 group-hover:text-violet-200 transition-colors">
+                  Continue <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 
 function FeaturesGrid({ features, navigate }) {
   return (
@@ -1092,6 +1160,11 @@ export default function Dashboard() {
       {/* ═══ SECTION 1: LIVE BATTLE HERO — Above the fold, instant engagement ═══ */}
       <div className="px-4 sm:px-6 lg:px-10 py-2">
         <LiveBattleHero />
+      </div>
+
+      {/* ═══ SECTION 1.5: CREATOR TOOLS — Primary action area (P0 highlight) ═══ */}
+      <div className="px-4 sm:px-6 lg:px-10 pt-3 pb-1">
+        <HighlightedCreatorTools features={DEFAULT_FEATURES} navigate={navigate} />
       </div>
 
       {/* ═══ SECTION 2: QUICK ACTIONS — Fast entry paths ═══ */}

@@ -3,13 +3,22 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import {
   Play, ArrowRight, Menu, X, Eye, RefreshCcw, Zap, Command,
-  ChevronRight, Sparkles, Film, BookOpen, Users, GitBranch, Clock, Activity
+  ChevronRight, Sparkles, Film, BookOpen, Users, GitBranch, Clock, Activity,
+  User, UserCheck, Camera, Palette, Star, Image as ImageIcon, Megaphone, Lightbulb
 } from 'lucide-react';
 import axios from 'axios';
 import { getStaticCardImg, getAllStaticBanners } from '../data/staticBanners';
 import { trackFunnel } from '../utils/funnelTracker';
 import FounderAuthorityBlock from '../components/FounderAuthorityBlock';
 import ReviewWall from '../components/ReviewWall';
+import { DEFAULT_FEATURES } from '../data/creatorTools';
+
+// Icon resolver shared with Dashboard. New icons require both:
+//   1. import above (lucide-react)
+//   2. entry below (key MUST match data/creatorTools.js `icon` field)
+const TOOL_ICON_MAP = {
+  Film, BookOpen, User, UserCheck, Play, Camera, Palette, Star, ImageIcon, Megaphone, Lightbulb,
+};
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -363,6 +372,80 @@ export default function Landing() {
               )}
             </div>
           )}
+        </div>
+      </section>
+
+      {/* ═══════ CREATOR TOOLS — Public arsenal grid ═══════ */}
+      <section className="relative py-14 sm:py-16 px-4 border-t border-white/[0.04]" data-testid="public-creator-tools">
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-0 left-1/3 w-[480px] h-[480px] bg-violet-600/[0.05] rounded-full blur-[160px]" />
+        </div>
+        <div className="relative max-w-7xl mx-auto">
+          <div className="flex flex-col items-center text-center mb-10">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-medium mb-4">
+              <Zap className="w-3.5 h-3.5" /> Creator Tools
+            </div>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white tracking-tight mb-3" data-testid="public-creator-tools-title">
+              Your full AI creation arsenal
+            </h2>
+            <p className="text-sm sm:text-base text-slate-400 max-w-2xl">
+              Create videos, reels, comics, stories, avatars, and viral content with AI.
+            </p>
+          </div>
+
+          <div
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4"
+            data-testid="public-creator-tools-grid"
+          >
+            {DEFAULT_FEATURES.map((f) => {
+              const Icon = TOOL_ICON_MAP[f.icon] || Zap;
+              const handleClick = () => {
+                const token = (typeof window !== 'undefined') ? localStorage.getItem('token') : null;
+                try {
+                  trackFunnel('public_creator_tool_clicked', {
+                    meta: { tool_key: f.key, authed: Boolean(token) },
+                  });
+                } catch (_) { /* never break click */ }
+                if (token) {
+                  navigate(f.path, { state: { freshSession: true } });
+                } else {
+                  // Logged-out → preserve intent through signup
+                  navigate(`/signup?from=creator_tools&intent=${encodeURIComponent(f.key)}`);
+                }
+              };
+              return (
+                <button
+                  key={f.key}
+                  onClick={handleClick}
+                  className="group relative text-left rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5 hover:border-violet-400/30 hover:bg-white/[0.04] hover:shadow-[0_12px_36px_-12px_rgba(139,92,246,0.35)] transition-all duration-200"
+                  data-testid={`public-tool-${f.key}`}
+                >
+                  <div className="flex items-start justify-between gap-3 mb-4">
+                    <div className={`inline-flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${f.gradient} shadow-[0_4px_12px_rgba(0,0,0,0.25)] group-hover:scale-110 transition-transform`}>
+                      <Icon className="w-5 h-5 text-white" />
+                    </div>
+                    {f.badge && (
+                      <span
+                        className={`text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-full whitespace-nowrap ${
+                          f.badge.includes('FREE')
+                            ? 'bg-amber-500/15 border border-amber-400/40 text-amber-300'
+                            : 'bg-violet-500/15 border border-violet-400/40 text-violet-300'
+                        }`}
+                        data-testid={`public-tool-${f.key}-badge`}
+                      >
+                        {f.badge}
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="text-white text-base sm:text-lg font-bold tracking-tight mb-1.5">{f.name}</h3>
+                  <p className="text-xs sm:text-sm text-slate-400 leading-relaxed mb-4 line-clamp-2 min-h-[2.5em]">{f.desc}</p>
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-violet-300 group-hover:text-violet-200 transition-colors">
+                    Try it <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </section>
 

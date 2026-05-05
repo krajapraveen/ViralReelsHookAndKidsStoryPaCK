@@ -191,6 +191,8 @@ FUNNEL_STEPS = [
     # AI Cloning free-testing exception — measures demand for the only
     # currently-free feature under the mandatory-sub policy
     "ai_cloning_used_free_testing",
+    # Public Creator Tools grid (Landing page) — measures interest per tool
+    "public_creator_tool_clicked",
 ]
 
 
