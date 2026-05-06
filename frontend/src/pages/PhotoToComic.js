@@ -998,11 +998,22 @@ function PhotoToComicInner() {
                 <Camera className="w-4 h-4 mr-2" /> New Photo
               </Button>
 
-              {!isPaid && (
-                <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-3 text-center">
-                  <p className="text-slate-500 text-xs mb-2">Unlock premium styles & HD</p>
+              {/* 2026-05 entitlement-clarity rule:
+                    • Credit-holders on free plan get NO post-success upsell
+                      (they already paid; the premium-locked styles in the
+                      Remix picker are self-evidently gated with a lock icon).
+                    • Subscribers (creator/pro/studio) → no banner.
+                    • Only true free tier (no credits, no plan) sees a soft,
+                      explicit entitlement note — never implies the current
+                      generation was incomplete or locked.
+              */}
+              {!isPaid && credits === 0 && (
+                <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-3 text-center" data-testid="entitlement-soft-banner">
+                  <p className="text-slate-400 text-xs leading-relaxed mb-2">
+                    Premium-only styles and HD export are included in Creator/Pro plans.
+                  </p>
                   <Button onClick={() => navigate('/app/subscription')} size="sm" className="bg-purple-600 hover:bg-purple-700 text-xs h-7 px-3">
-                    <Crown className="w-3 h-3 mr-1" /> Upgrade
+                    <Crown className="w-3 h-3 mr-1" /> See Plans
                   </Button>
                 </div>
               )}
