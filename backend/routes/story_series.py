@@ -123,21 +123,38 @@ async def create_series(request: CreateSeriesRequest, user: dict = Depends(get_c
         or role in {"admin", "owner", "dev", "qa", "test"}
     )
 
+    # ─── 2026-05 Mandatory-Subscription Policy ────────────────────────────
+    # The plan-based series cap (free=1) was a legacy free-tier guard. Under
+    # the zero-free-credits policy, credits ARE the gate: any user holding
+    # credits has paid (top-up or subscription). Cost-per-episode still
+    # deducts at generation time. So we only enforce the count cap on truly
+    # free users with no credits — which under the new policy means they
+    # cannot generate anything anyway, but the message stays accurate.
+    user_credits = int(user.get("credits", 0) or 0)
+    has_paid_access = user_credits > 0 or user_plan not in ("free", None, "")
+
     # Safety pipeline — sanitize user inputs
     from services.rewrite_engine import check_and_rewrite
     safety = await check_and_rewrite(user_id, "story_series", request, ["title", "initial_prompt"])
     if safety.blocked:
         raise HTTPException(status_code=400, detail=safety.block_reason)
 
-    # Enforce series limit (skipped for unlimited roles)
-    if not is_unlimited_user:
+    # Enforce series limit (skipped for unlimited roles AND credit-holding users)
+    if not is_unlimited_user and not has_paid_access:
         from config.monetization import check_series_limit
         current_count = await db.story_series.count_documents({"user_id": user_id, "status": {"$in": ["active", "paused"]}})
         limit_check = check_series_limit(user_plan, current_count)
         if not limit_check["can_create"]:
-            raise HTTPException(status_code=403, detail=limit_check["upgrade_message"])
+            raise HTTPException(
+                status_code=403,
+                detail="Subscribe or buy credits to create more series. Free plan is limited to 1 series."
+            )
     else:
-        logger.info(f"[series/create] unlimited bypass for {user_id[:8]} role={role}")
+        decision = "unlimited_role" if is_unlimited_user else "paid_access"
+        logger.info(
+            f"[series/create] bypass={decision} user={user_id[:8]} role={role} "
+            f"plan={user_plan} credits={user_credits}"
+        )
 
     series_id = _uuid()
     character_bible_id = _uuid()
@@ -747,21 +764,30 @@ async def plan_episode(series_id: str, request: PlanEpisodeRequest, user: dict =
     if not series:
         raise HTTPException(status_code=404, detail="Series not found")
 
-    # Enforce episode limit (skipped for unlimited roles)
+    # Enforce episode limit (skipped for unlimited roles AND credit-holding users)
     role = (user.get("role") or "").lower()
     is_unlimited_user = (
         bool(user.get("is_unlimited", False))
         or role in {"admin", "owner", "dev", "qa", "test"}
     )
-    if not is_unlimited_user:
+    user_credits = int(user.get("credits", 0) or 0)
+    user_plan = user.get("plan", "free")
+    has_paid_access = user_credits > 0 or user_plan not in ("free", None, "")
+    if not is_unlimited_user and not has_paid_access:
         from config.monetization import check_episode_limit
-        user_plan = user.get("plan", "free")
         ep_count = await db.story_episodes.count_documents({"series_id": series_id})
         ep_check = check_episode_limit(user_plan, ep_count)
         if not ep_check["can_create"]:
-            raise HTTPException(status_code=403, detail=ep_check["upgrade_message"])
+            raise HTTPException(
+                status_code=403,
+                detail="Subscribe or buy credits to add more episodes."
+            )
     else:
-        logger.info(f"[series/episode] unlimited bypass for {user['id'][:8]} role={role}")
+        decision = "unlimited_role" if is_unlimited_user else "paid_access"
+        logger.info(
+            f"[series/episode] bypass={decision} user={user['id'][:8]} role={role} "
+            f"plan={user_plan} credits={user_credits}"
+        )
 
     char_bible = await db.character_bibles.find_one({"series_id": series_id}, {"_id": 0})
     world_bible = await db.world_bibles.find_one({"series_id": series_id}, {"_id": 0})
