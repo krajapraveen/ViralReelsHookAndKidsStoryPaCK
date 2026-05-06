@@ -615,10 +615,27 @@ async def generate_comic(
         cost = int(cost * 0.7)
     elif user_plan == "studio":
         cost = int(cost * 0.6)
-    
-    # Check credits
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
+
+    # ─── 2026-05 Admin/Unlimited bypass + structured log ──────────────────
+    role = (user.get("role") or "").lower()
+    is_unlimited_user = (
+        bool(user.get("is_unlimited", False))
+        or role in {"admin", "owner", "dev", "qa", "test"}
+    )
+    user_credits = int(user.get("credits", 0) or 0)
+    image_present = bool(storage_key) or (photo is not None)
+    logger.info(
+        f"[p2c/create] user_id={user['id'][:8]} role={role} plan={user_plan} "
+        f"credits={user_credits} required={cost} mode={mode} style={style} "
+        f"image_present={image_present} unlimited={is_unlimited_user}"
+    )
+
+    # Check credits (skipped for admin/unlimited; deduction enforces invariant later)
+    if not is_unlimited_user and user_credits < cost:
+        raise HTTPException(
+            status_code=402,
+            detail=f"Insufficient credits. Required: {cost}, Available: {user_credits}."
+        )
     
     # Create job
     job_id = str(uuid.uuid4())
@@ -659,11 +676,14 @@ async def generate_comic(
     
     await db.photo_to_comic_jobs.insert_one(job_data)
 
-    # Assign story chain fields
-    from services.story_chain import ensure_chain_fields
-    await ensure_chain_fields(job_id, user["id"], parent_job_id=None, branch_type="original")
+    # Assign story chain fields (non-blocking — if it fails, job still proceeds)
+    try:
+        from services.story_chain import ensure_chain_fields
+        await ensure_chain_fields(job_id, user["id"], parent_job_id=None, branch_type="original")
+    except Exception as chain_err:
+        logger.warning(f"[p2c/create] ensure_chain_fields failed for job={job_id}: {chain_err}")
 
-    # Load character context if provided
+    # Load character context if provided (non-blocking)
     char_context = None
     if character_id:
         try:

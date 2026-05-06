@@ -335,7 +335,26 @@ function PhotoToComicInner() {
         pollJob(res.data.jobId);
       }
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Something went wrong — let\'s try again!');
+      // 2026-05 — surface the REAL backend error. The generic fallback only
+      // fires for true network failures with no response body.
+      const data = err?.response?.data;
+      let serverMsg = null;
+      if (typeof data?.detail === 'string') {
+        serverMsg = data.detail;
+      } else if (Array.isArray(data?.detail) && data.detail[0]?.msg) {
+        // FastAPI 422 validation errors come back as an array
+        serverMsg = data.detail[0].msg;
+      } else if (typeof data?.message === 'string') {
+        serverMsg = data.message;
+      } else if (typeof data === 'string' && data.length < 300) {
+        serverMsg = data;
+      }
+      const code = err?.response?.status || 0;
+      const fallback = code === 0
+        ? 'Network error — check your connection and try again.'
+        : `Comic generation failed (HTTP ${code}). Please try again.`;
+      toast.error(serverMsg || fallback);
+      console.error('[p2c/create] error', { status: code, data, message: err?.message });
       setGenerating(false);
     }
   };
