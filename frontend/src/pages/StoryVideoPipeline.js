@@ -646,10 +646,18 @@ function StoryVideoPipelineInner() {
             setSeriesContext({
               series_id: rd.series_id,
               series_title: rd.series_title,
+              episode_id: rd.episode_id || null,
               episode_number: rd.episode_number,
+              episode_title: rd.episode_title || null,
               mode: rd.mode || 'create',
               character_ids: rd.character_ids || [],
             });
+            // Pre-fill the title with the EPISODE title (not series title) so
+            // user lands on "From: Episode 1: The Shimmering Snow" — the
+            // actual episode they clicked on, not the parent series.
+            if (rd.episode_title) {
+              setTitle(rd.episode_title.startsWith('From:') ? rd.episode_title : `From: ${rd.episode_title}`);
+            }
           }
           if (rd.remixFrom) {
             setRemixData(rd.remixFrom);
@@ -1362,7 +1370,7 @@ function StoryVideoPipelineInner() {
           </div>
         )}
 
-        {remixData && phase === 'input' && (
+        {remixData && phase === 'input' && !seriesContext && (
           <div className="mb-6 bg-pink-500/10 border border-pink-500/30 rounded-xl p-4 flex items-center gap-3" data-testid="remix-banner">
             <Remix className="w-5 h-5 text-pink-400" />
             <span className="text-pink-200 text-sm">Remixing: <strong>{remixData.title}</strong> — edit the story and make it your own!</span>
@@ -1649,9 +1657,11 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
       )}
 
 
-      {showRemixBanner && <RemixBanner sourceTool={remixSourceTool} sourceTitle={remixSourceTitle} onDismiss={onDismissRemix} />}
+      {showRemixBanner && !seriesContext && <RemixBanner sourceTool={remixSourceTool} sourceTitle={remixSourceTitle} onDismiss={onDismissRemix} />}
 
-      {/* Series Context Banner */}
+      {/* Series Context Banner — episode-first hierarchy: episode title is the
+          primary line because that's what the user clicked on. Series shown
+          as smaller sub-context to anchor the parent. */}
       {seriesContext && (
         <div className="vs-panel p-4 border-violet-500/30 bg-violet-500/5" data-testid="series-context-banner">
           <div className="flex items-center gap-3">
@@ -1659,8 +1669,12 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
               <Sparkles className="w-4 h-4 text-violet-400" />
             </div>
             <div className="min-w-0">
-              <p className="text-white text-sm font-semibold truncate">{seriesContext.series_title}</p>
-              <p className="text-violet-400/70 text-xs">Creating Episode {seriesContext.episode_number} — story context pre-loaded from your series</p>
+              <p className="text-white text-sm font-semibold truncate" data-testid="series-banner-episode-title">
+                Episode {seriesContext.episode_number}{seriesContext.episode_title ? `: ${seriesContext.episode_title}` : ''}
+              </p>
+              <p className="text-violet-400/70 text-xs truncate">
+                from <span className="text-violet-300">{seriesContext.series_title}</span> — story context pre-loaded
+              </p>
             </div>
           </div>
         </div>
@@ -1669,7 +1683,11 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
           <div>
-            <h1 className="vs-h1 mb-2">{seriesContext ? `Episode ${seriesContext.episode_number}` : 'Create a Story Video'}</h1>
+            <h1 className="vs-h1 mb-2" data-testid="studio-page-title">
+              {seriesContext
+                ? (seriesContext.episode_title ? `Episode ${seriesContext.episode_number}: ${seriesContext.episode_title}` : `Episode ${seriesContext.episode_number}`)
+                : 'Create a Story Video'}
+            </h1>
             <p className="text-[var(--vs-text-secondary)]" style={{ fontFamily: 'var(--vs-font-body)' }}>
               {seriesContext
                 ? `Continue your "${seriesContext.series_title}" series. The story prompt has been pre-loaded — customize it or generate directly.`
@@ -1966,8 +1984,10 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
           )}
         </div>
 
-        {/* Sidebar — hidden in fresh session to keep creation focus */}
-        {!isFreshSession && (
+        {/* Sidebar — hidden in fresh session AND in series-episode mode
+            (series flow needs focused context, recent videos cause wrong-
+            context clicks and reinforce stale-story leakage). */}
+        {!isFreshSession && !seriesContext && (
         <div className="space-y-4">
           <h3 className="text-sm font-medium text-[var(--vs-text-muted)] uppercase tracking-wide">Recent Videos</h3>
           {recentJobs.length === 0 && <p className="text-sm text-[var(--vs-text-muted)]">No videos yet. Create your first!</p>}
@@ -1982,8 +2002,8 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
         </div>
         )}
 
-        {/* Recent Drafts Panel — appears in fresh session after typing 20+ chars */}
-        {FEATURES.recentDraftsPanel && isFreshSession && storyText.trim().length >= 20 && (
+        {/* Recent Drafts Panel — hidden in series-episode mode for the same reason */}
+        {FEATURES.recentDraftsPanel && isFreshSession && !seriesContext && storyText.trim().length >= 20 && (
           <RecentDraftsPanel onViewJob={onViewJob} />
         )}
       </div>

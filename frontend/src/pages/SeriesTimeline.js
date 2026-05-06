@@ -61,22 +61,34 @@ export default function SeriesTimeline() {
       // Completed episode with a public page — watch it
       navigate(`/v/${ep.slug}`);
     } else if (ep.job_id) {
-      // Episode has an existing generation job — resume it in the pipeline
-      navigate(`/app/story-video-studio?job=${ep.job_id}`);
+      // Episode has an existing generation job — open status on canonical surface
+      navigate(`/app/my-space?projectId=${ep.job_id}`);
     } else {
-      // No existing job — fall through to create mode
-      handleCreateNewEpisode();
+      // No existing job — fall through to create mode, passing the episode's
+      // own title so the studio doesn't mislabel it with the series title.
+      handleCreateNewEpisode(ep);
     }
   };
 
   /**
    * Create a new episode with full series context.
    * Called by "Create Episode N" and as fallback when no existing draft exists.
+   * Accepts an optional `episode` arg so callers like handleResumeEpisode can
+   * pass an existing draft episode and preserve its title in the studio.
    */
-  const handleCreateNewEpisode = async () => {
+  const handleCreateNewEpisode = async (episode = null) => {
     try {
       const res = await api.post(`/api/universe/series/${seriesId}/continue`);
       if (res.data.success) {
+        const epNum = episode?.episode_number ?? res.data.next_episode_number;
+        // Episode title priority:
+        //   1. The existing draft episode's title (e.g. "The Shimmering Snow")
+        //   2. The backend's suggested title for the next episode (if any)
+        //   3. Fallback to "Episode N: <series title>"
+        const epTitle =
+          episode?.title ||
+          res.data.next_episode_title ||
+          `Episode ${epNum}: ${res.data.series_title}`;
         localStorage.setItem('remix_data', JSON.stringify({
           prompt: res.data.prompt,
           timestamp: Date.now(),
@@ -84,23 +96,26 @@ export default function SeriesTimeline() {
           mode: 'create',
           series_id: seriesId,
           series_title: res.data.series_title,
-          episode_number: res.data.next_episode_number,
+          episode_id: episode?.episode_id || null,
+          episode_number: epNum,
+          episode_title: epTitle,
           character_ids: res.data.character_ids || [],
           remixFrom: {
             tool: 'story-video-studio',
             prompt: res.data.prompt,
-            title: `Episode ${res.data.next_episode_number}: ${res.data.series_title}`,
+            title: epTitle,
             settings: {},
             parentId: null,
             series_id: seriesId,
-            episode_number: res.data.next_episode_number,
+            episode_number: epNum,
+            episode_title: epTitle,
           },
         }));
         navigate('/app/story-video-studio');
-        toast.success(`Creating Episode ${res.data.next_episode_number}!`);
+        toast.success(`Creating Episode ${epNum}: ${epTitle.length > 40 ? epTitle.slice(0, 40) + '…' : epTitle}`);
       }
     } catch {
-      toast.error('Failed to load episode context');
+      toast.error('Could not open this episode because its story context is missing.');
     }
   };
 
@@ -127,7 +142,7 @@ export default function SeriesTimeline() {
     } else if (ep.slug) {
       navigate(`/v/${ep.slug}`);
     } else if (ep.job_id) {
-      navigate(`/app/story-video-studio?job=${ep.job_id}`);
+      navigate(`/app/my-space?projectId=${ep.job_id}`);
     }
   };
 
@@ -312,21 +327,25 @@ export default function SeriesTimeline() {
                 );
               })}
 
-              {/* Next Episode CTA */}
-              <div className="relative flex gap-4" data-testid="next-episode-cta">
-                <div className="flex-shrink-0 w-12 flex flex-col items-center">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500/20 to-rose-500/20 border-2 border-dashed border-violet-500/30 flex items-center justify-center z-10">
-                    <Sparkles className="w-5 h-5 text-violet-400" />
+              {/* Next Episode CTA — hidden when the current unfinished episode
+                  IS already the next one (avoids duplicate "Create Episode 1"
+                  + "Continue Episode 1" CTAs on the same screen). */}
+              {!(currentEpisode && currentEpisode.episode_number === next_episode_number) && (
+                <div className="relative flex gap-4" data-testid="next-episode-cta">
+                  <div className="flex-shrink-0 w-12 flex flex-col items-center">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500/20 to-rose-500/20 border-2 border-dashed border-violet-500/30 flex items-center justify-center z-10">
+                      <Sparkles className="w-5 h-5 text-violet-400" />
+                    </div>
+                  </div>
+                  <div className="flex-1 rounded-2xl border border-dashed border-violet-500/20 bg-violet-500/[0.03] p-5">
+                    <p className="text-xs text-slate-500 mb-1">What happens next is up to you</p>
+                    <h3 className="text-base font-bold text-white mb-3">Episode {next_episode_number}</h3>
+                    <button onClick={() => handleCreateNewEpisode()} className="h-11 px-6 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white text-sm font-bold flex items-center gap-2 hover:opacity-90 shadow-lg shadow-violet-500/20" data-testid="create-next-episode">
+                      <Play className="w-4 h-4" /> Create Episode {next_episode_number}
+                    </button>
                   </div>
                 </div>
-                <div className="flex-1 rounded-2xl border border-dashed border-violet-500/20 bg-violet-500/[0.03] p-5">
-                  <p className="text-xs text-slate-500 mb-1">What happens next is up to you</p>
-                  <h3 className="text-base font-bold text-white mb-3">Episode {next_episode_number}</h3>
-                  <button onClick={handleCreateNewEpisode} className="h-11 px-6 rounded-xl bg-gradient-to-r from-violet-600 to-rose-600 text-white text-sm font-bold flex items-center gap-2 hover:opacity-90 shadow-lg shadow-violet-500/20" data-testid="create-next-episode">
-                    <Play className="w-4 h-4" /> Create Episode {next_episode_number}
-                  </button>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
