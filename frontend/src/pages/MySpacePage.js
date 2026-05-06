@@ -1074,13 +1074,16 @@ export default function MySpacePage() {
       const res = await api.post(`/api/story-engine/retry/${job.job_id}`);
       if (res.data?.success) {
         toast.success('Retrying generation...');
-        // Navigate to studio to show progress
+        // Navigate to studio so user can monitor the in-flight retry
         navigate(`/app/story-video-studio?projectId=${job.job_id}`);
       }
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Retry failed. Please try again.');
-      // Fallback: navigate to recovery screen
-      navigate(`/app/story-video-studio?projectId=${job.job_id}`);
+      // Recovery fallback — go to canonical status surface, not back to studio.
+      // `replace: true` so the broken-retry studio frame doesn't sit in history.
+      if (job?.job_id) {
+        navigate(`/app/my-space?projectId=${job.job_id}`, { replace: true });
+      }
     }
   };
   const handleNavigate = (job, mode) => {
@@ -1097,7 +1100,14 @@ export default function MySpacePage() {
       }));
       navigate('/app/story-video-studio?remix=edit-retry');
     }
-    else navigate(`/app/story-video-studio?projectId=${job.job_id}`);
+    // 2026-05 — "View Progress" / default tile click MUST route directly to
+    // canonical status surface. Going through /story-video-studio caused a
+    // visible flash of the create form before the project loaded.
+    else if (job?.job_id) {
+      navigate(`/app/my-space?projectId=${job.job_id}`);
+    } else {
+      toast.error('Could not open progress because the video job ID is missing.');
+    }
   };
   const handleShare = async (job) => {
     // Photo trailers share via the public /trailer/:slug page (server re-signs).

@@ -1494,7 +1494,8 @@ function RecentDraftsPanel({ onViewJob }) {
             <button key={item.project_id || `draft-${i}`}
               onClick={() => {
                 if (item.type === 'project' && item.project_id) {
-                  navigate(`/app/story-video-studio?projectId=${item.project_id}`);
+                  // 2026-05 — open project status on canonical surface, not the create form.
+                  navigate(`/app/my-space?projectId=${item.project_id}`);
                 }
               }}
               disabled={item.type === 'draft'}
@@ -2960,7 +2961,8 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
             })}
             onNewJobCreated={(data) => {
               if (data?.job_id) {
-                navigate(`/app/story-video-studio?projectId=${data.job_id}`);
+                // Open new branch's status on canonical surface (no create-form flash)
+                navigate(`/app/my-space?projectId=${data.job_id}`);
               }
             }}
           />
@@ -3328,7 +3330,8 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
         }}
         onJobCreated={(data) => {
           if (data?.job_id) {
-            navigate(`/app/story-video-studio?projectId=${data.job_id}`);
+            // Continuation/episode created — go to canonical status surface.
+            navigate(`/app/my-space?projectId=${data.job_id}`);
           }
         }}
       />
