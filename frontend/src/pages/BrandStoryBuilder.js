@@ -3,12 +3,23 @@ import { Link } from 'react-router-dom';
 import {
   ArrowLeft, Sparkles, Copy, Check, Download, FileText, Archive,
   Palette, Type, Lightbulb, Target, Megaphone, Globe2, Zap, Crown,
-  ChevronRight, RefreshCw, Loader2
+  ChevronRight, RefreshCw, Loader2, Lock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
+import BedtimePaywallModal from '../components/BedtimePaywallModal';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+
+// ─── P0 2026-05 — Admin / unlimited detection ───────────────────────
+const _UNLIMITED_ROLES = ['admin', 'owner', 'dev', 'qa', 'qa_user', 'test'];
+function _detectUnlimitedFromLocalStorage() {
+  try {
+    const u = JSON.parse(localStorage.getItem('user') || '{}');
+    const role = String(u?.role || '').toLowerCase();
+    return Boolean(u?.is_unlimited) || _UNLIMITED_ROLES.includes(role);
+  } catch (_) { return false; }
+}
 
 // ─── Stage definitions ───
 const STAGES = [
@@ -90,10 +101,58 @@ export default function BrandStoryBuilder() {
   const [activeTab, setActiveTab] = useState('story');
   const pollRef = useRef(null);
 
+  // ─── P0 2026-05 — Subscription gate state ───────────────────────
+  const [isUnlimitedUser, setIsUnlimitedUser] = useState(_detectUnlimitedFromLocalStorage);
+  const [paywall, setPaywall] = useState({ open: false, reason: null });
+  const canAccessFull = isUnlimitedUser || Boolean(jobResult?.access?.full_access);
+  const previewOnly = Boolean(jobResult?.access?.preview_only);
+
   useEffect(() => {
     fetchConfig();
+    // ─── P0 2026-05 — Defense-in-depth: hydrate isUnlimitedUser from
+    // /api/credits/balance so even a missing localStorage entry doesn't
+    // trap an admin in the paywall.
+    (async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        const r = await fetch(`${API_URL}/api/credits/balance`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (r.ok) {
+          const d = await r.json();
+          if (d?.is_unlimited === true || d?.unlimited === true) setIsUnlimitedUser(true);
+        }
+      } catch (_) { /* noop */ }
+    })();
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, []);
+
+  // ─── P0 2026-05 — Block copy / save / print shortcuts on the result
+  // page for non-premium users. Frontend deterrent only; the real
+  // protection is the backend preview truncation + 402 download gate.
+  useEffect(() => {
+    if (phase !== 'results' || canAccessFull) return undefined;
+    const onKey = (e) => {
+      const k = (e.key || '').toLowerCase();
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (['c', 'x', 's', 'p', 'a'].includes(k)) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (k === 's' || k === 'p') setPaywall({ open: true, reason: 'download' });
+        else setPaywall({ open: true, reason: 'copy' });
+      }
+    };
+    const onCopy = (e) => { e.preventDefault(); setPaywall({ open: true, reason: 'copy' }); };
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('copy', onCopy, true);
+    window.addEventListener('cut', onCopy, true);
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('copy', onCopy, true);
+      window.removeEventListener('cut', onCopy, true);
+    };
+  }, [phase, canAccessFull]);
 
   const fetchConfig = async () => {
     try {
@@ -191,14 +250,43 @@ export default function BrandStoryBuilder() {
   }, []);
 
   const copyText = (text, id) => {
+    // P0 2026-05 — Copy is a premium action.
+    if (!canAccessFull) {
+      setPaywall({ open: true, reason: 'copy' });
+      return;
+    }
     navigator.clipboard.writeText(typeof text === 'string' ? text : JSON.stringify(text, null, 2));
     setCopied(id);
     setTimeout(() => setCopied(null), 2000);
     toast.success('Copied!');
   };
 
+  // P0 2026-05 — Parse JSON error bodies from PDF/ZIP responses (which
+  // are normally binary). On 402/403 we open the paywall instead of
+  // toasting a generic "PDF download failed".
+  const _handleDownloadError = async (res, fallback) => {
+    if (res.status === 402 || res.status === 403) {
+      setPaywall({ open: true, reason: 'download' });
+      return;
+    }
+    if (res.status === 404) {
+      toast.error('Brand kit not found. Please regenerate.');
+      return;
+    }
+    try {
+      const data = await res.clone().json();
+      toast.error(data?.detail || fallback);
+    } catch {
+      toast.error(fallback);
+    }
+  };
+
   const handleDownloadPdf = async () => {
     if (!jobId) return;
+    if (!canAccessFull) {
+      setPaywall({ open: true, reason: 'download' });
+      return;
+    }
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/api/brand-story-builder/job/${jobId}/pdf`, {
@@ -213,12 +301,18 @@ export default function BrandStoryBuilder() {
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
         URL.revokeObjectURL(url);
         toast.success('PDF downloaded!');
-      } else { toast.error('PDF download failed'); }
-    } catch { toast.error('PDF download failed'); }
+      } else {
+        await _handleDownloadError(res, 'PDF download failed. Please try again.');
+      }
+    } catch { toast.error('PDF download failed. Please try again.'); }
   };
 
   const handleDownloadZip = async () => {
     if (!jobId) return;
+    if (!canAccessFull) {
+      setPaywall({ open: true, reason: 'download' });
+      return;
+    }
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/api/brand-story-builder/job/${jobId}/zip`, {
@@ -233,12 +327,18 @@ export default function BrandStoryBuilder() {
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
         URL.revokeObjectURL(url);
         toast.success('ZIP downloaded!');
-      } else { toast.error('ZIP download failed'); }
-    } catch { toast.error('ZIP download failed'); }
+      } else {
+        await _handleDownloadError(res, 'ZIP download failed. Please try again.');
+      }
+    } catch { toast.error('ZIP download failed. Please try again.'); }
   };
 
   const handleDownloadTxt = () => {
     if (!jobResult) return;
+    if (!canAccessFull) {
+      setPaywall({ open: true, reason: 'download' });
+      return;
+    }
     let txt = `=== ${businessName} BRAND KIT ===\n\n`;
     const outputs = jobResult.outputs || {};
     for (const [key, art] of Object.entries(outputs)) {
@@ -421,8 +521,44 @@ export default function BrandStoryBuilder() {
             ))}
           </div>
 
-          {/* Artifact cards */}
-          <div className="space-y-4">
+          {/* P0 2026-05 — Preview banner for free users (backend already
+              truncated the artifact text; this banner is the UX cue). */}
+          {previewOnly && (
+            <div
+              className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-indigo-500/30 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-indigo-500/10 px-4 py-3"
+              data-testid="brand-kit-preview-banner"
+            >
+              <div className="flex items-center gap-2 text-sm text-indigo-100">
+                <Lock className="w-4 h-4 text-indigo-300 shrink-0" />
+                <span>
+                  This is a <strong>preview</strong> of your brand kit. Subscribe to unlock the full content, downloads, and copy.
+                </span>
+              </div>
+              <Button
+                size="sm"
+                className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full px-4 shrink-0"
+                onClick={() => setPaywall({ open: true, reason: 'default' })}
+                data-testid="brand-kit-preview-banner-cta"
+              >
+                Unlock
+              </Button>
+            </div>
+          )}
+
+          {/* Artifact cards — wrapped with copy-protection for free users */}
+          <div
+            className={`space-y-4 relative ${!canAccessFull ? 'select-none' : ''}`}
+            data-testid="brand-kit-artifacts-container"
+            onContextMenu={canAccessFull ? undefined : (e) => { e.preventDefault(); setPaywall({ open: true, reason: 'copy' }); }}
+            onDragStart={canAccessFull ? undefined : (e) => e.preventDefault()}
+            style={canAccessFull ? undefined : {
+              userSelect: 'none',
+              WebkitUserSelect: 'none',
+              MozUserSelect: 'none',
+              msUserSelect: 'none',
+              WebkitTouchCallout: 'none',
+            }}
+          >
             {Object.entries(outputs)
               .filter(([key]) => ARTIFACT_CONFIG[key]?.tab === activeTab)
               .map(([key, art]) => {
@@ -430,7 +566,11 @@ export default function BrandStoryBuilder() {
                 const cfg = ARTIFACT_CONFIG[key];
                 const Icon = cfg?.icon || FileText;
                 return (
-                  <div key={key} className="bg-slate-900/60 border border-slate-800 rounded-xl p-5" data-testid={`artifact-${key}`}>
+                  <div
+                    key={key}
+                    className={`bg-slate-900/60 border border-slate-800 rounded-xl p-5 relative ${!canAccessFull ? 'overflow-hidden' : ''}`}
+                    data-testid={`artifact-${key}`}
+                  >
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
                         <Icon className="w-5 h-5 text-blue-400" />
@@ -443,12 +583,42 @@ export default function BrandStoryBuilder() {
                         {copied === key ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-slate-400" />}
                       </button>
                     </div>
-                    <ArtifactRenderer type={key} data={art.data} />
+                    <div
+                      className={!canAccessFull ? 'filter blur-[3px] pointer-events-none' : ''}
+                      data-testid={`artifact-content-${key}`}
+                    >
+                      <ArtifactRenderer type={key} data={art.data} />
+                    </div>
+                    {!canAccessFull && (
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="pointer-events-auto bg-slate-950/70 backdrop-blur-sm border border-indigo-500/30 rounded-xl px-4 py-3 text-center">
+                          <div className="flex items-center gap-2 text-sm text-indigo-100 mb-2">
+                            <Lock className="w-4 h-4 text-indigo-300" />
+                            <span className="font-medium">Subscribe to unlock</span>
+                          </div>
+                          <Button
+                            size="sm"
+                            className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-xs"
+                            onClick={() => setPaywall({ open: true, reason: 'default' })}
+                            data-testid={`unlock-${key}`}
+                          >
+                            See plans
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
           </div>
         </div>
+
+        {/* P0 2026-05 — Subscription paywall modal */}
+        <BedtimePaywallModal
+          open={paywall.open}
+          reason={paywall.reason}
+          onClose={() => setPaywall({ open: false, reason: null })}
+        />
       </div>
     );
   }

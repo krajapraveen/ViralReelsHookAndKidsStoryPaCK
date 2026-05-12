@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from shared import db, get_current_user, get_admin_user
 from services.brand_kit.orchestrator import BrandKitOrchestrator
 from services.brand_kit.prompts import MODE_ARTIFACTS
+from services.entitlement import has_full_content_access
 
 logger = logging.getLogger("creatorstudio.brand_kit")
 
@@ -182,12 +183,20 @@ async def get_job_result(job_id: str, user: dict = Depends(get_current_user)):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    # Return full artifact data
+    # ─── P0 2026-05 — Access gate ─────────────────────────────────────
+    # Subscribers / admin / unlimited get the full artifact payload.
+    # Free users get a small preview of each text artifact (so they can
+    # see the *quality* but cannot consume the whole brand kit for free).
+    full_access = has_full_content_access(user) or bool(job.get("purchased"))
+
     outputs = {}
     for art_type, art in job.get("artifacts", {}).items():
+        data = art.get("data")
+        if not full_access and data is not None:
+            data = _truncate_artifact_for_preview(data)
         outputs[art_type] = {
             "status": art.get("status", "QUEUED"),
-            "data": art.get("data"),
+            "data": data,
             "latency_ms": art.get("latency_ms"),
         }
 
@@ -198,7 +207,36 @@ async def get_job_result(job_id: str, user: dict = Depends(get_current_user)):
         "brief": job.get("brief", {}),
         "outputs": outputs,
         "completed_at": job.get("completed_at"),
+        "access": {
+            "full_access": full_access,
+            "preview_only": not full_access,
+            "upgrade_required": not full_access,
+            "can_download": full_access,
+            "upgrade_message": None if full_access else "Subscribe to unlock the full brand kit, downloads, and copy.",
+        },
     }
+
+
+def _truncate_artifact_for_preview(data):
+    """Return a preview-safe version of an artifact's data.
+
+    - strings: first ~140 chars + ellipsis
+    - dicts: recurse on each value
+    - lists: keep only the first item, recursively truncated
+    Anything else is returned as-is (numbers, booleans, None).
+    """
+    PREVIEW_CHARS = 140
+    if isinstance(data, str):
+        if len(data) <= PREVIEW_CHARS:
+            return data
+        return data[:PREVIEW_CHARS].rstrip() + "…"
+    if isinstance(data, dict):
+        return {k: _truncate_artifact_for_preview(v) for k, v in data.items()}
+    if isinstance(data, list):
+        if not data:
+            return data
+        return [_truncate_artifact_for_preview(data[0])]
+    return data
 
 
 @router.get("/job/{job_id}/pdf")
@@ -216,6 +254,10 @@ async def download_pdf(job_id: str, user: dict = Depends(get_current_user)):
     if job.get("status") not in ("READY", "PARTIAL_READY"):
         raise HTTPException(status_code=400, detail="Brand kit not ready for download")
 
+    # ─── P0 2026-05 — Access gate ─────────────────────────────────────
+    if not has_full_content_access(user) and not job.get("purchased"):
+        raise HTTPException(status_code=402, detail="Subscribe to download your brand kit.")
+
     try:
         pdf_bytes = generate_brand_kit_pdf(job)
         biz = job.get("brief", {}).get("business_name", "brand").replace(" ", "_")
@@ -231,8 +273,8 @@ async def download_pdf(job_id: str, user: dict = Depends(get_current_user)):
             headers={"Content-Disposition": f'attachment; filename="{biz}_brand_kit.pdf"'}
         )
     except Exception as e:
-        logger.error(f"[BRAND_KIT] PDF generation failed: {e}")
-        raise HTTPException(status_code=500, detail="PDF generation failed")
+        logger.exception(f"[BRAND_KIT] PDF generation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"PDF generation failed: {e}")
 
 
 @router.get("/job/{job_id}/zip")
@@ -249,6 +291,10 @@ async def download_zip(job_id: str, user: dict = Depends(get_current_user)):
 
     if job.get("status") not in ("READY", "PARTIAL_READY"):
         raise HTTPException(status_code=400, detail="Brand kit not ready for download")
+
+    # ─── P0 2026-05 — Access gate ─────────────────────────────────────
+    if not has_full_content_access(user) and not job.get("purchased"):
+        raise HTTPException(status_code=402, detail="Subscribe to download your brand kit.")
 
     try:
         zip_bytes = generate_brand_kit_zip(job)
