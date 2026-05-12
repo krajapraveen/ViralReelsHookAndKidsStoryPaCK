@@ -79,6 +79,26 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
+    // ─── 2026-05 P0 — Gateway / non-JSON safety net ─────────────────────
+    // If the error response body is raw HTML (nginx 502/504 pages, etc.),
+    // strip it so callers can never accidentally render upstream HTML in
+    // a toast. We replace `response.data` with a normalized JSON shape.
+    try {
+      const raw = error?.response?.data;
+      const code = error?.response?.status || 0;
+      const looksLikeHtml = (v) =>
+        typeof v === 'string' && /^\s*<(?:!doctype|html|head|body|center|h1)/i.test(v);
+      const isGateway = code === 502 || code === 503 || code === 504;
+      if (looksLikeHtml(raw) || (isGateway && typeof raw === 'string')) {
+        error.response.data = {
+          detail: 'The service is temporarily unavailable. Please try again.',
+          code: isGateway ? 'GATEWAY_ERROR' : 'UPSTREAM_ERROR',
+          http_status: code,
+          gateway: true,
+        };
+      }
+    } catch (_) { /* noop */ }
+
     // Activation sentinel — log 4xx/5xx + slow failures (skip self-tracking endpoints)
     try {
       const dur = Date.now() - (error.config?.metadata?.startTs || Date.now());

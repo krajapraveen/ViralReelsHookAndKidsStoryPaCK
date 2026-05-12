@@ -545,9 +545,13 @@ async def generate_comic(
     
     # Blocked keywords check (harmful content only)
     
-    # Validate style
+    # Validate style — reject unknown enum values explicitly (was: silent
+    # fallback to cartoon_fun, which masked client-side bugs). 2026-05 P1.
     if style not in SAFE_STYLES:
-        style = "cartoon_fun"  # Default to safe style
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid style '{style}'. Allowed: {sorted(SAFE_STYLES)[:8]}...",
+        )
     
     # ============================================
     # GET PHOTO CONTENT (file upload or R2 storage key)

@@ -340,7 +340,14 @@ function PhotoToComicInner() {
       // 2026-05 — surface the REAL backend error. The generic fallback only
       // fires for true network failures with no response body.
       const data = err?.response?.data;
+      const code = err?.response?.status || 0;
       let serverMsg = null;
+
+      // Detect non-JSON / HTML / gateway responses (e.g. nginx 502 / 504
+      // pages) and refuse to surface them to the user as a toast.
+      const looksLikeHtml = (v) =>
+        typeof v === 'string' && /^\s*<(?:!doctype|html|head|body|center|h1)/i.test(v);
+
       if (typeof data?.detail === 'string') {
         serverMsg = data.detail;
       } else if (Array.isArray(data?.detail) && data.detail[0]?.msg) {
@@ -348,15 +355,23 @@ function PhotoToComicInner() {
         serverMsg = data.detail[0].msg;
       } else if (typeof data?.message === 'string') {
         serverMsg = data.message;
-      } else if (typeof data === 'string' && data.length < 300) {
+      } else if (typeof data === 'string' && data.length < 300 && !looksLikeHtml(data)) {
         serverMsg = data;
       }
-      const code = err?.response?.status || 0;
-      const fallback = code === 0
-        ? 'Network error — check your connection and try again.'
-        : `Comic generation failed (HTTP ${code}). Please try again.`;
+
+      // Gateway / proxy / infra errors → ALWAYS a generic message.
+      const isGatewayError = code === 502 || code === 503 || code === 504 || looksLikeHtml(data);
+      let fallback;
+      if (code === 0) {
+        fallback = 'Network error — check your connection and try again.';
+      } else if (isGatewayError) {
+        fallback = 'Comic generation failed. Please try again.';
+        serverMsg = null; // never leak raw upstream HTML
+      } else {
+        fallback = `Comic generation failed (HTTP ${code}). Please try again.`;
+      }
       toast.error(serverMsg || fallback);
-      console.error('[p2c/create] error', { status: code, data, message: err?.message });
+      console.error('[p2c/create] error', { status: code, gateway: isGatewayError, message: err?.message });
       setGenerating(false);
     }
   };

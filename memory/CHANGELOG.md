@@ -1285,3 +1285,23 @@ value first, then hit signup gate. Do NOT ask login before Generate."
 **Verification**:
 - Backend regression: `/app/backend/tests/test_bedtime_subscription_gate_2026_05.py` — 4/4 PASS (free preview, free export 402, admin full, subscriber full).
 - Frontend regression: `testing_agent_v3_fork` iteration_541 — 15/16 PASS. The 1 SKIP was the subscriber path because the testing agent's env did not have `test@visionary-suite.com` available; the same case is covered by the backend test which PASSED.
+
+## 2026-05-12 — P0 Photo to Comic 502 — Code hardening + P1 enum validation
+
+**Reproduction**: Reproduced on preview using admin/unlimited with `mode=strip + style=cute_chibi + genre=action + panel_count=6 + hd_export=false + include_dialogue=true`. Preview returned HTTP 200 with a valid jobId in ~1.17 s. **The 502 is production-infra-only** (not reproducible in preview). Most likely causes: prod nginx ingress timeout, worker OOM, or stale build.
+
+**Code fixes (preview, ready to redeploy)**:
+- `/app/frontend/src/utils/api.js` — axios response interceptor now detects HTML/non-JSON bodies (`<html>`, `<center>`, etc.) on ANY 4xx/5xx, and rewrites `response.data` to `{ detail: "The service is temporarily unavailable. Please try again.", code: "GATEWAY_ERROR", http_status, gateway: true }`. This means no page can accidentally toast raw nginx HTML again.
+- `/app/frontend/src/pages/PhotoToComic.js` — `handleGenerate` error path now explicitly treats `502/503/504` and HTML-shaped bodies as gateway errors and toasts `"Comic generation failed. Please try again."` instead of leaking upstream HTML.
+- `/app/backend/routes/photo_to_comic.py` — `/generate` now raises `HTTPException(400, "Invalid style '<x>'. Allowed: …")` for unknown style enums (was: silently rebranded to `cartoon_fun`, masking client bugs and making style mismatches invisible).
+
+**Tests** (`/app/backend/tests/test_photo_to_comic_gateway_safety_2026_05.py`, 4/4 PASS):
+- happy path uploaded image + `cute_chibi` + 6 panels → 200 + jobId
+- unsupported style → JSON 400 with `detail`
+- invalid mode → JSON 400
+- admin/unlimited balance not blocked
+
+**Production action needed (cannot fix from preview)**:
+- Tail prod backend logs around the 502 timestamp — look for OOM, worker restart, or upstream R2/LLM timeout.
+- Check prod nginx ingress timeout (`proxy_read_timeout`) — should be ≥ 60 s.
+- If neither, raise an Emergent Support ticket; provide the prod request timestamp.
