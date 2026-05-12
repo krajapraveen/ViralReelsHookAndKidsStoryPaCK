@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import api from '../utils/api';
 import { markFeatureUsed } from '../utils/feedbackSession';
 import { useCredits } from '../contexts/CreditContext';
+import BedtimePaywallModal from '../components/BedtimePaywallModal';
 
 // ── Centralized API endpoints ──
 const BEDTIME_API = {
@@ -202,6 +203,14 @@ export default function BedtimeStoryBuilder() {
   const [streak, setStreak] = useState(0);
   const [copiedSection, setCopiedSection] = useState(null);
 
+  // ─── P0 2026-05: Subscription / paywall gating ──────────────────────
+  // `story.access.full_access` from the generate response is the source of
+  // truth (backend already truncates the payload for free users). We keep a
+  // local mirror so the UI can react synchronously.
+  const [paywall, setPaywall] = useState({ open: false, reason: null });
+  const fullAccess = Boolean(story?.access?.full_access);
+  const previewOnly = Boolean(story?.access?.preview_only);
+
   // Speech
   const { playing, paused, currentScene, playScenes, pause, resume, stop } = useSpeech();
 
@@ -238,6 +247,39 @@ export default function BedtimeStoryBuilder() {
     }
     return () => document.body.classList.remove('bedtime-mode');
   }, [bedtimeMode]);
+
+  // ─── P0 2026-05: Block copy / save / print shortcuts for free users ──
+  // Frontend deterrent only — backend already withholds the full text.
+  useEffect(() => {
+    if (!story || fullAccess) return undefined;
+    const handler = (e) => {
+      const k = (e.key || '').toLowerCase();
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+      // Cmd/Ctrl + C, X, S, P, A
+      if (['c', 'x', 's', 'p', 'a'].includes(k)) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (k === 'c' || k === 'x') {
+          setPaywall({ open: true, reason: 'copy' });
+        } else if (k === 's' || k === 'p') {
+          setPaywall({ open: true, reason: 'download' });
+        }
+      }
+    };
+    const copyHandler = (e) => {
+      e.preventDefault();
+      setPaywall({ open: true, reason: 'copy' });
+    };
+    window.addEventListener('keydown', handler, true);
+    window.addEventListener('copy', copyHandler, true);
+    window.addEventListener('cut', copyHandler, true);
+    return () => {
+      window.removeEventListener('keydown', handler, true);
+      window.removeEventListener('copy', copyHandler, true);
+      window.removeEventListener('cut', copyHandler, true);
+    };
+  }, [story, fullAccess]);
 
   const fetchConfig = async () => {
     try {
@@ -301,6 +343,18 @@ export default function BedtimeStoryBuilder() {
     track('play_clicked');
     if (story?.scenes?.length) {
       playScenes(story.scenes);
+      // P0 2026-05: free users only get the first scene back from the
+      // backend. After playback ends, surface the paywall so they convert.
+      if (previewOnly) {
+        const previewCount = story.access?.preview_scenes || 1;
+        const total = story.access?.total_scenes || previewCount;
+        if (total > previewCount) {
+          // Fire roughly when the preview scene ends; if user stops sooner
+          // we still want the paywall to appear when they hit "Play" again.
+          // Approx 10 s per scene is plenty for the 1-scene preview.
+          setTimeout(() => setPaywall({ open: true, reason: 'play' }), Math.max(8000, (story.scenes[0]?.text?.length || 200) * 35));
+        }
+      }
     } else if (story?.script) {
       const chunks = story.script.split('\n\n').filter(Boolean);
       playScenes(chunks.map(t => ({ text: t })));
@@ -310,6 +364,10 @@ export default function BedtimeStoryBuilder() {
   const handleStop = () => stop();
 
   const copySection = (text, section) => {
+    if (!fullAccess) {
+      setPaywall({ open: true, reason: 'copy' });
+      return;
+    }
     navigator.clipboard?.writeText(text);
     setCopiedSection(section);
     toast.success('Copied!');
@@ -318,6 +376,10 @@ export default function BedtimeStoryBuilder() {
 
   const downloadStory = () => {
     if (!story) return;
+    if (!fullAccess) {
+      setPaywall({ open: true, reason: 'download' });
+      return;
+    }
     const content = [
       `# ${story.title || 'Bedtime Story'}`,
       `Character: ${story.metadata?.character || ''}`,
@@ -576,9 +638,21 @@ export default function BedtimeStoryBuilder() {
             </div>
 
             {/* Story Content — Scene by Scene */}
-            <div className={`rounded-2xl border overflow-hidden ${
-              bedtimeMode ? 'bg-[#0D1117] border-slate-800/50' : 'bg-slate-800/40 border-slate-700/50'
-            }`} data-testid="story-scenes">
+            <div
+              className={`rounded-2xl border overflow-hidden ${
+                bedtimeMode ? 'bg-[#0D1117] border-slate-800/50' : 'bg-slate-800/40 border-slate-700/50'
+              }`}
+              data-testid="story-scenes"
+              onContextMenu={fullAccess ? undefined : (e) => { e.preventDefault(); setPaywall({ open: true, reason: 'copy' }); }}
+              onCopy={fullAccess ? undefined : (e) => { e.preventDefault(); setPaywall({ open: true, reason: 'copy' }); }}
+              style={fullAccess ? undefined : {
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+                MozUserSelect: 'none',
+                msUserSelect: 'none',
+                WebkitTouchCallout: 'none',
+              }}
+            >
               {story.scenes?.length > 0 ? (
                 <div className="divide-y divide-slate-800/50">
                   {story.scenes.map((scene, idx) => (
@@ -635,6 +709,31 @@ export default function BedtimeStoryBuilder() {
                 </div>
               ) : null}
             </div>
+
+            {/* P0 2026-05: Preview banner shown when backend returned a
+                truncated payload for free users. */}
+            {previewOnly && (
+              <div
+                className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-indigo-500/30 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-indigo-500/10 px-4 py-3"
+                data-testid="preview-banner"
+              >
+                <div className="flex items-center gap-2 text-sm text-indigo-100">
+                  <Moon className="w-4 h-4 text-indigo-300 shrink-0" />
+                  <span>
+                    Showing the opening scene of{' '}
+                    <strong>{story.access?.total_scenes || '?'}</strong>. Subscribe to unlock the full story.
+                  </span>
+                </div>
+                <Button
+                  size="sm"
+                  className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full px-4 shrink-0"
+                  onClick={() => setPaywall({ open: true, reason: 'default' })}
+                  data-testid="preview-banner-cta"
+                >
+                  Unlock
+                </Button>
+              </div>
+            )}
 
             {/* Voice Notes + SFX (hidden in bedtime mode) */}
             {!bedtimeMode && (story.voice_notes?.length > 0 || story.sfx_cues?.length > 0) && (
@@ -718,6 +817,13 @@ export default function BedtimeStoryBuilder() {
           </div>
         )}
       </div>
+
+      {/* P0 2026-05 — Subscription paywall (free users only) */}
+      <BedtimePaywallModal
+        open={paywall.open}
+        reason={paywall.reason}
+        onClose={() => setPaywall({ open: false, reason: null })}
+      />
     </div>
   );
 }

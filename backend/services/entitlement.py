@@ -67,6 +67,53 @@ def has_premium_access(user: Optional[dict]) -> bool:
     return plan in _PREMIUM_PLANS
 
 
+def has_active_subscription(user: Optional[dict]) -> bool:
+    """True if the user has an active paid subscription doc (live billing).
+    Used by content gates that require *recurring* billing — e.g. Bedtime
+    Stories full payload, premium-only deliverables.
+
+    Triggered by `user.subscription.status == 'active'` and (if present)
+    `user.subscription.endDate` is in the future.
+    """
+    if not user:
+        return False
+    sub = user.get("subscription")
+    if not isinstance(sub, dict):
+        return False
+    if (sub.get("status") or "").lower() != "active":
+        return False
+    end = sub.get("endDate") or sub.get("end_date") or sub.get("expires_at")
+    if not end:
+        return True
+    try:
+        if isinstance(end, str):
+            end_dt = datetime.fromisoformat(end.replace("Z", "+00:00"))
+        else:
+            end_dt = end
+        if end_dt.tzinfo is None:
+            end_dt = end_dt.replace(tzinfo=timezone.utc)
+        return end_dt > datetime.now(timezone.utc)
+    except Exception:
+        return True
+
+
+def has_full_content_access(user: Optional[dict]) -> bool:
+    """Combined gate for full long-form content payloads (Bedtime Stories,
+    Story Series episodes, Comic exports). Returns True for:
+      * unlimited users (admin / owner / dev / qa / test / is_unlimited)
+      * premium subscription tier (creator / pro / studio / starter / premium)
+      * active recurring subscription document (any plan)
+    Returns False for free / preview / expired users.
+    """
+    if not user:
+        return False
+    return (
+        is_unlimited_user(user)
+        or has_premium_access(user)
+        or has_active_subscription(user)
+    )
+
+
 def require_credits(user: Optional[dict], cost: int, *, feature: str = "this feature") -> None:
     """Canonical credit gate. Raises HTTPException(402) if insufficient.
     No-op for unlimited users.

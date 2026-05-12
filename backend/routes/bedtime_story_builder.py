@@ -16,6 +16,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from shared import get_current_user, get_admin_user, db
+from services.entitlement import has_full_content_access
 
 logger = logging.getLogger("creatorstudio")
 router = APIRouter(prefix="/bedtime-story-builder", tags=["Bedtime Story Builder"])
@@ -359,8 +360,51 @@ SFX_CUES = {
 
 
 # =============================================================================
-# DATABASE SEEDING
+# ACCESS GATE — Truncate full payload for non-subscribers
 # =============================================================================
+
+def _apply_access_gate(result: Dict[str, Any], user: dict) -> Dict[str, Any]:
+    """Mutates the story payload based on user entitlement.
+
+    Subscribers / admin / unlimited users → full payload + access.full_access=True.
+    Free users → ONLY the first scene is exposed; script/voice_notes/sfx_cues are
+    truncated so the full text never leaves the backend. Frontend MUST render
+    from `access` flags.
+    """
+    scenes = list(result.get("scenes") or [])
+    total = len(scenes)
+    if has_full_content_access(user):
+        result["access"] = {
+            "full_access": True,
+            "preview_only": False,
+            "upgrade_required": False,
+            "total_scenes": total,
+            "preview_scenes": total,
+        }
+        return result
+
+    # Free / non-subscriber → preview-only payload
+    preview_scenes = scenes[:1]
+    preview_text = preview_scenes[0].get("text", "") if preview_scenes else ""
+    voice_notes = result.get("voice_notes") or []
+    sfx_cues = result.get("sfx_cues") or []
+
+    result["scenes"] = preview_scenes
+    result["script"] = preview_text
+    result["voice_notes"] = voice_notes[:1]
+    result["sfx_cues"] = sfx_cues[:1]
+    result["access"] = {
+        "full_access": False,
+        "preview_only": True,
+        "upgrade_required": True,
+        "total_scenes": total,
+        "preview_scenes": len(preview_scenes),
+        "upgrade_message": "Subscribe to unlock the full story, download, and copy.",
+    }
+    return result
+
+
+
 
 async def seed_bedtime_story_data():
     """Seed default data if collections are empty"""
@@ -695,6 +739,12 @@ async def generate_story(
         # Normalize to guarantee structured scenes
         result = normalize_story(result)
 
+        # ─── Access gate (P0 2026-05) ────────────────────────────────────
+        # Subscribers / admin / unlimited users get the full payload.
+        # Free users get ONLY the first scene + access flags; the rest of
+        # the story text never leaves the backend.
+        result = _apply_access_gate(result, user)
+
         # Get updated balance
         updated_user = await db.users.find_one({"id": user_id}, {"_id": 0, "credits": 1})
         remaining = updated_user.get("credits", 0) if updated_user else 0
@@ -734,8 +784,15 @@ async def export_story(
     format: str = "txt",
     user: dict = Depends(get_current_user)
 ):
-    """Export story as text or PDF"""
-    
+    """Export story as text or PDF — premium / subscriber / admin only."""
+
+    # ─── Access gate (P0 2026-05) — block free users at the API edge ───
+    if not has_full_content_access(user):
+        raise HTTPException(
+            status_code=402,
+            detail="Subscribe to download or export your story.",
+        )
+
     if format == "pdf":
         # Check credits for PDF
         user_id = user.get("id", "")
