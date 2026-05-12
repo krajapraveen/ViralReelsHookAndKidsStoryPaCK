@@ -438,10 +438,29 @@ const STORY_TEMPLATES = {
   ]
 };
 
+// ─── Admin / Unlimited detection (defense-in-depth — mirrors backend
+// services/entitlement.is_unlimited_user). Read from localStorage on mount
+// so even a transient /credits/balance failure cannot trap admins in the
+// purchase-credits UI loop. — P0 fix 2026-05
+const _UNLIMITED_ROLES = ['admin', 'owner', 'dev', 'qa', 'qa_user', 'test'];
+function _detectUnlimitedFromLocalStorage() {
+  try {
+    const u = JSON.parse(localStorage.getItem('user') || '{}');
+    const role = String(u?.role || '').toLowerCase();
+    return Boolean(u?.is_unlimited) || _UNLIMITED_ROLES.includes(role);
+  } catch (_) {
+    return false;
+  }
+}
+
 export default function ComicStorybookBuilder() {
   // User state
   const [credits, setCredits] = useState(null);
   const [userPlan, setUserPlan] = useState('free');
+  // 2026-05 P0 — frontend mirror of backend is_unlimited_user. Initialised
+  // synchronously from localStorage so the wizard never blocks admin/QA
+  // even if /api/credits/balance fails or is delayed.
+  const [isUnlimitedUser, setIsUnlimitedUser] = useState(_detectUnlimitedFromLocalStorage);
   
   // Wizard state
   const [step, setStep] = useState(1);
@@ -562,6 +581,11 @@ export default function ComicStorybookBuilder() {
     try {
       const res = await api.get('/api/credits/balance');
       setCredits(res.data.credits);
+      // Defense-in-depth: also sync unlimited flag from server response so
+      // the frontend gate cannot trap users the backend treats as unlimited.
+      if (res.data.is_unlimited === true || res.data.unlimited === true) {
+        setIsUnlimitedUser(true);
+      }
     } catch (e) {
       console.error('Failed to fetch credits');
     }
@@ -570,7 +594,12 @@ export default function ComicStorybookBuilder() {
   const fetchUserPlan = async () => {
     try {
       const res = await api.get('/api/user/profile');
-      setUserPlan(res.data.user?.plan || 'free');
+      const u = res.data.user || {};
+      setUserPlan(u.plan || 'free');
+      const role = String(u.role || '').toLowerCase();
+      if (u.is_unlimited === true || _UNLIMITED_ROLES.includes(role)) {
+        setIsUnlimitedUser(true);
+      }
     } catch (e) {
       console.error('Failed to fetch user plan');
     }
@@ -776,7 +805,9 @@ export default function ComicStorybookBuilder() {
     }
     
     const cost = calculateCost();
-    if (credits < cost) {
+    // Skip credit gate entirely for unlimited / admin / QA users — backend
+    // enforces the same bypass server-side (defense in depth).
+    if (!isUnlimitedUser && credits !== null && credits < cost) {
       toast.error(`Insufficient credits. Need ${cost} credits.`);
       setShowUpsell(true);
       return;
@@ -819,8 +850,8 @@ export default function ComicStorybookBuilder() {
   const handleDownload = async (type = 'pdf') => {
     if (!job?.id) return;
     
-    // Check if user is free and trying to download
-    if (userPlan === 'free' && !job.purchased) {
+    // Check if user is free and trying to download (unlimited/admin/QA bypass)
+    if (userPlan === 'free' && !job.purchased && !isUnlimitedUser) {
       setShowUpsell(true);
       return;
     }
@@ -1524,8 +1555,8 @@ export default function ComicStorybookBuilder() {
           </div>
           <div className="text-right">
             <p className="text-slate-400 text-sm">Your Balance</p>
-            <p className={`text-xl font-bold ${(credits || 0) >= calculateCost() ? 'text-green-400' : credits === null ? 'text-slate-400' : 'text-red-400'}`} data-testid="storybook-balance-display">
-              {credits === null ? <span className="inline-block w-16 h-6 bg-slate-700 rounded animate-pulse" /> : credits >= 999999 ? '∞ Unlimited' : `${credits.toLocaleString()} credits`}
+            <p className={`text-xl font-bold ${isUnlimitedUser ? 'text-emerald-400' : (credits || 0) >= calculateCost() ? 'text-green-400' : credits === null ? 'text-slate-400' : 'text-red-400'}`} data-testid="storybook-balance-display">
+              {isUnlimitedUser ? '∞ Unlimited' : credits === null ? <span className="inline-block w-16 h-6 bg-slate-700 rounded animate-pulse" /> : credits >= 999999 ? '∞ Unlimited' : `${credits.toLocaleString()} credits`}
             </p>
           </div>
         </div>
@@ -1630,8 +1661,8 @@ export default function ComicStorybookBuilder() {
                 </div>
                 <div className="text-right">
                   <p className="text-slate-400 text-xs">Your Balance</p>
-                  <p className={`text-lg font-bold ${(credits || 0) >= calculateCost() ? 'text-green-400' : credits === null ? 'text-slate-400' : 'text-red-400'}`} data-testid="storybook-balance-display">
-                    {credits === null ? <span className="inline-block w-16 h-6 bg-slate-700 rounded animate-pulse" /> : credits >= 999999 ? 'Unlimited' : `${credits.toLocaleString()} credits`}
+                  <p className={`text-lg font-bold ${isUnlimitedUser ? 'text-emerald-400' : (credits || 0) >= calculateCost() ? 'text-green-400' : credits === null ? 'text-slate-400' : 'text-red-400'}`} data-testid="storybook-balance-display">
+                    {isUnlimitedUser ? '∞ Unlimited' : credits === null ? <span className="inline-block w-16 h-6 bg-slate-700 rounded animate-pulse" /> : credits >= 999999 ? 'Unlimited' : `${credits.toLocaleString()} credits`}
                   </p>
                 </div>
               </div>
@@ -1647,7 +1678,7 @@ export default function ComicStorybookBuilder() {
               </div>
               <Button 
                 onClick={generateComicBook}
-                disabled={loading || credits < calculateCost()}
+                disabled={loading || (!isUnlimitedUser && credits !== null && credits < calculateCost())}
                 className="w-full py-5 text-base bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
                 data-testid="generate-btn"
               >
@@ -1927,7 +1958,7 @@ export default function ComicStorybookBuilder() {
             </div>
             <div className="flex items-center gap-4">
               <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-full px-4 py-2">
-                <span className="text-purple-300 font-medium" data-testid="storybook-credits">{credits === null ? <span className="inline-block w-12 h-4 bg-purple-500/20 rounded animate-pulse" /> : credits >= 999999 ? '∞ Unlimited' : `${credits.toLocaleString()} Credits`}</span>
+                <span className="text-purple-300 font-medium" data-testid="storybook-credits">{isUnlimitedUser ? '∞ Unlimited' : credits === null ? <span className="inline-block w-12 h-4 bg-purple-500/20 rounded animate-pulse" /> : credits >= 999999 ? '∞ Unlimited' : `${credits.toLocaleString()} Credits`}</span>
               </div>
             </div>
           </div>
@@ -1993,7 +2024,7 @@ export default function ComicStorybookBuilder() {
         onSubmitSuccess={() => setShowRating(false)}
       />
       
-      {showUpsell && (
+      {showUpsell && !isUnlimitedUser && (
         <UpsellModal
           isOpen={showUpsell}
           credits={0}
