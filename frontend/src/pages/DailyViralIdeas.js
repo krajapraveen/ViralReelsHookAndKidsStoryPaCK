@@ -2,8 +2,24 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Sparkles, Copy, Check, TrendingUp, Flame, Zap, Download, FileText, Image, Package, ChevronRight, RefreshCw, Clock, ArrowRight, Volume2, Video, MessageSquare, ThumbsUp, ThumbsDown, RotateCw, ShieldAlert, Heart, Lock } from 'lucide-react';
 import { toast } from 'sonner';
+import BedtimePaywallModal from '../components/BedtimePaywallModal';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+
+// ─── P0 2026-05 — Admin / unlimited / subscription detection.
+// Mirrors backend services/entitlement.has_full_content_access().
+const _UNLIMITED_ROLES = ['admin', 'owner', 'dev', 'qa', 'qa_user', 'test'];
+function _detectFullAccessFromLocalStorage() {
+  try {
+    const u = JSON.parse(localStorage.getItem('user') || '{}');
+    const role = String(u?.role || '').toLowerCase();
+    if (u?.is_unlimited === true) return true;
+    if (_UNLIMITED_ROLES.includes(role)) return true;
+    const sub = u?.subscription;
+    if (sub && String(sub.status || '').toLowerCase() === 'active') return true;
+    return false;
+  } catch (_) { return false; }
+}
 
 const PHASE_ICONS = {
   planning: Clock,
@@ -422,17 +438,46 @@ const ProgressView = ({ jobId, onComplete, ideaText, ideaNiche }) => {
 };
 
 // ==================== RESULT VIEW ====================
-const ResultView = ({ jobId, onGoToFeed }) => {
+const ResultView = ({ jobId, onGoToFeed, canAccess, onPaywall }) => {
   const [assets, setAssets] = useState([]);
   const [job, setJob] = useState(null);
   const [copied, setCopied] = useState(null);
   const [loading, setLoading] = useState(true);
+  // P0 2026-05 — backend's `access.full_access` is the source of truth
+  // (it factors role + subscription + ownership). Local `canAccess` is
+  // defense-in-depth.
+  const [serverFullAccess, setServerFullAccess] = useState(null);
+  const fullAccess = canAccess || serverFullAccess === true;
 
   useEffect(() => {
     fetchAssets();
   }, [jobId]);
 
-  // Media protection now handled globally by ContentProtectionWrapper
+  // P0 2026-05 — Block keyboard copy/save/print shortcuts for free users
+  // while the result page is shown. Frontend deterrent only; the real
+  // protection is the backend 402 on /download/issue.
+  useEffect(() => {
+    if (fullAccess) return undefined;
+    const onKey = (e) => {
+      const k = (e.key || '').toLowerCase();
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (['c', 'x', 's', 'p', 'a'].includes(k)) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (k === 's' || k === 'p') onPaywall?.('download');
+        else onPaywall?.('copy');
+      }
+    };
+    const onCopy = (e) => { e.preventDefault(); onPaywall?.('copy'); };
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('copy', onCopy, true);
+    window.addEventListener('cut', onCopy, true);
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('copy', onCopy, true);
+      window.removeEventListener('cut', onCopy, true);
+    };
+  }, [fullAccess, onPaywall]);
 
   const fetchAssets = async () => {
     try {
@@ -444,6 +489,10 @@ const ResultView = ({ jobId, onGoToFeed }) => {
       if (assetsRes.ok) {
         const data = await assetsRes.json();
         setAssets(data.assets || []);
+        // Sync access flag from server (canonical).
+        if (data.access && typeof data.access.full_access === 'boolean') {
+          setServerFullAccess(data.access.full_access);
+        }
       }
       if (jobRes.ok) setJob(await jobRes.json());
     } catch (e) { console.error(e); }
@@ -451,6 +500,7 @@ const ResultView = ({ jobId, onGoToFeed }) => {
   };
 
   const copyContent = (text, id) => {
+    if (!fullAccess) { onPaywall?.('copy'); return; }
     navigator.clipboard.writeText(text);
     setCopied(id);
     setTimeout(() => setCopied(null), 2000);
@@ -464,6 +514,12 @@ const ResultView = ({ jobId, onGoToFeed }) => {
   };
 
   const downloadFile = async (assetId) => {
+    // P0 2026-05 — Subscription gate (defense-in-depth; backend also returns 402).
+    if (!fullAccess) { onPaywall?.('download'); return; }
+    if (!assetId) {
+      toast.error('Download asset is not available yet. Please try again.');
+      return;
+    }
     try {
       const authToken = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/api/media/download-token`, {
@@ -471,7 +527,15 @@ const ResultView = ({ jobId, onGoToFeed }) => {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
         body: JSON.stringify({ asset_id: assetId }),
       });
-      const data = await res.json();
+      if (res.status === 402 || res.status === 403) {
+        onPaywall?.('download');
+        return;
+      }
+      if (res.status === 404) {
+        toast.error('Download asset is not available. Please regenerate.');
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
       if (data.url) {
         const link = document.createElement('a');
         link.href = `${API_URL}${data.url}`;
@@ -481,10 +545,10 @@ const ResultView = ({ jobId, onGoToFeed }) => {
         document.body.removeChild(link);
         toast.success('Download started');
       } else {
-        toast.error('Download failed');
+        toast.error('Download failed. Please try again.');
       }
     } catch (e) {
-      toast.error('Download failed');
+      toast.error('Download failed. Please try again.');
     }
   };
 
@@ -504,6 +568,8 @@ const ResultView = ({ jobId, onGoToFeed }) => {
   const shareUrl = `${window.location.origin}/viral/${jobId}`;
 
   const handleShare = async (platform) => {
+    // P0 2026-05 — Message / Post / Copy Link gated.
+    if (!fullAccess) { onPaywall?.(platform === 'copy' ? 'copy' : 'share'); return; }
     const hookText = hooks?.content?.split('\n')[0] || job?.progress?.message || '';
     // Track share event
     try {
@@ -515,8 +581,10 @@ const ResultView = ({ jobId, onGoToFeed }) => {
     } catch (e) { /* silent */ }
 
     if (platform === 'whatsapp') {
+      if (!shareUrl) { toast.error('Share link not available yet.'); return; }
       window.open(`https://wa.me/?text=${encodeURIComponent(`${hookText}\n\n${shareUrl}?ref=wa`)}`, '_blank');
     } else if (platform === 'social') {
+      if (!shareUrl) { toast.error('Share link not available yet.'); return; }
       window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(hookText)}&url=${encodeURIComponent(shareUrl + '?ref=tw')}`, '_blank');
     } else if (platform === 'copy') {
       navigator.clipboard.writeText(shareUrl);
@@ -525,15 +593,21 @@ const ResultView = ({ jobId, onGoToFeed }) => {
   };
 
   const handleUnlock = async () => {
+    // P0 2026-05 — Unlock now requires a subscription, not credits.
+    if (!fullAccess) { onPaywall?.('default'); return; }
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/api/viral-ideas/jobs/${jobId}/unlock`, {
         method: 'POST', headers: { Authorization: `Bearer ${token}` },
       });
+      if (res.status === 402 || res.status === 403) {
+        onPaywall?.('default');
+        return;
+      }
       const data = await res.json();
       if (res.ok) {
         toast.success('Pack unlocked!');
-        fetchAssets(); // Reload with full content
+        fetchAssets();
       } else {
         toast.error(data.detail || 'Failed to unlock');
       }
@@ -541,7 +615,19 @@ const ResultView = ({ jobId, onGoToFeed }) => {
   };
 
   return (
-    <div className="space-y-6" data-testid="result-view">
+    <div
+      className="space-y-6"
+      data-testid="result-view"
+      onContextMenu={fullAccess ? undefined : (e) => { e.preventDefault(); onPaywall?.('copy'); }}
+      onDragStart={fullAccess ? undefined : (e) => e.preventDefault()}
+      style={fullAccess ? undefined : {
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        MozUserSelect: 'none',
+        msUserSelect: 'none',
+        WebkitTouchCallout: 'none',
+      }}
+    >
       {/* Success Banner */}
       <div className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 rounded-2xl p-5 text-center">
         <Check className="w-10 h-10 text-emerald-400 mx-auto mb-2" />
@@ -556,14 +642,14 @@ const ResultView = ({ jobId, onGoToFeed }) => {
             <Lock className="w-5 h-5 text-orange-400" />
             <span className="text-white font-semibold">This pack is locked</span>
           </div>
-          <p className="text-sm text-slate-400 mb-4">Unlock to download full content, remove watermarks, and access all assets.</p>
+          <p className="text-sm text-slate-400 mb-4">{fullAccess ? 'Unlock to access the full content.' : 'Subscribe to unlock the full pack, downloads, and sharing.'}</p>
           <button
             onClick={handleUnlock}
             className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-400 hover:to-red-400 text-white font-semibold rounded-xl shadow-lg shadow-orange-500/20 transition-all"
             data-testid="unlock-pack-btn"
           >
             <Lock className="w-4 h-4" />
-            Unlock This Pack (5 credits)
+            {fullAccess ? 'Unlock Full Pack' : 'Subscribe to unlock'}
           </button>
         </div>
       )}
@@ -956,6 +1042,9 @@ const DailyViralIdeas = () => {
   const [generating, setGenerating] = useState(false);
   const [activeIdea, setActiveIdea] = useState('');
   const [activeNiche, setActiveNiche] = useState('');
+  // P0 2026-05 — Subscription gate state
+  const [canAccess, setCanAccess] = useState(_detectFullAccessFromLocalStorage);
+  const [paywall, setPaywall] = useState({ open: false, reason: null });
 
   useEffect(() => {
     const jobParam = searchParams.get('job');
@@ -963,9 +1052,28 @@ const DailyViralIdeas = () => {
       setActiveJobId(jobParam);
       setView('result');
     }
+    // Defense-in-depth: hydrate access flag from /api/credits/balance.
+    (async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        const r = await fetch(`${API_URL}/api/credits/balance`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (r.ok) {
+          const d = await r.json();
+          if (d?.is_unlimited === true || d?.unlimited === true) setCanAccess(true);
+        }
+      } catch (_) { /* noop */ }
+    })();
   }, [searchParams]);
 
   const handleGenerate = async (idea, niche) => {
+    // P0 2026-05 — Block free users at the surface; backend enforces too.
+    if (!canAccess) {
+      setPaywall({ open: true, reason: 'default' });
+      return;
+    }
     setGenerating(true);
     try {
       const token = localStorage.getItem('token');
@@ -974,7 +1082,11 @@ const DailyViralIdeas = () => {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ idea, niche }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 402 || res.status === 403) {
+        setPaywall({ open: true, reason: 'default' });
+        return;
+      }
       if (res.ok && data.job_id) {
         setActiveIdea(idea);
         setActiveNiche(niche);
@@ -1029,15 +1141,22 @@ const DailyViralIdeas = () => {
           </div>
           <div className="flex items-center gap-2 text-xs text-slate-500">
             <Sparkles className="w-3.5 h-3.5" />
-            5 credits / pack
+            {canAccess ? 'Subscriber access' : 'Subscribe to generate'}
           </div>
         </div>
 
         {/* View Router */}
-        {view === 'feed' && <FeedView onGenerate={handleGenerate} generating={generating} />}
+        {view === 'feed' && <FeedView onGenerate={handleGenerate} generating={generating} canAccess={canAccess} onPaywall={(reason) => setPaywall({ open: true, reason: reason || 'default' })} />}
         {view === 'progress' && activeJobId && <ProgressView jobId={activeJobId} onComplete={handleJobComplete} ideaText={activeIdea} ideaNiche={activeNiche} />}
-        {view === 'result' && activeJobId && <ResultView jobId={activeJobId} onGoToFeed={goToFeed} />}
+        {view === 'result' && activeJobId && <ResultView jobId={activeJobId} onGoToFeed={goToFeed} canAccess={canAccess} onPaywall={(reason) => setPaywall({ open: true, reason: reason || 'default' })} />}
       </div>
+
+      {/* P0 2026-05 — Subscription paywall */}
+      <BedtimePaywallModal
+        open={paywall.open}
+        reason={paywall.reason}
+        onClose={() => setPaywall({ open: false, reason: null })}
+      />
     </div>
   );
 };

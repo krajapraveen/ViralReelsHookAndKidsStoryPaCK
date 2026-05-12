@@ -282,6 +282,12 @@ async def _check_entitlement(user: dict, asset: dict) -> dict:
     role = user.get("role", "").upper()
     if role in ("ADMIN", "SUPERADMIN"):
         return {"allowed": True, "reason": "admin_bypass", "is_admin": True}
+    # ─── P0 2026-05 — Subscription gate for viral asset downloads ────
+    # Owner-only access is no longer enough — viral content packs require
+    # an active subscription. Backend is canonical source of truth.
+    from services.entitlement import has_full_content_access
+    if not has_full_content_access(user):
+        return {"allowed": False, "reason": "subscription_required"}
     job_id = asset.get("job_id")
     if job_id:
         job = await db.viral_jobs.find_one({"job_id": job_id}, {"_id": 0, "user_id": 1, "locked": 1})
@@ -365,6 +371,8 @@ async def issue_download_token(req: DownloadIssueRequest, request: Request, user
     entitlement = await _check_entitlement(user, asset)
     if not entitlement["allowed"]:
         await log_media_event(user_id, "download_denied", ip, ua, asset_id=req.asset_id, reason=entitlement["reason"])
+        if entitlement["reason"] == "subscription_required":
+            raise HTTPException(status_code=402, detail="Subscribe to download viral content.")
         if entitlement["reason"] == "pack_locked":
             raise HTTPException(status_code=402, detail="Pack is locked. Unlock it first.")
         elif entitlement["reason"] == "not_owner":

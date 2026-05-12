@@ -12,6 +12,7 @@ import logging
 from shared import db, get_current_user
 from services.viral import viral_job_service as jobs
 from services.viral.task_dispatch import dispatch_task, Q_ORCHESTRATOR, Q_REPAIR
+from services.entitlement import has_full_content_access
 
 logger = logging.getLogger("viral.routes")
 router = APIRouter(prefix="/viral-ideas", tags=["Viral Ideas V2"])
@@ -89,39 +90,26 @@ async def get_daily_feed(niche: Optional[str] = None):
 @router.post("/generate-bundle", response_model=GenerateBundleResponse)
 async def generate_bundle(req: GenerateBundleRequest, user: dict = Depends(get_current_user)):
     user_id = str(user["id"])
-    
+
+    # ─── P0 2026-05 — Subscriber-only generation ─────────────────────
+    # Viral Videos are a subscriber-only feature. Free users cannot start a
+    # new generation — they must subscribe first. This was previously
+    # "first generation is free", which leaked the full pipeline cost.
+    if not has_full_content_access(user):
+        raise HTTPException(
+            status_code=402,
+            detail="Subscribe to generate viral content packs.",
+        )
+
     # Safety pipeline — sanitize user inputs
     from services.rewrite_engine import check_and_rewrite
     safety = await check_and_rewrite(user_id, "viral_ideas", req, ["idea", "niche"])
     if safety.blocked:
-        from fastapi import HTTPException
         raise HTTPException(status_code=400, detail=safety.block_reason)
-    
-    credit_cost = 5
 
-    # Count user's previous generations
-    gen_count = await db.viral_jobs.count_documents({"user_id": user_id})
-    is_first_gen = gen_count == 0
+    # Subscribers / admin / unlimited generate fully unlocked packs at no
+    # credit charge (the subscription is the entitlement).
     locked = False
-
-    if is_first_gen:
-        # First generation is FREE — no credits deducted
-        logger.info(f"[PAYWALL] First free generation for user {user_id}")
-    else:
-        # Subsequent: check credits
-        if user.get("credits", 0) >= credit_cost:
-            await db.users.update_one({"id": user["id"]}, {"$inc": {"credits": -credit_cost}})
-            await db.credit_transactions.insert_one({
-                "user_id": user_id,
-                "amount": -credit_cost,
-                "type": "viral_bundle",
-                "description": f"Viral content pack: {req.idea[:60]}",
-                "created_at": datetime.now(timezone.utc),
-            })
-        else:
-            # No credits — generate anyway but LOCK the output
-            locked = True
-            logger.info(f"[PAYWALL] Locked generation for user {user_id} (no credits)")
 
     result = await jobs.create_job(db, user_id, req.idea, req.niche, locked=locked)
     job_id = result["job_id"]
@@ -133,13 +121,13 @@ async def generate_bundle(req: GenerateBundleRequest, user: dict = Depends(get_c
     })
 
     # Track metric
-    await _track_metric("generation", user_id, {"job_id": job_id, "is_first": is_first_gen, "locked": locked, "niche": req.niche})
+    await _track_metric("generation", user_id, {"job_id": job_id, "is_first": False, "locked": locked, "niche": req.niche})
 
     share_url = f"/viral/{job_id}"
 
     return GenerateBundleResponse(
         job_id=job_id, status="pending",
-        message="Your first free pack!" if is_first_gen else "Your content pack is being created!",
+        message="Your content pack is being created!",
         locked=locked, share_url=share_url,
     )
 
@@ -186,7 +174,11 @@ async def get_job_assets(job_id: str, user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Access denied")
 
     assets = await jobs.get_assets(db, job_id)
-    locked = job.get("locked", False)
+    # ─── P0 2026-05 — Free users always see the LOCKED teaser view,
+    # regardless of the job's own locked flag. This is the canonical
+    # gate for content visibility — backend is source of truth.
+    full_access = has_full_content_access(user)
+    locked = (not full_access) or job.get("locked", False)
 
     from routes.media_proxy import generate_secure_url
     formatted = []
@@ -210,6 +202,13 @@ async def get_job_assets(job_id: str, user: dict = Depends(get_current_user)):
         "status": job["status"],
         "locked": locked,
         "assets": formatted,
+        "access": {
+            "full_access": full_access,
+            "can_download": full_access,
+            "can_share": full_access,
+            "upgrade_required": not full_access,
+            "upgrade_message": None if full_access else "Subscribe to unlock the full viral pack, downloads, and sharing.",
+        },
     }
 
 
@@ -258,23 +257,22 @@ async def unlock_pack(job_id: str, user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Job not found")
     if job["user_id"] != str(user["id"]):
         raise HTTPException(status_code=403, detail="Access denied")
-    if not job.get("locked", False):
-        return {"success": True, "message": "Pack is already unlocked"}
 
-    credit_cost = 5
-    from services.entitlement import require_credits
-    require_credits(user, cost=credit_cost)
-    await db.users.update_one({"id": user["id"]}, {"$inc": {"credits": -credit_cost}})
-    await db.credit_transactions.insert_one({
-        "user_id": str(user["id"]),
-        "amount": -credit_cost,
-        "type": "viral_unlock",
-        "description": f"Unlocked viral pack: {job['idea'][:60]}",
-        "created_at": datetime.now(timezone.utc),
-    })
-    await db.viral_jobs.update_one({"job_id": job_id}, {"$set": {"locked": False}})
+    # ─── P0 2026-05 — Subscription-only unlock ───────────────────────
+    # Credit-based unlock has been removed. Subscribers / admin /
+    # unlimited get full access automatically (the entitlement gate in
+    # /jobs/:id/assets returns the full payload). Free users must
+    # subscribe to view.
+    if not has_full_content_access(user):
+        raise HTTPException(
+            status_code=402,
+            detail="Subscribe to unlock the full viral pack.",
+        )
 
-    await _track_metric("free_to_paid", str(user["id"]), {"job_id": job_id})
+    if job.get("locked", False):
+        await db.viral_jobs.update_one({"job_id": job_id}, {"$set": {"locked": False}})
+        await _track_metric("free_to_paid", str(user["id"]), {"job_id": job_id})
+
     return {"success": True, "message": "Pack unlocked!"}
 
 

@@ -1404,3 +1404,40 @@ db.idempotency_keys.deleteMany({ status: { $in: ["FAILED", "PENDING"] } })
 - Frontend `testing_agent_v3_fork` iteration_543 — **22/22 PASS** across API + code review (canAccessFull logic, preview banner, blur, lock overlay, download/copy gating, right-click and keyboard shortcuts).
 
 **Honesty**: Screenshots cannot be prevented. The UI does not claim to. Protection model: backend preview truncation + 402 download gate (security) + UX deterrents (blur / no select / no context menu / no drag / blocked shortcuts) + paywall modal (conversion).
+
+## 2026-05-12 — P0/P1 Viral Videos (Daily Viral Idea Drop): Subscriber-Only Gate + Broken Actions
+
+**Bugs fixed**:
+- `/api/viral-ideas/generate-bundle` was generating a free pack for every user's first attempt and credit-charged paywalled packs after — i.e. it leaked the full LLM pipeline to anonymous-grade traffic.
+- `/api/viral-ideas/jobs/:id/assets` exposed full content based on the job's own `locked` flag, regardless of whether the requester held a subscription.
+- `/api/viral-ideas/jobs/:id/unlock` accepted a 5-credit unlock — users could grind credits to bypass the subscription gate.
+- `/api/media/download-token` allowed any owner of a viral asset to download — bypassing subscription on a route the frontend doesn't expose openly.
+- `Message` / `Post` / `Download ZIP` / `Copy Link` on the result page worked for any logged-in user with no entitlement check, no missing-asset toast, and silently no-op'd on bad jobIds.
+- No anti-copy deterrents on the result view.
+
+**Backend**:
+- `routes/viral_ideas_v2.py`:
+  - `/generate-bundle` now **requires `has_full_content_access`** and returns **HTTP 402** for free users (`"Subscribe to generate viral content packs."`). The "first generation is free" path is removed.
+  - `/jobs/:id/assets` returns an `access` block (`full_access`, `can_download`, `can_share`, `upgrade_required`, `upgrade_message`). For non-premium users, the response is force-locked server-side (`locked=true`) regardless of the job's own flag, so the existing `_format_asset()` teaser code path takes effect — the full content text never leaves the backend.
+  - `/jobs/:id/unlock` is now **subscription-gated**: free users get HTTP 402; subscribers/admin/unlimited unlock the pack for free (no credit charge). Removes the credit-grind escape hatch.
+- `routes/media_proxy.py::_check_entitlement` now also requires `has_full_content_access`. Non-subscribers hitting `/api/media/download/issue` (and the legacy `/download-token`) get HTTP 402 with `"Subscribe to download viral content."`.
+
+**Frontend** (`pages/DailyViralIdeas.js`):
+- New `canAccess` (from localStorage role + `subscription.status === 'active'` + `/api/credits/balance.is_unlimited`) and `fullAccess` (canonical, also synced from server `access.full_access`).
+- `handleGenerate` short-circuits to the paywall for free users (defense-in-depth; backend also returns 402).
+- `downloadFile`, `handleShare` (Message/Post/Copy), `copyContent`, `handleUnlock` all gate on `fullAccess` → open `BedtimePaywallModal`. 402/403 backend responses also route to the paywall instead of toasting "Download failed".
+- Result wrapper has `onContextMenu` + `onDragStart` + inline `userSelect:none` for free users. New keydown effect blocks Cmd/Ctrl + C / X / S / P / A and `copy` / `cut` events while the result view is visible for non-premium.
+- Locked-banner CTA copy now reads `"Subscribe to unlock"` for free users (was "Unlock This Pack (5 credits)" — the credit-unlock path is gone).
+- Header counter switched from "5 credits / pack" to `Subscriber access` / `Subscribe to generate`.
+- Reuses `BedtimePaywallModal` for the 4 reasons (download / copy / share / default).
+
+**Tests** (`tests/test_viral_ideas_access_gate_2026_05.py`) — **7/7 PASS**:
+1. Free user `/generate-bundle` → 402.
+2. Admin `/generate-bundle` → 200 + job_id.
+3. Free user `/jobs/:id/assets` → `access.full_access=false`, `locked=true`, asset text truncated to teaser.
+4. Admin `/jobs/:id/assets` → `access.full_access=true`, `locked=false`, full content visible.
+5. Free user `/jobs/:id/unlock` → 402.
+6. Free user `/media/download-token` → 402.
+7. Admin `/media/download-token` → 200 + single-use URL.
+
+**Honesty**: Screenshots cannot be prevented and the UI does not claim to. Protection = backend subscription gate (security) + UX deterrents (no select / no context menu / no drag / blocked shortcuts) + paywall modal (conversion).
