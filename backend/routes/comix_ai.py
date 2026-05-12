@@ -194,9 +194,8 @@ async def generate_comic_character(
     # Calculate cost
     cost = COMIC_CREDITS["character_portrait"] if character_type == "portrait" else COMIC_CREDITS["character_fullbody"]
     
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost)
     # Validate file
     if not photo.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image (PNG, JPG, WEBP)")
@@ -377,9 +376,8 @@ async def generate_comic_panel(
     # Calculate cost
     cost = COMIC_CREDITS["panel_single"] if panel_count == 1 else COMIC_CREDITS["panel_multi"]
     
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost)
     job_id = str(uuid.uuid4())
     style_info = COMIC_STYLES[style]
     layout_info = PANEL_LAYOUTS[panel_count]
@@ -524,9 +522,8 @@ async def generate_comic_story(
     story_prompt = safety.clean.get("story_prompt", story_prompt)
     
     cost = COMIC_CREDITS["story_mode"]
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost)
     # Process character images if provided
     character_data = []
     if character_images:

@@ -350,9 +350,8 @@ async def generate_storybook(
     # Calculate cost
     cost = calculate_credits(page_count)
     
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits for {page_count} pages.")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost)
     # Create job
     job_id = str(uuid.uuid4())
     

@@ -57,8 +57,8 @@ async def convert_reel_to_carousel(
         raise HTTPException(status_code=404, detail="No reel found. Generate a reel first!")
     
     cost = CONVERSION_COSTS["reel_to_carousel"]
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost, feature="convert tool")
     
     reel_data = generation.get("outputJson", {})
     script = reel_data.get("script", {})
@@ -152,8 +152,8 @@ async def convert_reel_to_youtube(
         raise HTTPException(status_code=404, detail="No reel found. Generate a reel first!")
     
     cost = CONVERSION_COSTS["reel_to_youtube"]
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost, feature="convert tool")
     
     reel_data = generation.get("outputJson", {})
     script = reel_data.get("script", {})
@@ -246,8 +246,8 @@ async def convert_story_to_reel(
         raise HTTPException(status_code=404, detail="No story found. Generate a story first!")
     
     cost = CONVERSION_COSTS["story_to_reel"]
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost, feature="convert tool")
     
     story_data = generation.get("outputJson", {})
     title = story_data.get("title", "Story")
@@ -450,8 +450,8 @@ async def convert_text_to_story(
 ):
     """Convert any text to a kids story (10 credits)"""
     cost = CONVERSION_COSTS["text_to_story"]
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost, feature="convert tool")
     
     if len(text) < 10:
         raise HTTPException(status_code=400, detail="Text too short. Provide at least 10 characters.")
@@ -534,8 +534,8 @@ async def convert_text_to_reel(
 ):
     """Convert any text to a reel script (15 credits)"""
     cost = CONVERSION_COSTS["text_to_reel"]
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost, feature="convert tool")
     
     if len(text) < 10:
         raise HTTPException(status_code=400, detail="Text too short. Provide at least 10 characters.")

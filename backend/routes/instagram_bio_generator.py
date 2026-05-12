@@ -508,12 +508,8 @@ async def generate_bios(
     
     # Use whichever has more credits (user or wallet)
     current_credits = max(user_credits, wallet_credits)
-    if current_credits < CREDIT_COST:
-        raise HTTPException(
-            status_code=402,
-            detail=f"Insufficient credits. Required: {CREDIT_COST}, Available: {current_credits}"
-        )
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=CREDIT_COST)
     # Deduct credits BEFORE generation
     await db.wallets.update_one(
         {"userId": user["id"]},
@@ -599,9 +595,8 @@ async def download_bios(
     wallet = await db.wallets.find_one({"userId": user["id"]})
     current_credits = wallet.get("balanceCredits", wallet.get("availableCredits", 0))
     
-    if current_credits < DOWNLOAD_CREDIT_COST:
-        raise HTTPException(status_code=402, detail="Insufficient credits for download")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=DOWNLOAD_CREDIT_COST)
     # Deduct credit
     await db.wallets.update_one(
         {"userId": user["id"]},

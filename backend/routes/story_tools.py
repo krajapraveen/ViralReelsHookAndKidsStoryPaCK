@@ -250,8 +250,8 @@ async def generate_worksheet(generation_id: str, user: dict = Depends(get_curren
         raise HTTPException(status_code=404, detail="Story not found")
     
     # Check credits
-    if user.get("credits", 0) < 1:
-        raise HTTPException(status_code=400, detail="Insufficient credits")
+    from services.entitlement import require_credits
+    require_credits(user, cost=1, feature="story tool")
     
     story = generation.get("outputJson", {})
     
@@ -399,8 +399,8 @@ async def generate_printable_book(
             raise HTTPException(status_code=404, detail="Story not found")
         
         cost = 5
-        if user.get("credits", 0) < cost:
-            raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
+        from services.entitlement import require_credits
+        require_credits(user, cost=cost, feature="story tool")
         
         story = generation.get("outputJson", {})
         book_id = str(uuid.uuid4())

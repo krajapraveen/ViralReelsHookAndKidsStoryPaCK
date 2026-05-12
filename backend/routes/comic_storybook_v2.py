@@ -460,9 +460,14 @@ async def generate_comic_book(
         discount = {"creator": 0.8, "pro": 0.7, "studio": 0.6}.get(user_plan, 1.0)
         cost = int(cost * discount)
 
-        if user.get("credits", 0) < cost:
-            await idem_svc.mark_failed(idempotency_key, "Insufficient credits")
-            raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost}.")
+        # 2026-05: centralized entitlement gate (admin/unlimited bypass + 402)
+        from services.entitlement import is_unlimited_user, require_credits
+        if not is_unlimited_user(user):
+            try:
+                require_credits(user, cost=cost, feature="comic storybook")
+            except HTTPException as e:
+                await idem_svc.mark_failed(idempotency_key, "Insufficient credits")
+                raise e
 
         # ── 6. Job creation + queue placement ────────────────────────
         job_id = str(uuid.uuid4())

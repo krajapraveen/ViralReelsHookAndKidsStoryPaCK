@@ -341,12 +341,9 @@ async def purchase_gift_card(
     # Calculate total price
     total_price = valid_denomination["price"] * quantity
     
-    # Check user credits
-    if user.get("credits", 0) < total_price:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Insufficient credits. Need {total_price} credits."
-        )
+    # Check user credits (centralized — admin/unlimited bypass)
+    from services.entitlement import require_credits
+    require_credits(user, cost=total_price, feature="gift card")
     
     # Generate gift cards
     gift_cards = []

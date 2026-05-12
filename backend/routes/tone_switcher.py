@@ -352,9 +352,8 @@ def transform_text(text: str, tone: str, intensity: int, keep_length: str) -> st
 async def deduct_credits(user_id: str, amount: int, ref_type: str, ref_id: str):
     """Atomically deduct credits"""
     user = await db.users.find_one({"id": user_id}, {"_id": 0})
-    if not user or user.get("credits", 0) < amount:
-        raise HTTPException(status_code=402, detail=f"Insufficient credits. Need {amount}")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=amount)
     result = await db.users.update_one(
         {"id": user_id, "credits": {"$gte": amount}},
         {"$inc": {"credits": -amount}}

@@ -262,9 +262,8 @@ async def unlock_pack(job_id: str, user: dict = Depends(get_current_user)):
         return {"success": True, "message": "Pack is already unlocked"}
 
     credit_cost = 5
-    if user.get("credits", 0) < credit_cost:
-        raise HTTPException(status_code=402, detail="Insufficient credits. 5 credits required to unlock.")
-
+    from services.entitlement import require_credits
+    require_credits(user, cost=credit_cost)
     await db.users.update_one({"id": user["id"]}, {"$inc": {"credits": -credit_cost}})
     await db.credit_transactions.insert_one({
         "user_id": str(user["id"]),

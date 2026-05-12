@@ -1025,9 +1025,8 @@ async def create_style_profile(data: StyleProfileCreate, user: dict = Depends(ge
     """Create a new brand style profile - costs 20 credits"""
     cost = GENSTUDIO_COSTS["style_profile_create"]
     
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Need {cost} credits to create a style profile")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost)
     profile_id = str(uuid.uuid4())
     
     await db.style_profiles.insert_one({

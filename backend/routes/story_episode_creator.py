@@ -187,17 +187,8 @@ def generate_episode(episode_num: int, total_episodes: int, hero: str, story_ide
 async def deduct_credits(user_id: str, amount: int, ref_type: str, ref_id: str):
     """Atomically deduct credits"""
     user = await db.users.find_one({"id": user_id}, {"_id": 0})
-    if not user or user.get("credits", 0) < amount:
-        raise HTTPException(status_code=402, detail=f"Insufficient credits. Need {amount}, you have {user.get('credits', 0) if user else 0}")
-    
-    result = await db.users.update_one(
-        {"id": user_id, "credits": {"$gte": amount}},
-        {"$inc": {"credits": -amount}}
-    )
-    
-    if result.modified_count == 0:
-        raise HTTPException(status_code=402, detail="Failed to deduct credits")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=amount)
     await db.credit_ledger.insert_one({
         "id": str(uuid.uuid4()),
         "userId": user_id,

@@ -202,9 +202,8 @@ async def analyze_face(
         raise HTTPException(status_code=400, detail="Please confirm consent to analyze your image")
     
     cost = TWINFINDER_COSTS["analyze_face"]
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost)
     # Validate file
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image")
@@ -258,9 +257,8 @@ async def find_celebrity_match(
 ):
     """Find celebrity matches for an analyzed face - 10 credits"""
     cost = TWINFINDER_COSTS["celebrity_match"]
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost)
     # Get analysis
     analysis = await db.twinfinder_analyses.find_one(
         {"id": analysis_id, "userId": user["id"]},

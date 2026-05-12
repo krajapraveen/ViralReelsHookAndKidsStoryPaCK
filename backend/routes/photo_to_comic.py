@@ -2827,8 +2827,8 @@ async def continue_story(
     discount = {"creator": 0.8, "pro": 0.7, "studio": 0.6}.get(user_plan, 1.0)
     cost = int(cost * discount)
 
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost}.")
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost, feature="comic continuation")
 
     # Build continuation prompt
     parent_prompt = parent.get("storyPrompt", "")

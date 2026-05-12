@@ -1,12 +1,105 @@
 """
 Entitlement Resolver — Single source of truth for user access rights.
 Computes can_download, can_preview, watermark_required etc. from user subscription state.
+
+Also exposes 4 universal helpers (2026-05) used at the TOP of any
+route that gates on credits / plan / admin status:
+
+    is_unlimited_user(user)   — admin / owner / dev / qa / test / is_unlimited flag
+    has_paid_access(user)     — credits > 0 OR paid plan (top-up or subscriber)
+    has_premium_access(user)  — paid plan only (creator / pro / studio / starter / premium)
+    require_credits(user, cost) — raises HTTPException(402) with exact message
+                                  if insufficient; no-op if unlimited.
+
+Rule of thumb: NEVER write `user.get('credits',0) < cost` inline in a
+route again. Use require_credits().
 """
 import logging
 from datetime import datetime, timezone
 from typing import Optional
 
+from fastapi import HTTPException
+
 logger = logging.getLogger(__name__)
+
+
+# ─── 2026-05 Universal entitlement primitives ─────────────────────────────
+_UNLIMITED_ROLES = {"admin", "owner", "dev", "qa", "test"}
+_PREMIUM_PLANS = {"creator", "pro", "studio", "starter", "premium"}
+
+
+def is_unlimited_user(user: Optional[dict]) -> bool:
+    """True if the user bypasses ALL quota / credit gates.
+
+    Triggered by:
+      * `is_unlimited=True` flag on the user document
+      * role in {admin, owner, dev, qa, test} (case-insensitive)
+    """
+    if not user:
+        return False
+    if user.get("is_unlimited", False):
+        return True
+    role = (user.get("role") or "").lower()
+    return role in _UNLIMITED_ROLES
+
+
+def has_paid_access(user: Optional[dict]) -> bool:
+    """True if the user has any paid entitlement: unlimited, credits>0,
+    or non-free plan. Use for "can use platform at all" gating."""
+    if not user:
+        return False
+    if is_unlimited_user(user):
+        return True
+    if int(user.get("credits", 0) or 0) > 0:
+        return True
+    plan = (user.get("plan") or user.get("plan_type") or "free").lower()
+    return plan not in ("free", "", "none")
+
+
+def has_premium_access(user: Optional[dict]) -> bool:
+    """True if the user is on a premium subscription tier.
+    Used for premium-only extras (HD/PDF/premium styles) — credits alone NOT sufficient."""
+    if not user:
+        return False
+    if is_unlimited_user(user):
+        return True
+    plan = (user.get("plan") or user.get("plan_type") or "free").lower()
+    return plan in _PREMIUM_PLANS
+
+
+def require_credits(user: Optional[dict], cost: int, *, feature: str = "this feature") -> None:
+    """Canonical credit gate. Raises HTTPException(402) if insufficient.
+    No-op for unlimited users.
+
+        from services.entitlement import require_credits
+        require_credits(user, cost=cost, feature="comic strip")
+
+    Atomic deduction in credits_service still enforces the no-negative
+    invariant at DB level — this is the pre-flight UX layer.
+    """
+    if is_unlimited_user(user):
+        return
+    available = int((user or {}).get("credits", 0) or 0)
+    if available < cost:
+        raise HTTPException(
+            status_code=402,
+            detail=f"Insufficient credits. Required: {cost}, Available: {available}.",
+        )
+
+
+def entitlement_snapshot(user: Optional[dict]) -> dict:
+    """Single payload describing a user's entitlements (for /me endpoints)."""
+    return {
+        "is_unlimited": is_unlimited_user(user),
+        "has_paid_access": has_paid_access(user),
+        "has_premium_access": has_premium_access(user),
+        "credits": int((user or {}).get("credits", 0) or 0),
+        "plan": (user or {}).get("plan", "free"),
+        "role": (user or {}).get("role", "user"),
+    }
+
+
+# ─── Pre-existing download/watermark resolver (unchanged) ────────────────
 
 
 def resolve_entitlements(user: dict) -> dict:

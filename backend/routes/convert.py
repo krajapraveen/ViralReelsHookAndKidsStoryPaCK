@@ -77,9 +77,8 @@ async def convert_story_to_reel(
     """Convert a kids story into a viral reel script - 15 credits"""
     cost = CONVERSION_COSTS["story_to_reel"]
     
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Need {cost} credits for this conversion")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost)
     # Get the story
     story = await db.generated_stories.find_one({"id": data.story_id, "userId": user["id"]}, {"_id": 0})
     if not story:
@@ -186,9 +185,8 @@ async def convert_reel_to_story(
     """Convert a reel script into a full kids story - 10 credits"""
     cost = CONVERSION_COSTS["reel_to_story"]
     
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Need {cost} credits for this conversion")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost)
     # Get the reel
     reel = await db.generated_reels.find_one({"id": data.reel_id, "userId": user["id"]}, {"_id": 0})
     if not reel:
@@ -285,9 +283,8 @@ async def convert_text_to_story(
     """Convert any text into a kids story - 10 credits"""
     cost = CONVERSION_COSTS["text_to_story"]
     
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Need {cost} credits")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost)
     job_id = str(uuid.uuid4())
     
     await db.conversion_jobs.insert_one({
@@ -370,9 +367,8 @@ async def convert_text_to_reel(
     """Convert any text into a reel script - 15 credits"""
     cost = CONVERSION_COSTS["text_to_reel"]
     
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Need {cost} credits")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost)
     job_id = str(uuid.uuid4())
     
     await db.conversion_jobs.insert_one({

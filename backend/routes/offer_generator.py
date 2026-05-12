@@ -146,9 +146,8 @@ async def generate_offer(request: GenerateRequest, user: dict = Depends(get_curr
         raise HTTPException(status_code=400, detail=safety.block_reason)
     
     # Check credits
-    if user.get("credits", 0) < 20:
-        raise HTTPException(status_code=402, detail="Insufficient credits. 20 credits required.")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=20)
     # Deduct credits BEFORE generation
     await db.users.update_one(
         {"id": user["id"]},

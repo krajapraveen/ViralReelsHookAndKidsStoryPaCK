@@ -203,9 +203,8 @@ async def analyze_hook(
         niche = safety.clean["niche"]
     
     cost = PRO_COSTS["hook_analyzer"]
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost)
     hook_lower = hook.lower()
     
     # Analyze power words
@@ -336,9 +335,8 @@ async def get_swipe_file(
 ):
     """Get viral hooks from swipe file database - 3 credits"""
     cost = PRO_COSTS["swipe_file"]
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost)
     niche_lower = niche.lower()
     hooks = VIRAL_HOOKS_DATABASE.get(niche_lower, VIRAL_HOOKS_DATABASE["general"])
     
@@ -392,9 +390,8 @@ async def generate_bio(
     keywords = safety.clean.get("keywords", keywords)
     
     cost = PRO_COSTS["bio_generator"]
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost)
     keywords_list = [k.strip() for k in keywords.split(",") if k.strip()]
     char_limits = {"instagram": 150, "twitter": 160, "tiktok": 80, "linkedin": 220}
     limit = char_limits.get(platform, 150)
@@ -500,9 +497,8 @@ async def repurpose_content(
     content = safety.clean.get("content", content)
     
     cost = PRO_COSTS["content_repurpose"]
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost)
     targets = [t.strip() for t in target_formats.split(",")]
     
     repurposed = {}
@@ -672,9 +668,8 @@ async def generate_caption(
 ):
     """Generate AI-powered captions - 2 credits"""
     cost = PRO_COSTS["caption_generator"]
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost)
     ai_captions = []
     
     # Try AI generation first
@@ -778,9 +773,8 @@ async def calculate_viral_score(
 ):
     """Calculate virality potential score - 1 credit"""
     cost = PRO_COSTS["viral_score"]
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost)
     scores = {}
     
     # Hook score (40% weight)
@@ -843,9 +837,8 @@ async def generate_headlines(
 ):
     """Generate attention-grabbing headlines - 2 credits"""
     cost = PRO_COSTS["headline_generator"]
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost)
     headlines = {
         "clickbait": [
             f"You Won't Believe What Happens When You Try {topic}",
@@ -905,9 +898,8 @@ async def generate_thread(
 ):
     """Generate a viral thread structure - 5 credits"""
     cost = PRO_COSTS["thread_generator"]
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost)
     points = min(max(points, 3), 15)
     
     thread = {
@@ -947,9 +939,8 @@ async def generate_poll(
 ):
     """Generate engaging poll ideas - 1 credit"""
     cost = PRO_COSTS["poll_generator"]
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost)
     polls = {
         "opinion": [
             {
@@ -1012,9 +1003,8 @@ async def generate_story_templates(
 ):
     """Generate Instagram/TikTok story templates - 2 credits"""
     cost = PRO_COSTS["story_template"]
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost)
     templates = {
         "engagement": [
             {"slide": 1, "type": "question", "text": f"Quick question about {niche}...", "sticker": "Question Box"},
@@ -1069,9 +1059,8 @@ async def optimize_posting_schedule(
 ):
     """Generate optimized posting schedule - 2 credits"""
     cost = PRO_COSTS["posting_schedule"]
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost)
     # Optimal times by platform (in local time)
     optimal_times = {
         "instagram": {

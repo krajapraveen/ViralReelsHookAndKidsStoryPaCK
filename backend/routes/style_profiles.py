@@ -47,9 +47,8 @@ async def create_style_profile(data: StyleProfileCreate, user: dict = Depends(ge
     """Create a new style profile - costs 20 credits"""
     
     # Check credits
-    if user.get("credits", 0) < STYLE_PROFILE_CREATE_COST:
-        raise HTTPException(status_code=400, detail=f"Need {STYLE_PROFILE_CREATE_COST} credits to create a style profile")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=STYLE_PROFILE_CREATE_COST)
     # Check existing profiles limit (max 10 per user)
     existing_count = await db.style_profiles.count_documents({"userId": user["id"]})
     if existing_count >= 10:

@@ -566,9 +566,8 @@ async def generate_gif(
     # Calculate cost - 10 credits for generation
     cost = GIF_CREDITS["generate"]
     
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost)
     # Validate file
     if not photo.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image (PNG, JPG, WEBP)")
@@ -890,9 +889,8 @@ async def generate_gif_batch(
     else:
         cost = GIF_CREDITS["batch_10"]
     
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost)
     # Validate file
     if not photo.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image")
@@ -1126,9 +1124,8 @@ async def regenerate_gif(
     
     cost = job.get("cost", GIF_CREDITS["basic"])
     
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
-    
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost)
     # Create new job based on old settings
     new_job_id = str(uuid.uuid4())
     

@@ -314,15 +314,16 @@ async def unlock_full_pack(user: dict = Depends(get_current_user)):
             credits_used=0
         )
     
-    # Check credits
-    if user.get("credits", 0) < 5:
-        raise HTTPException(status_code=402, detail="Insufficient credits. 5 credits required.")
-    
-    # Deduct credits BEFORE generation
-    await db.users.update_one(
-        {"id": user["id"]},
-        {"$inc": {"credits": -5}}
-    )
+    # Check credits — centralized helper (admin/unlimited bypass)
+    from services.entitlement import is_unlimited_user, require_credits
+    require_credits(user, cost=5, feature="daily viral ideas")
+
+    # Deduct credits BEFORE generation (admin/unlimited skip deduction)
+    if not is_unlimited_user(user):
+        await db.users.update_one(
+            {"id": user["id"]},
+            {"$inc": {"credits": -5}}
+        )
     
     try:
         ideas = await get_daily_ideas(count=10)
@@ -363,11 +364,13 @@ async def get_ideas_by_niche(niche: str, user: dict = Depends(get_current_user))
         raise HTTPException(status_code=400, detail=f"Invalid niche. Choose from: {', '.join(NICHES)}")
     
     is_pro = await check_pro_subscription(user)
-    
+
     if not is_pro:
-        # Requires paid unlock
-        if user.get("credits", 0) < 5:
-            raise HTTPException(status_code=402, detail="Unlock full pack required. 5 credits needed.")
+        # Requires paid unlock — centralized gate (admin/unlimited bypass)
+        from services.entitlement import is_unlimited_user
+        if not is_unlimited_user(user):
+            from services.entitlement import require_credits
+            require_credits(user, cost=5, feature="full ideas pack")
     
     ideas = await get_daily_ideas(niche=niche, count=10)
     

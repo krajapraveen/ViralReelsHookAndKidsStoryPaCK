@@ -306,8 +306,8 @@ async def generate_content_calendar(
     niche = safety.clean.get("niche", niche)
     
     cost = 25 if include_full_scripts else 10
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost, feature="creator tool")
     
     # Content type pool with inspirational themes
     content_types = [
@@ -403,8 +403,8 @@ async def generate_carousel(
     niche = safety.clean.get("niche", niche)
     
     cost = 3
-    if user.get("credits", 0) < cost:
-        raise HTTPException(status_code=400, detail=f"Insufficient credits. Need {cost} credits.")
+    from services.entitlement import require_credits
+    require_credits(user, cost=cost, feature="creator tool")
     
     slides = min(max(slides, 3), 10)  # 3-10 slides
     
