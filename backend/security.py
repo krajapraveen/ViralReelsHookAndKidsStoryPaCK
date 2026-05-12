@@ -29,11 +29,42 @@ from slowapi.util import get_remote_address
 from collections import defaultdict
 import time
 
-# Initialize slowapi limiter for backwards compatibility
+# Initialize slowapi limiter
+#
+# 2026-05-12 production deployment fix:
+#   • Custom key function honors X-Forwarded-For so the K8s ingress IP isn't
+#     used as a single shared bucket for all real users.
+#   • Default daily/hourly limits removed — they globally throttled write-only
+#     analytics endpoints (funnel/track, ab-impression, engagement/*) and
+#     caused 429 storms in production where 1000/day per ingress IP was
+#     effectively a global app-wide cap.
+#   • Sensitive endpoints (auth, payments, content generation) keep their
+#     explicit per-route @limiter.limit(...) decorators which DO key on the
+#     real client IP via this key_func.
+def _real_client_ip(request) -> str:
+    """Return the first client IP from X-Forwarded-For if present, else fall
+    back to the direct peer. Behind a K8s ingress, request.client.host is the
+    ingress's own IP, so per-IP limiting becomes per-app limiting."""
+    try:
+        xff = request.headers.get("x-forwarded-for") or request.headers.get("X-Forwarded-For")
+        if xff:
+            # Standard XFF is "client, proxy1, proxy2" — the leftmost is the
+            # actual originator.
+            first = xff.split(",")[0].strip()
+            if first:
+                return first
+        real_ip = request.headers.get("x-real-ip") or request.headers.get("X-Real-IP")
+        if real_ip:
+            return real_ip.strip()
+    except Exception:
+        pass
+    return get_remote_address(request)
+
+
 limiter = Limiter(
-    key_func=get_remote_address,
+    key_func=_real_client_ip,
     storage_uri="memory://",
-    default_limits=["1000 per day", "500 per hour"]
+    # NO default limits — per-route decorators are the only rate gate.
 )
 
 # Custom in-memory rate limiter that actually works
