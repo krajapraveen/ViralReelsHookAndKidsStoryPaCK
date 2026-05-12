@@ -83,6 +83,8 @@ Use straightforward camera angle (medium shot, front or three-quarter view).
 
 NEGATIVE_BLOCK = """
 [NEGATIVE]
+Do NOT replace the protagonist with a different person, a stock character, a celebrity, or a generic figure.
+Do NOT invent a new character with a different face, hair, ethnicity, or gender than the source photo.
 Do not change gender, age, ethnicity, face structure, hairstyle, or outfit unexpectedly.
 Do not add extra fingers, duplicate people, warped anatomy, blurred face, heavy background clutter, or unreadable composition.
 No copyrighted characters, logos, or trademarked designs.
@@ -109,33 +111,48 @@ class PromptComposer:
         """Compose the full base prompt from 6 blocks."""
         parts = []
 
-        # Block 1: Identity
-        identity = """[IDENTITY]
-Main character reference: person from uploaded photo.
-Preserve facial identity, skin tone, hairstyle, jawline, nose shape, and overall likeness.
-Keep outfit consistent unless the story explicitly changes it."""
+        # Block 1: Identity (ELEVATED to CRITICAL — 2026-05 anti-drift fix)
+        # User reports: 3/4/6-panel strips sometimes return unrelated people.
+        # The previous "[IDENTITY]" tag had no priority modifier, so the
+        # downstream "[STYLE — CRITICAL]" block dominated model attention.
+        # Identity must be the FIRST and STRONGEST instruction so the source
+        # photo at image[0] is treated as the authoritative subject across
+        # every panel.
+        identity = f"""[IDENTITY — CRITICAL, HIGHEST PRIORITY]
+The person in the FIRST attached image is the protagonist of this comic.
+This person MUST appear in this panel (panel {panel_index + 1} of {total_panels}).
+You MUST preserve their exact facial identity, skin tone, hair color, hairstyle,
+jawline, nose shape, eye shape, and overall likeness from the source photo.
+This is the SAME person across every single panel — do NOT invent a different
+character, do NOT substitute a stock/generic person, do NOT change ethnicity,
+gender, age, or facial structure.
+Treat the source photo as the canonical reference for who this character is.
+Keep outfit consistent across panels unless the story explicitly changes it."""
 
         if character_lock:
             traits = character_lock.get("visual_traits", {})
             if traits:
                 trait_lines = [f"- {k}: {v}" for k, v in traits.items() if v]
                 if trait_lines:
-                    identity += "\nCharacter traits to preserve:\n" + "\n".join(trait_lines)
+                    identity += "\nAdditional character traits to preserve:\n" + "\n".join(trait_lines)
         parts.append(identity)
 
-        # Block 2: Style (PRIORITY — must be the strongest instruction)
-        parts.append(f"""[STYLE — CRITICAL]
-TRANSFORM this into a {style_prompt} illustration.
+        # Block 2: Style (still high priority but no longer ABOVE identity)
+        parts.append(f"""[STYLE]
+Render this in a {style_prompt} illustration style.
 This MUST NOT look like a photograph. Apply heavy stylization.
 The output must be unmistakably a comic/illustration, not a photo filter.
 Maintain consistent rendering style across all panels.
-Avoid photorealism entirely. Every pixel should read as drawn/illustrated art.""")
+Avoid photorealism entirely. Every pixel should read as drawn/illustrated art.
+However, the STYLE serves the IDENTITY — do not stylize the face so aggressively
+that the protagonist's likeness from the source photo is lost.""")
 
         # Block 3: Story
         parts.append(f"""[STORY]
 This is panel {panel_index + 1} of {total_panels}.
 Scene: {scene}
-Genre: {genre}""")
+Genre: {genre}
+The protagonist (the person in the source photo) is the subject of this scene.""")
 
         # Block 4: Composition
         parts.append("""[COMPOSITION]
@@ -146,9 +163,9 @@ Avoid cropped forehead, cropped chin, or missing hands unless intentional.""")
         # Block 5: Continuity
         if panel_index > 0:
             parts.append(f"""[CONTINUITY]
-Match character identity and outfit with prior approved panels.
-Preserve environment logic and visual continuity.
-This is panel {panel_index + 1} in a {total_panels}-panel sequence.""")
+Match the SAME person from prior approved panels and from the source photo (image #1).
+Preserve their exact facial identity, outfit, and visual signature.
+This is panel {panel_index + 1} in a {total_panels}-panel sequence — same protagonist throughout.""")
 
         # Block 6: Negative
         if negative_prompt:

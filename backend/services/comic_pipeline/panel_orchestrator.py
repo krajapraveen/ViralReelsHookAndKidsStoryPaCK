@@ -536,16 +536,27 @@ class PanelOrchestrator:
         try:
             from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
 
-            # Build system message — enhanced when reference panels exist
+            # Build system message — enhanced when reference panels exist.
+            # 2026-05 anti-drift fix: previous system message said "Create
+            # original characters" which directly contradicted using the
+            # source photo as the protagonist. That single phrase caused the
+            # model to invent stock figures for some panels in 3/4/6-panel
+            # strips. Now we anchor identity to the FIRST image unconditionally.
             has_refs = approved_panel_bytes and any(b for b in approved_panel_bytes if b)
             system_msg = (
-                "You are a comic artist. Create original characters. Maintain character consistency across panels."
+                "You are a comic artist. The FIRST attached image is the user's photo — "
+                "this is the protagonist of the comic. Preserve their exact facial identity, "
+                "skin tone, hair, and likeness across every panel. Maintain character "
+                "consistency. Never substitute the protagonist with a different person, "
+                "stock character, or generic figure."
                 if not has_refs else
-                "You are a comic artist. Create original characters. "
-                "CRITICAL: Reference images of previously approved panels are provided alongside the source photo. "
-                "You MUST match the exact character appearance, art style, line quality, color palette, "
-                "and rendering technique shown in those reference panels. The source photo (first image) "
-                "defines the character's real face. The reference panels define the established comic style."
+                "You are a comic artist. The FIRST attached image is the user's photo "
+                "(the protagonist's real face). The remaining images are previously approved "
+                "panels showing the established comic style. "
+                "CRITICAL: You MUST match the exact character appearance, art style, line quality, "
+                "color palette, and rendering technique shown in the reference panels. "
+                "The source photo (first image) defines the character's real face — do NOT substitute "
+                "with a different person. The reference panels define the established comic style."
             )
 
             img_chat = LlmChat(
