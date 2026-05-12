@@ -1260,3 +1260,28 @@ value first, then hit signup gate. Do NOT ask login before Generate."
 **Verification**: testing_agent_v3_fork iteration_540 — ALL PASSED.
 - Admin: header pill `∞ Unlimited`, all step balances `∞ Unlimited`, Generate button enabled, no Upsell, no "Insufficient credits" toast, generation started successfully.
 - Test user (regression): correctly sees numeric `1,404 Credits` — gate scoped to admin only.
+
+## 2026-05-12 — P0/P1 Bedtime Stories Subscription Access Gate
+
+**Issue**: The Bedtime Stories page exposed the full story payload (every scene, voice notes, SFX cues) in the API response and rendered it in the DOM for every user — free, subscriber, and admin alike. There was no payload-level paywall, no playback gate, no download/copy gate, and no copy-protection on the rendered text.
+
+**Backend fix** (`/app/backend/services/entitlement.py`, `/app/backend/routes/bedtime_story_builder.py`):
+- New helpers: `has_active_subscription(user)` (reads `user.subscription.status='active'` + endDate check) and `has_full_content_access(user)` = unlimited OR premium plan OR active subscription.
+- `_apply_access_gate(result, user)` truncates `scenes`, `script`, `voice_notes`, `sfx_cues` to the first scene for free users and attaches an `access` block (`full_access`, `preview_only`, `upgrade_required`, `total_scenes`, `preview_scenes`, `upgrade_message`).
+- `POST /api/bedtime-story-builder/generate` calls the gate after `normalize_story()` so the full text NEVER leaves the backend for free users.
+- `POST /api/bedtime-story-builder/export` returns HTTP 402 with subscription prompt for free users (was previously open).
+
+**Frontend fix** (`/app/frontend/src/pages/BedtimeStoryBuilder.js`, `/app/frontend/src/components/BedtimePaywallModal.jsx`):
+- New `BedtimePaywallModal` component with 4 contextual reasons: `play`, `download`, `copy`, `default`. CTA navigates to `/pricing`.
+- Derived `fullAccess` / `previewOnly` from `story.access.*` (the backend remains the source of truth).
+- `handlePlay` schedules the paywall to open ~8–10 s after the preview scene starts for free users.
+- `downloadStory` and `copySection` open the paywall instead of executing for free users.
+- New window-level `keydown` listener blocks Cmd/Ctrl+C/X/S/P/A and `copy`/`cut` events for non-premium users (frontend deterrent only).
+- The `story-scenes` container has `onContextMenu` + `onCopy` handlers and inline `userSelect: 'none'` style applied for non-premium users.
+- New preview banner (`data-testid='preview-banner'`) renders for free users with an Unlock CTA.
+
+**Honesty note**: Screenshots cannot be technically prevented, and the UI does not claim to do so. The protection model is: payload withholding (security) + UX deterrents (no select / no context menu / blocked shortcuts) + paywall modal (conversion).
+
+**Verification**:
+- Backend regression: `/app/backend/tests/test_bedtime_subscription_gate_2026_05.py` — 4/4 PASS (free preview, free export 402, admin full, subscriber full).
+- Frontend regression: `testing_agent_v3_fork` iteration_541 — 15/16 PASS. The 1 SKIP was the subscriber path because the testing agent's env did not have `test@visionary-suite.com` available; the same case is covered by the backend test which PASSED.
