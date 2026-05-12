@@ -1346,3 +1346,32 @@ value first, then hit signup gate. Do NOT ask login before Generate."
 db.idempotency_keys.deleteMany({ status: { $in: ["FAILED", "PENDING"] } })
 ```
 (Not strictly required — the new auto-recovery will heal them on the next submit — but speeds things up.)
+
+## 2026-05-12 — P0/P1 Reaction GIF Creator: Actions + Access Control + Anti-Copy
+
+**Bugs fixed**:
+- `Share to Story` was a thin wrapper around `downloadResult` and silently no-op'd if the asset URL was missing.
+- `Download` and `Share` fetched the raw R2 URL directly, bypassing any backend access check (free users could right-click → Save As to bypass the paywall entirely).
+- No clean error when the asset URL was unavailable — silent failure.
+- No copy-protection on the rendered result image.
+- No engagement when the user is waiting on a 15–30 s generation.
+
+**Backend** (`/app/backend/routes/reaction_gif.py`):
+- `/job/:id` now attaches an `access` block: `full_access`, `can_download`, `can_copy_link`, `can_share_story`, `upgrade_required`. Sourced from `services/entitlement.has_full_content_access()`.
+- `/download/:id` switched from the old `plan == "free"` check to `has_full_content_access()` (canonical) and returns **HTTP 402** with `"Subscribe to download. Preview is watermarked."` (changed from 403 to standard Payment Required). Also returns 404 with `"Download asset not available"` if the job is missing assets.
+
+**Frontend** (`/app/frontend/src/pages/PhotoReactionGIF.js`):
+- New `isUnlimitedUser` (from localStorage + `/api/credits/balance` `is_unlimited`) and derived `canAccessFull` (mirror of backend gate).
+- All download / share / copy actions route through `POST /api/reaction-gif/download/:id` FIRST so the backend gate is the canonical enforcement. Direct R2 URL leakage is eliminated.
+- `shareToStory` prefers `navigator.share({ files })` (Web Share API w/ file payload) and falls back to downloading the blob so the user can attach it to their Story manually.
+- Result image wrapped in a protected container: `onContextMenu` opens the paywall for non-premium users; `draggable=false` + `onDragStart` blocked; inline `userSelect: none` + `WebkitTouchCallout: none`; image gets `pointer-events: none` for non-premium.
+- New global `keydown` handler active while `phase === 'result'` && !canAccessFull blocks `Cmd/Ctrl + C / X / S / P / A` and `copy` / `cut` events — each opens the appropriate paywall (copy vs download).
+- Small `"Preview · Subscribe to download"` badge overlays the bottom-right of the image for non-premium users (UX honesty — no claim of screenshot prevention).
+- New waiting-feature panel (`data-testid="waiting-feature-panel"`) inside `renderGenerating` with 4 deep-link CTAs: Story Video, Photo to Comic, Comic Story Book, Bedtime Stories. Polling keeps running in the background; navigating away doesn't kill the job.
+- Reuses `BedtimePaywallModal` (already shipped) for the 4 reasons: `play`, `download`, `copy`, `default`.
+
+**Tests**:
+- Backend `/app/backend/tests/test_reaction_gif_access_control_2026_05.py` — **5/5 PASS** (admin access flags, admin download, free user access flags, free user 402, missing job 404 as JSON).
+- Frontend `testing_agent_v3_fork` iteration_542 — **12/12 PASS** across admin + free-user end-to-end (waiting panel, watermark badge, paywall for download/share/copy/right-click/Cmd+S/Cmd+C, admin clean paths).
+
+**Honesty**: Screenshots cannot be prevented and the UI does not claim they can. The protection model is: backend access gate (security) + UX deterrents (no select / no context menu / no drag / blocked shortcuts) + paywall (conversion).
