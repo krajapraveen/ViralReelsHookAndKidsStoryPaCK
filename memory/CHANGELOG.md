@@ -1375,3 +1375,32 @@ db.idempotency_keys.deleteMany({ status: { $in: ["FAILED", "PENDING"] } })
 - Frontend `testing_agent_v3_fork` iteration_542 — **12/12 PASS** across admin + free-user end-to-end (waiting panel, watermark badge, paywall for download/share/copy/right-click/Cmd+S/Cmd+C, admin clean paths).
 
 **Honesty**: Screenshots cannot be prevented and the UI does not claim they can. The protection model is: backend access gate (security) + UX deterrents (no select / no context menu / no drag / blocked shortcuts) + paywall (conversion).
+
+## 2026-05-12 — P0/P1 Brand Kit / Brand Story: Access Gate + Anti-Copy + Robust Download Errors
+
+**Bugs fixed**:
+- `/api/brand-story-builder/job/:id/result` exposed the **full** artifact payload to every authenticated user — free users could read the entire brand story end-to-end.
+- `/api/brand-story-builder/job/:id/pdf` and `/zip` had **no** access gate — a free user could download the production-ready PDF/ZIP.
+- TXT export was built entirely client-side from the (previously unrestricted) result payload — same leak.
+- Download handlers toasted a generic `"PDF download failed"` for ANY non-200, including 402/403 paywall responses — so a paywall could look like a broken download.
+- 500 PDF response detail was opaque (`"PDF generation failed"` with no error context).
+
+**Backend** (`/app/backend/routes/brand_story_builder.py`):
+- `/job/:id/result` now attaches an `access` block: `full_access`, `preview_only`, `upgrade_required`, `can_download`, `upgrade_message`. Sourced from `services.entitlement.has_full_content_access()`.
+- For non-premium users, `_truncate_artifact_for_preview()` truncates artifact data server-side: strings → 140 chars + ellipsis; lists → first item only; dicts → recurse. The full artifact text NEVER leaves the backend.
+- `/job/:id/pdf` and `/zip` now return **HTTP 402** with `"Subscribe to download your brand kit."` for free users.
+- PDF 500 detail now includes the underlying error (logger.exception preserves stack to backend log).
+
+**Frontend** (`/app/frontend/src/pages/BrandStoryBuilder.js`):
+- New `isUnlimitedUser` (localStorage + `/api/credits/balance.is_unlimited` hydration) and `canAccessFull` (mirror of backend gate).
+- New preview banner (`data-testid="brand-kit-preview-banner"`) for free users with "Unlock" CTA.
+- Each artifact card's inner content is wrapped in a div with `filter blur-[3px] pointer-events-none` for free users. A floating "Subscribe to unlock" overlay sits on top of every artifact card with a `"See plans"` CTA (`data-testid="unlock-<key>"`).
+- All 3 download handlers (PDF/ZIP/TXT) and the copy handler short-circuit to the paywall when `!canAccessFull`. The new `_handleDownloadError()` parses JSON error bodies from binary endpoints and routes 402/403 to the paywall, 404 to a clean toast, and any other error to a generic `"PDF/ZIP download failed. Please try again."` — never raw HTML.
+- Artifacts container has `onContextMenu` + `onDragStart` + inline `userSelect:none` + `WebkitTouchCallout:none` for free users. New global keydown listener active while `phase === 'results' && !canAccessFull` blocks Cmd/Ctrl + C / X / S / P / A and `copy` / `cut` events, opening the right paywall reason.
+- Reuses `BedtimePaywallModal` for the 4 reasons (download/copy/play/default).
+
+**Tests**:
+- Backend `/app/backend/tests/test_brand_kit_access_gate_2026_05.py` — **7/7 PASS** (admin full content, admin PDF/ZIP 200, free preview-only, free truncation, free PDF/ZIP 402, missing job clean JSON 404).
+- Frontend `testing_agent_v3_fork` iteration_543 — **22/22 PASS** across API + code review (canAccessFull logic, preview banner, blur, lock overlay, download/copy gating, right-click and keyboard shortcuts).
+
+**Honesty**: Screenshots cannot be prevented. The UI does not claim to. Protection model: backend preview truncation + 402 download gate (security) + UX deterrents (blur / no select / no context menu / no drag / blocked shortcuts) + paywall modal (conversion).
