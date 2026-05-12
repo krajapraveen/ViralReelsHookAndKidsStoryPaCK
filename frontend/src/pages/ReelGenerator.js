@@ -576,7 +576,16 @@ export default function ReelGenerator() {
     e.preventDefault();
     const validation = validateContent(formData.topic);
     if (!validation.valid) { toast.error(validation.message); return; }
-    if ((credits ?? 0) < 1) { toast.error('Insufficient credits! Please buy more.'); navigate('/pricing'); return; }
+    if ((credits ?? 0) < 1) {
+      // Surface the global mandatory-subscription modal instead of yanking
+      // the user away to /pricing. Consistent with how Story Video / Photo
+      // to Comic handle this case via the api.js interceptor.
+      window.dispatchEvent(new CustomEvent('subscribe-required-modal', {
+        detail: { feature: 'reel', source: 'reel_generator_form' },
+      }));
+      toast.error('Subscribe or buy credits to generate reels.');
+      return;
+    }
 
     setResult(null);
     setLoading(true);
@@ -600,8 +609,11 @@ export default function ReelGenerator() {
       markFeatureUsed('reel_generator');
       trackJourneyStep('generate', 'generation_complete', 'reel_generator');
       analytics.trackGeneration('reel_generator', 10);
-      setTimeout(() => setShowRatingModal(true), 2000);
-      setTimeout(() => setShowUpsellModal(true), 4000);
+      // 2026-05 — completion-moment fix.
+      // The previous flow popped a rating modal at 2s and an upsell modal at
+      // 4s right after success, blocking the user from reading their just-
+      // generated content pack. Both are now manually triggered via buttons
+      // in the result header so users can engage with their content first.
     } catch (error) {
       toast.error(error.response?.data?.detail || error.response?.data?.message || 'Generation failed');
     } finally {
