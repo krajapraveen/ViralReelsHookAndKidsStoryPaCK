@@ -1240,3 +1240,23 @@ value first, then hit signup gate. Do NOT ask login before Generate."
   ✅ Single flow per route. Hard signup gate ONLY at Save/Download/Create.
   ✅ DEMO / SIMULATED OUTPUT labels everywhere.
 
+
+## 2026-05-12 — P0 Frontend Fix: Comic Story Book Builder Admin Credit-Gate Leak
+
+**Issue**: Despite the centralized backend `services/entitlement.py` rollout correctly granting unlimited access to admin/QA users, the **frontend** `ComicStorybookBuilder.js` still trapped admins in the "buy credits / insufficient credits" UI loop (modal + disabled Generate button) whenever the `/api/credits/balance` call was delayed, errored, or before the response landed.
+
+**Root cause**: `credits` state initialised to `null`. `credits < cost` evaluates `null < 45` → `0 < 45` → `true`, so the button stayed disabled and the Upsell modal could fire. There was no client-side mirror of `is_unlimited_user` (which the backend computes from role / is_unlimited flag).
+
+**Fix** (`/app/frontend/src/pages/ComicStorybookBuilder.js`):
+- Added `_detectUnlimitedFromLocalStorage()` helper + canonical `_UNLIMITED_ROLES = ['admin','owner','dev','qa','qa_user','test']` mirroring backend.
+- New `isUnlimitedUser` state initialised synchronously from `localStorage.user` so it is `true` on first render — no race with `/credits/balance`.
+- `fetchCredits` and `fetchUserPlan` additionally set the flag from server response (defense-in-depth).
+- `generateComicBook` skips the `credits < cost` gate when `isUnlimitedUser`.
+- `handleDownload` bypasses the free-plan upsell for unlimited users.
+- Generate button `disabled` prop respects the flag.
+- Step 3 / Step 5 cost summary balance pills + header credit pill render "∞ Unlimited" when `isUnlimitedUser`.
+- `UpsellModal` render guarded with `!isUnlimitedUser` (cannot open for admins even if state is forced).
+
+**Verification**: testing_agent_v3_fork iteration_540 — ALL PASSED.
+- Admin: header pill `∞ Unlimited`, all step balances `∞ Unlimited`, Generate button enabled, no Upsell, no "Insufficient credits" toast, generation started successfully.
+- Test user (regression): correctly sees numeric `1,404 Credits` — gate scoped to admin only.
