@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import {
   ArrowLeft, Upload, Wand2, Loader2, Download, Check, Image,
   Sparkles, Coins, Crown, Lock, X, Camera, Zap, Shield,
@@ -101,6 +101,8 @@ export default function PhotoToComic() {
 
 function PhotoToComicInner() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const routerLocation = useLocation();
   const fileInputRef = useRef(null);
   const generatorRef = useRef(null);
 
@@ -587,6 +589,37 @@ function PhotoToComicInner() {
     setContinuing(false);
   };
 
+  // ─── Deep-link: ?continue=<parentJobId> with optional state.suggestedPrompt
+  // Wired by Story Chain's "Next Episode Ideas" — clicking an idea navigates
+  // here with the parent comic job id + the AI-suggested prompt pre-filled.
+  // We auto-trigger handleContinueStory so the click flows straight into
+  // generation (no dead click, no extra form to fill).
+  useEffect(() => {
+    const continueId = searchParams.get('continue');
+    if (!continueId || continueId === jobId) return;
+    const suggested = routerLocation?.state?.suggestedPrompt || '';
+    setJobId(continueId);
+    // Slight delay so jobId state settles before continue request.
+    const t = setTimeout(() => {
+      handleContinueStory(suggested);
+      toast.success(suggested ? 'Generating your next episode...' : 'Continuing your story...');
+    }, 150);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  // ─── Deep-link: ?remix=<sourceJobId>
+  // Wired by Story Chain's per-episode "Remix" button. Loads the source
+  // comic so the remix style picker shows up against the existing comic
+  // (instead of dumping the user into a blank upload screen).
+  useEffect(() => {
+    const remixId = searchParams.get('remix');
+    if (!remixId || remixId === jobId) return;
+    setJobId(remixId);
+    toast.success('Choose a style to remix this comic');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   // ─── Continue with Direction ────────────────────────────────────
   const [showDirections, setShowDirections] = useState(false);
   const [customContinuePrompt, setCustomContinuePrompt] = useState('');
@@ -781,7 +814,12 @@ function PhotoToComicInner() {
                       Your comic is ready with {result.readyPanels} optimized panels.
                     </div>
                   )}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div
+                    className={`grid grid-cols-2 gap-3 ${!isPaid ? 'p2c-protect-free' : ''}`}
+                    onContextMenu={!isPaid ? (e) => e.preventDefault() : undefined}
+                    onDragStart={!isPaid ? (e) => e.preventDefault() : undefined}
+                    data-testid="comic-panels-grid"
+                  >
                     {panels.map((p, i) => (
                       <div key={i} className="rounded-xl overflow-hidden border border-slate-700 bg-slate-900 group relative" data-testid={`panel-${i+1}`}>
                         {p.status === 'FAILED' || !p.imageUrl ? (

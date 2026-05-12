@@ -171,3 +171,18 @@ div[style*="z-index: 99"] > a[href*="emergent"] {
   20%  { box-shadow: 0 0 0 4px rgba(167, 139, 250, 0.65), 0 18px 60px -14px rgba(139, 92, 246, 0.55); }
   100% { box-shadow: 0 0 0 0 rgba(167, 139, 250, 0.0); }
 }
+
+/* Best-effort deterrence for free-tier comic previews (2026-05).
+   Server-side download/share gating remains the real protection — this just
+   raises the casual-copy bar. */
+.p2c-protect-free img,
+.p2c-protect-free [data-testid^="panel-"] img {
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: auto;
+}
+.p2c-protect-free [data-testid^="panel-"] {
+  user-select: none;
+}

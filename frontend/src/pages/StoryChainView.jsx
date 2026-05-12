@@ -63,6 +63,35 @@ export default function StoryChainView() {
     latest_continuable_job_id, latest_continuable_style
   } = chain;
 
+  // Fallback: if backend didn't surface a continuable id, pick the most
+  // recent completed job from `flat`. Prevents dead clicks on Next Episode
+  // Ideas when the chain has finished episodes but no in-flight one.
+  const continuableId = (
+    latest_continuable_job_id ||
+    [...flat].reverse().find((j) => j.status === 'completed' || j.status === 'completed_partial')?.job_id ||
+    [...flat].reverse().find((j) => j.job_id)?.job_id ||
+    null
+  );
+
+  // Tracked-then-navigate helper used by both the "Use this direction" idea
+  // buttons and the standalone Continue CTAs. Single source of routing so
+  // we can never silently no-op again.
+  const handleUseIdea = (suggestion = null, index = null) => {
+    api.post('/api/metrics/track', {
+      event: suggestion ? 'suggestion_click' : 'continue_click',
+      chain_id: chainId,
+      meta: suggestion ? { suggestion_type: suggestion.type, index } : {},
+    }).catch(() => {});
+    if (!continuableId) {
+      toast.error('No completed episode found yet. Finish one episode first.');
+      return;
+    }
+    navigate(
+      `/app/photo-to-comic?continue=${continuableId}`,
+      suggestion ? { state: { suggestedPrompt: suggestion.prompt } } : undefined
+    );
+  };
+
   const SUGGESTION_ICONS = { escalation: TrendingUp, twist: Zap, deepening: Layers };
 
   return (
@@ -132,9 +161,9 @@ export default function StoryChainView() {
             </div>
 
             {/* Next Episode CTA */}
-            {latest_continuable_job_id && (
+            {continuableId && (
               <Button
-                onClick={() => navigate(`/app/photo-to-comic?continue=${latest_continuable_job_id}`)}
+                onClick={() => handleUseIdea()}
                 className="bg-indigo-600 hover:bg-indigo-700 h-11 px-6 text-sm font-semibold shrink-0"
                 data-testid="next-episode-cta"
               >
@@ -203,14 +232,7 @@ export default function StoryChainView() {
                 return (
                   <button
                     key={i}
-                    onClick={() => {
-                      api.post('/api/metrics/track', { event: 'suggestion_click', chain_id: chainId, meta: { suggestion_type: s.type, index: i } }).catch(() => {});
-                      if (latest_continuable_job_id) {
-                        navigate(`/app/photo-to-comic?continue=${latest_continuable_job_id}`, {
-                          state: { suggestedPrompt: s.prompt }
-                        });
-                      }
-                    }}
+                    onClick={() => handleUseIdea(s, i)}
                     className={`text-left rounded-xl border bg-slate-900/80 p-4 transition-all hover:bg-slate-800/80 group ${colors[s.type] || 'border-slate-700'}`}
                     data-testid={`suggestion-${i}`}
                   >
@@ -345,7 +367,7 @@ export default function StoryChainView() {
           })}
 
           {/* Add Episode CTA at end of timeline */}
-          {latest_continuable_job_id && (
+          {continuableId && (
             <div className="relative flex gap-4 pb-2" data-testid="add-episode-cta">
               <div className="flex flex-col items-center shrink-0 w-8">
                 <div className="w-8 h-8 rounded-full flex items-center justify-center bg-indigo-500/10 ring-2 ring-dashed ring-indigo-500/40">
@@ -353,7 +375,7 @@ export default function StoryChainView() {
                 </div>
               </div>
               <button
-                onClick={() => navigate(`/app/photo-to-comic?continue=${latest_continuable_job_id}`)}
+                onClick={() => handleUseIdea()}
                 className="flex-1 rounded-xl border-2 border-dashed border-indigo-500/30 bg-indigo-500/5 p-4 flex items-center justify-center gap-2 hover:border-indigo-500/50 hover:bg-indigo-500/10 transition-all group"
               >
                 <Sparkles className="w-4 h-4 text-indigo-400 group-hover:scale-110 transition-transform" />
