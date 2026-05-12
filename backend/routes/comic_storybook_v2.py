@@ -420,7 +420,23 @@ async def generate_comic_book(
     if is_dup:
         if cached:
             return cached
-        # Pending from another request — tell client to poll
+        # No cached payload yet — look up the in-flight job so the client can
+        # transparently resume polling instead of being stranded. P0 2026-05.
+        existing_job = await db.comic_storybook_v2_jobs.find_one(
+            {"idempotency_key": idempotency_key, "userId": user_id},
+            {"_id": 0, "id": 1, "status": 1, "progress": 1},
+            sort=[("createdAt", -1)],
+        )
+        if existing_job and existing_job.get("id"):
+            return {
+                "success": True,
+                "jobId": existing_job["id"],
+                "status": existing_job.get("status", "QUEUED"),
+                "progress": existing_job.get("progress", 0),
+                "resumed": True,
+                "message": "Your comic is already generating. Resuming progress…",
+            }
+        # Genuinely concurrent (no job row yet) — tell client to poll briefly.
         raise HTTPException(status_code=409, detail="Duplicate request in progress. Please poll job status.")
 
     try:

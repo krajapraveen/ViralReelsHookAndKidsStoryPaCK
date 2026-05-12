@@ -13,9 +13,14 @@ logger = logging.getLogger(__name__)
 
 class IdempotencyService:
     """Service for managing idempotency keys to prevent duplicate operations"""
-    
+
     COLLECTION_NAME = "idempotency_keys"
     DEFAULT_TTL_HOURS = 24
+    # P0 2026-05 — auto-expire PENDING records whose owning request crashed
+    # before reaching update_result / mark_failed. 10 minutes is a generous
+    # ceiling for any single sync request (the longest synchronous path —
+    # comic-storybook /generate — completes in <5 s on healthy infra).
+    STALE_PENDING_MINUTES = 10
     
     def __init__(self, db):
         self.db = db
@@ -63,25 +68,57 @@ class IdempotencyService:
         """
         if ttl_hours is None:
             ttl_hours = self.DEFAULT_TTL_HOURS
-        
-        expires_at = datetime.now(timezone.utc) + timedelta(hours=ttl_hours)
-        
+
+        now = datetime.now(timezone.utc)
+        expires_at = now + timedelta(hours=ttl_hours)
+
         # Try to find existing key
         existing = await self.db[self.COLLECTION_NAME].find_one(
             {"key": idempotency_key},
             {"_id": 0}
         )
-        
+
         if existing:
-            logger.info(f"Idempotency key {idempotency_key[:8]}... already exists")
-            return (True, existing.get("result"))
-        
+            status = (existing.get("status") or "").upper()
+
+            # ─── P0 2026-05 — Auto-recover stuck records ───────────────
+            # FAILED keys must NOT block retries.
+            # PENDING keys older than STALE_PENDING_MINUTES are assumed to
+            # have crashed (request died between insert and update_result).
+            is_failed = status == "FAILED"
+            is_stale_pending = False
+            if status == "PENDING":
+                created_raw = existing.get("createdAt")
+                try:
+                    if isinstance(created_raw, str):
+                        created_dt = datetime.fromisoformat(created_raw.replace("Z", "+00:00"))
+                    else:
+                        created_dt = created_raw
+                    if created_dt and created_dt.tzinfo is None:
+                        created_dt = created_dt.replace(tzinfo=timezone.utc)
+                    if created_dt and (now - created_dt) > timedelta(minutes=self.STALE_PENDING_MINUTES):
+                        is_stale_pending = True
+                except Exception:
+                    # Unparseable createdAt — treat as stale so we don't soft-lock the user.
+                    is_stale_pending = True
+
+            if is_failed or is_stale_pending:
+                logger.info(
+                    f"Idempotency key {idempotency_key[:8]}... recovered "
+                    f"(status={status}, stale_pending={is_stale_pending}) — allowing retry"
+                )
+                await self.db[self.COLLECTION_NAME].delete_one({"key": idempotency_key})
+                # Fall through to fresh-insert path below.
+            else:
+                logger.info(f"Idempotency key {idempotency_key[:8]}... already exists (status={status})")
+                return (True, existing.get("result"))
+
         # Try to insert new key (will fail if another request beat us)
         try:
             await self.db[self.COLLECTION_NAME].insert_one({
                 "key": idempotency_key,
                 "status": "PENDING",
-                "createdAt": datetime.now(timezone.utc).isoformat(),
+                "createdAt": now.isoformat(),
                 "expiresAt": expires_at,
                 "result": None
             })

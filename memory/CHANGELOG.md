@@ -1305,3 +1305,44 @@ value first, then hit signup gate. Do NOT ask login before Generate."
 - Tail prod backend logs around the 502 timestamp — look for OOM, worker restart, or upstream R2/LLM timeout.
 - Check prod nginx ingress timeout (`proxy_read_timeout`) — should be ≥ 60 s.
 - If neither, raise an Emergent Support ticket; provide the prod request timestamp.
+
+## 2026-05-12 — P0 Comic Story Book "Duplicate request in progress" soft-lock
+
+**Bug**: Clicking "Generate Full Comic Book" returned a raw 409 toast: `"Duplicate request in progress. Please poll job status."` — even for admin/unlimited users, even on the very first click of the session.
+
+**Root cause** (`/app/backend/services/idempotency_service.py`):
+1. `check_and_store()` treated **every existing record** as a duplicate, regardless of status. Records with `status="FAILED"` from a prior crashed attempt soft-locked the user for the entire 24-hour TTL.
+2. If a request crashed between `insert()` and `update_result()` (or `mark_failed`), the PENDING row was orphaned — same 24-hour soft-lock.
+3. Because the body-fingerprint hash was deterministic for `(user_id, genre, title, storyIdea, pageCount)`, the user couldn't even retry by varying input — they had to wait out the TTL.
+
+**Backend fix** (`services/idempotency_service.py`):
+- `check_and_store()` now auto-recovers stuck records:
+  - `status="FAILED"` → delete the row and create a fresh PENDING (retry allowed).
+  - `status="PENDING"` and older than `STALE_PENDING_MINUTES=10` → delete and recreate (assume the owning request crashed).
+  - `status="COMPLETED"` with a cached result → still returns the cached `{jobId,…}` payload (true idempotency preserved).
+- `STALE_PENDING_MINUTES = 10` chosen because the `/generate` route is fully synchronous-fast (< 5 s under healthy load).
+
+**Backend fix** (`routes/comic_storybook_v2.py`):
+- When the duplicate path is hit and there's no cached result yet, the route now looks up the user's most-recent in-flight `comic_storybook_v2_jobs` doc by `idempotency_key` and returns `{success: true, jobId, status, progress, resumed: true}` instead of 409. The 409 path now only fires for the rare genuine race where the second request lands before the first inserted its job row.
+
+**Frontend fix** (`pages/ComicStorybookBuilder.js`):
+- `generateComicBook()` early-exits if `loading` or `pollingRef.current` is already set — kills the rapid double-submit pathway.
+- On a 200 response with `resumed: true`, the toast reads `"Your comic is already generating. Opening progress…"` and the existing job is polled.
+- On a 409 fallback, the client queries `/history?page=0&size=5` for the most-recent non-terminal job and resumes polling that. Only if no live job is found does it surface the soft message `"Your comic is already generating. Please wait a moment and try again."` — never the raw 409 detail.
+
+**Tests** (`tests/test_comic_storybook_idempotency_2026_05.py`) — 6/6 PASS:
+- `test_first_submit_is_not_duplicate` — fresh key returns `(False, None)`.
+- `test_concurrent_pending_returns_dup_with_no_result` — fresh PENDING soft-blocks correctly.
+- `test_stale_pending_is_auto_recovered` — PENDING > 10 min auto-recovers.
+- `test_failed_key_is_auto_recovered` — FAILED auto-recovers.
+- `test_completed_key_returns_cached_result` — true idempotency preserved.
+- `test_http_single_click_returns_200_jobid` — HTTP smoke end-to-end.
+
+**Why the user kept hitting 409**: their prior generation attempts on production crashed (the 502 episode from earlier today) — that left FAILED idempotency rows in the DB. Until this fix, those rows blocked every subsequent retry for 24 h.
+
+**Production action** (one-time, after redeploy): clear any leftover stuck rows.
+```js
+// Admin DB shell — optional one-time cleanup after deploy
+db.idempotency_keys.deleteMany({ status: { $in: ["FAILED", "PENDING"] } })
+```
+(Not strictly required — the new auto-recovery will heal them on the next submit — but speeds things up.)

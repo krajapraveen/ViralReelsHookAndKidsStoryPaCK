@@ -793,17 +793,23 @@ export default function ComicStorybookBuilder() {
 
   // Generate full comic book
   const generateComicBook = async () => {
+    // P0 2026-05 — guard against rapid double-submits (the `loading` flag
+    // also disables the button in the JSX). Bail out if a request is in
+    // flight or a job is already polling.
+    if (loading || pollingRef.current) {
+      return;
+    }
     if (!storyIdea.trim() || !selectedGenre) {
       toast.error('Please complete all steps first');
       return;
     }
-    
+
     // Final validation
     if (!validateContent(storyIdea) || !validateContent(bookTitle)) {
       toast.error('Please remove copyrighted references');
       return;
     }
-    
+
     const cost = calculateCost();
     // Skip credit gate entirely for unlimited / admin / QA users — backend
     // enforces the same bypass server-side (defense in depth).
@@ -812,11 +818,11 @@ export default function ComicStorybookBuilder() {
       setShowUpsell(true);
       return;
     }
-    
+
     setLoading(true);
     setJob(null);
     setGenerationStartTime(Date.now());
-    
+
     try {
       const res = await api.post('/api/comic-storybook-v2/generate', {
         genre: selectedGenre,
@@ -831,18 +837,43 @@ export default function ComicStorybookBuilder() {
         readingLevel,
         bilingual: bilingual ? bilingualLang : null,
       });
-      
-      setJob({ id: res.data.jobId, status: 'QUEUED', progress: 0 });
-      toast.success('Comic book generation started!');
+
+      setJob({ id: res.data.jobId, status: res.data.status || 'QUEUED', progress: res.data.progress || 0 });
+      if (res.data.resumed) {
+        toast.success('Your comic is already generating. Opening progress…');
+      } else {
+        toast.success('Comic book generation started!');
+      }
       markFeatureUsed('comic_storybook');
-      
+
       const interval = setInterval(() => pollJobStatus(res.data.jobId), 3000);
       pollingRef.current = interval;
-      
+
     } catch (e) {
+      // P0 2026-05 — Graceful 409 handling. If the backend reports an
+      // in-flight duplicate, try to resume polling the user's most recent
+      // active job instead of stranding them with a raw error toast.
+      if (e?.response?.status === 409) {
+        try {
+          const listRes = await api.get('/api/comic-storybook-v2/history?page=0&size=5');
+          const recent = (listRes.data?.jobs || []).find(
+            (j) => j.id && j.status !== 'COMPLETED' && j.status !== 'FAILED'
+          );
+          if (recent) {
+            setJob({ id: recent.id, status: recent.status, progress: recent.progress || 0 });
+            toast.success('Your comic is already generating. Opening progress…');
+            const interval = setInterval(() => pollJobStatus(recent.id), 3000);
+            pollingRef.current = interval;
+            return;
+          }
+        } catch (_) { /* fall through to clean toast */ }
+        toast.error('Your comic is already generating. Please wait a moment and try again.');
+        setLoading(false);
+        return;
+      }
       setLoading(false);
       const errorMsg = e.response?.data?.detail || 'Generation failed';
-      toast.error(errorMsg);
+      toast.error(typeof errorMsg === 'string' ? errorMsg : 'Generation failed');
     }
   };
 
