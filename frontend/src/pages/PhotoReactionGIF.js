@@ -1,21 +1,34 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Upload, Wand2, Camera, Loader2, Download,
   Check, AlertTriangle, Shield, Sparkles, Image,
   Smile, Heart, Zap, Flame, PackageOpen, RefreshCw,
-  Share2, Copy, ExternalLink, X, ChevronRight
+  Share2, Copy, ExternalLink, X, ChevronRight, Lock,
+  Film, BookOpen, Palette,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import api from '../utils/api';
 import RatingModal from '../components/RatingModal';
 import UpsellModal from '../components/UpsellModal';
+import BedtimePaywallModal from '../components/BedtimePaywallModal';
 import { useNotifications } from '../contexts/NotificationContext';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+
+// ─── P0 2026-05 — Admin / unlimited detection (mirrors backend
+// services/entitlement.is_unlimited_user / has_full_content_access).
+const _UNLIMITED_ROLES = ['admin', 'owner', 'dev', 'qa', 'qa_user', 'test'];
+function _detectUnlimitedFromLocalStorage() {
+  try {
+    const u = JSON.parse(localStorage.getItem('user') || '{}');
+    const role = String(u?.role || '').toLowerCase();
+    return Boolean(u?.is_unlimited) || _UNLIMITED_ROLES.includes(role);
+  } catch (_) { return false; }
+}
 
 // ════════════════════════════════════════════
 // REACTIONS
@@ -71,10 +84,14 @@ const AUTO_STYLES = ['cartoon_motion', 'pixar_3d', 'anime_shonen', 'meme_classic
 // COMPONENT
 // ════════════════════════════════════════════
 export default function PhotoReactionGIF() {
+  const navigate = useNavigate();
   // Core state
   const [phase, setPhase] = useState('upload'); // upload | generating | result
   const [credits, setCredits] = useState(0);
   const [firstFree, setFirstFree] = useState(false);
+  // P0 2026-05 — admin / unlimited / subscriber detection
+  const [isUnlimitedUser, setIsUnlimitedUser] = useState(_detectUnlimitedFromLocalStorage);
+  const [paywall, setPaywall] = useState({ open: false, reason: null });
 
   // Upload
   const [photo, setPhoto] = useState(null);
@@ -99,10 +116,44 @@ export default function PhotoReactionGIF() {
 
   const { notifyGenerationComplete, notifyGenerationFailed, refetchNotifications } = useNotifications();
 
+  // P0 2026-05 — effective access flag. Backend is the source of truth via
+  // job.access.full_access; local isUnlimitedUser is the defense-in-depth.
+  // IMPORTANT: Must be defined before useEffect that references it.
+  const canAccessFull = isUnlimitedUser || Boolean(job?.access?.full_access);
+
   useEffect(() => {
     fetchInit();
     return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
   }, []);
+
+  // P0 2026-05 — Block copy/save/print shortcuts while result is shown,
+  // for non-premium users. Frontend deterrent only; the real protection
+  // is the backend gate on /download/:job_id.
+  useEffect(() => {
+    if (phase !== 'result' || canAccessFull) return undefined;
+    const onKey = (e) => {
+      const k = (e.key || '').toLowerCase();
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (['c', 'x', 's', 'p', 'a'].includes(k)) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (k === 's' || k === 'p') {
+          setPaywall({ open: true, reason: 'download' });
+        } else {
+          setPaywall({ open: true, reason: 'copy' });
+        }
+      }
+    };
+    const onCopy = (e) => { e.preventDefault(); setPaywall({ open: true, reason: 'copy' }); };
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('copy', onCopy, true);
+    window.addEventListener('cut', onCopy, true);
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('copy', onCopy, true);
+      window.removeEventListener('cut', onCopy, true);
+    };
+  }, [phase, canAccessFull]);
 
   const fetchInit = async () => {
     try {
@@ -112,6 +163,9 @@ export default function PhotoReactionGIF() {
       ]);
       setCredits(credRes.data.balance ?? credRes.data.credits ?? 0);
       setFirstFree(reactRes.data.first_free || false);
+      if (credRes.data.is_unlimited === true || credRes.data.unlimited === true) {
+        setIsUnlimitedUser(true);
+      }
     } catch {
       toast.error('Failed to load tool data. Try refreshing.');
     }
@@ -246,20 +300,54 @@ export default function PhotoReactionGIF() {
   const resolveUrl = (url) => url?.startsWith('http') ? url : `${API_URL}${url}`;
 
   const downloadResult = async () => {
-    if (!job?.resultUrl) return;
+    if (!job?.id) {
+      toast.error('Generated asset is not available yet. Please wait.');
+      return;
+    }
+    // Backend gate: route the request through /download/:job_id so free
+    // users cannot bypass the paywall by hitting the raw R2 URL.
     try {
-      const url = resolveUrl(job.resultUrl);
+      const dl = await api.post(`/api/reaction-gif/download/${job.id}`);
+      const urls = dl.data?.downloadUrls || [];
+      const target = urls[0] || job.resultUrl;
+      if (!target) {
+        toast.error('Generated asset is not available. Please try again.');
+        return;
+      }
+      const url = resolveUrl(target);
       const resp = await fetch(url);
       const blob = await resp.blob();
       saveAs(blob, `reaction_${selectedReaction}_${job.id?.slice(0, 8)}.png`);
       toast.success('Downloaded!');
-    } catch {
-      window.open(resolveUrl(job.resultUrl), '_blank');
+    } catch (e) {
+      const status = e?.response?.status;
+      if (status === 402 || status === 403) {
+        setPaywall({ open: true, reason: 'download' });
+        return;
+      }
+      if (status === 404) {
+        toast.error('Generated asset is not available. Please try again.');
+        return;
+      }
+      toast.error('Download failed. Please try again.');
     }
   };
 
   const downloadAllAsZip = async () => {
-    if (!job?.results?.length) return;
+    if (!job?.results?.length) {
+      toast.error('No assets available to download yet.');
+      return;
+    }
+    // Verify access via the same backend gate before bulk download.
+    try {
+      await api.post(`/api/reaction-gif/download/${job.id}`);
+    } catch (e) {
+      const status = e?.response?.status;
+      if (status === 402 || status === 403) {
+        setPaywall({ open: true, reason: 'download' });
+        return;
+      }
+    }
     setPackDownloading(true);
     try {
       const zip = new JSZip();
@@ -273,7 +361,7 @@ export default function PhotoReactionGIF() {
       const blob = await zip.generateAsync({ type: 'blob' });
       saveAs(blob, `reaction_pack_${job.id?.slice(0, 8)}.zip`);
       toast.success('Pack downloaded!');
-    } catch { toast.error('Download failed'); }
+    } catch { toast.error('Download failed. Please try again.'); }
     setPackDownloading(false);
   };
 
@@ -285,18 +373,74 @@ export default function PhotoReactionGIF() {
 
   const shareWhatsApp = () => {
     const url = getShareUrl();
+    if (!url) {
+      toast.error('Generated asset is not available yet. Please wait.');
+      return;
+    }
     const text = `Check out my AI reaction! Made on Visionary Suite`;
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text + ' ' + url)}`, '_blank');
   };
 
-  const shareInstagram = () => {
-    downloadResult();
-    toast.success('Image downloaded — share it to your favorite social story!');
+  const shareToStory = async () => {
+    if (!job?.id) {
+      toast.error('Generated asset is not available yet. Please wait.');
+      return;
+    }
+    if (!canAccessFull) {
+      setPaywall({ open: true, reason: 'share' });
+      return;
+    }
+    // Prefer native Web Share with the file when supported (mobile).
+    try {
+      const dl = await api.post(`/api/reaction-gif/download/${job.id}`);
+      const urls = dl.data?.downloadUrls || [];
+      const target = urls[0] || job.resultUrl;
+      if (!target) {
+        toast.error('Generated asset is not available.');
+        return;
+      }
+      const url = resolveUrl(target);
+      const resp = await fetch(url);
+      const blob = await resp.blob();
+      const file = new File([blob], `reaction_${selectedReaction}.png`, { type: blob.type || 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'My AI Reaction',
+          text: 'Check out my AI reaction!',
+        });
+        return;
+      }
+      // Fallback — save the file so the user can attach it to their Story.
+      saveAs(blob, `reaction_${selectedReaction}.png`);
+      toast.success('Image downloaded — share it to your Story from your gallery.');
+    } catch (e) {
+      if (e?.name === 'AbortError') return; // user cancelled native share
+      const status = e?.response?.status;
+      if (status === 402 || status === 403) {
+        setPaywall({ open: true, reason: 'share' });
+        return;
+      }
+      toast.error('Could not share. Please try again.');
+    }
   };
 
-  const copyLink = () => {
-    navigator.clipboard.writeText(getShareUrl());
-    toast.success('Link copied!');
+  const copyLink = async () => {
+    if (!canAccessFull) {
+      setPaywall({ open: true, reason: 'copy' });
+      return;
+    }
+    const url = getShareUrl();
+    if (!url) {
+      toast.error('Generated asset is not available yet. Please wait.');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success('Link copied!');
+    } catch {
+      toast.error('Could not copy link. Try again.');
+    }
   };
 
   // ── Reset ──
@@ -496,6 +640,61 @@ export default function PhotoReactionGIF() {
         </div>
 
         <p className="text-xs text-slate-600">Usually takes 15-30 seconds</p>
+
+        {/* P0 2026-05 — Waiting suggestions: keep users engaged while
+            their reaction generates. Polling continues in the background. */}
+        <div
+          className="mt-10 text-left rounded-2xl border border-slate-800 bg-slate-900/40 p-5"
+          data-testid="waiting-feature-panel"
+        >
+          <p className="text-sm text-slate-300 font-medium mb-1">
+            Your Reaction GIF is being created.
+          </p>
+          <p className="text-xs text-slate-500 mb-4">
+            While you wait, try Story Video, Photo to Comic, Comic Story Book or Bedtime Stories.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/app/story-video-studio')}
+              className="border-slate-700 text-slate-300 hover:bg-slate-800 justify-start"
+              data-testid="waiting-feature-story-video"
+            >
+              <Film className="w-3.5 h-3.5 mr-1.5" /> Story Video
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/app/photo-to-comic')}
+              className="border-slate-700 text-slate-300 hover:bg-slate-800 justify-start"
+              data-testid="waiting-feature-photo-to-comic"
+            >
+              <Palette className="w-3.5 h-3.5 mr-1.5" /> Photo to Comic
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/app/comic-storybook')}
+              className="border-slate-700 text-slate-300 hover:bg-slate-800 justify-start"
+              data-testid="waiting-feature-comic-storybook"
+            >
+              <BookOpen className="w-3.5 h-3.5 mr-1.5" /> Comic Story Book
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/app/bedtime-story-builder')}
+              className="border-slate-700 text-slate-300 hover:bg-slate-800 justify-start"
+              data-testid="waiting-feature-bedtime"
+            >
+              <Sparkles className="w-3.5 h-3.5 mr-1.5" /> Bedtime Stories
+            </Button>
+          </div>
+          <p className="text-[10px] text-slate-600 mt-3 text-center">
+            We&apos;ll bring you back here as soon as your reaction is ready.
+          </p>
+        </div>
       </div>
     );
   };
@@ -512,13 +711,35 @@ export default function PhotoReactionGIF() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* LEFT: Result image */}
           <div className="space-y-4">
-            <div className="rounded-2xl overflow-hidden border border-slate-700 bg-slate-900/60 shadow-2xl">
+            <div
+              className="rounded-2xl overflow-hidden border border-slate-700 bg-slate-900/60 shadow-2xl relative group select-none"
+              data-testid="result-protected-wrapper"
+              onContextMenu={canAccessFull ? undefined : (e) => { e.preventDefault(); setPaywall({ open: true, reason: 'copy' }); }}
+              style={canAccessFull ? undefined : {
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+                MozUserSelect: 'none',
+                msUserSelect: 'none',
+                WebkitTouchCallout: 'none',
+              }}
+            >
               <img
                 src={resultUrl}
                 alt="Your Reaction"
                 className="w-full"
                 data-testid="result-image"
+                draggable={false}
+                onDragStart={(e) => e.preventDefault()}
+                onContextMenu={canAccessFull ? undefined : (e) => { e.preventDefault(); setPaywall({ open: true, reason: 'copy' }); }}
+                style={{ pointerEvents: canAccessFull ? 'auto' : 'none', WebkitUserDrag: 'none' }}
               />
+              {!canAccessFull && (
+                <div className="pointer-events-none absolute inset-0 flex items-end justify-end p-2">
+                  <span className="text-[10px] uppercase tracking-wider text-white/70 bg-black/40 backdrop-blur px-2 py-0.5 rounded">
+                    Preview · Subscribe to download
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Pack results grid */}
@@ -559,7 +780,7 @@ export default function PhotoReactionGIF() {
                 </Button>
                 <div className="grid grid-cols-2 gap-2">
                   <Button
-                    onClick={shareInstagram}
+                    onClick={shareToStory}
                     variant="outline"
                     className="py-3 text-slate-300 border-slate-700 hover:bg-slate-800"
                     data-testid="share-instagram"
@@ -719,6 +940,13 @@ export default function PhotoReactionGIF() {
           onClose={() => setShowUpsell(false)}
         />
       )}
+
+      {/* P0 2026-05 — Subscription paywall for Download / Share to Story / Copy */}
+      <BedtimePaywallModal
+        open={paywall.open}
+        reason={paywall.reason}
+        onClose={() => setPaywall({ open: false, reason: null })}
+      />
     </div>
   );
 }

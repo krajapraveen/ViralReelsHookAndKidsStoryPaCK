@@ -532,10 +532,21 @@ async def get_job_status(job_id: str, user: dict = Depends(get_current_user)):
         {"id": job_id, "userId": user["id"]},
         {"_id": 0}
     )
-    
+
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    
+
+    # ─── P0 2026-05 — attach access flags so the frontend can gate
+    # Download / Copy Link / Share to Story without an extra round-trip.
+    from services.entitlement import has_full_content_access
+    full = has_full_content_access(user) or bool(job.get("purchased"))
+    job["access"] = {
+        "full_access": full,
+        "can_download": full,
+        "can_copy_link": full,
+        "can_share_story": full,
+        "upgrade_required": not full,
+    }
     return job
 
 
@@ -558,31 +569,35 @@ async def get_history(
 
 @router.post("/download/{job_id}")
 async def download_gif(job_id: str, user: dict = Depends(get_current_user)):
-    """Download GIF(s)"""
+    """Download GIF(s). Subscriber / admin / unlimited only — backend gate."""
     job = await db.reaction_gif_jobs.find_one(
         {"id": job_id, "userId": user["id"]},
         {"_id": 0}
     )
-    
+
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    
+
     if job.get("status") != "COMPLETED":
         raise HTTPException(status_code=400, detail="GIF not ready")
-    
-    # Check if free user
-    user_plan = user.get("plan", "free")
-    if user_plan == "free" and not job.get("purchased"):
+
+    # ─── P0 2026-05 — centralized access gate ───────────────────────
+    # Subscriber / admin / unlimited only. Free users land on paywall.
+    from services.entitlement import has_full_content_access
+    if not has_full_content_access(user) and not job.get("purchased"):
         raise HTTPException(
-            status_code=403,
-            detail="Upgrade to download. Preview is watermarked."
+            status_code=402,
+            detail="Subscribe to download. Preview is watermarked.",
         )
-    
+
     # Get all URLs
     download_urls = [r["url"] for r in job.get("results", [])]
     if not download_urls and job.get("resultUrl"):
         download_urls = [job["resultUrl"]]
-    
+
+    if not download_urls:
+        raise HTTPException(status_code=404, detail="Download asset not available")
+
     return {
         "success": True,
         "downloadUrls": download_urls
