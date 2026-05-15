@@ -14,6 +14,13 @@ import logging
 logger = logging.getLogger(__name__)
 
 SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY")
+
+# ─── 2026-05 — Auth-failure circuit breaker ──────────────────────────
+# If SendGrid rejects the key with 401/403 we have nothing to fix at
+# runtime — the key is revoked. Stop retrying every 24 h with ERROR-level
+# log lines and instead emit a single WARNING; the next deploy with a
+# fresh key resets the breaker.
+_SEND_BREAKER = {"tripped": False, "last_status": None}
 SENDER_EMAIL = os.environ.get("SENDGRID_FROM_EMAIL", "krajapraveen@visionary-suite.com")
 REPORT_RECIPIENTS = ["krajapraveen@gmail.com", "krajapraveen@visionary-suite.com"]
 
@@ -606,15 +613,23 @@ class DailyVisitorReportService:
         
         if not self.sg:
             return {"success": False, "error": "SendGrid not configured"}
-        
+
+        # 2026-05 — short-circuit if a previous send tripped the auth breaker
+        if _SEND_BREAKER["tripped"]:
+            return {
+                "success": False,
+                "error": f"SendGrid auth previously failed ({_SEND_BREAKER['last_status']}). Refresh SENDGRID_API_KEY and redeploy.",
+                "breaker": True,
+            }
+
         if report is None:
             report = await self.generate_daily_report()
-        
+
         if recipients is None:
             recipients = REPORT_RECIPIENTS
-        
+
         html_content = self.format_html_report(report)
-        
+
         results = []
         for recipient in recipients:
             try:
@@ -624,22 +639,34 @@ class DailyVisitorReportService:
                     subject=f"Daily Visitor Report - {report['report_date']} | Visionary Suite",
                     html_content=HtmlContent(html_content)
                 )
-                
+
                 response = self.sg.send(message)
                 results.append({
                     "recipient": recipient,
                     "success": response.status_code in [200, 201, 202],
                     "status_code": response.status_code
                 })
-                
+
                 logger.info(f"Daily report sent to {recipient}: {response.status_code}")
-                
+
             except Exception as e:
-                logger.error(f"Failed to send daily report to {recipient}: {e}")
+                # 2026-05 — detect SendGrid auth failures and trip the breaker
+                msg = str(e)
+                if "401" in msg or "403" in msg:
+                    if not _SEND_BREAKER["tripped"]:
+                        _SEND_BREAKER["tripped"] = True
+                        _SEND_BREAKER["last_status"] = "401" if "401" in msg else "403"
+                        logger.warning(
+                            "[DailyReport] SendGrid auth failed (%s). Tripping breaker; "
+                            "will skip future sends until SENDGRID_API_KEY is refreshed.",
+                            _SEND_BREAKER["last_status"],
+                        )
+                else:
+                    logger.error(f"Failed to send daily report to {recipient}: {e}")
                 results.append({
                     "recipient": recipient,
                     "success": False,
-                    "error": str(e)
+                    "error": msg,
                 })
         
         return {
