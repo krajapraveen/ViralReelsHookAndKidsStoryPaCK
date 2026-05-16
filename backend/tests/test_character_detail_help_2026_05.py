@@ -157,6 +157,13 @@ def test_create_series_validates_preselected_character():
     src = CREATE_SERIES.read_text(encoding="utf-8")
     # Validation hits the canonical character endpoint
     assert "api.get(`/api/characters/${preselectedCharacterId}`)" in src
+    # Founder-spec bug fix 2026-05-18: validator must read the character
+    # fields from res.data.profile (backend returns a nested envelope), NOT
+    # from the top-level response object. Reading top-level silently fell
+    # through to the "could not be loaded" branch and the banner would show
+    # an error even for valid character_ids.
+    assert "env.profile || env" in src, \
+        "Validator must read character fields from res.data.profile"
 
 
 def test_create_series_shows_preselected_banner():

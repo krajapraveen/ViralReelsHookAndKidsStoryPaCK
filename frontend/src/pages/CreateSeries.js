@@ -62,7 +62,13 @@ export default function CreateSeries() {
     setPreselectValidating(true);
     api.get(`/api/characters/${preselectedCharacterId}`)
       .then(res => {
-        const c = res.data || {};
+        // Backend returns { success, profile: { character_id, name, ... },
+        // visual_bible, safety_profile, memory_log }. Read the character
+        // fields from `profile`, not the top-level envelope. (Earlier code
+        // mistakenly read top-level fields, which always tripped the empty
+        // check and silently showed the "could not be loaded" branch.)
+        const env = res.data || {};
+        const c = env.profile || env;
         if (!c.character_id && !c.id && !c.name) {
           throw new Error('empty');
         }

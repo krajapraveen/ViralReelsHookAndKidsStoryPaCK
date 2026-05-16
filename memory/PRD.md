@@ -65,6 +65,34 @@ state ownership, non-deterministic hydration.
 - `MySpacePage.js`, Comic Storybook — zero changes
 - UI styling, copy, auth, billing, pipeline, R2 — zero changes
 
+### P0 QA — Character Detail CTA Click + Routing Verification — May 18, 2026
+**Status**: VERIFIED + 1 LATENT BUG FIXED. Playwright multi-viewport routing test passing.
+
+**Verified end-to-end (mobile iPhone 12 390×844 AND desktop 1280×800):**
+- "Create Series with this Character" → `/app/story-series/create?character_id=<id>` → lands on `create-series-page` → `preselected-character-banner` becomes visible → `preselected-character-name` populates with the character's actual name (e.g., "human hero") → no auth redirect → no relevant console errors
+- "Open My Series" → `/app/story-series` → lands on `story-series-hub` → does NOT leak to `/create` → no auth redirect
+- "Back to My Characters" → `/app/characters` → lands on `character-library-page` → does NOT route to `/story-series` → no auth redirect
+
+**Latent bug found + fixed during verification**:
+The Create Series banner-name validator in `CreateSeries.js` was reading `res.data.name` / `res.data.character_id`, but the backend `GET /api/characters/{id}` returns a nested envelope `{ success, profile: {character_id, name, ...}, visual_bible, safety_profile, memory_log }`. The validator always tripped the "empty" guard and silently showed the error branch ("Preselected character could not be loaded") for every valid character_id. Fixed: validator now reads `env.profile || env`. Source-level test added to lock the fix in.
+
+**Cross-cutting verifications (all PASS)**:
+- No dead buttons (all 3 register click handlers and navigate)
+- No duplicate navigation (URL settles within networkidle)
+- No console errors (filtered out third-party CSP noise: Cloudflare beacon, Posthog, GA — unrelated to CTAs)
+- No full-page reload (React Router SPA navigation preserved)
+- No auth-redirect loop for logged-in users
+- No missing character_id (URL contains `?character_id=<id>` verbatim)
+
+**Files changed**:
+- `frontend/src/pages/CreateSeries.js` — validator now reads `env.profile || env`
+- `backend/tests/test_character_detail_help_2026_05.py` — assertion added for `env.profile || env`
+- `backend/tests/test_character_cta_routing_2026_05.py` (NEW) — 2 tests:
+  - `test_all_three_ctas_route_correctly_on_mobile_and_desktop` — Playwright clicks each CTA, asserts URL + landing-page testid + banner state + console cleanliness at both viewports
+  - `test_create_series_auto_attach_after_creation` — backend integration: validate + create series + attach-to-series handshake
+
+**Cumulative sprint tests**: **91/91 backend passing** (Sessions 0-2 + Phase 3a/3b + Character UX + Layout fix + CTA routing). Frontend reducer suite: 23/23.
+
 ### P0 Layout Fix — Character Detail Help CTA Overlap — May 18, 2026
 **Status**: SHIPPED. Playwright multi-viewport regression test passing.
 
