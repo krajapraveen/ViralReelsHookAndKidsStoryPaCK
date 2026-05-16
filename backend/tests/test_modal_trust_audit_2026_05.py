@@ -183,3 +183,104 @@ def test_pre_fix_state_only_navigation_removed_from_remix_gallery():
         "Pre-fix state-only navigation pattern still present in RemixGallery"
     assert "source: 'remix_gallery'," not in src, \
         "Pre-fix remixFrom payload still being passed via state"
+
+
+# ─── 8. Download button uses canonical download-token flow ──────────────────
+# Bug-class regression guard: the pre-fix triggerDownload built a direct
+# `<a href={job.output_url} download>` click on the raw R2/S3 URL. Safari
+# and iOS ignore the `download` attribute for cross-origin URLs, so users
+# saw the asset OPEN in a new tab instead of downloading.
+def test_trigger_download_uses_download_token_endpoint():
+    src = MS.read_text(encoding="utf-8")
+    idx = src.find("async function triggerDownload(")
+    assert idx > 0, "triggerDownload must be async now (token request)"
+    body = src[idx:idx + 5000]
+    # Canonical endpoint hit
+    assert "/api/media/download-token/" in body
+    # Token from localStorage attached as Authorization header
+    assert "Authorization" in body
+    assert "Bearer ${token}" in body
+
+
+def test_trigger_download_does_not_directly_use_raw_output_url():
+    """The exact pre-fix dangerous pattern must be gone — no direct anchor
+    click on `job.output_url`. (We allow doc-comments referencing the OLD
+    behavior; we only check executable lines.)"""
+    src = MS.read_text(encoding="utf-8")
+    idx = src.find("async function triggerDownload(")
+    body = src[idx:idx + 5000]
+    # Strip JS line comments and block comments before checking the active code
+    import re as _re
+    code_only = _re.sub(r"//[^\n]*", "", body)
+    code_only = _re.sub(r"/\*.*?\*/", "", code_only, flags=_re.S)
+    # Pre-fix anchor-on-output_url pattern
+    assert "a.href = job.output_url" not in code_only, \
+        "triggerDownload must NOT click an anchor on the raw output_url"
+    assert "window.open(job.output_url" not in code_only, \
+        "triggerDownload must NOT window.open the raw output_url"
+    # Active code must not reference job.output_url anywhere — the token
+    # flow returns its own signed URL.
+    assert "job.output_url" not in code_only, \
+        "triggerDownload must source the download URL from the token response, not job.output_url"
+
+
+def test_trigger_download_uses_blob_pattern_for_cross_browser_safety():
+    """Blob URLs honor the `download` attribute on Safari/iOS where raw
+    cross-origin URLs do not. This is the actual Safari fix."""
+    src = MS.read_text(encoding="utf-8")
+    idx = src.find("async function triggerDownload(")
+    body = src[idx:idx + 5000]
+    assert "URL.createObjectURL(blob)" in body
+    assert "URL.revokeObjectURL(blobUrl)" in body
+    assert "a.download =" in body
+
+
+def test_trigger_download_surfaces_structured_toast_on_paywall():
+    src = MS.read_text(encoding="utf-8")
+    idx = src.find("async function triggerDownload(")
+    body = src[idx:idx + 5000]
+    # 403 → paywall copy
+    assert "res.status === 403" in body
+    assert "Downloads are available on paid plans" in body
+
+
+def test_trigger_download_surfaces_structured_toast_on_processing():
+    src = MS.read_text(encoding="utf-8")
+    idx = src.find("async function triggerDownload(")
+    body = src[idx:idx + 5000]
+    # 202 → still processing
+    assert "res.status === 202" in body
+    assert "still processing" in body.lower()
+
+
+def test_trigger_download_surfaces_structured_toast_on_missing_asset():
+    src = MS.read_text(encoding="utf-8")
+    idx = src.find("async function triggerDownload(")
+    body = src[idx:idx + 5000]
+    # 410 + 404 → asset gone
+    assert "res.status === 410" in body
+    assert "res.status === 404" in body
+    assert "no longer available for download" in body.lower()
+
+
+def test_trigger_download_includes_request_id_in_every_error_toast():
+    """Token failure / missing asset / 5xx upstream → ALL toasts include
+    `Reference ID: <id>` from the X-Request-Id header so support has a
+    traceable correlation key."""
+    src = MS.read_text(encoding="utf-8")
+    idx = src.find("async function triggerDownload(")
+    body = src[idx:idx + 5000]
+    assert "X-Request-Id" in body
+    # At least three "Reference ID:" formattings — failure cascade has
+    # multiple branches and each must surface the id.
+    assert body.count("Reference ID:") >= 3, \
+        f"Every triggerDownload error branch must surface Reference ID; found {body.count('Reference ID:')}"
+
+
+def test_trigger_download_validates_job_id_first():
+    src = MS.read_text(encoding="utf-8")
+    idx = src.find("async function triggerDownload(")
+    body = src[idx:idx + 5000]
+    # Pre-flight guard before hitting the network
+    assert "if (!job?.job_id)" in body
+    assert "missing project id" in body

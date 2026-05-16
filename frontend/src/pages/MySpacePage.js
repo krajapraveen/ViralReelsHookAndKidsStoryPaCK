@@ -175,17 +175,94 @@ function timeAgo(dateStr) {
   return `${days}d ago`;
 }
 
-function triggerDownload(job) {
-  if (!job.output_url) { toast.error('Video not available for download'); return; }
+async function triggerDownload(job) {
+  // P0 2026-05-16 — modal trust-flow audit follow-up.
+  //
+  // PREVIOUS BEHAVIOR (broken on Safari/iOS): used a synchronous
+  // <a href={job.output_url} download> click on the raw R2/S3 URL. For
+  // cross-origin assets, browsers ignore the `download` attribute and
+  // OPEN the asset in a new tab → users perceived "Download doesn't work."
+  //
+  // NEW BEHAVIOR: mirrors EntitledDownloadButton's canonical flow:
+  //   1. POST /api/media/download-token/{job_id} — backend re-checks
+  //      entitlement + asset state + issues a short-lived signed URL.
+  //   2. Fetch the signed URL as a blob, create an Object URL, click an
+  //      <a download> on THAT blob. Blob URLs honor `download` on every
+  //      browser including Safari/iOS.
+  //   3. All failure modes (403 paywall / 202 processing / 410 expired /
+  //      404 missing / 5xx upstream) surface a structured toast with
+  //      Reference ID from the X-Request-Id response header.
+  if (!job?.job_id) {
+    toast.error('Unable to download: missing project id.');
+    return;
+  }
+  const apiUrl = process.env.REACT_APP_BACKEND_URL;
+  const token = localStorage.getItem('token');
+  let res;
   try {
+    res = await fetch(`${apiUrl}/api/media/download-token/${job.job_id}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+  } catch (_) {
+    toast.error('Network error. Please check your connection and try again.');
+    return;
+  }
+  const requestId = res.headers.get('X-Request-Id') || res.headers.get('x-request-id') || 'n/a';
+
+  if (res.status === 403) {
+    toast.error('Downloads are available on paid plans. Please upgrade.');
+    return;
+  }
+  if (res.status === 202) {
+    const data = await res.json().catch(() => ({}));
+    toast.info(data?.detail?.message || 'Video is still processing. Please wait.');
+    return;
+  }
+  if (res.status === 410 || res.status === 404) {
+    const data = await res.json().catch(() => ({}));
+    const msg = (typeof data?.detail === 'object' ? data?.detail?.message : data?.detail) ||
+      'This video is no longer available for download.';
+    toast.error(`${msg}\nReference ID: ${requestId}`);
+    return;
+  }
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    const msg = (typeof data?.detail === 'object' ? data?.detail?.message : data?.detail) ||
+      'Download not available yet.';
+    toast.error(`${msg}\nReference ID: ${requestId}`);
+    return;
+  }
+
+  const data = await res.json().catch(() => ({}));
+  if (!data?.success || !data?.download_url) {
+    toast.error(`Download response was empty. Please try again.\nReference ID: ${requestId}`);
+    return;
+  }
+
+  // Fetch as blob so `download` attribute is honored on every browser.
+  try {
+    const dlRes = await fetch(data.download_url);
+    if (!dlRes.ok) throw new Error('Download fetch failed');
+    const blob = await dlRes.blob();
+    const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = job.output_url;
+    a.href = blobUrl;
     a.download = `${(job.title || 'video').replace(/[^a-z0-9]/gi, '-').toLowerCase()}-visionary-suite.mp4`;
-    a.target = '_blank';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-  } catch { window.open(job.output_url, '_blank'); }
+    URL.revokeObjectURL(blobUrl);
+    toast.success('Download started!');
+  } catch (_) {
+    // Cross-origin blob fetch can fail if R2 CORS is missing.
+    // Fall back to opening the SIGNED URL (still ephemeral, still safe).
+    window.open(data.download_url, '_blank', 'noopener,noreferrer');
+    toast.success('Download started!');
+  }
 }
 
 function requestNotificationPermission() {
