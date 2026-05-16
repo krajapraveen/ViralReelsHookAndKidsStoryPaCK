@@ -13,7 +13,8 @@ import {
   Play, Download, RefreshCw, AlertCircle, Clock, Coins,
   Video, Upload, BookOpen, Sparkles, RotateCcw, XCircle, Eye, Package,
   Share2, Link2, Copy, ExternalLink, RefreshCcw as Remix, ShieldAlert,
-  Shield, Check, X, Zap, ChevronDown, ArrowRight, GitBranch, Swords, BarChart2
+  Shield, Check, X, Zap, ChevronDown, ArrowRight, GitBranch, Swords, BarChart2,
+  Users, Edit3
 } from 'lucide-react';
 import FEATURES from '../config/featureFlags';
 import { trackFunnel } from '../utils/funnelTracker';
@@ -238,6 +239,9 @@ const INITIAL_POST_GEN_STATE = {
   jobTitle: '',
   canRetry: false,
   errorCode: null,
+  // P0 2026-05-18 — request_id surfaces on the Preview FAILED state so users
+  // hitting "Something needs a quick fix" can paste a support reference.
+  requestId: null,
   creditsRefunded: 0,
 };
 
@@ -287,6 +291,7 @@ function postGenReducer(state, action) {
         downloadReady: action.downloadReady || false,
         canRetry: action.canRetry || false,
         errorCode: action.errorCode || null,
+        requestId: action.requestId || null,
         creditsRefunded: action.creditsRefunded || 0,
       };
     case 'RESET':
@@ -875,6 +880,9 @@ function StoryVideoPipelineInner() {
     try {
       const res = await api.get(`/api/story-engine/validate-asset/${jid}`);
       const v = res.data;
+      // P0 2026-05-18 — propagate request_id from the reliability middleware
+      // header so any downstream FAILED state can surface a support reference.
+      const requestId = res.headers?.['x-request-id'] || res.headers?.['X-Request-Id'] || null;
 
       if (v.ui_state === 'READY') {
         dispatchPostGen({
@@ -904,10 +912,18 @@ function StoryVideoPipelineInner() {
           downloadUrl: v.download_url,
           storyPackUrl: v.story_pack_url,
           downloadReady: v.download_ready,
+          requestId,
         });
       }
-    } catch {
-      // Validation endpoint failed — use job data as fallback
+    } catch (err) {
+      // Validation endpoint failed — use job data as fallback.
+      // Pull request_id from the failed response so support has a reference.
+      const requestId =
+        err?.response?.headers?.['x-request-id'] ||
+        err?.response?.headers?.['X-Request-Id'] ||
+        err?.response?.data?.detail?.request_id ||
+        err?.response?.data?.request_id ||
+        null;
       const hasOutput = !!jobData?.output_url;
       const hasFallback = !!jobData?.fallback?.fallback_video_url || !!jobData?.fallback?.story_pack_url;
       if (hasOutput || hasFallback) {
@@ -920,7 +936,11 @@ function StoryVideoPipelineInner() {
           stageDetail: 'Assets may be available — validation check failed',
         });
       } else {
-        dispatchPostGen({ type: 'SET_FAILED', reason: 'Could not verify assets' });
+        dispatchPostGen({
+          type: 'SET_FAILED',
+          reason: 'Could not verify assets',
+          requestId,
+        });
       }
     }
   }, []);
@@ -1274,6 +1294,40 @@ function StoryVideoPipelineInner() {
     checkRateLimit();
   };
 
+  // ─── P0 PRODUCT 2026-05-18 — Preview action: REGENERATE ─────────────────
+  // Re-runs the SAME prompt as a fresh generation job. Keeps the user's
+  // title + story text in state but discards the previous job_id and asset
+  // urls so the next status poll shows clean processing UI.
+  // Founder spec: "Regenerate" action on the Preview screen — does not
+  // auto-publish, returns to processing phase, surfaces clear progress.
+  const handleRegenerate = useCallback(() => {
+    clearAllTimeouts();
+    setJobId(null);
+    setJob(null);
+    setReuseInfo(null);
+    setSoftTimeoutReached(false);
+    dispatchPostGen({ type: 'RESET' });
+    setPhase('input');
+    // Defer one tick so InputPhase mounts with the preserved prompt before
+    // we kick off generate — handleGenerate reads from current state.
+    setTimeout(() => { handleGenerate(); }, 0);
+    try { trackFunnel('preview_regenerate', { meta: { prev_job: jobId || job?.job_id || null } }); } catch (_) {}
+  }, [clearAllTimeouts, jobId, job]);
+
+  // ─── P0 PRODUCT 2026-05-18 — Preview action: EDIT PROMPT ─────────────────
+  // Returns user to phase='input' WITHOUT clearing title/storyText so they
+  // can tweak the prompt before regenerating. Founder spec: "Edit Prompt"
+  // action on the Preview screen.
+  const handleEditPrompt = useCallback(() => {
+    clearAllTimeouts();
+    dispatchPostGen({ type: 'RESET' });
+    setJobId(null);
+    setJob(null);
+    setSoftTimeoutReached(false);
+    setPhase('input');
+    try { trackFunnel('preview_edit_prompt', { meta: { prev_job: jobId || job?.job_id || null } }); } catch (_) {}
+  }, [clearAllTimeouts, jobId, job]);
+
   const viewJob = async (j) => {
     setJobId(j.job_id);
 
@@ -1543,6 +1597,8 @@ function StoryVideoPipelineInner() {
             onNew={handleNewVideo}
             onResume={handleResume}
             onRetryValidation={retryValidation}
+            onRegenerate={handleRegenerate}
+            onEditPrompt={handleEditPrompt}
             storyText={storyText}
             animStyle={animStyle}
           />
@@ -2367,7 +2423,7 @@ function FailedRecoveryScreen({ job, jobId, onNew, onRetryStarted }) {
 
 // ─── POST-GENERATION PHASE (State Machine Driven) ─────────────────────────────
 // Renders based on postGen.uiState ONLY. No contradictory states possible.
-function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation, storyText, animStyle }) {
+function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation, onRegenerate, onEditPrompt, storyText, animStyle }) {
   const [copied, setCopied] = useState(false);
   const [showDirections, setShowDirections] = useState(false);
   const [customDirection, setCustomDirection] = useState('');
@@ -2395,19 +2451,11 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
   // Reward celebration: check for streak/episode rewards when video completes
   useEffect(() => {
     if (uiState === 'READY') {
-      // Auto-redirect branches to Watch Page (Battle) after 3s
-      if (job?.continuation_type === 'branch' && jobId) {
-        const battleRoot = job?.root_story_id || job?.story_chain_id || job?.parent_job_id;
-        const timer = setTimeout(() => {
-          if (battleRoot) {
-            navigate(`/app/story-battle/${battleRoot}`, { replace: true });
-          } else {
-            navigate(`/app/story-viewer/${jobId}`, { replace: true });
-          }
-        }, 3000);
-        return () => clearTimeout(timer);
-      }
-
+      // P0 2026-05-18 — REMOVED 3s auto-redirect to /app/story-battle for
+      // branches. Founder spec: users must view the generated preview FIRST
+      // before any forced navigation. The "View Battle" entry remains
+      // available via the BATTLE_ENTRY_BANNER and the preview action row;
+      // navigation is now exclusively user-initiated.
       const token = localStorage.getItem('token');
       if (!token) return;
       // Fetch viral stats for personalized share prompt
@@ -2637,6 +2685,92 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
         </div>
       </div>
 
+      {/* P0 PRODUCT 2026-05-18 — Preview Action Row.
+          Founder mandate: users must see the generated preview and choose
+          Approve / Regenerate / Edit Prompt BEFORE any publish/download/
+          payment commitment. Renders only when the video is actionable
+          (READY or PARTIAL_READY) so it doesn't appear during processing. */}
+      {isActionable && (
+        <div
+          className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 flex flex-col sm:flex-row sm:flex-wrap gap-3 items-stretch sm:items-center"
+          data-testid="preview-actions-row"
+        >
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-white" data-testid="preview-actions-title">
+              Review your preview
+            </p>
+            <p className="text-xs text-white/40" data-testid="preview-actions-subtitle">
+              Approve to keep, regenerate to try again, or edit your prompt before continuing.
+            </p>
+            {/* Character / series linkage chip */}
+            {(characterName || job?.series_title) && (
+              <div className="mt-2 flex flex-wrap gap-1.5" data-testid="preview-linkage-chips">
+                {characterName && (
+                  <span
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-[11px] text-indigo-200"
+                    data-testid="preview-character-chip"
+                  >
+                    <Users className="w-3 h-3" /> {characterName}
+                  </span>
+                )}
+                {job?.series_title && (
+                  <span
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-200"
+                    data-testid="preview-series-chip"
+                  >
+                    <BookOpen className="w-3 h-3" /> {job.series_title}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:flex-shrink-0">
+            <Button
+              onClick={() => {
+                // Approve: dismiss any pending modals + scroll the user to
+                // the share/download rail. Stays on the same page — there
+                // is no separate publish flow to push them into.
+                setShowForceShare(false);
+                setShowSharePrompt(false);
+                try {
+                  document.querySelector('[data-testid="download-btn"]')?.scrollIntoView({
+                    behavior: 'smooth', block: 'center',
+                  });
+                } catch (_) { /* */ }
+                try { api.post('/api/funnel/track', { event: 'preview_approved', data: { job_id: jobId || job?.job_id } }); } catch (_) {}
+              }}
+              className="w-full sm:w-auto h-auto min-h-[2.25rem] py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium whitespace-normal break-words"
+              data-testid="preview-approve-btn"
+            >
+              <CheckCircle className="w-3.5 h-3.5 mr-1.5 flex-shrink-0" />
+              <span>Approve</span>
+            </Button>
+            <Button
+              onClick={() => {
+                if (typeof onRegenerate === 'function') onRegenerate();
+              }}
+              variant="outline"
+              className="w-full sm:w-auto h-auto min-h-[2.25rem] py-2 px-4 border-slate-700 text-slate-200 hover:text-white hover:bg-slate-800 text-xs whitespace-normal break-words"
+              data-testid="preview-regenerate-btn"
+            >
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5 flex-shrink-0" />
+              <span>Regenerate</span>
+            </Button>
+            <Button
+              onClick={() => {
+                if (typeof onEditPrompt === 'function') onEditPrompt();
+              }}
+              variant="outline"
+              className="w-full sm:w-auto h-auto min-h-[2.25rem] py-2 px-4 border-slate-700 text-slate-200 hover:text-white hover:bg-slate-800 text-xs whitespace-normal break-words"
+              data-testid="preview-edit-prompt-btn"
+            >
+              <Edit3 className="w-3.5 h-3.5 mr-1.5 flex-shrink-0" />
+              <span>Edit Prompt</span>
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Quick Render Mode Banner — shown when Ken Burns fallback was used */}
       {usedQuickRender && isActionable && (
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-5 py-3 flex items-center gap-3" data-testid="quick-render-banner">
@@ -2820,9 +2954,25 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
                 <AlertCircle className="w-12 h-12 text-amber-400 mx-auto mb-4" />
                 <h3 className="text-lg font-bold text-white mb-2">Something needs a quick fix</h3>
                 <p className="text-amber-300/80 text-sm mb-2">{failReason || 'A step in the generation process hit an issue.'}</p>
-                {postGen.errorCode && (
-                  <p className="text-amber-400/40 text-[11px] font-mono mb-2">Ref: {postGen.errorCode}</p>
-                )}
+                {/* P0 2026-05-18 — Founder mandate: Preview FAILED state must
+                    surface a Reference ID. We prefer postGen.requestId
+                    (from the validation roundtrip / status poll); fall
+                    back to errorCode only when no request_id captured. */}
+                {postGen.requestId ? (
+                  <p
+                    className="text-amber-400/50 text-[11px] font-mono mb-2"
+                    data-testid="preview-failed-request-id"
+                  >
+                    Reference ID: {postGen.requestId}
+                  </p>
+                ) : postGen.errorCode ? (
+                  <p
+                    className="text-amber-400/40 text-[11px] font-mono mb-2"
+                    data-testid="preview-failed-error-code"
+                  >
+                    Ref: {postGen.errorCode}
+                  </p>
+                ) : null}
                 {/* Encouraging recovery copy */}
                 <div className="inline-block bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-4 py-2 mb-4">
                   <p className="text-emerald-300/90 text-xs leading-relaxed">This usually works on retry. Your credits have been preserved.</p>

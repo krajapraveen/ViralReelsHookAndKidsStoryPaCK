@@ -65,6 +65,57 @@ state ownership, non-deterministic hydration.
 - `MySpacePage.js`, Comic Storybook — zero changes
 - UI styling, copy, auth, billing, pipeline, R2 — zero changes
 
+### P0 PRODUCT — Story-to-Video Preview-First Contract — May 18, 2026
+**Status**: SHIPPED in preview. Source-level + behavioral tests passing. **Awaiting your redeploy + production verification.**
+
+**Founder mandate**: After Story-to-Video generation completes, users MUST land on a Preview screen with explicit Approve / Regenerate / Edit Prompt actions BEFORE any publish/download/payment commitment. No auto-publish. No auto-redirect. Failed preview must surface a structured error with `request_id`.
+
+**What was already correct (kept)**:
+- Phase machine: `input → processing → postgen` (preview screen IS the post-gen phase)
+- Status badge with title + subtitle for VALIDATING/READY/PARTIAL_READY/FAILED
+- Video player with poster + controls
+- Download/share gated by entitlement (no forced download/payment before preview)
+- Processing state shows progress UI (`generating-preview` testid)
+
+**What was MISSING (now fixed)**:
+1. **Explicit "Approve / Regenerate / Edit Prompt" action row** — added new `preview-actions-row` with three CTAs and stable testids (`preview-approve-btn`, `preview-regenerate-btn`, `preview-edit-prompt-btn`). Renders only when video is actionable (READY or PARTIAL_READY) so it never appears during processing. Layout uses the same `flex-col sm:flex-row sm:flex-wrap` + `whitespace-normal break-words` primitives from the Character Detail layout fix to guarantee no overlap regression.
+2. **Auto-redirect on branch type — REMOVED** — the previous 3-second `setTimeout(() => navigate('/app/story-battle/<root>'))` for branch jobs was an auto-publish bypass of the preview screen. Removed. Battle/leaderboard entries remain available via the existing `data-testid="battle-entry-banner"` and `view-leaderboard-btn` (user-initiated).
+3. **Character & series linkage chips** — `preview-character-chip` and `preview-series-chip` render in the action row when the job has a linked character or series, so users see the linkage at preview time.
+4. **`request_id` plumbed through PostGen reducer + FAILED state** — `INITIAL_POST_GEN_STATE.requestId`, `SET_FAILED` reducer reads `action.requestId`, `validateAndResolve` extracts it from the response `X-Request-Id` header (success path) AND from the error envelope (failure path), and the FAILED panel renders `Reference ID: <id>` with `data-testid="preview-failed-request-id"`. Errors that lack a request_id fall back to the legacy `errorCode` Ref display.
+
+**Handler semantics (founder spec verbatim)**:
+- **Approve**: dismisses force-share/share-prompt modals, scrolls to the download bar, fires `preview_approved` funnel event. Does NOT navigate, does NOT call any `/publish` endpoint, does NOT charge or commit anything. Preserves the user's location on the preview.
+- **Regenerate**: clears `jobId/job/postGen` state, returns to `phase='input'`, calls `handleGenerate()` on next tick. PRESERVES `title` + `storyText`. Tracks `preview_regenerate` funnel event.
+- **Edit Prompt**: clears `jobId/job/postGen`, returns to `phase='input'`. PRESERVES `title` + `storyText`. Tracks `preview_edit_prompt` funnel event. The user keeps the same prompt, can edit it, and resubmit.
+
+**No new feature surface**:
+- No new backend endpoints (no `/api/preview/approve`, no `/api/preview/publish`)
+- No new credit charges, no new entitlement gates
+- Pure UX clarity + auto-redirect removal
+
+**Files changed**:
+- `frontend/src/pages/StoryVideoPipeline.js`:
+  - `INITIAL_POST_GEN_STATE` + `SET_FAILED` reducer carry `requestId`
+  - `validateAndResolve` extracts `request_id` from response headers + error envelope
+  - New `handleRegenerate` and `handleEditPrompt` callbacks
+  - `PostGenPhase` accepts `onRegenerate` + `onEditPrompt` props
+  - New Preview Action Row with 3 CTAs + linkage chips
+  - 3-second branch auto-redirect REMOVED (`useEffect` body for `uiState === 'READY'` no longer schedules navigation)
+  - FAILED state renders `Reference ID: <postGen.requestId>` with stable testid
+  - Added `Users` + `Edit3` icon imports
+- `backend/tests/test_story_video_preview_actions_2026_05.py` (NEW, 17 tests)
+
+**Tests added (17)**:
+- Wiring (5): action row exists, 3 CTAs with stable testids, gated by `{isActionable && (...)}`, mobile-responsive layout, Layout Fix primitives in place (no h-9, w-full sm:w-auto, whitespace-normal break-words)
+- Handler (3): handleRegenerate resets state but preserves prompt, handleEditPrompt returns to input preserving prompt, PostGenPhase receives callbacks
+- Auto-publish discipline (2): branch auto-redirect removed, leaderboard link still user-initiated
+- Approve discipline (2): Approve does not navigate or publish, no new `/preview/approve` endpoint added
+- Linkage chips (1): conditional renders for character + series
+- FAILED state (3): reducer carries requestId, validateAndResolve extracts it from headers, panel renders Reference ID with testid
+- Regression anchors (1): postgen-phase + status-badge + status-title testids intact
+
+**Cumulative tests**: 17 (Preview Actions) + 12 (Envelope) + 14 (CTA Routing) + ... = ~140+ in the active sprint suite. All passing in their respective files.
+
 ### P0 Production Bug — "Service Temporarily Unavailable" Toast Without Request ID — May 18, 2026
 **Status**: SHIPPED in preview. **Awaiting your redeploy + production verification.**
 
