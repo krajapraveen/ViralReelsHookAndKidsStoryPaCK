@@ -221,6 +221,28 @@ FUNNEL_STEPS = [
 ]
 
 
+# ─── 2026-05 V13 — Canonical abandonment reason taxonomy ─────────────
+# Founder directive: NO generic buckets. Every dropoff must map to one of
+# these explicit reasons. Anything outside this list is treated as
+# `unmapped_reason` in the diagnostics and surfaces as a red flag for
+# the agent to add a new canonical case.
+ABANDONMENT_REASONS = {
+    "auth_wall_before_preview",        # user hit signup before first wow
+    "upload_confusion",                # uploaded image but never selected an option
+    "generation_timeout",              # client-side >15s timeout
+    "teaser_latency_gt_5s",            # teaser took longer than 5s SLA
+    "prompt_unclear",                  # user typed then deleted everything
+    "empty_state_no_examples",         # blank input + no example prompts visible
+    "mobile_keyboard_overlap",         # mobile keyboard covered submit button
+    "payment_wall_pre_wow",            # paywall fired before first generation
+    "story_generation_failed",         # backend returned non-200
+    "user_idle_after_prompt",          # >60s of inactivity after typing
+    "user_navigated_away",             # page unload before generation finished
+    "rage_clicked_cta_no_progress",    # 3+ rapid CTA clicks without state change
+    "unmapped_reason",                 # catch-all — flag for agent to triage
+}
+
+
 # Canonical activation-funnel ordering — V13 rewritten 2026-05 per founder
 # brief. Six explicit steps from landing to publish, in order. Anything that
 # breaks this order is the bug.
@@ -788,11 +810,109 @@ async def activation_funnel(
         {"$limit": 20},
     ]
     abandonment_breakdown = []
+    unmapped_reasons = []
     async for d in db.funnel_events.aggregate(abandon_pipe):
+        reason = d["_id"].get("reason")
+        is_canonical = reason in ABANDONMENT_REASONS
+        if not is_canonical and reason:
+            unmapped_reasons.append({"reason": reason, "count": d["count"]})
         abandonment_breakdown.append({
             "abandonment_step": d["_id"].get("step"),
-            "abandonment_reason": d["_id"].get("reason"),
+            "abandonment_reason": reason,
+            "is_canonical": is_canonical,
             "count": d["count"],
+        })
+
+    # ─── 2026-05 V13 — Biggest-drop badge ────────────────────────────
+    # Find the worst step-to-step conversion in the funnel so the UI can
+    # highlight ONE concrete bottleneck instead of overwhelming the user.
+    biggest_drop = None
+    for i in range(1, len(stages)):
+        prev = stages[i - 1]
+        curr = stages[i]
+        if prev["sessions"] == 0:
+            continue
+        conv = curr["sessions"] / prev["sessions"] * 100
+        drop_pct = 100 - conv
+        if biggest_drop is None or drop_pct > biggest_drop["drop_pct"]:
+            biggest_drop = {
+                "from_step": prev["step"],
+                "from_label": prev["label"],
+                "to_step": curr["step"],
+                "to_label": curr["label"],
+                "from_sessions": prev["sessions"],
+                "to_sessions": curr["sessions"],
+                "conversion_pct": round(conv, 1),
+                "drop_pct": round(drop_pct, 1),
+                "median_to_next_ms": prev.get("median_to_next_ms"),
+                "p95_to_next_ms": prev.get("p95_to_next_ms"),
+            }
+
+    # ─── 2026-05 V13 — Rage-click + repeated-CTA detection ───────────
+    # Count sessions where the same step fires >= 3 times within 5s of
+    # the FIRST hit for that step. Strong UX-stuck signal.
+    rage_pipe = [
+        {"$match": {**base_match, "step": {"$in": ["hero_cta_clicked", "landing_cta_clicked", "first_action_click"]}}},
+        {"$group": {"_id": {"session": "$session_id"}, "hits": {"$sum": 1},
+                    "first": {"$min": "$timestamp"}, "last": {"$max": "$timestamp"}}},
+        {"$match": {"hits": {"$gte": 3}}},
+    ]
+    rage_click_sessions = 0
+    repeated_cta_sessions = 0
+    async for d in db.funnel_events.aggregate(rage_pipe):
+        repeated_cta_sessions += 1
+        try:
+            first = datetime.fromisoformat(d["first"])
+            last = datetime.fromisoformat(d["last"])
+            if (last - first).total_seconds() <= 5:
+                rage_click_sessions += 1
+        except Exception:
+            pass
+
+    # ─── 2026-05 V13 — Median time-to-abandon ────────────────────────
+    # For sessions that hit `hero_cta_clicked` but never reached
+    # `story_generation_completed`, how long did they stick around?
+    drop_durations = []
+    for sess in session_timelines.values():
+        steps_hit = sess["steps"]
+        if "hero_cta_clicked" in steps_hit and "story_generation_completed" not in steps_hit:
+            ts_values = [v for v in steps_hit.values() if v]
+            if len(ts_values) >= 2:
+                try:
+                    earliest = min(datetime.fromisoformat(t) for t in ts_values)
+                    latest = max(datetime.fromisoformat(t) for t in ts_values)
+                    drop_durations.append((latest - earliest).total_seconds() * 1000)
+                except Exception:
+                    pass
+    median_time_to_abandon_ms = None
+    if drop_durations:
+        drop_durations.sort()
+        median_time_to_abandon_ms = int(drop_durations[len(drop_durations) // 2])
+
+    # ─── 2026-05 V13 — Mobile vs desktop abandonment heatmap ─────────
+    # Per-step, what fraction of mobile vs desktop sessions DIE here?
+    heatmap = []
+    for i in range(len(stages) - 1):
+        prev = stages[i]
+        curr = stages[i + 1]
+        # sessions that hit prev but NOT curr, split by device
+        died_mobile = 0
+        died_desktop = 0
+        for sess in session_timelines.values():
+            if prev["step"] in sess["steps"] and curr["step"] not in sess["steps"]:
+                if sess.get("device_type") == "mobile":
+                    died_mobile += 1
+                elif sess.get("device_type") == "desktop":
+                    died_desktop += 1
+        heatmap.append({
+            "from_step": prev["step"],
+            "from_label": prev["label"],
+            "mobile_died": died_mobile,
+            "desktop_died": died_desktop,
+            "mobile_total": prev.get("mobile", 0),
+            "desktop_total": prev.get("desktop", 0),
+            "mobile_death_pct": round((died_mobile / prev["mobile"]) * 100, 1) if prev.get("mobile") else 0.0,
+            "desktop_death_pct": round((died_desktop / prev["desktop"]) * 100, 1) if prev.get("desktop") else 0.0,
         })
 
     top_exit = None
@@ -894,6 +1014,13 @@ async def activation_funnel(
         "speed_sla": speed_sla,
         "red_alerts": red_alerts,
         "abandonment_breakdown": abandonment_breakdown,
+        "unmapped_reasons": unmapped_reasons,
+        "biggest_drop": biggest_drop,
+        "rage_click_sessions": rage_click_sessions,
+        "repeated_cta_sessions": repeated_cta_sessions,
+        "median_time_to_abandon_ms": median_time_to_abandon_ms,
+        "abandonment_heatmap": heatmap,
+        "canonical_abandonment_reasons": sorted(ABANDONMENT_REASONS),
         "total_sessions_seen": len(session_timelines),
     }
 

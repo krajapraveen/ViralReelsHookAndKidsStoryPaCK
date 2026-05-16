@@ -192,6 +192,60 @@ export default function InstantStoryExperience() {
     if (ctaTs > 0) emitSpeedSla('cta_to_first_paint', Date.now() - ctaTs);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // V13 2026-05 — Abandonment detectors. Fire canonical reasons:
+  //   - user_idle_after_prompt  : no realStory after 60s of inactivity
+  //   - user_navigated_away     : tab close / nav before generation completed
+  useEffect(() => {
+    let idleTimer = null;
+    let abandonFired = false;
+    const armIdle = () => {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        if (!realStory && !genFailed && !abandonFired) {
+          abandonFired = true;
+          try {
+            trackFunnel('story_generation_abandoned', {
+              source,
+              abandonment_step: 'story_prompt_started',
+              abandonment_reason: 'user_idle_after_prompt',
+            });
+          } catch {}
+        }
+      }, 60000);
+    };
+    armIdle();
+    const onActivity = () => { if (!realStory) armIdle(); };
+    const onUnload = () => {
+      if (!realStory && !genFailed && !abandonFired) {
+        abandonFired = true;
+        try {
+          // sendBeacon is the only reliable way during unload.
+          const payload = {
+            step: 'story_generation_abandoned',
+            session_id: localStorage.getItem('funnel_session_id') || '',
+            anonymous_id: localStorage.getItem('funnel_anonymous_id') || '',
+            context: {
+              source_page: 'experience',
+              abandonment_step: 'story_prompt_started',
+              abandonment_reason: 'user_navigated_away',
+            },
+          };
+          const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+          navigator.sendBeacon(`${API}/api/funnel/track`, blob);
+        } catch {}
+      }
+    };
+    window.addEventListener('mousemove', onActivity, { passive: true });
+    window.addEventListener('keydown', onActivity, { passive: true });
+    window.addEventListener('beforeunload', onUnload);
+    return () => {
+      clearTimeout(idleTimer);
+      window.removeEventListener('mousemove', onActivity);
+      window.removeEventListener('keydown', onActivity);
+      window.removeEventListener('beforeunload', onUnload);
+    };
+  }, [realStory, genFailed, source]);
+
   useEffect(() => {
     if (phase !== 'loading') return;
     const interval = setInterval(() => setLoadingTextIdx(prev => (prev + 1) % LOADING_TEXTS.length), 900);
@@ -218,7 +272,7 @@ export default function InstantStoryExperience() {
             source,
             latency_ms: lat,
             abandonment_step: 'story_generation_started',
-            abandonment_reason: 'client_timeout',
+            abandonment_reason: 'generation_timeout',
           });
         } catch {}
       }
@@ -250,30 +304,41 @@ export default function InstantStoryExperience() {
         });
         // V13 2026-05 — canonical generation_completed + prompt_to_teaser
         // + generation_total_latency events with explicit latency_ms.
+        const teaserMs = Date.now() - ctaTs;
         try {
           trackFunnel('story_generated_success', { source, generation_id: data.story_id, latency_ms: apiLat, meta: { story_id: data.story_id, allow_free_view: data.allow_free_view } });
           trackFunnel('story_generation_completed', { source, generation_id: data.story_id, latency_ms: apiLat, meta: { story_id: data.story_id } });
-          trackFunnel('prompt_to_teaser', { source, generation_id: data.story_id, latency_ms: Date.now() - ctaTs });
+          trackFunnel('prompt_to_teaser', { source, generation_id: data.story_id, latency_ms: teaserMs });
           trackFunnel('generation_total_latency', { source, generation_id: data.story_id, latency_ms: apiLat });
+          // V13 2026-05 — flag slow teasers as a canonical abandonment-
+          // risk (NOT yet an abandonment, but visible in diagnostics).
+          if (teaserMs > 5000) {
+            trackFunnel('story_generation_abandoned', {
+              source,
+              generation_id: data.story_id,
+              latency_ms: teaserMs,
+              abandonment_step: 'prompt_to_teaser',
+              abandonment_reason: 'teaser_latency_gt_5s',
+            });
+          }
         } catch {}
       } else {
         setGenFailed(true);
         const lat = Date.now() - genStartedAt;
         try {
-          trackFunnel('story_generated_failed', { source, latency_ms: lat, abandonment_reason: `http_${res.status}`, meta: { status: res.status } });
-          trackFunnel('story_generation_failed', { source, latency_ms: lat, abandonment_reason: `http_${res.status}` });
-          trackFunnel('generation_failure_reason', { source, abandonment_reason: `http_${res.status}`, meta: { http_status: res.status } });
+          trackFunnel('story_generated_failed', { source, latency_ms: lat, abandonment_reason: 'story_generation_failed', meta: { http_status: res.status } });
+          trackFunnel('story_generation_failed', { source, latency_ms: lat, abandonment_step: 'story_generation_started', abandonment_reason: 'story_generation_failed' });
+          trackFunnel('generation_failure_reason', { source, abandonment_reason: 'story_generation_failed', meta: { http_status: res.status } });
         } catch {}
       }
     } catch (err) {
       clearTimeout(timeoutRef.current);
       setGenFailed(true);
       const lat = Date.now() - genStartedAt;
-      const reason = String(err?.name || 'network_error').slice(0, 80);
       try {
-        trackFunnel('story_generated_failed', { source, latency_ms: lat, abandonment_reason: reason, meta: { error: String(err).slice(0, 120) } });
-        trackFunnel('story_generation_failed', { source, latency_ms: lat, abandonment_reason: reason });
-        trackFunnel('generation_failure_reason', { source, abandonment_reason: reason });
+        trackFunnel('story_generated_failed', { source, latency_ms: lat, abandonment_reason: 'story_generation_failed', meta: { error: String(err).slice(0, 120) } });
+        trackFunnel('story_generation_failed', { source, latency_ms: lat, abandonment_step: 'story_generation_started', abandonment_reason: 'story_generation_failed' });
+        trackFunnel('generation_failure_reason', { source, abandonment_reason: 'story_generation_failed' });
       } catch {}
     }
   }, [source, sourceTitle, sourceSnippet, theme, realStory]);

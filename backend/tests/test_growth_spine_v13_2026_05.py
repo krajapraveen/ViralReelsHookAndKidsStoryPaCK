@@ -180,3 +180,91 @@ def test_funnel_track_accepts_share_loop_events():
     assert by_step["share_channel_selected"].get("share_channel") == "whatsapp"
     assert by_step["share_link_copied"].get("share_channel") == "copy_link"
     db.funnel_events.delete_many({"session_id": sid})
+
+
+def test_canonical_abandonment_taxonomy_exposed():
+    """The endpoint exposes the canonical reason set so the admin UI can
+    flag unmapped reasons inline."""
+    token = _login("admin@creatorstudio.ai", "Cr3@t0rStud!o#2026")
+    r = requests.get(
+        f"{API}/api/funnel/activation-funnel?days=7",
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=30,
+    )
+    assert r.status_code == 200
+    d = r.json()
+    canonical = set(d.get("canonical_abandonment_reasons") or [])
+    # Must include the explicit reasons from the founder brief.
+    for required in ("auth_wall_before_preview", "upload_confusion",
+                     "generation_timeout", "teaser_latency_gt_5s",
+                     "prompt_unclear", "empty_state_no_examples",
+                     "mobile_keyboard_overlap", "payment_wall_pre_wow",
+                     "story_generation_failed", "user_idle_after_prompt",
+                     "rage_clicked_cta_no_progress"):
+        assert required in canonical, f"missing canonical reason: {required}"
+
+
+def test_activation_funnel_diagnostic_extras():
+    """biggest_drop / rage_click_sessions / repeated_cta_sessions /
+    median_time_to_abandon_ms / abandonment_heatmap are present and
+    well-typed even when the window has no qualifying sessions."""
+    token = _login("admin@creatorstudio.ai", "Cr3@t0rStud!o#2026")
+    r = requests.get(
+        f"{API}/api/funnel/activation-funnel?days=7",
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=30,
+    )
+    assert r.status_code == 200
+    d = r.json()
+    assert "biggest_drop" in d
+    assert "rage_click_sessions" in d
+    assert "repeated_cta_sessions" in d
+    assert "median_time_to_abandon_ms" in d
+    assert "abandonment_heatmap" in d
+    assert isinstance(d["rage_click_sessions"], int)
+    assert isinstance(d["repeated_cta_sessions"], int)
+    assert isinstance(d["abandonment_heatmap"], list)
+    # Heatmap entries (when present) must include both device columns.
+    for h in d["abandonment_heatmap"]:
+        for k in ("from_step", "mobile_died", "desktop_died",
+                  "mobile_death_pct", "desktop_death_pct"):
+            assert k in h
+
+
+def test_unmapped_reason_surfaces_in_diagnostics():
+    """Submit a non-canonical abandonment reason and verify it shows up
+    in the `unmapped_reasons` array of the next /activation-funnel call."""
+    from pymongo import MongoClient
+    with open("/app/backend/.env") as f:
+        env = f.read()
+    mongo = re.search(r"^MONGO_URL=(.*)$", env, flags=re.M).group(1).strip().strip('"')
+    dbn = re.search(r"^DB_NAME=(.*)$", env, flags=re.M).group(1).strip().strip('"')
+    db = MongoClient(mongo)[dbn]
+
+    sid = f"reg-unmapped-{uuid.uuid4().hex[:10]}"
+    bogus = f"made_up_reason_{uuid.uuid4().hex[:6]}"
+    requests.post(
+        f"{API}/api/funnel/track",
+        json={
+            "step": "story_generation_abandoned",
+            "session_id": sid,
+            "context": {
+                "device_type": "desktop",
+                "abandonment_step": "story_prompt_started",
+                "abandonment_reason": bogus,
+            },
+        },
+        timeout=15,
+    )
+
+    token = _login("admin@creatorstudio.ai", "Cr3@t0rStud!o#2026")
+    r = requests.get(
+        f"{API}/api/funnel/activation-funnel?days=1",
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=30,
+    )
+    d = r.json()
+    unmapped_reasons_set = {u["reason"] for u in (d.get("unmapped_reasons") or [])}
+    assert bogus in unmapped_reasons_set
+    # Cleanup
+    db.funnel_events.delete_many({"session_id": sid})

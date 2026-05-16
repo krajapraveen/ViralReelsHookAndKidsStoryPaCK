@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { ArrowLeft, AlertTriangle, RefreshCw, Activity, Smartphone, Monitor, Users, User } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, RefreshCw, Activity, Smartphone, Monitor, Users, User, Flame, Timer, ChevronDown } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import api from '../../utils/api';
 
@@ -38,6 +38,10 @@ export default function ActivationDiagnostics() {
   const stages = data?.stages || [];
   const redAlerts = data?.red_alerts || [];
   const abandonment = data?.abandonment_breakdown || [];
+  const unmapped = data?.unmapped_reasons || [];
+  const biggestDrop = data?.biggest_drop;
+  const heatmap = data?.abandonment_heatmap || [];
+  const maxSessions = Math.max(1, ...stages.map((s) => s.sessions || 0));
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
@@ -106,6 +110,86 @@ export default function ActivationDiagnostics() {
             ))}
           </div>
         )}
+
+        {/* V13 2026-05 — Biggest-drop badge + headline diagnostics */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-6">
+          {biggestDrop && (
+            <div
+              className="lg:col-span-2 rounded-xl border border-amber-500/40 bg-gradient-to-br from-amber-950/60 to-slate-900 p-5"
+              data-testid="biggest-drop-badge"
+            >
+              <div className="flex items-center gap-2 mb-2 text-amber-300">
+                <ChevronDown className="w-5 h-5" />
+                <span className="text-xs font-semibold uppercase tracking-wider">Biggest Drop</span>
+              </div>
+              <p className="text-lg font-bold text-white">
+                {biggestDrop.from_label} → {biggestDrop.to_label}
+              </p>
+              <p className="text-sm text-amber-200/90 mt-1">
+                <span className="font-mono">{biggestDrop.drop_pct}%</span> of users die here. Only {biggestDrop.to_sessions} of {biggestDrop.from_sessions} sessions made it through ({biggestDrop.conversion_pct}% conversion).
+              </p>
+              <p className="text-xs text-slate-400 mt-2">
+                Median time at this stage: <span className="font-mono">{biggestDrop.median_to_next_ms != null ? `${biggestDrop.median_to_next_ms}ms` : 'n/a'}</span>{' '}· P95: <span className="font-mono">{biggestDrop.p95_to_next_ms != null ? `${biggestDrop.p95_to_next_ms}ms` : 'n/a'}</span>
+              </p>
+            </div>
+          )}
+
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5" data-testid="rage-click-card">
+            <div className="flex items-center gap-2 mb-2 text-rose-300">
+              <Flame className="w-5 h-5" />
+              <span className="text-xs font-semibold uppercase tracking-wider">Rage / Repeat CTA</span>
+            </div>
+            <p className="text-3xl font-bold font-mono text-white" data-testid="rage-click-count">
+              {data?.rage_click_sessions ?? 0}
+            </p>
+            <p className="text-xs text-slate-400 mt-1">Sessions with ≥3 CTA clicks within 5s</p>
+            <p className="text-xs text-slate-500 mt-1">
+              Total repeat-CTA sessions: <span className="font-mono">{data?.repeated_cta_sessions ?? 0}</span>
+            </p>
+          </div>
+        </div>
+
+        <div className="mb-6 rounded-xl border border-slate-800 bg-slate-900/40 p-5 flex items-center gap-3" data-testid="time-to-abandon-card">
+          <Timer className="w-5 h-5 text-indigo-300" />
+          <div>
+            <p className="text-xs uppercase tracking-wider text-slate-500">Median time before abandonment</p>
+            <p className="text-lg font-bold text-white font-mono">
+              {data?.median_time_to_abandon_ms != null ? `${data.median_time_to_abandon_ms} ms` : 'n/a'}
+            </p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Across sessions that clicked CTA but never reached generation_completed.</p>
+          </div>
+        </div>
+
+        {/* V13 2026-05 — Conversion bars */}
+        <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 mb-6" data-testid="conversion-bars">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-300 mb-4">Funnel — Conversion Bars</h2>
+          <div className="space-y-3">
+            {stages.map((s, i) => {
+              const widthPct = (s.sessions / maxSessions) * 100;
+              const danger = i > 0 && s.conversion_from_prev_pct < 60;
+              return (
+                <div key={s.step} data-testid={`conv-bar-${s.step}`}>
+                  <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+                    <span>
+                      <span className="text-white font-medium">{s.label}</span>
+                      <span className="text-slate-600 ml-2 font-mono">{s.step}</span>
+                    </span>
+                    <span className="font-mono">
+                      {s.sessions} sessions
+                      {i > 0 && <span className={`ml-2 ${danger ? 'text-red-400' : 'text-emerald-300'}`}>· {s.conversion_from_prev_pct}%</span>}
+                    </span>
+                  </div>
+                  <div className="h-2.5 bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full ${danger ? 'bg-gradient-to-r from-red-500 to-amber-500' : 'bg-gradient-to-r from-indigo-500 to-emerald-500'}`}
+                      style={{ width: `${widthPct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
         {/* Funnel table */}
         <div className="rounded-xl border border-slate-800 bg-slate-900/40 overflow-hidden mb-6">
@@ -192,6 +276,69 @@ export default function ActivationDiagnostics() {
             </tbody>
           </table>
         </div>
+
+        {/* V13 2026-05 — Mobile vs Desktop abandonment heatmap */}
+        {heatmap.length > 0 && (
+          <div className="rounded-xl border border-slate-800 bg-slate-900/40 overflow-hidden mb-6" data-testid="heatmap-section">
+            <div className="px-4 py-3 border-b border-slate-800 flex items-center gap-2">
+              <Smartphone className="w-4 h-4 text-cyan-300" />
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-300">Mobile vs Desktop Abandonment</h2>
+            </div>
+            <table className="w-full text-sm" data-testid="heatmap-table">
+              <thead className="text-xs uppercase text-slate-500 bg-slate-950/60">
+                <tr>
+                  <th className="text-left px-4 py-2">From Step</th>
+                  <th className="text-right px-4 py-2">Mobile Died %</th>
+                  <th className="text-right px-4 py-2">Desktop Died %</th>
+                  <th className="text-right px-4 py-2">Δ (mobile - desktop)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {heatmap.map((h, i) => {
+                  const delta = (h.mobile_death_pct || 0) - (h.desktop_death_pct || 0);
+                  return (
+                    <tr key={i} className="border-t border-slate-800/60" data-testid={`heatmap-row-${h.from_step}`}>
+                      <td className="px-4 py-2 text-slate-200">{h.from_label}</td>
+                      <td className="text-right px-4 py-2 font-mono">
+                        <span className={h.mobile_death_pct > 70 ? 'text-red-400' : 'text-slate-300'}>
+                          {h.mobile_death_pct}%
+                        </span>
+                        <span className="text-slate-600 ml-1 text-[10px]">({h.mobile_died}/{h.mobile_total})</span>
+                      </td>
+                      <td className="text-right px-4 py-2 font-mono">
+                        <span className={h.desktop_death_pct > 70 ? 'text-red-400' : 'text-slate-300'}>
+                          {h.desktop_death_pct}%
+                        </span>
+                        <span className="text-slate-600 ml-1 text-[10px]">({h.desktop_died}/{h.desktop_total})</span>
+                      </td>
+                      <td className={`text-right px-4 py-2 font-mono ${Math.abs(delta) > 20 ? 'text-amber-400' : 'text-slate-500'}`}>
+                        {delta > 0 ? '+' : ''}{delta.toFixed(1)} pp
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* V13 2026-05 — Unmapped reasons (agent action: add to taxonomy) */}
+        {unmapped.length > 0 && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-4 mb-6" data-testid="unmapped-reasons">
+            <div className="flex items-center gap-2 text-amber-300 mb-2">
+              <AlertTriangle className="w-4 h-4" />
+              <h2 className="text-sm font-semibold uppercase tracking-wider">Unmapped Abandonment Reasons</h2>
+            </div>
+            <p className="text-xs text-amber-200/80 mb-2">
+              These reasons fired but are NOT in the canonical taxonomy. Add them to <code className="bg-slate-900/60 px-1 rounded">ABANDONMENT_REASONS</code> in <code className="bg-slate-900/60 px-1 rounded">routes/funnel_tracking.py</code>.
+            </p>
+            <ul className="text-xs font-mono space-y-1">
+              {unmapped.map((u, i) => (
+                <li key={i} className="text-amber-100">{u.reason} <span className="text-amber-500 ml-2">×{u.count}</span></li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {/* Speed SLA */}
         {data?.speed_sla && (
