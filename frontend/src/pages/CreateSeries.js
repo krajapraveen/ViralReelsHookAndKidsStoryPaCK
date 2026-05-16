@@ -103,6 +103,11 @@ export default function CreateSeries() {
       } else if (d?.detail && typeof d.detail === 'object' && d.detail.message) {
         // Structured backend error (new shape)
         message = d.detail.message;
+        // P0 2026-05-16 — surface per-request correlation id in the toast
+        // so users can paste it to support and ops can pull the trace.
+        if (d.detail.request_id) {
+          message = `${message}\nReference ID: ${d.detail.request_id}`;
+        }
       } else if (typeof d?.detail === 'string') {
         message = d.detail;
       } else if (d?.gateway || status >= 502) {

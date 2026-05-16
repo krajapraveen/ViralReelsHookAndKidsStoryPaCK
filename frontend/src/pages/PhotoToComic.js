@@ -364,7 +364,12 @@ function PhotoToComicInner() {
           AUTH_EXPIRED: 'Your session expired. Please log in again.',
           LLM_TIMEOUT: 'Generation is taking longer than expected. Please try again.',
         };
-        const friendly = codeMap[structured.code] || structured.message || 'Comic generation failed. Please try again.';
+        let friendly = codeMap[structured.code] || structured.message || 'Comic generation failed. Please try again.';
+        // P0 2026-05-16 — surface the per-request correlation id so users
+        // can paste it into support and ops can search the matching log.
+        if (structured.request_id) {
+          friendly = `${friendly}\nReference ID: ${structured.request_id}`;
+        }
         toast.error(friendly);
         console.error('[p2c/create] structured error', { status: code, ...structured });
         setGenerating(false);

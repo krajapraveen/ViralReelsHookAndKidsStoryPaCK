@@ -607,6 +607,20 @@ async def generate_comic(
     # return a structured envelope: {code: INVALID_STYLE, message: ...}.
     style = _normalize_style_input(style)
     if style not in SAFE_STYLES:
+        # Per-request correlation id so users hitting INVALID_STYLE can
+        # paste it into support and ops can pull the matching log line in
+        # one query. Foundation for the full request_id middleware
+        # shipping in Session 1.
+        request_id = str(uuid.uuid4())
+        logger.warning(
+            "[p2c/generate] INVALID_STYLE request_id=%s user=%s mode=%s "
+            "received_type=%s received=%r",
+            request_id,
+            (user.get("id") or "anon")[:8],
+            mode,
+            type(style).__name__,
+            (style[:80] if isinstance(style, str) else style),
+        )
         # Structured envelope — the frontend maps `code` → user-friendly copy.
         raise HTTPException(
             status_code=400,
@@ -615,6 +629,8 @@ async def generate_comic(
                 "message": "Selected comic style is not supported. Please try another style.",
                 "received": style[:50] if isinstance(style, str) else type(style).__name__,
                 "allowed_sample": sorted(SAFE_STYLES)[:8],
+                "request_id": request_id,
+                "retryable": False,
             },
         )
     

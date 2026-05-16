@@ -127,6 +127,13 @@ async def create_series(request: CreateSeriesRequest, user: dict = Depends(get_c
     user_id = user["id"]
     user_plan = user.get("plan", "free")
 
+    # P0 2026-05-16 — per-request correlation id.
+    # Stamped on every structured error envelope + every server-side log
+    # line so users hitting a failure can paste this into support and ops
+    # can pull the exact trace in one query. Foundation for the full
+    # request_id correlation middleware shipping in Session 1.
+    request_id = _uuid()
+
     # ─── 2026-05 Admin/Unlimited bypass ───────────────────────────────────
     # Internal testing surface: admin/dev/qa/test/owner + is_unlimited users
     # must bypass ALL quota gates (series limits, credits, daily caps).
@@ -294,10 +301,11 @@ CRITICAL: The episode MUST end with a powerful open-loop cliffhanger — an unre
                 "message": "Story generation is taking longer than expected. Please tap Create Series again — your draft is preserved.",
                 "elapsed_s": round(elapsed, 1),
                 "retryable": True,
+                "request_id": request_id,
             },
         )
     except ValueError as e:
-        logger.error(f"[series/create] LLM_BAD_JSON user={user_id[:8]} err={e}")
+        logger.error(f"[series/create] LLM_BAD_JSON request_id={request_id} user={user_id[:8]} err={e}")
         try:
             await db.funnel_events.insert_one({
                 "step": "create_series_failed",
@@ -313,6 +321,7 @@ CRITICAL: The episode MUST end with a powerful open-loop cliffhanger — an unre
                 "code": "LLM_BAD_JSON",
                 "message": "The AI returned an unexpected format. Tap Create Series again — usually works on the second try.",
                 "retryable": True,
+                "request_id": request_id,
             },
         )
     except Exception as e:
@@ -335,7 +344,7 @@ CRITICAL: The episode MUST end with a powerful open-loop cliffhanger — an unre
             code = "LLM_UPSTREAM_ERROR"
             msg = "AI generation hit an upstream error. Tap Create Series to retry."
             status = 502
-        logger.error(f"[series/create] {code} user={user_id[:8]} elapsed={elapsed:.1f}s err={e}")
+        logger.error(f"[series/create] {code} request_id={request_id} user={user_id[:8]} elapsed={elapsed:.1f}s err={e}")
         try:
             await db.funnel_events.insert_one({
                 "step": "create_series_failed",
@@ -347,7 +356,7 @@ CRITICAL: The episode MUST end with a powerful open-loop cliffhanger — an unre
             pass
         raise HTTPException(
             status_code=status,
-            detail={"code": code, "message": msg, "retryable": True, "elapsed_s": round(elapsed, 1)},
+            detail={"code": code, "message": msg, "retryable": True, "elapsed_s": round(elapsed, 1), "request_id": request_id},
         )
 
     characters = foundation.get("characters", [])
