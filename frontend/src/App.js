@@ -8,6 +8,7 @@ import { FeedbackProvider } from './contexts/FeedbackContext';
 import { ProductGuideProvider } from './contexts/ProductGuideContext';
 import { ContentProtectionWrapper } from './components/ContentProtectionWrapper';
 import GlobalUserBar from './components/GlobalUserBar';
+import { GlobalBackButton } from './components/BackButton';
 import { ErrorBoundary } from './components/recovery';
 import AppTour, { TourProvider } from './components/AppTour';
 import { initActivationSentinel } from './utils/activationSentinel';
@@ -292,6 +293,7 @@ function App() {
       <PurchaseSurveyMount />
       <ActionGuideMount />
       <SubscribeRequiredModal />
+      <GlobalBackButton />
       <Suspense fallback={<PageLoader />}>
       <Routes>
         {/* ═══ PUBLIC — Eager loaded ═══ */}

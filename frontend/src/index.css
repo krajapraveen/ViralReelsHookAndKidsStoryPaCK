@@ -913,3 +913,8 @@ body {
   }
 }
 
+
+/* P1 2026-05-16 — GlobalBackButton iOS notch safety */
+.safe-area-top {
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+}

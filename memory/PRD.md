@@ -2542,3 +2542,72 @@ debug visibility. No new features. Sub-2-minute first-output target.
    • memory/svp_proof/COMPARISON.md (NEW)
    • memory/svp_proof/job_687fd08b-...txt (BEFORE run)
 
+
+─────────────────────────────────────────────────────────
+[2026-05-16] P1 UNIVERSAL BACK BUTTON — Single mount, every interior page
+─────────────────────────────────────────────────────────
+Founder directive: every Visionary Suite app page must have a visible Back
+button. Reusable component. No redesign. Mobile + desktop.
+
+✅ Single reusable component
+   • frontend/src/components/BackButton.jsx (NEW)
+   • Default export: <BackButton fallbackPath label className floating dataTestId/>
+   • Named exports: GlobalBackButton, isBackButtonExempt,
+                    GLOBAL_BACK_EXEMPT_PREFIXES, GLOBAL_BACK_EXEMPT_EXACT
+   • Behavior: navigate(-1) with internal history sentinel; falls back to
+     /app/admin for admin paths, /app for app paths, / otherwise.
+   • a11y: aria-label="Back", type="button", focus-visible ring, ArrowLeft
+     icon, active:scale-[0.96] press feedback, z-30 (below toasts/modals).
+   • Mobile: respects iOS safe-area-inset-top via .safe-area-top utility
+     added to frontend/src/index.css.
+
+✅ Mounted ONCE globally
+   • frontend/src/App.js — <GlobalBackButton/> rendered alongside
+     PurchaseSurveyMount / ActionGuideMount / SubscribeRequiredModal so it
+     ships on every authenticated and public route automatically.
+
+✅ Duplicate-detection (no double back buttons)
+   GlobalBackButton suppresses itself when any of these are detected on the
+   page after 120ms:
+     • [data-page-has-back="true"]
+     • [data-testid="page-back-btn"]
+     • Any button/anchor with aria-label="Back" near the top-left
+       (top<96px, left<200px) — EXCLUDING the global button itself.
+
+✅ Exempt list (does NOT render)
+   Exact:  /, /app, /app/admin
+   Prefix: /login, /signup, /auth/callback, /verify-email,
+           /reset-password, /forgot-password, /experience
+
+✅ Tests — backend/tests/test_back_button_universal_2026_05.py (10/10 PASS)
+   • component exists + required exports
+   • navigate(-1) + fallback paths (incl. admin → /app/admin)
+   • renders ArrowLeft + 'Back' label + active-press feedback
+   • exempt list contains landing/auth/dashboard/admin-root/experience
+   • App.js mounts <GlobalBackButton/> exactly once
+   • a11y attrs (aria-label, type="button")
+   • z-30 (below toasts/modals)
+   • mobile safe-area-top CSS utility present
+
+✅ End-to-end visual verification (desktop + mobile, screenshots saved)
+   • DESKTOP /app/my-space          → 1 visible top-left ✓
+   • DESKTOP /app/admin/users       → 1 visible top-left ✓
+   • DESKTOP /app (exempt)          → 0 (not rendered) ✓
+   • DESKTOP /app/admin (exempt)    → 0 (not rendered) ✓
+   • CLICK    /app/my-space → back  → navigated to /app ✓
+   • MOBILE  /app/my-space          → 1 visible ✓
+   • MOBILE  /app/admin/users       → 1 visible ✓
+   Screenshots: /tmp/back_desktop_myspace.png · back_desktop_admin.png
+                /tmp/back_mobile_myspace.png · back_mobile_admin.png
+
+📁 Files Changed
+   • frontend/src/components/BackButton.jsx (NEW)
+   • frontend/src/App.js (1 import + 1 mount)
+   • frontend/src/index.css (1 utility class)
+   • backend/tests/test_back_button_universal_2026_05.py (NEW)
+
+Pages covered: every /app/* and /app/admin/* route (~140 routes).
+Pages exempt:  /, /login, /signup, /auth/callback, /verify-email,
+               /reset-password, /forgot-password, /experience (any depth),
+               /app (exact), /app/admin (exact).
+
