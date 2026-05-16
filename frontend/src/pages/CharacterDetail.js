@@ -432,16 +432,28 @@ export default function CharacterDetail() {
             {/* P0 UX (2026-05-17) — "How to attach this character to a series" help card.
                 Renders directly below the Memory Timeline so users who hit the empty
                 state know the exact next step. Three CTAs route to canonical pages;
-                Create Series receives the character_id query param for preselection. */}
+                Create Series receives the character_id query param for preselection.
+
+                P0 LAYOUT FIX (2026-05-18): the prior `grid-cols-1 sm:grid-cols-3` allocated
+                ~200px per column at the sm breakpoint, but each shadcn Button defaults to
+                `whitespace-nowrap` + fixed `h-9`, so longer labels ("Create Series with
+                this Character") overflowed the cell and overlapped neighbours. Switched
+                to flex-col → md:flex-row with `flex-wrap`, dropped fixed heights, allowed
+                `whitespace-normal` + `break-words`, and ensured `min-w-0` on the text
+                container so the long step copy never pushes the layout. */}
             <div
               className="bg-slate-900/60 border border-slate-800 rounded-xl p-4"
+              style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}
               data-testid="character-attach-help"
             >
-              <h3 className="text-sm font-medium text-slate-200 flex items-center gap-1.5 mb-3">
-                <HelpCircle className="w-3.5 h-3.5 text-indigo-400" />
-                How to attach this character to a series
+              <h3 className="text-sm font-medium text-slate-200 flex items-start gap-1.5 mb-3 min-w-0">
+                <HelpCircle className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0 mt-0.5" />
+                <span className="min-w-0 break-words">How to attach this character to a series</span>
               </h3>
-              <ol className="space-y-1.5 text-xs text-slate-400 list-decimal list-inside marker:text-slate-500 mb-4">
+              <ol
+                className="space-y-1.5 text-xs text-slate-400 list-decimal list-inside marker:text-slate-500 mb-6 min-w-0 break-words"
+                style={{ overflowWrap: 'anywhere' }}
+              >
                 <li>Open <span className="text-slate-200">Create Series</span> from the main menu or dashboard.</li>
                 <li>Start a new series or open an existing series.</li>
                 <li>In the character selection step, choose <span className="text-slate-200">“Use existing character.”</span></li>
@@ -450,29 +462,35 @@ export default function CharacterDetail() {
                 <li>Generate <span className="text-slate-200">Episode 1</span>.</li>
                 <li>After the episode is generated, this character’s Memory Timeline will update automatically with story events, relationships, and continuity notes.</li>
               </ol>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div
+                className="mt-4 flex flex-col gap-3 w-full md:flex-row md:flex-wrap"
+                data-testid="character-attach-help-cta-row"
+              >
                 <Button
                   onClick={() => navigate(`/app/story-series/create?character_id=${encodeURIComponent(characterId)}`)}
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium h-9 px-3"
+                  className="w-full md:w-auto min-w-0 h-auto min-h-[2.25rem] py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium whitespace-normal break-words text-center leading-snug"
                   data-testid="cta-create-series-with-character"
                 >
-                  <Plus className="w-3.5 h-3.5 mr-1.5" /> Create Series with this Character
+                  <Plus className="w-3.5 h-3.5 mr-1.5 flex-shrink-0" />
+                  <span className="min-w-0 break-words">Create Series with this Character</span>
                 </Button>
                 <Button
                   onClick={() => navigate('/app/story-series')}
                   variant="outline"
-                  className="w-full border-slate-700 text-slate-200 hover:text-white hover:bg-slate-800 text-xs h-9 px-3"
+                  className="w-full md:w-auto min-w-0 h-auto min-h-[2.25rem] py-2 px-3 border-slate-700 text-slate-200 hover:text-white hover:bg-slate-800 text-xs whitespace-normal break-words text-center leading-snug"
                   data-testid="cta-open-my-series"
                 >
-                  <Library className="w-3.5 h-3.5 mr-1.5" /> Open My Series
+                  <Library className="w-3.5 h-3.5 mr-1.5 flex-shrink-0" />
+                  <span className="min-w-0 break-words">Open My Series</span>
                 </Button>
                 <Button
                   onClick={() => navigate('/app/characters')}
                   variant="outline"
-                  className="w-full border-slate-700 text-slate-200 hover:text-white hover:bg-slate-800 text-xs h-9 px-3"
+                  className="w-full md:w-auto min-w-0 h-auto min-h-[2.25rem] py-2 px-3 border-slate-700 text-slate-200 hover:text-white hover:bg-slate-800 text-xs whitespace-normal break-words text-center leading-snug"
                   data-testid="cta-back-to-my-characters"
                 >
-                  <ListChecks className="w-3.5 h-3.5 mr-1.5" /> Back to My Characters
+                  <ListChecks className="w-3.5 h-3.5 mr-1.5 flex-shrink-0" />
+                  <span className="min-w-0 break-words">Back to My Characters</span>
                 </Button>
               </div>
             </div>

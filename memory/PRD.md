@@ -65,6 +65,41 @@ state ownership, non-deterministic hydration.
 - `MySpacePage.js`, Comic Storybook — zero changes
 - UI styling, copy, auth, billing, pipeline, R2 — zero changes
 
+### P0 Layout Fix — Character Detail Help CTA Overlap — May 18, 2026
+**Status**: SHIPPED. Playwright multi-viewport regression test passing.
+
+**Root cause**: The CTA row used `grid-cols-1 sm:grid-cols-3` which allocates
+~200px per column at the `sm` (640px) breakpoint, but each shadcn `Button`
+defaults to `whitespace-nowrap` + fixed `h-9`. Long labels like "Create Series
+with this Character" needed ~280px, so they overflowed cells horizontally,
+clipped through the card boundary, and overlapped neighbours.
+
+**Layout system fix** (not patched with margins):
+- Container migrated from `grid-cols-1 sm:grid-cols-3` to `flex flex-col gap-3 w-full md:flex-row md:flex-wrap`
+- Breakpoint raised from `sm` (640px) to `md` (768px) — only switches to a row when every label can fit
+- `md:flex-wrap` lets the row wrap to two lines if all three labels still don't fit
+- Each Button gets `w-full md:w-auto min-w-0 h-auto min-h-[2.25rem] whitespace-normal break-words text-center leading-snug`
+- Icons get `flex-shrink-0` so they never deform when text wraps
+- Card root gets inline `overflowWrap: 'anywhere'` + `wordBreak: 'break-word'`
+- Step list gets `min-w-0 break-words` + `overflowWrap: 'anywhere'` inline
+- Step list margin-bottom upgraded from `mb-4` to `mb-6` for breathing room above the CTA row
+- CTA container gets `mt-4` top margin and `data-testid="character-attach-help-cta-row"` for regression anchoring
+
+**Playwright multi-viewport regression**:
+- `backend/tests/test_character_help_layout_viewports_2026_05.py` — runs at four mobile-class viewports (iPhone SE 320×568, iPhone 12 390×844, Pixel 7 412×915, iPad Mini 768×1024) and asserts:
+  1. No pairwise CTA bounding-box overlap
+  2. No CTA escapes card horizontally
+  3. No CTA escapes card vertically
+  4. All 3 CTAs are non-zero-sized and visible
+  5. No horizontal page overflow (`document.documentElement.scrollWidth` ≤ viewport width)
+
+**Files changed**:
+- `frontend/src/pages/CharacterDetail.js` (CTA row replaced; comment block documents the post-mortem)
+- `backend/tests/test_character_detail_help_2026_05.py` (updated test from `_grid` to `_flex` semantics)
+- `backend/tests/test_character_help_layout_viewports_2026_05.py` (NEW, runs at 4 viewports)
+
+**Cumulative sprint tests**: 89/89 backend passing across the active sprint suite (Sessions 0-2 + Phase 3a/3b + Character UX + Layout fix). The layout fix added 1 new Playwright regression test + tightened the existing flex-vs-grid assertion.
+
 ### P0 Stability Sprint — Phase 3b (Autosave Migration) — May 17, 2026
 **Status**: SHIPPED. End-to-end live-verified + 103/103 backend + 23/23 frontend tests.
 

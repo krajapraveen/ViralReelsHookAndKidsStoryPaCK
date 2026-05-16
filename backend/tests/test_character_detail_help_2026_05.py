@@ -121,10 +121,27 @@ def test_memory_timeline_empty_state_copy_is_friendly():
     assert "No memories yet. Attach this character to a series and generate episodes to build memory." not in src
 
 
-def test_help_section_is_mobile_responsive_grid():
+def test_help_section_is_mobile_responsive_flex():
+    """P0 layout-fix (2026-05-18): the CTA row must stack vertically on
+    narrow viewports and only allow a horizontal row at md (>=768px) where
+    each button fits its label. The legacy grid-cols-1 sm:grid-cols-3 was
+    the root cause of the overlap bug — guard against its return."""
     src = CHARACTER_DETAIL.read_text(encoding="utf-8")
-    # The CTA grid switches from 1 to 3 columns at sm breakpoint
-    assert "grid-cols-1 sm:grid-cols-3" in src
+    # Container: flex-col on mobile → md:flex-row + flex-wrap on wider
+    assert "flex flex-col gap-3 w-full md:flex-row md:flex-wrap" in src, \
+        "CTA row must use flex-col → md:flex-row with flex-wrap"
+    # Every CTA must be full-width on mobile + auto-sized at md
+    assert src.count("w-full md:w-auto") >= 3
+    # Buttons must allow text to wrap (override shadcn's whitespace-nowrap)
+    assert src.count("whitespace-normal break-words") >= 3
+    # No fixed h-9 on the CTAs (it caused vertical clipping with wrapped text)
+    cta_block = src.split('data-testid="character-attach-help-cta-row"', 1)[1]
+    cta_block = cta_block.split("</div>", 1)[0]
+    assert " h-9 " not in cta_block, "Fixed h-9 returned to CTA — must use h-auto + min-h-*"
+    # The defunct grid layout is GONE from the live CTA row (the string
+    # may still appear in the post-mortem comment — scope the check).
+    assert "grid-cols-1 sm:grid-cols-3" not in cta_block, \
+        "Legacy grid layout regressed in CTA row — overlap bug will return"
 
 
 # ════════════════════════════════════════════════════════════════════════
