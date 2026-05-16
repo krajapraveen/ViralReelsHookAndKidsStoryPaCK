@@ -2119,3 +2119,107 @@ PLUS:
 🎯 Discipline win: zero scope creep. No share analytics dashboard, no
    admin tooling, no premium templates yet. Pure monetization.
 
+
+─────────────────────────────────────────────────────────
+[2026-05-16] P0 GROWTH INTERVENTION V13.1 — Diagnostics UI Wired + P0-4 Anon Pre-Wow SHIPPED
+─────────────────────────────────────────────────────────
+Founder directive: bundle (a) advanced diagnostics UI visibility and (b)
+P0-4 anonymous pre-wow flow into a single push. Next 48h are the highest-
+leverage learning window. No traffic scaling, no experiments outside
+activation.
+
+✅ Backend fix — biggest_drop dict bug
+   File: backend/routes/funnel_tracking.py
+   - The activation-funnel endpoint was returning biggest_drop as the
+     integer 0 because line 919 overwrote the dict computed at line 829.
+     Renamed loop var to top_exit_drop_count; biggest_drop stays a dict.
+
+✅ Backend addition — auth_wall block on /activation-funnel
+   - Counts unique sessions whose abandonment_reason ∈ {auth_wall_before_preview,
+     payment_wall_pre_wow} OR step = auth_redirect_loop_detected.
+     Returns {total_sessions, pct_of_landing, breakdown[]}.
+
+✅ Backend new endpoints
+   - POST /api/funnel/p04-launch (admin) — marks the P0-4 deployment ts in
+     funnel_config._id='p04'; idempotent upsert.
+   - GET /api/funnel/p04-launch (admin) — returns stored ts.
+   - GET /api/funnel/p04-comparison?days_before&days_after (admin) — splits
+     all critical metrics into pre vs post cohorts. Returns:
+       pre: {landing, cta, story_generated, anon/auth split,
+             cta_to_generation_pct, abandonment_pct, auth_wall_sessions,
+             teaser_median_ms, teaser_p95_ms}
+       post: same shape
+       deltas: per-field deltas
+       verdict ∈ {IMPROVED, REGRESSED, FLAT, INSUFFICIENT_DATA}
+       verdict_signals[]: human-readable reasons
+
+✅ Funnel whitelist gained `session_resurrected` step (P0-4 telemetry).
+
+✅ Frontend rewrite — /app/admin/activation-diagnostics
+   File: frontend/src/pages/Admin/ActivationDiagnostics.jsx
+   - HERO STRIP above the fold:
+       biggest-drop-badge (lg:col-span-2, amber-rose gradient, dominant)
+       auth-wall-card (separate dedicated card, count + breakdown)
+       rage-click-card (≥3 CTA in 5s, repeated_cta_sessions secondary)
+   - time-to-abandon-card visible without scroll
+   - heatmap-section moved above the funnel table (visible w/o scroll)
+   - P0-4 ComparisonPanel renders 7-row pre/post/Δ table with color-coded
+     verdict (IMPROVED=emerald, REGRESSED=rose, FLAT=slate, INSUFFICIENT_DATA
+     =amber). "Mark P0-4 Launch Now" button when ts is unset.
+   - abandonment-table now badges unmapped reasons.
+   - All previously shipped elements retained (red_alerts strip, conv-bar-*,
+     funnel-table, speed_sla, unmapped_reasons).
+
+✅ P0-4 Anonymous Pre-Wow Flow + Session Resurrection
+   File: frontend/src/pages/InstantStoryExperience.jsx
+   - 24h TTL session resurrection helpers
+     (loadResurrectableSession/saveResurrectableSession/clearResurrectableSession,
+     key=ist_anon_session_v1).
+   - On mount: if a saved session <24h old exists, restores realStory +
+     continuations from localStorage and SKIPS background generation;
+     emits session_resurrected funnel event with age_ms + continuation_count.
+   - On every realStory/continuations change: persists to localStorage
+     so a tab-close/return restores exactly where the user left off.
+   - When hard paywall fires before generation_completed, additionally
+     emits canonical story_generation_abandoned with abandonment_reason=
+     auth_wall_before_preview so /activation-funnel's auth_wall block
+     surfaces it.
+   - handleRegenerate clears the saved session so users aren't permanently
+     pinned to an old story.
+   - quick-generate already accepts anon (no token required), so the
+     full pre-wow path delivers a personalized story with ZERO signup.
+
+✅ Tests added — backend/tests/test_p04_diagnostics_and_anon_2026_05.py
+   - 4/4 PASS:
+     • test_activation_funnel_v13_payload_contract (verifies biggest_drop
+       is dict not int, auth_wall block shape, abandonment_breakdown sort)
+     • test_p04_launch_and_comparison_endpoints_admin_gated
+     • test_quick_generate_no_auth_required_p04
+     • test_session_resurrected_step_accepted
+
+✅ End-to-end smoke verified
+   - Diagnostics page: all 7 expected testids render (biggest-drop-badge,
+     auth-wall-card, rage-click-card, heatmap-section, p04-comparison-panel,
+     funnel-table, abandonment-table).
+   - /experience as anon (cleared storage, no token): personalized story
+     ("The Midnight Threshold") generated end-to-end, no /login redirect.
+   - Resurrection reload: same story title ("Whispers of the Verdant Veil")
+     restored from localStorage without a new LLM call.
+
+🧪 testing_agent_v3_fork iteration 544 — 25/25 backend tests PASSED,
+   frontend Activation Diagnostics renders all required elements,
+   anonymous /experience flow works WITHOUT login redirect.
+
+📁 Files Changed
+   • backend/routes/funnel_tracking.py
+   • frontend/src/pages/Admin/ActivationDiagnostics.jsx (full rewrite)
+   • frontend/src/pages/InstantStoryExperience.jsx
+   • backend/tests/test_p04_diagnostics_and_anon_2026_05.py (NEW)
+
+⏱ 48h measurement window
+   1. Founder calls POST /api/funnel/p04-launch on production to mark
+      the live flip moment.
+   2. Funnel data accumulates from real traffic.
+   3. /api/funnel/p04-comparison delivers the hard before/after verdict:
+      "Did P0-4 materially improve activation, or not?"
+
