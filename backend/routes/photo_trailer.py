@@ -903,19 +903,60 @@ async def _fail(job_id: str, code: str, msg: str):
     failure_stage = j.get("current_stage") or "UNKNOWN"
     if failure_stage == "FAILED":  # double-fail edge case
         failure_stage = j.get("failure_stage") or "UNKNOWN"
+    # P0 2026-05-16 — user-facing copy normalization for RENDER_INVALID.
+    # Founder copy: "Trailer failed — credits refunded. Please try again."
+    # Keeps the techy ffprobe detail OUT of the user-facing message but
+    # leaves `error_code` intact for admin/debug surfaces.
+    user_facing_msg = msg
+    if code == "RENDER_INVALID":
+        user_facing_msg = "Trailer failed — credits refunded. Please try again."
     await db.photo_trailer_jobs.update_one({"_id": job_id}, {"$set": {
         "status": "FAILED", "current_stage": "FAILED",
         "failure_stage": failure_stage,
         "error_code": code,
-        "error_message": msg, "failed_at": _now(), "updated_at": _now(),
+        "error_message": user_facing_msg, "failed_at": _now(), "updated_at": _now(),
     }})
+    refund_issued = False
     if j.get("charged_credits") and not j.get("refunded_credits"):
         try:
             await add_credits(j["user_id"], j["charged_credits"], f"Refund failed trailer {job_id}", tx_type="REFUND")
             await db.photo_trailer_jobs.update_one({"_id": job_id}, {"$set": {"refunded_credits": j["charged_credits"]}})
+            refund_issued = True
         except Exception as e:
             log.warning(f"refund failed: {e}")
+    elif j.get("refunded_credits"):
+        refund_issued = True
     await _emit("photo_trailer_generation_failed", j["user_id"], {"job_id": job_id, "code": code})
+
+    # P0 2026-05-16 — in-app notification on CONFIRMED refund only.
+    # User mandate: only fire for refunded jobs, never for non-refunded
+    # failures (which would be misleading). Founder copy is concise so
+    # users immediately know they aren't out the credits.
+    if refund_issued:
+        try:
+            from services.notification_service import NotificationService
+            title = "Trailer failed — credits refunded"
+            if code == "RENDER_INVALID":
+                message = "Trailer failed — credits refunded. Please try again."
+            else:
+                message = "Your trailer didn't finish. Credits have been refunded — please try again."
+            await NotificationService(db).create_notification(
+                user_id=j["user_id"],
+                notification_type="generation_failed",
+                feature="photo_trailer",
+                title=title,
+                message=message,
+                job_id=job_id,
+                action_url=f"/app/my-space?trailer={job_id}",
+                metadata={
+                    "refund_issued": True,
+                    "error_code": code,
+                    "refunded_credits": j.get("charged_credits") or 0,
+                },
+            )
+        except Exception as e:
+            # Notification must never break the failure path — log + move on.
+            log.warning(f"[trailer {job_id}] failure notification create failed (non-fatal): {e}")
 
 async def _load_asset_bytes(asset_id: str) -> Optional[bytes]:
     a = await db.photo_trailer_assets.find_one({"_id": asset_id})
@@ -2023,6 +2064,7 @@ async def _reap_stale_pipelines() -> Dict[str, Any]:
             continue
         charged = j.get("charged_credits") or 0
         prior_refund = j.get("refunded_credits") or 0
+        refund_issued = False
         if charged > 0 and prior_refund == 0:
             try:
                 await add_credits(j["user_id"], charged, f"Refund stale trailer {jid}", tx_type="REFUND")
@@ -2031,6 +2073,7 @@ async def _reap_stale_pipelines() -> Dict[str, Any]:
                     {"$set": {"refunded_credits": charged}},
                 )
                 refunded_total += charged
+                refund_issued = True
                 log.warning(
                     f"[trailer-janitor] Reaped stale job {jid} user={j['user_id']} "
                     f"template={j.get('template_id')} age={round(age_min,1)}min "
@@ -2039,6 +2082,8 @@ async def _reap_stale_pipelines() -> Dict[str, Any]:
             except Exception as e:
                 refund_failures += 1
                 log.error(f"[trailer-janitor] Refund failed for {jid}: {e}")
+        elif prior_refund > 0:
+            refund_issued = True
         else:
             log.warning(
                 f"[trailer-janitor] Reaped stale job {jid} user={j['user_id']} "
@@ -2049,6 +2094,31 @@ async def _reap_stale_pipelines() -> Dict[str, Any]:
                         {"job_id": jid, "code": err_code, "via": "janitor"})
         except Exception:
             pass
+
+        # P0 2026-05-16 — in-app notification on CONFIRMED refund only.
+        # Mirrors the inline _fail() path so the user sees the same clear
+        # "credits refunded, try again" message regardless of WHO (pipeline
+        # or janitor) marked the job failed.
+        if refund_issued:
+            try:
+                from services.notification_service import NotificationService
+                await NotificationService(db).create_notification(
+                    user_id=j["user_id"],
+                    notification_type="generation_failed",
+                    feature="photo_trailer",
+                    title="Trailer failed — credits refunded",
+                    message="Your trailer didn't finish. Credits have been refunded — please try again.",
+                    job_id=jid,
+                    action_url=f"/app/my-space?trailer={jid}",
+                    metadata={
+                        "refund_issued": True,
+                        "error_code": err_code,
+                        "refunded_credits": charged or prior_refund,
+                        "via": "janitor",
+                    },
+                )
+            except Exception as e:
+                log.warning(f"[trailer-janitor] notification create failed for {jid} (non-fatal): {e}")
         reaped += 1
 
     return {
