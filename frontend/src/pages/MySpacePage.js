@@ -309,7 +309,7 @@ const VARIATION_BUTTONS = [
 ];
 
 // ─── PHOTO TRAILER CARD (YouStar — minimal, isolated from story-engine logic) ─
-function PhotoTrailerCard({ job, justCompleted }) {
+function PhotoTrailerCard({ job, justCompleted, isPulsing, onLeave, onNavigate }) {
   const navigate = useNavigate();
   const status = job.status || 'PROCESSING';
   const isProcessing = status === 'PROCESSING' || status === 'QUEUED';
@@ -325,7 +325,11 @@ function PhotoTrailerCard({ job, justCompleted }) {
     <div
       data-testid={`myspace-trailer-card-${job.job_id}`}
       className={`relative rounded-xl border transition-all duration-300 overflow-hidden ${tint} ${
-        justCompleted ? 'ring-2 ring-emerald-400/40 animate-[pulse_2s_ease-in-out_3]' : ''
+        justCompleted
+          ? 'ring-2 ring-emerald-400/40 animate-[pulse_2s_ease-in-out_3]'
+          : isPulsing
+            ? 'ring-2 ring-violet-400/60 animate-[pulse_1s_ease-in-out_2]'
+            : ''
       }`}
     >
       <div className="flex items-start gap-3 p-4">
@@ -428,13 +432,22 @@ function PhotoTrailerCard({ job, justCompleted }) {
           </button>
         )}
         {isProcessing && (
-          <button
-            onClick={() => navigate('/app/photo-trailer')}
-            className="flex-1 py-2 px-3 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 text-sm transition-colors"
-            data-testid={`myspace-trailer-track-${job.job_id}`}
-          >
-            View progress
-          </button>
+          <>
+            <button
+              onClick={() => onNavigate ? onNavigate(job) : navigate('/app/photo-trailer')}
+              className="flex-1 py-2 px-3 rounded-lg bg-violet-500/15 hover:bg-violet-500/25 active:scale-[0.97] text-violet-200 text-sm font-semibold transition-all"
+              data-testid={`myspace-trailer-track-${job.job_id}`}
+            >
+              View progress
+            </button>
+            <button
+              onClick={() => onLeave ? onLeave(job) : navigate('/app')}
+              className="flex-1 py-2 px-3 rounded-lg bg-white/5 hover:bg-white/10 active:scale-[0.97] text-zinc-300 text-sm transition-all"
+              data-testid={`myspace-trailer-leave-${job.job_id}`}
+            >
+              Leave & come back later
+            </button>
+          </>
         )}
       </div>
     </div>
@@ -446,12 +459,12 @@ function PhotoTrailerCard({ job, justCompleted }) {
 // card. Wrapper-only — keeps each component pure with no conditional hooks.
 function ProjectCard(props) {
   if (props.job?.type === 'photo_trailer') {
-    return <PhotoTrailerCard job={props.job} justCompleted={props.justCompleted} />;
+    return <PhotoTrailerCard job={props.job} justCompleted={props.justCompleted} isPulsing={props.isPulsing} onLeave={props.onLeave} onNavigate={props.onNavigate} />;
   }
   return <StoryProjectCard {...props} />;
 }
 
-function StoryProjectCard({ job, highlighted, justCompleted, onShare, onRetry, onDelete, onNavigate, onImproveConsistency, timeEstimates, userCredits, remixCount }) {
+function StoryProjectCard({ job, highlighted, justCompleted, isPulsing, onShare, onRetry, onDelete, onNavigate, onLeave, onImproveConsistency, timeEstimates, userCredits, remixCount }) {
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(() => {
     const s = getStatusKey(job);
@@ -485,9 +498,11 @@ function StoryProjectCard({ job, highlighted, justCompleted, onShare, onRetry, o
       className={`relative rounded-xl border transition-all duration-300 overflow-hidden ${copy.bgTint} ${
         justCompleted
           ? 'border-emerald-400 ring-2 ring-emerald-400/30 animate-[pulse_2s_ease-in-out_3]'
-          : highlighted
-            ? `ring-1 ring-offset-0 ${copy.borderTint}`
-            : 'border-white/[0.08]'
+          : isPulsing
+            ? 'border-blue-400 ring-2 ring-blue-400/40 animate-[pulse_1s_ease-in-out_2]'
+            : highlighted
+              ? `ring-1 ring-offset-0 ${copy.borderTint}`
+              : 'border-white/[0.08]'
       }`}
     >
       {/* ─── Header Row ─── */}
@@ -615,17 +630,17 @@ function StoryProjectCard({ job, highlighted, justCompleted, onShare, onRetry, o
           <div className="flex flex-wrap gap-2 mt-3 pt-2 border-t border-white/[0.04]">
             {/* QUEUED */}
             {statusKey === 'QUEUED' && (
-              <button data-testid={`view-details-btn-${job.job_id}`} onClick={() => onNavigate(job)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 text-amber-300 text-xs font-medium hover:bg-amber-500/25 transition-colors">
+              <button data-testid={`view-details-btn-${job.job_id}`} onClick={() => onNavigate(job)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 text-amber-300 text-xs font-medium hover:bg-amber-500/25 active:scale-[0.97] transition-all">
                 <Eye className="w-3.5 h-3.5" /> View Details
               </button>
             )}
             {/* PROCESSING */}
             {statusKey === 'PROCESSING' && (
               <>
-                <button data-testid={`view-progress-btn-${job.job_id}`} onClick={() => onNavigate(job)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/15 text-blue-300 text-xs font-medium hover:bg-blue-500/25 transition-colors">
+                <button data-testid={`view-progress-btn-${job.job_id}`} onClick={() => onNavigate(job)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/15 text-blue-300 text-xs font-medium hover:bg-blue-500/25 active:scale-[0.97] transition-all">
                   <Eye className="w-3.5 h-3.5" /> View Progress
                 </button>
-                <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.06] text-zinc-400 text-xs hover:bg-white/10 transition-colors" onClick={() => toast.info("Your generation continues in the background. We'll notify you when it's ready.", { duration: 5000 })} data-testid={`leave-btn-${job.job_id}`}>
+                <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.06] text-zinc-400 text-xs hover:bg-white/10 active:scale-[0.97] transition-all" onClick={() => onLeave(job)} data-testid={`leave-btn-${job.job_id}`}>
                   <ArrowRight className="w-3.5 h-3.5" /> Leave & come back later
                 </button>
               </>
@@ -905,6 +920,11 @@ export default function MySpacePage() {
   const pollRef = useRef(null);
   const prevStatusMap = useRef({});
   const promptedJobIds = useRef(new Set());
+  // 2026-05-16 P0 dead-button fix — bumping this re-runs the scroll/ring
+  // effect even when the URL params don't change (i.e. user clicks
+  // "View Progress" on a card while already on /app/my-space).
+  const [focusKey, setFocusKey] = useState(0);
+  const [pulsingJobId, setPulsingJobId] = useState(null);
 
   // Fetch time estimates + user credits on mount
   useEffect(() => {
@@ -1055,8 +1075,12 @@ export default function MySpacePage() {
   useEffect(() => {
     if (highlightId && highlightRef.current) {
       setTimeout(() => { highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300);
+      // Brief ring pulse so the user gets <100ms confirmation the click did something.
+      setPulsingJobId(highlightId);
+      const t = setTimeout(() => setPulsingJobId(null), 1800);
+      return () => clearTimeout(t);
     }
-  }, [highlightId, jobs]);
+  }, [highlightId, jobs, focusKey]);
 
   // Deep-link from notification: /app/my-space?trailer=<job_id>
   // Smooth-scroll to the matching YouStar trailer card and apply a brief
@@ -1066,8 +1090,11 @@ export default function MySpacePage() {
       setTimeout(() => {
         trailerHighlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 300);
+      setPulsingJobId(highlightTrailerId);
+      const t = setTimeout(() => setPulsingJobId(null), 1800);
+      return () => clearTimeout(t);
     }
-  }, [highlightTrailerId, jobs]);
+  }, [highlightTrailerId, jobs, focusKey]);
 
   const handleRetry = async (job) => {
     try {
@@ -1100,14 +1127,52 @@ export default function MySpacePage() {
       }));
       navigate('/app/story-video-studio?remix=edit-retry');
     }
-    // 2026-05 — "View Progress" / default tile click MUST route directly to
-    // canonical status surface. Going through /story-video-studio caused a
-    // visible flash of the create form before the project loaded.
+    // 2026-05-16 P0 dead-button fix — "View Progress" / "View Details" /
+    // default tile click MUST produce visible feedback within 100ms even
+    // when the user is already on /app/my-space. The previous implementation
+    // navigated to the SAME route with the SAME projectId param, which
+    // made the button look completely dead.
     else if (job?.job_id) {
-      navigate(`/app/my-space?projectId=${job.job_id}`);
+      try {
+        trackFunnel('progress_cta_clicked', {
+          source_page: 'my_space',
+          meta: { job_id: job.job_id, type: job.type || 'story_engine' },
+        });
+      } catch (_) { /* never block UX on telemetry */ }
+
+      try {
+        if (highlightId === job.job_id) {
+          // Already focused on this card → re-trigger scroll + ring pulse
+          // via focusKey bump (URL doesn't change, so useEffect needs help).
+          setFocusKey(k => k + 1);
+        } else {
+          navigate(`/app/my-space?projectId=${job.job_id}`);
+        }
+        try { trackFunnel('progress_view_opened', { source_page: 'my_space', meta: { job_id: job.job_id } }); } catch (_) {}
+      } catch (err) {
+        console.error('[ProgressCTA] handler failed', err);
+        try { trackFunnel('progress_view_failed', { source_page: 'my_space', meta: { job_id: job.job_id, error: String(err?.message || err) } }); } catch (_) {}
+        toast.error('Could not open progress. Refresh and try again.');
+      }
     } else {
+      console.error('[ProgressCTA] missing job_id', job);
+      try { trackFunnel('progress_view_failed', { source_page: 'my_space', meta: { reason: 'missing_job_id' } }); } catch (_) {}
       toast.error('Could not open progress because the video job ID is missing.');
     }
+  };
+
+  // 2026-05-16 P0 — "Leave & come back later" used to fire a toast only
+  // and stay on /app/my-space, which directly contradicts the label.
+  // Now we actually leave (to Dashboard) and confirm with a toast.
+  const handleLeaveAndComeBack = (job) => {
+    try {
+      trackFunnel('progress_cta_clicked', {
+        source_page: 'my_space',
+        meta: { job_id: job?.job_id, cta: 'leave_and_come_back' },
+      });
+    } catch (_) {}
+    toast.success("We'll notify you when your video is ready. It keeps generating in the background.", { duration: 4500 });
+    navigate('/app');
   };
   const handleShare = async (job) => {
     // Photo trailers share via the public /trailer/:slug page (server re-signs).
@@ -1403,7 +1468,7 @@ export default function MySpacePage() {
                         job.job_id === highlightId ||
                         (job.type === 'photo_trailer' && job.job_id === highlightTrailerId)
                       }
-                      onShare={handleShare} onRetry={handleRetry} onDelete={handleDelete} onNavigate={handleNavigate} timeEstimates={timeEstimates} userCredits={userCredits} remixCount={remixStats[job.job_id] || 0}
+                      onShare={handleShare} onRetry={handleRetry} onDelete={handleDelete} onNavigate={handleNavigate} onLeave={handleLeaveAndComeBack} isPulsing={pulsingJobId === job.job_id} timeEstimates={timeEstimates} userCredits={userCredits} remixCount={remixStats[job.job_id] || 0}
                     />
                   </div>
                 ))}
@@ -1436,7 +1501,7 @@ export default function MySpacePage() {
                       justCompletedIds.has(job.job_id) ||
                       (job.type === 'photo_trailer' && job.job_id === highlightTrailerId)
                     }
-                    onShare={handleShare} onRetry={handleRetry} onDelete={handleDelete} onNavigate={handleNavigate} timeEstimates={timeEstimates} userCredits={userCredits} remixCount={remixStats[job.job_id] || 0}
+                    onShare={handleShare} onRetry={handleRetry} onDelete={handleDelete} onNavigate={handleNavigate} onLeave={handleLeaveAndComeBack} isPulsing={pulsingJobId === job.job_id} timeEstimates={timeEstimates} userCredits={userCredits} remixCount={remixStats[job.job_id] || 0}
                   />
                 </div>
               ))}
@@ -1489,7 +1554,7 @@ export default function MySpacePage() {
                         job.job_id === highlightId ||
                         (job.type === 'photo_trailer' && job.job_id === highlightTrailerId)
                       }
-                      onShare={handleShare} onRetry={handleRetry} onDelete={handleDelete} onNavigate={handleNavigate} timeEstimates={timeEstimates} userCredits={userCredits} remixCount={remixStats[job.job_id] || 0}
+                      onShare={handleShare} onRetry={handleRetry} onDelete={handleDelete} onNavigate={handleNavigate} onLeave={handleLeaveAndComeBack} isPulsing={pulsingJobId === job.job_id} timeEstimates={timeEstimates} userCredits={userCredits} remixCount={remixStats[job.job_id] || 0}
                     />
                   </div>
                 ))}

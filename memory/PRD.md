@@ -2375,3 +2375,78 @@ New Clone / Avatar Clone / Voice Clone / Digital Twin. Do not redesign.
 
 📁 Proof: /app/memory/cleanup_proof/{before.txt, after.txt}
 
+
+─────────────────────────────────────────────────────────
+[2026-05-16] P0 TRUST BUG — "View Progress" / "Leave & come back" DEAD CTAs FIXED
+─────────────────────────────────────────────────────────
+Founder directive: every progress CTA must produce visible feedback in <100ms.
+This is an activation-killing trust bug — users think generation is frozen.
+
+═══ AUDIT — every progress CTA in the codebase ═══
+  ALIVE (no change needed):
+    • StoryVideoPipeline active-job banner → viewJob() sets phase + polls
+    • StoryVideoPipeline rate-limit panel    → same viewJob handler
+    • StoryVideoPipeline sidebar recent     → onViewJob() navigates cross-page
+    • PhotoTrailer ProgressStep "Go to MySpace" / "Explore" / "Stay and play"
+
+  DEAD (fixed):
+    1. MySpace `view-progress-btn-{id}` (PROCESSING card)
+       Root cause: handleNavigate(job) ran navigate('/app/my-space?projectId=X')
+       while user was ALREADY on /app/my-space. React Router updated the param
+       silently — no scroll, no expansion, no feedback.
+    2. MySpace `leave-btn-{id}`
+       Root cause: onClick only fired `toast.info(...)`. Button label said
+       "Leave & come back later" but never actually left the page.
+    3. MySpace `myspace-trailer-track-{id}` (photo trailer in PROCESSING)
+       Root cause: onClick navigated to `/app/photo-trailer` (wizard start),
+       dumping the user at a blank create form instead of the live progress.
+
+═══ FIX (MySpacePage.js — surgical edits) ═══
+  • Added `focusKey` state + `pulsingJobId` state.
+  • handleNavigate(job) now:
+      - emits `progress_cta_clicked`
+      - detects already-focused case (`highlightId === job.job_id`) and bumps
+        focusKey → useEffect re-runs scroll + ring pulse
+      - else navigates normally
+      - emits `progress_view_opened` on success / `progress_view_failed` on error
+      - try/catch with console.error('[ProgressCTA]', err) for visibility
+  • New handleLeaveAndComeBack(job): toast confirms, then navigate('/app').
+  • Scroll useEffect deps now include `focusKey` so re-clicks re-trigger
+    scroll + 1.8s blue ring pulse on the focused card.
+  • All three CTAs gained `active:scale-[0.97]` for tactile press feedback.
+  • PhotoTrailerCard PROCESSING state now renders BOTH "View progress"
+    (focus same card) and "Leave & come back later" (navigate /app),
+    matching the Story card UX.
+
+═══ INSTRUMENTATION ═══
+  Three new canonical events whitelisted in funnel_tracking.py:
+    • progress_cta_clicked
+    • progress_view_opened
+    • progress_view_failed
+  Verified via curl — all 3 return success:true on /api/funnel/track.
+
+═══ REGRESSION TEST — backend/tests/test_progress_cta_dead_button_2026_05.py ═══
+  8/8 PASS:
+    • test_my_space_view_progress_button_has_handler
+    • test_my_space_leave_and_come_back_actually_navigates
+    • test_handle_navigate_handles_already_focused_state
+    • test_progress_ctas_have_active_press_feedback (active:scale check)
+    • test_funnel_whitelist_contains_progress_events
+    • test_funnel_endpoint_accepts_progress_events
+    • test_progress_handler_has_error_logging
+    • test_no_dead_view_progress_buttons (class-wide scan: 0 dead buttons)
+
+═══ VISUAL PROOF (/tmp/) ═══
+  • myspace_before_click.png  — card with default border
+  • myspace_after_click.png   — blue ring pulse + scroll target
+  • myspace_second_click.png  — same-card re-click → pulse re-fires (focusKey)
+  • myspace_after_leave.png   — actually navigated to /app/, toast visible:
+                                 "We'll notify you when your video is ready"
+
+═══ FILES CHANGED ═══
+  • frontend/src/pages/MySpacePage.js (handleNavigate + handleLeaveAndComeBack +
+    focusKey + pulsingJobId + StoryProjectCard + PhotoTrailerCard + ProjectCard
+    wrapper + 3 call sites)
+  • backend/routes/funnel_tracking.py (3 new whitelisted events)
+  • backend/tests/test_progress_cta_dead_button_2026_05.py (NEW)
+

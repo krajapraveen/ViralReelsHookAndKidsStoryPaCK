@@ -217,6 +217,10 @@ FUNNEL_STEPS = [
     "generation_failure_reason",         # explicit error code/category emitted on failure
     # P0-4 May 2026 — anonymous pre-wow flow
     "session_resurrected",               # anon session restored from localStorage <24h
+    # P0 2026-05-16 — "View Progress" / "Leave & come back later" trust bug fix
+    "progress_cta_clicked",              # user clicked any progress CTA on /my-space card
+    "progress_view_opened",              # the CTA produced visible navigation/focus
+    "progress_view_failed",              # handler exception or missing job_id
 ]
 
 
