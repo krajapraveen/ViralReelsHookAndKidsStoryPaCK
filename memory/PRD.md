@@ -65,6 +65,56 @@ state ownership, non-deterministic hydration.
 - `MySpacePage.js`, Comic Storybook — zero changes
 - UI styling, copy, auth, billing, pipeline, R2 — zero changes
 
+### P0 Stability Sprint — Phase 3a (Shadow Observer) + Character Detail UX — May 17, 2026
+**Status**: SHIPPED. Source-level + backend integration verified (113/113 tests).
+
+**Phase 3a — Read-only shadow observer wired into StoryVideoPipeline.js**
+- New `frontend/src/state/useStorySessionShadow.js` (160 LOC) — wraps the canonical
+  `useStorySession` hook, NEVER touches its mutator surface (`commit`, `transition`,
+  `startFresh`). One mount in `StoryVideoPipeline.js` adjacent to the legacy
+  `activeDraftId`. Fires `GET /api/drafts/{id}/state` on draftId change and emits
+  one structured `console.info` line per divergent field per canonical version:
+  `[story-session/divergence] request_id=… draft_id=… field=… legacy_value=… canonical_value=…`
+- Divergence fields tracked: `title`, `storyText`, `animationStyle`, `ageGroup`,
+  `voicePreset`, `lifecycle` (founder-spec exactly).
+- Per-version de-dupe so steady-state divergence doesn't spam the console.
+- Legacy `POST /api/drafts/save` autosave untouched (3s debounce intact).
+- Resume-draft modal testid + behavior unchanged.
+- New static-analysis test file enforces all 14 read-only/no-regression invariants.
+
+**P0 UX — Character Detail "How to attach this character to a series"**
+- `frontend/src/pages/CharacterDetail.js`: new help card below Memory Timeline with
+  `data-testid="character-attach-help"`, required title, all 7 founder-listed steps
+  (Hero/Villain/Sidekick/Narrator/Mentor/Trickster), 3 CTAs:
+  - "Create Series with this Character" → `/app/story-series/create?character_id=<id>`
+  - "Open My Series" → `/app/story-series`
+  - "Back to My Characters" → `/app/characters`
+- Memory Timeline empty-state copy upgraded to user-friendly: *"Memories appear after this character is used in generated series episodes."*
+- `frontend/src/pages/CreateSeries.js`: now reads `?character_id` query param,
+  validates via `GET /api/characters/{id}`, renders a "Linking … to this series"
+  banner (`preselected-character-banner` testid), and auto-attaches the character
+  via the existing `POST /api/characters/attach-to-series/{series_id}` endpoint
+  after series creation succeeds (idempotent — runs once per session). Invalid
+  character_id surfaces a structured toast with `Ref: <request_id>`.
+- Mobile responsive: CTA row is `grid-cols-1 sm:grid-cols-3`.
+
+**Files changed/added**:
+- `frontend/src/state/useStorySessionShadow.js` (NEW)
+- `frontend/src/pages/StoryVideoPipeline.js` (one import + one hook call, 20 lines)
+- `frontend/src/pages/CharacterDetail.js` (help card insertion, ~70 lines)
+- `frontend/src/pages/CreateSeries.js` (query handoff + banner + auto-attach, ~90 lines)
+- `backend/tests/test_story_session_shadow_observer_2026_05.py` (NEW, 14 tests)
+- `backend/tests/test_character_detail_help_2026_05.py` (NEW, 12 tests)
+
+**Cumulative test count**:
+- Backend sprint suite: 64 (Sessions 0-2) + 14 (Phase 3a) + 12 (Character help) = **90 passing**
+- Frontend reducer suite: 23 passing
+- **Total Stability Sprint cumulative: 113 tests, 100% green** (was 106→144→167→now 113 in active sprint suite; cumulative platform-wide >300)
+
+**Divergences observed at ship**: none yet — shadow observer requires real user
+edit traffic to surface drift. The logging channel is in place; ops will see lines
+in the browser console once the next user session hits the editor.
+
 ### YouStar Activation-Killer Trio (P0-A, P0-C, P0-D) — May 16, 2026
 **Production-freeze hot-fix.** Three trust bugs eliminated:
 

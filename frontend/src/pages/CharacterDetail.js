@@ -6,7 +6,8 @@ import { Button } from '../components/ui/button';
 import {
   ArrowLeft, Loader2, User, Palette, BookOpen, Shield,
   ImageIcon, Clock, Target, AlertTriangle, CheckCircle,
-  Volume2, Mic, Edit3, Save, Users, Heart, TrendingUp, Share2, Copy
+  Volume2, Mic, Edit3, Save, Users, Heart, TrendingUp, Share2, Copy,
+  HelpCircle, Plus, Library, ListChecks
 } from 'lucide-react';
 import { trackShareClick } from '../utils/growthAnalytics';
 
@@ -395,8 +396,8 @@ export default function CharacterDetail() {
                 <span className="ml-auto text-xs text-slate-500">{memories.length} entries</span>
               </h3>
               {memories.length === 0 ? (
-                <p className="text-xs text-slate-500 text-center py-4">
-                  No memories yet. Attach this character to a series and generate episodes to build memory.
+                <p className="text-xs text-slate-500 text-center py-4" data-testid="memory-timeline-empty">
+                  Memories appear after this character is used in generated series episodes.
                 </p>
               ) : (
                 <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
@@ -426,6 +427,54 @@ export default function CharacterDetail() {
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* P0 UX (2026-05-17) — "How to attach this character to a series" help card.
+                Renders directly below the Memory Timeline so users who hit the empty
+                state know the exact next step. Three CTAs route to canonical pages;
+                Create Series receives the character_id query param for preselection. */}
+            <div
+              className="bg-slate-900/60 border border-slate-800 rounded-xl p-4"
+              data-testid="character-attach-help"
+            >
+              <h3 className="text-sm font-medium text-slate-200 flex items-center gap-1.5 mb-3">
+                <HelpCircle className="w-3.5 h-3.5 text-indigo-400" />
+                How to attach this character to a series
+              </h3>
+              <ol className="space-y-1.5 text-xs text-slate-400 list-decimal list-inside marker:text-slate-500 mb-4">
+                <li>Open <span className="text-slate-200">Create Series</span> from the main menu or dashboard.</li>
+                <li>Start a new series or open an existing series.</li>
+                <li>In the character selection step, choose <span className="text-slate-200">“Use existing character.”</span></li>
+                <li>Select this character from <span className="text-slate-200">My Characters</span>.</li>
+                <li>Confirm the character role: Hero, Villain, Sidekick, Narrator, Mentor, or Trickster.</li>
+                <li>Generate <span className="text-slate-200">Episode 1</span>.</li>
+                <li>After the episode is generated, this character’s Memory Timeline will update automatically with story events, relationships, and continuity notes.</li>
+              </ol>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <Button
+                  onClick={() => navigate(`/app/story-series/create?character_id=${encodeURIComponent(characterId)}`)}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium h-9 px-3"
+                  data-testid="cta-create-series-with-character"
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1.5" /> Create Series with this Character
+                </Button>
+                <Button
+                  onClick={() => navigate('/app/story-series')}
+                  variant="outline"
+                  className="w-full border-slate-700 text-slate-200 hover:text-white hover:bg-slate-800 text-xs h-9 px-3"
+                  data-testid="cta-open-my-series"
+                >
+                  <Library className="w-3.5 h-3.5 mr-1.5" /> Open My Series
+                </Button>
+                <Button
+                  onClick={() => navigate('/app/characters')}
+                  variant="outline"
+                  className="w-full border-slate-700 text-slate-200 hover:text-white hover:bg-slate-800 text-xs h-9 px-3"
+                  data-testid="cta-back-to-my-characters"
+                >
+                  <ListChecks className="w-3.5 h-3.5 mr-1.5" /> Back to My Characters
+                </Button>
+              </div>
             </div>
 
             {/* Relationships */}

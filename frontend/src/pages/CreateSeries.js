@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import {
@@ -39,12 +39,57 @@ const ROLE_COLORS = {
 
 export default function CreateSeries() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [step, setStep] = useState('form'); // 'form' | 'confirm'
   const [creating, setCreating] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [seriesData, setSeriesData] = useState(null);
   const [extractedChars, setExtractedChars] = useState([]);
   const [editingIdx, setEditingIdx] = useState(null);
+
+  // P0 UX (2026-05-17) — preselected character from Character Detail handoff.
+  // When the URL carries ?character_id=<id>, validate ownership against
+  // GET /api/characters/{id} and stash the character so it auto-attaches
+  // after series creation. Invalid ids surface a structured toast with
+  // request_id so users have a debuggable reference.
+  const preselectedCharacterId = searchParams.get('character_id') || null;
+  const [preselectedCharacter, setPreselectedCharacter] = useState(null);
+  const [preselectValidating, setPreselectValidating] = useState(false);
+  const preselectAttachedRef = useRef(false);
+
+  useEffect(() => {
+    if (!preselectedCharacterId) return;
+    setPreselectValidating(true);
+    api.get(`/api/characters/${preselectedCharacterId}`)
+      .then(res => {
+        const c = res.data || {};
+        if (!c.character_id && !c.id && !c.name) {
+          throw new Error('empty');
+        }
+        setPreselectedCharacter({
+          character_id: c.character_id || c.id || preselectedCharacterId,
+          name: c.name || 'Selected character',
+        });
+      })
+      .catch(err => {
+        const status = err?.response?.status || 0;
+        const detail = err?.response?.data?.detail;
+        const requestId =
+          err?.response?.headers?.['x-request-id'] ||
+          (detail && typeof detail === 'object' ? detail.request_id : null) ||
+          'unknown';
+        const human =
+          status === 404
+            ? 'That character could not be found or you do not own it.'
+            : 'Could not load the preselected character.';
+        toast.error(`${human}  Ref: ${requestId}`, {
+          duration: 6000,
+          'data-testid': 'preselect-character-error-toast',
+        });
+        setPreselectedCharacter(null);
+      })
+      .finally(() => setPreselectValidating(false));
+  }, [preselectedCharacterId]);
 
   const [form, setForm] = useState({
     title: '',
@@ -56,6 +101,32 @@ export default function CreateSeries() {
   });
 
   const update = (key, val) => setForm(prev => ({ ...prev, [key]: val }));
+
+  // Helper: attach the preselected character to a freshly created series.
+  // Runs at most once per session via preselectAttachedRef to keep idempotent.
+  const attachPreselectedCharacter = async (seriesId) => {
+    if (!preselectedCharacter?.character_id) return;
+    if (!seriesId) return;
+    if (preselectAttachedRef.current) return;
+    preselectAttachedRef.current = true;
+    try {
+      await api.post(
+        `/api/characters/attach-to-series/${seriesId}`,
+        { character_id: preselectedCharacter.character_id }
+      );
+      toast.success(`${preselectedCharacter.name} attached to this series.`);
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      const requestId =
+        err?.response?.headers?.['x-request-id'] ||
+        (detail && typeof detail === 'object' ? detail.request_id : null) ||
+        'unknown';
+      toast.error(
+        `Could not attach ${preselectedCharacter.name} to the series. Ref: ${requestId}`,
+        { duration: 6000 }
+      );
+    }
+  };
 
   const handleCreate = async () => {
     if (!form.title.trim()) { toast.error('Title is required'); return; }
@@ -73,10 +144,15 @@ export default function CreateSeries() {
       if (res.data.success) {
         if (res.data.duplicate) {
           toast.info('Series already exists from a recent submission.');
+          await attachPreselectedCharacter(res.data.series_id);
           navigate(`/app/story-series/${res.data.series_id}`);
           return;
         }
         setSeriesData(res.data);
+        // Auto-attach preselected character (from Character Detail handoff).
+        // Done BEFORE entering the confirm step so the attach completes during
+        // the same wall-clock moment as the create — keeps the trust flow tight.
+        await attachPreselectedCharacter(res.data.series_id);
         const chars = res.data.extracted_characters || [];
         // Mark all as confirmed by default
         setExtractedChars(chars.map(c => ({ ...c, confirmed: true })));
@@ -390,6 +466,54 @@ export default function CreateSeries() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-8 space-y-6">
+        {/* P0 UX (2026-05-17) — Preselected character banner.
+            Surfaces ONLY when CreateSeries was reached via the Character
+            Detail "Create Series with this Character" CTA. After series
+            creation we auto-attach this character via
+            POST /api/characters/attach-to-series/{series_id}. */}
+        {preselectedCharacterId && (
+          <div
+            className="bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-4 flex items-start gap-3"
+            data-testid="preselected-character-banner"
+          >
+            <Users className="w-5 h-5 text-indigo-300 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 text-sm">
+              {preselectValidating ? (
+                <span className="text-slate-300 flex items-center gap-2">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Validating character…
+                </span>
+              ) : preselectedCharacter ? (
+                <>
+                  <p className="text-slate-200 font-medium">
+                    Linking <span data-testid="preselected-character-name">{preselectedCharacter.name}</span> to this series
+                  </p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    They will be attached automatically after Episode 1 is created.
+                  </p>
+                </>
+              ) : (
+                <p className="text-amber-300/90 text-xs">
+                  Preselected character could not be loaded. You can still create the series and attach a character later from My Characters.
+                </p>
+              )}
+            </div>
+            {preselectedCharacter && (
+              <button
+                onClick={() => {
+                  setPreselectedCharacter(null);
+                  navigate('/app/story-series/create', { replace: true });
+                }}
+                className="text-slate-400 hover:text-white"
+                aria-label="Remove preselected character"
+                data-testid="preselected-character-clear"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Title */}
         <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5">
           <label className="flex items-center gap-2 text-sm font-medium text-white mb-3">

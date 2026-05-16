@@ -28,6 +28,12 @@ import { ForceShareGate, ShareRewardBar } from '../components/ForceShareGate';
 import ViralMomentumBadge from '../components/ViralMomentumBadge';
 import ContinuationModal from '../components/ContinuationModal';
 import CompetitionPulse from '../components/CompetitionPulse';
+// P0 Stability Sprint Phase 3a (2026-05-17) — read-only shadow observer.
+// Mounts the canonical useStorySession in parallel with this page's legacy
+// useState ownership. Compares fields and emits structured divergence logs.
+// READ-ONLY: this hook NEVER calls commit/transition/startFresh. See
+// frontend/src/state/useStorySessionShadow.js for the full contract.
+import { useStorySessionShadow } from '../state/useStorySessionShadow';
 import { LiveViewerBadge } from '../components/AnimatedSocialProof';
 import EntitledDownloadButton from '../components/EntitledDownloadButton';
 import { useMediaEntitlement } from '../contexts/MediaEntitlementContext';
@@ -445,6 +451,25 @@ function StoryVideoPipelineInner() {
   const draftSaveTimer = useRef(null);
   const lastSavedRef = useRef({ title: '', storyText: '' });
   const isFreshSession = !!location.state?.freshSession;
+
+  // P0 Stability Sprint Phase 3a (2026-05-17) — canonical state shadow observer.
+  // The hook fetches GET /api/drafts/{id}/state on draftId change and compares
+  // legacy vs canonical fields, emitting console.info divergence lines with
+  // request_id + draft_id. It is READ-ONLY by construction (no commit, no
+  // transition, no startFresh). Migration of real writes happens in Phase 3b.
+  useStorySessionShadow({
+    draftId: activeDraftId,
+    legacy: {
+      title,
+      storyText,
+      animationStyle: animStyle,
+      ageGroup,
+      voicePreset,
+      // legacy doesn't have a lifecycle concept yet — pass null so the
+      // shadow only flags drift the editor can actually be responsible for.
+      lifecycle: null,
+    },
+  });
 
   // Auto-save draft (debounced — saves 3s after last change, only if content changed)
   useEffect(() => {
