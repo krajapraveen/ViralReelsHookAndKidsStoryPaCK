@@ -888,6 +888,27 @@ function CompletionPromptModal({ job, onClose, onDownload, onShareWhatsApp, onCr
   );
 }
 
+  // P0 2026-05-16 — strict status allow-list for MySpace items.
+  // ROOT-CAUSE GUARD: previous fetchJobs used the fallthrough pattern
+  // `status === 'completed' ? 'COMPLETED' : status === 'failed' ? 'FAILED'
+  //  : 'PROCESSING'` which contaminated unrelated cards as "processing".
+  // This canonicalizer:
+  //   • accepts both lower and upper case backend values
+  //   • maps anything unknown / cancelled / expired / orphaned / archived
+  //     / empty / null → ARCHIVED so it lands in a non-active section
+  //   • never synthesizes 50% progress for unknown statuses
+  const __ALLOWED_LIVE = new Set(['PROCESSING', 'QUEUED', 'PENDING', 'RENDERING']);
+  const __ALLOWED_TERMINAL = new Set(['COMPLETED', 'FAILED', 'PARTIAL']);
+  function normalizeJobStatus(raw) {
+    const s = (raw || '').toString().toUpperCase();
+    if (__ALLOWED_LIVE.has(s)) return s === 'PENDING' || s === 'RENDERING' ? 'PROCESSING' : s;
+    if (__ALLOWED_TERMINAL.has(s)) return s;
+    if (s === 'PARTIAL_READY') return 'PARTIAL';
+    // Anything else — stale, archived, cancelled, orphaned, empty, null —
+    // explicitly NOT in progress. Bucket it into ARCHIVED.
+    return 'ARCHIVED';
+  }
+
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function MySpacePage() {
   const navigate = useNavigate();
@@ -971,15 +992,36 @@ export default function MySpacePage() {
       ]);
       const allItems = [];
       if (storyRes.status === 'fulfilled' && storyRes.value?.data?.jobs) {
-        for (const j of storyRes.value.data.jobs) allItems.push({ ...j, type: 'story_video' });
+        for (const j of storyRes.value.data.jobs) {
+          // P0 2026-05-16 — defensive normalization so any unexpected
+          // backend status doesn't drift into PROCESSING.
+          allItems.push({ ...j, status: normalizeJobStatus(j.status), type: 'story_video' });
+        }
       }
       if (reelRes.status === 'fulfilled' && reelRes.value?.data?.reels) {
         for (const r of reelRes.value.data.reels) {
+          // P0 2026-05-16 — strict allow-list status mapping.
+          // ROOT-CAUSE FIX for MySpace "every old reel shows as 50% processing"
+          // contamination: the previous mapper had a fallthrough that turned
+          // ANY non-canonical backend value (cancelled / expired / archived /
+          // orphaned / partial / null / '') into PROCESSING + progress=50.
+          // Now: explicit canonicalize; anything unknown → ARCHIVED.
+          const normalizedStatus = normalizeJobStatus(r.status);
+          let normalizedProgress;
+          if (normalizedStatus === 'COMPLETED' || normalizedStatus === 'PARTIAL') {
+            normalizedProgress = 100;
+          } else if (normalizedStatus === 'PROCESSING' || normalizedStatus === 'QUEUED') {
+            // Use REAL backend progress when present; never synthesize 50%.
+            normalizedProgress = typeof r.progress_percent === 'number' ? r.progress_percent : 0;
+          } else {
+            // FAILED / ARCHIVED — explicit zero (no fake progress bar)
+            normalizedProgress = 0;
+          }
           allItems.push({
             job_id: r.reel_id || r.id, title: r.title || 'Reel', type: 'reel',
-            status: r.status === 'completed' ? 'COMPLETED' : r.status === 'failed' ? 'FAILED' : 'PROCESSING',
+            status: normalizedStatus,
             thumbnail_url: r.thumbnail_url, output_url: r.output_url || r.video_url,
-            progress: r.status === 'completed' ? 100 : 50,
+            progress: normalizedProgress,
             created_at: r.created_at, completed_at: r.completed_at,
           });
         }
@@ -993,7 +1035,10 @@ export default function MySpacePage() {
             job_id: t.job_id || t._id || t.public_share_slug,
             title: t.template_name || 'YouStar Trailer',
             type: 'photo_trailer',
-            status: t.status,  // already QUEUED|PROCESSING|COMPLETED|FAILED
+            // P0 2026-05-16 — defensive normalize. Backend already returns
+            // canonical QUEUED|PROCESSING|COMPLETED|FAILED, but any drift
+            // (legacy STALE / future REFUNDED) shouldn't contaminate UI.
+            status: normalizeJobStatus(t.status),
             thumbnail_url: t.result_thumbnail_url,
             output_url: t.result_video_url,
             public_share_slug: t.public_share_slug,
