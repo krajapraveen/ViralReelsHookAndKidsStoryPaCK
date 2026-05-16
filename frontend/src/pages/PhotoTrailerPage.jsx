@@ -1167,12 +1167,27 @@ function ResultStep({ job, onCreateAnother, onBackToWizard }) {
 
 // ─── Failure recovery ─────────────────────────────────────────────────────────
 function FailedStep({ job, onRetry, onEdit, onDelete }) {
+  // P0 2026-05-16 — "View refund" trust chip. Only when a refund is
+  // CONFIRMED on the job doc (refunded_credits > 0). Small secondary CTA
+  // links straight to /app/billing where the credit ledger already lives.
+  // No modal, no new endpoint — just closes the trust loop visually.
+  const refundConfirmed = Number(job?.refunded_credits || 0) > 0;
   return (
     <div className="space-y-5 text-center py-6" data-testid="trailer-step-failed">
       <AlertCircle className="w-10 h-10 text-rose-400 mx-auto" />
       <div>
         <h2 className="text-xl font-bold text-white">Trailer didn't render</h2>
         <p className="text-sm text-slate-300 mt-1">{job.error_message || 'Something went wrong. Your credits were refunded.'}</p>
+        {refundConfirmed && (
+          <a
+            href="/app/billing"
+            className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-400/30 text-emerald-300 text-[11px] font-medium hover:bg-emerald-500/15 hover:text-emerald-200 transition-colors"
+            data-testid="trailer-view-refund-chip"
+            aria-label={`View refund of ${job.refunded_credits} credits in billing ledger`}
+          >
+            <Check className="w-3 h-3" /> {job.refunded_credits} credits refunded · View
+          </a>
+        )}
       </div>
       <div className="flex flex-wrap gap-2 justify-center">
         <button onClick={onRetry} className="py-2.5 px-4 rounded-xl bg-violet-600 text-white text-sm font-semibold flex items-center gap-2" data-testid="trailer-retry-btn">
