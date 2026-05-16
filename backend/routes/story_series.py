@@ -302,6 +302,7 @@ CRITICAL: The episode MUST end with a powerful open-loop cliffhanger — an unre
                 "elapsed_s": round(elapsed, 1),
                 "retryable": True,
                 "request_id": request_id,
+                "dependency": "story_llm",
             },
         )
     except ValueError as e:
@@ -322,6 +323,7 @@ CRITICAL: The episode MUST end with a powerful open-loop cliffhanger — an unre
                 "message": "The AI returned an unexpected format. Tap Create Series again — usually works on the second try.",
                 "retryable": True,
                 "request_id": request_id,
+                "dependency": "story_llm",
             },
         )
     except Exception as e:
@@ -340,6 +342,12 @@ CRITICAL: The episode MUST end with a powerful open-loop cliffhanger — an unre
             code = "LLM_AUTH_FAILED"
             msg = "Generation service authentication failed. Please contact support."
             status = 502
+        elif "unavailable" in emsg or "503" in emsg or "504" in emsg or "timeout" in emsg:
+            # Founder spec (2026-05-18): explicit 503 with dependency name
+            # whenever an upstream dependency is unavailable.
+            code = "DEPENDENCY_UNAVAILABLE"
+            msg = "The AI generation service is briefly unavailable. Tap Create Series again — this usually clears in 10 seconds."
+            status = 503
         else:
             code = "LLM_UPSTREAM_ERROR"
             msg = "AI generation hit an upstream error. Tap Create Series to retry."
@@ -356,7 +364,14 @@ CRITICAL: The episode MUST end with a powerful open-loop cliffhanger — an unre
             pass
         raise HTTPException(
             status_code=status,
-            detail={"code": code, "message": msg, "retryable": True, "elapsed_s": round(elapsed, 1), "request_id": request_id},
+            detail={
+                "code": code,
+                "message": msg,
+                "retryable": True,
+                "elapsed_s": round(elapsed, 1),
+                "request_id": request_id,
+                "dependency": "story_llm",
+            },
         )
 
     characters = foundation.get("characters", [])

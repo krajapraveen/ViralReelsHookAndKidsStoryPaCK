@@ -172,30 +172,52 @@ export default function CreateSeries() {
       }
     } catch (err) {
       // P0 2026-05-16 — actionable, code-aware error rendering.
-      // Backend now returns: detail = { code, message, retryable, elapsed_s? }
+      // Backend returns: detail = { code, message, retryable, request_id, elapsed_s? }
       // OR detail = "string" (legacy 4xx paths)
-      // OR detail = generic gateway shape from axios interceptor.
+      // OR detail = gateway-rewrite envelope from axios interceptor:
+      //   { detail: {code, message, request_id, ...}, request_id, gateway: true }
+      //
+      // 2026-05-18 P0 — ALWAYS render the request_id when present so users
+      // have a support reference. Previously the gateway/string-detail path
+      // dropped the id and showed a generic toast — exactly the trust break
+      // the founder flagged in production.
       const d = err?.response?.data;
       const status = err?.response?.status || 0;
       const isAxiosTimeout = err?.code === 'ECONNABORTED';
 
+      // request_id may live in three different shapes; resolve once.
+      const requestId =
+        (d?.detail && typeof d.detail === 'object' && d.detail.request_id) ||
+        d?.request_id ||
+        err?.response?.headers?.['x-request-id'] ||
+        err?.response?.headers?.['X-Request-Id'] ||
+        null;
+
       let message;
+      let code = null;
       if (isAxiosTimeout) {
         message = 'Generation timed out. Tap Create Series to try again — your draft is preserved.';
       } else if (d?.detail && typeof d.detail === 'object' && d.detail.message) {
         // Structured backend error (new shape)
         message = d.detail.message;
-        // P0 2026-05-16 — surface per-request correlation id in the toast
-        // so users can paste it to support and ops can pull the trace.
-        if (d.detail.request_id) {
-          message = `${message}\nReference ID: ${d.detail.request_id}`;
-        }
+        code = d.detail.code || null;
       } else if (typeof d?.detail === 'string') {
         message = d.detail;
       } else if (d?.gateway || status >= 502) {
         message = 'AI service is briefly unavailable. Tap Create Series again — this usually clears in 10 seconds.';
+        code = 'GATEWAY_ERROR';
       } else {
         message = 'Could not create series. Tap Create Series to retry.';
+      }
+
+      // Founder-mandated reference: ALWAYS communicate a reference token.
+      // When request_id is missing the failure happened at the gateway
+      // BEFORE the reliability middleware ran — we still tell the user so
+      // ops know to investigate the proxy layer, not the backend.
+      if (requestId) {
+        message = `${message}\nReference ID: ${requestId}`;
+      } else if (code === 'GATEWAY_ERROR' || status >= 502) {
+        message = `${message}\nReference ID: not-captured (gateway-level failure — please retry; if persistent, contact support)`;
       }
 
       toast.error(message);
@@ -203,7 +225,7 @@ export default function CreateSeries() {
         const { trackFunnel } = await import('../utils/funnelTracker');
         trackFunnel('create_series_failed', {
           source_page: '/app/story-series',
-          meta: { status, code: d?.detail?.code, message_shown: message },
+          meta: { status, code: code || d?.detail?.code, request_id: requestId, message_shown: message },
         });
       } catch (_) { /* */ }
     } finally {

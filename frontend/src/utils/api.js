@@ -83,18 +83,40 @@ api.interceptors.response.use(
     // If the error response body is raw HTML (nginx 502/504 pages, etc.),
     // strip it so callers can never accidentally render upstream HTML in
     // a toast. We replace `response.data` with a normalized JSON shape.
+    //
+    // 2026-05-18 P0 fix — ALWAYS preserve `X-Request-Id` from the response
+    // header and surface it in the rewritten envelope. Previously the
+    // gateway path silently dropped the correlation id, so users saw a
+    // generic "service temporarily unavailable" toast with no reference,
+    // breaking the founder-mandated request_id contract.
     try {
       const raw = error?.response?.data;
       const code = error?.response?.status || 0;
+      const hdrs = error?.response?.headers || {};
+      // Header key is lowercased by axios/node; cover both shapes.
+      const requestId = hdrs['x-request-id'] || hdrs['X-Request-Id'] || null;
       const looksLikeHtml = (v) =>
         typeof v === 'string' && /^\s*<(?:!doctype|html|head|body|center|h1)/i.test(v);
       const isGateway = code === 502 || code === 503 || code === 504;
       if (looksLikeHtml(raw) || (isGateway && typeof raw === 'string')) {
         error.response.data = {
-          detail: 'The service is temporarily unavailable. Please try again.',
-          code: isGateway ? 'GATEWAY_ERROR' : 'UPSTREAM_ERROR',
-          http_status: code,
+          detail: {
+            // Keep the human-readable summary as before so existing pages
+            // that don't yet map structured codes still render something
+            // sensible — but in object form so callers can pull request_id.
+            code: isGateway ? 'GATEWAY_ERROR' : 'UPSTREAM_ERROR',
+            message:
+              'The service is temporarily unavailable. Please try again.',
+            http_status: code,
+            gateway: true,
+            request_id: requestId,
+            retryable: true,
+          },
+          // Legacy callers that read `data.detail` as a string still work —
+          // they get the raw message; new callers read `data.detail.message`
+          // and `data.detail.request_id`.
           gateway: true,
+          request_id: requestId,
         };
       }
     } catch (_) { /* noop */ }

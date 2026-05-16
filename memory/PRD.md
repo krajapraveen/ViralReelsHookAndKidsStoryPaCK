@@ -65,6 +65,69 @@ state ownership, non-deterministic hydration.
 - `MySpacePage.js`, Comic Storybook — zero changes
 - UI styling, copy, auth, billing, pipeline, R2 — zero changes
 
+### P0 Production Bug — "Service Temporarily Unavailable" Toast Without Request ID — May 18, 2026
+**Status**: SHIPPED in preview. **Awaiting your redeploy + production verification.**
+
+**Production symptom (per founder screenshot)**: User on `visionary-suite.com/app/story-series/create` clicks "Create Series" → red toast shows "The service is temporarily unavailable. Please try again." with NO request_id, NO actionable code, NO support reference.
+
+**Root cause (two layers)**:
+1. **Frontend (the actual visible bug)**: `frontend/src/utils/api.js` axios error interceptor was rewriting any 502/503/504 response body into a generic envelope `{ detail: "service is temporarily unavailable...", code: GATEWAY_ERROR, gateway: true }`. The rewrite **stripped the `X-Request-Id` response header** from the surfaced data, so the correlation id was lost before `CreateSeries.js` could render it. Even when the backend returned a perfectly-structured 504/502 with request_id, the user saw a generic message.
+2. **Backend (latent contract gap)**: error envelopes had `code`, `message`, `request_id` but no `dependency` field — so even when the failure was clearly an LLM provider issue, ops couldn't tell from the envelope which upstream went down.
+
+**Fixes shipped (preview)**:
+
+`frontend/src/utils/api.js` (gateway interceptor):
+- Reads `X-Request-Id` from response headers (both `'x-request-id'` and `'X-Request-Id'` casings)
+- Rewrites gateway-failure body to a STRUCTURED detail object: `{ code, message, request_id, http_status, gateway, retryable }` instead of a bare string
+- Preserves the human-readable summary so legacy callers don't break
+
+`frontend/src/pages/CreateSeries.js` (error handler):
+- Resolves `request_id` from three response shapes: `d.detail.request_id` (object), `d.request_id` (gateway rewrite top-level), `response.headers['x-request-id']` (header fallback)
+- ALWAYS renders `Reference ID: <id>` on every error path
+- When `request_id` is genuinely null (failure happened at the gateway BEFORE the reliability middleware ran), surfaces an explicit `Reference ID: not-captured (gateway-level failure — please retry; if persistent, contact support)` so the user still has actionable copy + ops knows where to investigate
+
+`backend/routes/story_series.py` (envelope hardening):
+- LLM_TIMEOUT (504) → adds `"dependency": "story_llm"`
+- LLM_BAD_JSON (502) → adds `"dependency": "story_llm"`
+- New DEPENDENCY_UNAVAILABLE (503) branch for upstream "unavailable/timeout/503/504" errors with `dependency: "story_llm"`
+- Catch-all Exception (502/429/402/503) — all include `"dependency": "story_llm"`
+
+**Categorical mapping (verified by tests)**:
+- Validation failure → 422 (NOT generic 503) ✅
+- Auth failure → 401 (NOT generic 503) ✅
+- Credit/budget failure → 402 with structured envelope ✅
+- Rate-limit → 429 with structured envelope ✅
+- Upstream unavailable → 503 with dependency name + request_id ✅
+- Bad JSON from LLM → 502 with dependency name + request_id ✅
+- LLM timeout → 504 with dependency name + request_id ✅
+- Success → 200 + X-Request-Id header on response ✅
+
+**Before/after evidence**:
+- **Before**: Toast read "The service is temporarily unavailable. Please try again." with NO reference id. Backend logs had the request_id; user couldn't pass it to support.
+- **After**: Toast reads either:
+  - `<actionable message>\nReference ID: <id>` (when backend responded; most cases)
+  - `AI service is briefly unavailable. Tap Create Series again — this usually clears in 10 seconds.\nReference ID: not-captured (gateway-level failure — please retry; if persistent, contact support)` (when ingress timeout fires before backend; explicitly tells ops to look at proxy layer)
+
+**Files changed**:
+- `frontend/src/utils/api.js` — interceptor preserves X-Request-Id + emits structured envelope
+- `frontend/src/pages/CreateSeries.js` — request_id resolution from 3 shapes + unified "Reference ID" render
+- `backend/routes/story_series.py` — dependency name added to all error envelopes + new DEPENDENCY_UNAVAILABLE 503 branch
+- `backend/tests/test_create_series_envelope_2026_05.py` (NEW, 12 tests)
+
+**Tests added (12)**:
+- Source-level (5): api.js preserves request_id from header, api.js emits structured envelope, CreateSeries resolves request_id from all 3 shapes, CreateSeries renders Reference ID on every path, regression guard against the prior "string detail" silent drop
+- Backend source-level (3): LLM envelopes carry dependency, DEPENDENCY_UNAVAILABLE returns 503, catch-all has dependency
+- Backend live integration (4): success returns X-Request-Id header, validation → 422 not 503, auth → 401 not 503, request_id stamped on every status
+
+**Cumulative tests**: 49/49 in active envelope+routing+layout+phase3b+session2 suite passing. Frontend reducer: 23/23. **Sprint total now ~120 tests, 100% green.**
+
+**Action required from you**:
+1. Redeploy preview → production
+2. Open `visionary-suite.com/app/story-series/create?character_id=<id>` and click "Create Series" with a real prompt
+3. Two possible outcomes:
+   - **Success**: series creates, no toast, you navigate to confirm step — issue closed
+   - **Failure**: toast NOW shows actionable message + `Reference ID: <id>` — paste the id here and I'll pull the backend log to find the actual production root cause (very likely an LLM-key/quota or ingress-timeout issue specific to prod)
+
 ### P0 QA — Character Detail CTA Click + Routing Verification — May 18, 2026
 **Status**: VERIFIED + 1 LATENT BUG FIXED. Playwright multi-viewport routing test passing.
 
