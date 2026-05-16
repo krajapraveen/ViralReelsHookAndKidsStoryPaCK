@@ -8,6 +8,33 @@ Evolve the platform from a standard AI content generator into a highly addictive
 
 ## What's Been Implemented
 
+### YouStar Activation-Killer Trio (P0-A, P0-C, P0-D) — May 16, 2026
+**Production-freeze hot-fix.** Three trust bugs eliminated:
+
+- **P0-A — stuck-at-88% reliability:** stage timestamps, sub-stage heartbeats
+  during render, founder-normalized 10-minute wall-clock cap for ALL trailer
+  durations (`HARD_MAX_RUNTIME_BY_DURATION` + `STALE_MIN_BY_DURATION` all = 10).
+  Janitor reaps overdue PROCESSING jobs and refunds credits cleanly. New
+  canonical admin endpoint `GET /api/admin/youstar/jobs/{job_id}/debug`
+  (legacy `/api/photo-trailer/admin/jobs/{id}/debug` retained for back-compat).
+- **P0-D — ffprobe audio/video validation:** every rendered MP4 is verified
+  (h264 + aac, both streams present, audio duration ≥ video − 0.5s). Failure →
+  job FAILED with `RENDER_INVALID` + automatic credit refund. No more silent
+  audio-less trailers.
+- **P0-C — first-click Play race:** `videoRef.current.load()` on src change,
+  `canPlay`-gated tap-to-play overlay, synchronous `el.play()` inside the
+  user-gesture handler, cache-bust on every signed URL. NEW: 8-second
+  `canPlayStuck` timer surfaces a "Tap to load trailer" force-reload button
+  (data-testid=`trailer-tap-to-load`) when `canplay` never fires.
+
+Deferred (second deploy): P0-B concurrent scene/narration, P0-E Character Usage
+Guide UI, P0-F sub-stage labels at 88%.
+
+Tests: 41/41 pass — `test_youstar_reliability_trio_2026_05.py`,
+`test_photo_trailer_render_timeout.py`, `test_photo_trailer_reliability_sprint.py`.
+
+
+
 ### Phase 2: Premium Landing Page (Conversion Engine) — April 2026
 - **Use Case Rails** — 8-card Netflix-style grid: Kids Bedtime Stories, Viral Reels, YouTube Shorts, Comics, Business Promos, Photo to Comic, GIFs, Story Episodes
 - **Pain Removal Section** — "Stop wasting hours editing" + 6 pain points + "One prompt → finished video"

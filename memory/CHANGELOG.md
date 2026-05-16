@@ -1,5 +1,74 @@
 # Visionary Suite - Changelog
 
+
+─────────────────────────────────────────────────────────
+[2026-05-16] YOUSTAR P0 ACTIVATION-KILLER TRIO (P0-A, P0-C, P0-D) — SHIPPED
+─────────────────────────────────────────────────────────
+Founder mandate: ship the three highest-priority YouStar trailer reliability
+fixes. Production freeze otherwise in effect — no UI redesigns or new features.
+
+P0-A — Backend reliability ("stuck at 88%" elimination)
+• Stage timestamps in `_set_stage`: stage_started_at, stage_completed_at,
+  stage_duration_s — populates the new debug endpoint timeline.
+• Sub-stage heartbeats during `_render_trailer` ("Combining scenes (i/N)",
+  "Stitching trailer", "Adding music", "Adding end card") so the user no
+  longer sees a flat 88% for 30+ seconds.
+• `_render_trailer` wrapped in `asyncio.wait_for` per-stage timeout
+  (5/8/8/12 min by tier) → surfaces RENDER_TIMEOUT before Cloudflare 504.
+• Stuck-job janitor (`_reap_stale_pipelines`) with founder-normalized
+  10-minute wall-clock cap for ALL duration tiers
+  (HARD_MAX_RUNTIME_BY_DURATION + STALE_MIN_BY_DURATION = 10/10/10/10).
+  Auto-requeue path now effectively disabled — a trailer that hangs >10min
+  is broken by definition and gets clean FAIL + credit refund (no silent
+  burn).
+• Canonical admin alias `GET /api/admin/youstar/jobs/{job_id}/debug`
+  (mirrors Story-to-Video + Story-Series contract). Legacy
+  `/api/photo-trailer/admin/jobs/{id}/debug` retained for backwards compat.
+
+P0-D — ffprobe audio/video validation
+• `_validate_render` runs ffprobe after render. Rejects when:
+  – output file missing
+  – no video stream OR no audio stream
+  – video codec ≠ h264 OR audio codec ≠ aac
+  – audio duration < video duration − 0.5s
+• On failure: job marked FAILED with error_code=RENDER_INVALID +
+  credits refunded automatically (matches founder mandate "audio must
+  play continuously, otherwise refund").
+• Graceful ffmpeg -i fallback when ffprobe binary unavailable.
+
+P0-C — Frontend first-click Play fix
+• `videoRef` + explicit `videoRef.current.load()` on every src change.
+• `canPlay` state tracked via onCanPlay/onLoadedMetadata; tap-to-play
+  overlay only enabled after `canPlay && !isPlaying`.
+• `handleTapToPlay` calls `el.play()` SYNCHRONOUSLY inside the user
+  gesture handler (no awaits before play) — eliminates the
+  NotAllowedError race that required a page refresh.
+• Cache-busting `?_v=${Date.now()}` appended to every signed stream URL
+  so regenerated trailers never replay the previous MP4.
+• `playFailed` state surfaces a visible reason if .play() rejects.
+• NEW (P0-C completion): canplay-stuck recovery. If `canplay` doesn't
+  fire within 8 seconds (slow R2 origin or stale signed URL), the user
+  sees a "Tap to load trailer" force-reload button
+  (data-testid=`trailer-tap-to-load`). Handler bumps a nonce that
+  re-runs the load effect AND appends a fresh `_r=<ts>` cache-buster
+  so the next `.load()` hits R2 fresh.
+
+Tests
+• /app/backend/tests/test_youstar_reliability_trio_2026_05.py — 18 tests
+  (stage timestamps, canonical alias gated + 404, 10-min hard-max,
+  ffprobe accept/reject paths, frontend source-level assertions).
+• /app/backend/tests/test_photo_trailer_render_timeout.py — updated
+  hard-max constants to 10 min.
+• /app/backend/tests/test_photo_trailer_reliability_sprint.py — janitor
+  heartbeat + wall-clock tests rewritten for the single-wall spec.
+• 41/41 backend tests pass at 100% (testing_agent_v3_fork iteration 100).
+
+Deferred (per user instruction, second deploy)
+• P0-B: concurrent scene + narration generation
+• P0-E: Character Usage Guide UI on character detail page
+• P0-F: detailed UI sub-stage labels at 88%
+
+
 ─────────────────────────────────────────────────────────
 [2026-05-05] AI CLONING FREE-TESTING EXCEPTION (CONTROLLED) SHIPPED
 ─────────────────────────────────────────────────────────
