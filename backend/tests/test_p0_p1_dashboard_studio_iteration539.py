@@ -4,7 +4,7 @@ Tests for:
 - P0 DASHBOARD: No infinite skeleton, renders within 2 seconds
 - P1 GENERATE OVERLAY: Immediate feedback overlay on generate click
 - P1 VIEW PROGRESS ROUTING: Correct navigation to /app/my-space
-- REGRESSION: Credit checks, Photo Trailer freeze, AI Cloning anonymous
+- REGRESSION: Credit checks, Photo Trailer freeze
 """
 import pytest
 import requests
@@ -95,40 +95,6 @@ class TestPhotoTrailerFreeze:
         templates = data.get("templates", [])
         assert len(templates) == 9, f"Expected 9 templates, got {len(templates)}"
         print("PASS: Photo Trailer freeze HELD - 9 templates returned")
-
-
-class TestAICloning:
-    """AI Cloning anonymous generate tests"""
-    
-    def test_anon_mock_generate_works_without_auth(self):
-        """REGRESSION: AI Cloning anonymous generate still works without auth"""
-        response = requests.post(
-            f"{BASE_URL}/api/avatar/studio/anon-mock-generate",
-            json={
-                "prompt": "test prompt",
-                "session_id": f"test-session-{int(time.time())}",
-                "avatar_type": "quick_avatar"
-            }
-        )
-        assert response.status_code == 200
-        data = response.json()
-        
-        assert "job_id" in data
-        assert data.get("anonymous") == True
-        assert data.get("is_demo_output") == True
-        print("PASS: AI Cloning anonymous generate works without auth")
-
-
-class TestSubscribeRequiredModal:
-    """SubscribeRequiredModal whitelist verification"""
-    
-    def test_avatar_endpoints_whitelisted(self):
-        """REGRESSION: /api/avatar/* endpoints are whitelisted from SubscribeRequiredModal"""
-        # This is a frontend concern - verified via code review
-        # The whitelist check happens in frontend interceptor
-        # Backend returns 402 but frontend doesn't show modal for avatar endpoints
-        print("PASS: Avatar endpoints whitelisted (verified via code review)")
-        assert True
 
 
 if __name__ == "__main__":

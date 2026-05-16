@@ -1,0 +1,42 @@
+=== BEFORE: AI Cloning brand references — 2026-05-16T06:38:18Z ===
+
+## FRONTEND files containing clone/cloning/digital twin:
+frontend/src/App.js
+frontend/src/components/avatar/AssetUploadStep.jsx
+frontend/src/components/avatar/AvatarTypeStep.jsx
+frontend/src/components/avatar/LibraryStep.jsx
+frontend/src/data/creatorTools.js
+frontend/src/pages/AICloningStudio.jsx
+frontend/src/pages/AdminCloneModerationPage.jsx
+frontend/src/pages/AvatarDemoWizard.jsx
+frontend/src/pages/AvatarStudioPage.legacy.jsx
+frontend/src/pages/BrandStoryBuilder.js
+frontend/src/utils/api.js
+
+## BACKEND files containing AI cloning brand references:
+backend/routes/avatar_studio.py
+backend/routes/funnel_tracking.py
+backend/routes/story_hook_generator.py
+backend/services/personalization_service.py
+backend/tests/test_ai_cloning_studio_wizard_iteration534.py
+backend/tests/test_avatar_zombie_reconciliation_iteration536.py
+backend/tests/test_credit_gate_routing_2026_05.py
+backend/tests/test_p0_p1_dashboard_studio_iteration539.py
+
+## USER-VISIBLE branded strings (case-insensitive):
+38
+  → total matches
+
+## Routes & lazy imports in App.js:
+113:const AICloningStudio = lazy(() => import('./pages/AICloningStudio'));
+114:const AdminCloneModerationPage = lazy(() => import('./pages/AdminCloneModerationPage'));
+115:const AvatarDemoWizard = lazy(() => import('./pages/AvatarDemoWizard'));
+116:const AvatarFunnelTablePage = lazy(() => import('./pages/AvatarFunnelTablePage'));
+318:        <Route path="/avatar-demo" element={<L><AvatarDemoWizard /></L>} />
+393:        <Route path="/app/avatar" element={isAuthenticated ? <L><AICloningStudio /></L> : <Navigate to="/login" />} />
+394:        <Route path="/app/admin/avatar/moderation" element={isAuthenticated ? <L><AdminCloneModerationPage /></L> : <Navigate to="/login" />} />
+395:        <Route path="/app/admin/avatar/funnel" element={isAuthenticated ? <L><AvatarFunnelTablePage /></L> : <Navigate to="/login" />} />
+
+## Server.py avatar_studio include:
+129:from routes.avatar_studio import router as avatar_studio_router
+507:api_router.include_router(avatar_studio_router)

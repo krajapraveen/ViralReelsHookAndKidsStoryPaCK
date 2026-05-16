@@ -126,7 +126,6 @@ from routes.content_trending import router as content_trending_router
 from routes.funnel_tracking import router as funnel_tracking_router
 from routes.activation_digest import router as activation_digest_router
 from routes.photo_trailer import router as photo_trailer_router
-from routes.avatar_studio import router as avatar_studio_router
 from routes.pricing_api import router as pricing_api_router
 from routes.streaks import router as streaks_router
 from routes.asset_access import router as asset_access_router
@@ -504,7 +503,6 @@ api_router.include_router(content_trending_router)
 api_router.include_router(funnel_tracking_router)
 api_router.include_router(activation_digest_router)
 api_router.include_router(photo_trailer_router)
-api_router.include_router(avatar_studio_router)
 api_router.include_router(pricing_api_router)
 api_router.include_router(streaks_router)
 api_router.include_router(asset_access_router)

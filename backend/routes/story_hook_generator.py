@@ -75,7 +75,6 @@ HOOK_TEMPLATES = {
         "The simulation was flawless. {character} was the only glitch in the system.",
         "{character} signed up for immortality. They didn't read the fine print about watching everyone die.",
         "The colony ship had been traveling for 200 years. {character} was the first to wake up and discover the lie.",
-        "Every human had a digital twin. {character}'s had just murdered someone.",
         "The cure worked. But the side effects turned {character} into something no longer human.",
     ],
     "Mystery": [

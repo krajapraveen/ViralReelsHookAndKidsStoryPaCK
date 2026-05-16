@@ -188,9 +188,6 @@ FUNNEL_STEPS = [
     "free_user_blocked_post_policy_first",   # First time a user hits the new block
     "free_user_blocked_post_policy_repeat",  # Subsequent blocks in same session
     "pricing_page_opened_from_block",        # User clicked Subscribe CTA on the modal
-    # AI Cloning free-testing exception — measures demand for the only
-    # currently-free feature under the mandatory-sub policy
-    "ai_cloning_used_free_testing",
     # Public Creator Tools grid (Landing page) — measures interest per tool
     "public_creator_tool_clicked",
     # Credit-gate modal — revenue P0 routing fix (2026-05)

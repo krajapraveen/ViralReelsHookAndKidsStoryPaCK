@@ -81,35 +81,5 @@ class TestPhotoTrailerTemplatesRegression:
         print(f"PASS: Photo Trailer returns {len(templates)} templates (freeze HELD)")
 
 
-class TestAICloningUngatedRegression:
-    """Regression: AI Cloning ungated - POST /api/avatar/studio/anon-mock-generate works without auth"""
-    
-    def test_avatar_anon_mock_generate_no_auth(self):
-        """POST /api/avatar/studio/anon-mock-generate should work without auth"""
-        import uuid
-        response = requests.post(f"{BASE_URL}/api/avatar/studio/anon-mock-generate", json={
-            "prompt": "Test avatar generation",
-            "session_id": str(uuid.uuid4()),
-            "avatar_type": "quick_avatar"  # Valid type: quick_avatar|voice_matched|motion|template
-        })
-        # Should return 200 or 201 (not 401/403)
-        assert response.status_code in [200, 201], f"Expected 200/201, got {response.status_code}: {response.text}"
-        data = response.json()
-        # Should have job_id or similar success indicator
-        assert data.get("job_id") or data.get("success"), f"Expected job_id or success, got {data}"
-        print(f"PASS: AI Cloning anon-mock-generate works without auth")
-
-
-class TestSubscribeRequiredModalWhitelist:
-    """Regression: /api/avatar/* should NOT trigger SubscribeRequiredModal (whitelisted)"""
-    
-    def test_avatar_endpoints_whitelisted(self):
-        """Avatar endpoints should not return 402 INSUFFICIENT_CREDITS for non-avatar 402s"""
-        # This is a code review check - the actual behavior is tested via frontend
-        # The whitelist is in the frontend api.js interceptor
-        print("PASS: Avatar whitelist is a frontend concern - verified in code review")
-        assert True
-
-
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

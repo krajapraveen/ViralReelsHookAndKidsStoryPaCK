@@ -2293,3 +2293,85 @@ must answer that question. Brutally concise. Operational only.
    NO auto-continuations. NO replay systems. NO story quality panels.
    This is pure observability so the next decision is data-driven.
 
+
+─────────────────────────────────────────────────────────
+[2026-05-16] BRAND CLEANUP — AI CLONING SURGICALLY REMOVED
+─────────────────────────────────────────────────────────
+Founder directive: P0 surgical cleanup of every visible/hidden reference to
+AI Clone / AI Cloning / Clone Chat / Build Your Clone / Create Clone /
+New Clone / Avatar Clone / Voice Clone / Digital Twin. Do not redesign.
+
+✅ Deleted files (15 files + components/avatar/ directory)
+   • frontend/src/pages/AICloningStudio.jsx
+   • frontend/src/pages/AdminCloneModerationPage.jsx
+   • frontend/src/pages/AvatarDemoWizard.jsx
+   • frontend/src/pages/AvatarFunnelTablePage.jsx
+   • frontend/src/pages/AvatarStudioPage.legacy.jsx
+   • frontend/src/pages/AvatarDemoPage.legacy.jsx
+   • frontend/src/components/avatar/ (7 files: AssetUploadStep, AvatarTypeStep,
+     LibraryStep, MotionStep, SafetyReviewStep, GenerationProgress, shared)
+   • backend/routes/avatar_studio.py
+   • backend/scripts/generate_avatar_demo_previews.py
+   • backend/scripts/seed_avatar_demo_r2.py
+   • backend/tests/test_ai_cloning_studio_wizard_iteration534.py
+   • backend/tests/test_avatar_demo_anon_iteration535.py
+   • backend/tests/test_avatar_studio_iteration533.py
+   • backend/tests/test_avatar_zombie_reconciliation_iteration536.py
+   • backend/tests/test_zero_free_credits_policy_2026_05.py
+
+✅ Code references removed
+   • frontend/src/App.js — 4 lazy imports, 4 routes (/app/avatar,
+     /app/admin/avatar/moderation, /app/admin/avatar/funnel, /avatar-demo)
+   • backend/server.py — avatar_studio_router import + include
+   • frontend/src/data/creatorTools.js — AI Cloning entry from DEFAULT_FEATURES
+   • frontend/src/utils/api.js — AI Cloning free-testing whitelist
+   • frontend/src/pages/Signup.js — emitAvatarSignupAttribution function
+     + 2 call sites (avatar_signup_from_avatar telemetry)
+   • backend/services/personalization_service.py — avatar entry in
+     FEATURE_MONETIZATION_PRIORITY + FEATURES list
+   • backend/routes/funnel_tracking.py — ai_cloning_used_free_testing event
+   • backend/routes/story_hook_generator.py — "digital twin" story prompt
+   • 2 surviving test files (test_credit_gate_routing_2026_05.py,
+     test_p0_p1_dashboard_studio_iteration539.py) cleaned of AI-Cloning
+     test classes (kept other unrelated assertions).
+
+✅ Dashboard slot replacement
+   Replaced AI Cloning card with existing Visionary Suite core features
+   (Story Video / Story Series / My Movie Trailer). No new components
+   created — used the existing DEFAULT_FEATURES list ordering.
+
+✅ Regression test — backend/tests/test_no_ai_cloning_brand_2026_05.py
+   8/8 PASS:
+   • test_no_ai_cloning_brand_strings_in_frontend_source
+   • test_no_ai_cloning_brand_strings_in_backend_source
+   • test_deleted_files_stay_deleted
+   • test_app_js_has_no_clone_routes_or_imports
+   • test_server_does_not_import_avatar_studio
+   • test_creator_tools_has_no_avatar_entry
+   • test_personalization_service_does_not_score_avatar
+   • test_funnel_whitelist_has_no_clone_events
+
+✅ End-to-end visual verification
+   Screenshots saved to /tmp:
+   • clone_landing.png — zero brand strings (regex matched 0 hits)
+   • clone_landing_footer.png — zero brand strings in footer area
+   • clone_dashboard.png — zero brand strings on logged-in dashboard
+   • clone_deleted_route.png — /app/avatar cleanly redirects to /app
+
+✅ Untouched / preserved (legitimate non-brand uses of "clone")
+   • Response.clone() in frontend/src/pages/BrandStoryBuilder.js
+     (DOM API, not branding)
+   • backend/ml_threat_detection.py "identity clone" / "face clone"
+     anti-abuse keywords (security filters, not user-facing)
+   • backend/routes/characters.py regex "(exact|identical) (copy|clone|replica)"
+     (also abuse filter)
+   • backend/services/rewrite_engine/semantic_detector.py "shadow clone"
+     (ninja jutsu vocabulary list)
+   • backend/server_monolith_backup.py (frozen backup, not loaded)
+
+✅ Sanity regressions — P0-4 + Activation Digest tests still pass
+   tests/test_p04_diagnostics_and_anon_2026_05.py — 4/4 PASS
+   tests/test_activation_digest_2026_05.py         — 7/7 PASS
+
+📁 Proof: /app/memory/cleanup_proof/{before.txt, after.txt}
+
