@@ -497,6 +497,11 @@ export default function ComicStorybookBuilder() {
   const [job, setJob] = useState(null);
   const [generationStartTime, setGenerationStartTime] = useState(null);
   const pollingRef = useRef(null);
+  // P0 2026-05-19 — synchronous double-submit guard. React state updates
+  // batch and `loading` may not reflect "true" before the second click
+  // is processed. A ref flips synchronously and protects the request
+  // even when the user double-taps faster than React re-renders.
+  const submittingRef = useRef(false);
 
   // Localization & targeting
   const [language, setLanguage] = useState('English');
@@ -793,19 +798,24 @@ export default function ComicStorybookBuilder() {
 
   // Generate full comic book
   const generateComicBook = async () => {
-    // P0 2026-05 — guard against rapid double-submits (the `loading` flag
-    // also disables the button in the JSX). Bail out if a request is in
-    // flight or a job is already polling.
-    if (loading || pollingRef.current) {
+    // P0 2026-05-19 — synchronous re-entrancy guard via ref.
+    // React state (`loading`) batches and may still read `false` on a
+    // rapid double-click. The ref flips immediately so the second click
+    // is dropped before any network call.
+    if (submittingRef.current || loading || pollingRef.current) {
       return;
     }
+    submittingRef.current = true;
+
     if (!storyIdea.trim() || !selectedGenre) {
+      submittingRef.current = false;
       toast.error('Please complete all steps first');
       return;
     }
 
     // Final validation
     if (!validateContent(storyIdea) || !validateContent(bookTitle)) {
+      submittingRef.current = false;
       toast.error('Please remove copyrighted references');
       return;
     }
@@ -814,6 +824,7 @@ export default function ComicStorybookBuilder() {
     // Skip credit gate entirely for unlimited / admin / QA users — backend
     // enforces the same bypass server-side (defense in depth).
     if (!isUnlimitedUser && credits !== null && credits < cost) {
+      submittingRef.current = false;
       toast.error(`Insufficient credits. Need ${cost} credits.`);
       setShowUpsell(true);
       return;
@@ -839,7 +850,11 @@ export default function ComicStorybookBuilder() {
       });
 
       setJob({ id: res.data.jobId, status: res.data.status || 'QUEUED', progress: res.data.progress || 0 });
-      if (res.data.resumed) {
+      // P0 2026-05-19 — distinguish a fresh job from an idempotent
+      // resumption. Backend now returns code:'EXISTING_ACTIVE_JOB' when
+      // the request landed on an in-flight job. We attach to progress
+      // silently — no error toast, no retry surface.
+      if (res.data.code === 'EXISTING_ACTIVE_JOB' || res.data.resumed) {
         toast.success('Your comic is already generating. Opening progress…');
       } else {
         toast.success('Comic book generation started!');
@@ -850,30 +865,76 @@ export default function ComicStorybookBuilder() {
       pollingRef.current = interval;
 
     } catch (e) {
-      // P0 2026-05 — Graceful 409 handling. If the backend reports an
-      // in-flight duplicate, try to resume polling the user's most recent
-      // active job instead of stranding them with a raw error toast.
-      if (e?.response?.status === 409) {
+      // P0 2026-05-19 — Honest error surface with mandatory Reference ID.
+      // No more "Your comic is already generating" dead toast.
+      const status = e?.response?.status || 0;
+      const data = e?.response?.data;
+      const detail = (data && typeof data.detail === 'object' && !Array.isArray(data.detail))
+        ? data.detail : null;
+      const headerRid =
+        e?.response?.headers?.['x-request-id'] ||
+        e?.response?.headers?.['X-Request-Id'] ||
+        null;
+      const rid = detail?.request_id || data?.request_id || headerRid || null;
+
+      // 409 path — only fires now if backend genuinely cannot recover the
+      // lock (extremely rare after the orphan-recovery fix). We try once
+      // to attach to any recent in-flight job from history before
+      // surfacing an error toast.
+      if (status === 409) {
         try {
           const listRes = await api.get('/api/comic-storybook-v2/history?page=0&size=5');
           const recent = (listRes.data?.jobs || []).find(
-            (j) => j.id && j.status !== 'COMPLETED' && j.status !== 'FAILED'
+            (j) => j.id && j.status !== 'COMPLETED' && j.status !== 'FAILED' && j.status !== 'CANCELLED'
           );
           if (recent) {
             setJob({ id: recent.id, status: recent.status, progress: recent.progress || 0 });
             toast.success('Your comic is already generating. Opening progress…');
             const interval = setInterval(() => pollJobStatus(recent.id), 3000);
             pollingRef.current = interval;
-            return;
+            return;  // submittingRef cleared in finally
           }
         } catch (_) { /* fall through to clean toast */ }
-        toast.error('Your comic is already generating. Please wait a moment and try again.');
+        const friendly = detail?.message || 'A previous attempt is still being released. Please try again in ~30 seconds.';
+        toast.error(rid ? `${friendly}\nReference ID: ${rid}` : `${friendly}\nReference ID: not-captured (please retry; if persistent, contact support)`);
         setLoading(false);
         return;
       }
+
+      // Structured envelope (400 / 422 / 429 / 500 / 503) — friendly map.
+      if (detail?.code) {
+        const codeMap = {
+          BLOCKED_CONTENT: 'Please remove copyrighted or blocked references and try again.',
+          SAFETY_BLOCKED: 'Your story idea was flagged by content safety. Please rephrase.',
+          GUARDRAIL_BLOCKED: 'Daily generation limit reached. Please try again later.',
+          ADMISSION_REJECTED: 'System is at capacity. Please retry in a moment.',
+          DEGRADATION_BLOCKED: 'System under heavy load. Please try again shortly or upgrade.',
+          INSUFFICIENT_CREDITS: 'You need more credits to continue.',
+          GENERATE_FAILED: 'Comic generation could not start. Please try again.',
+        };
+        const friendly = codeMap[detail.code] || detail.message || 'Generation failed';
+        toast.error(rid ? `${friendly}\nReference ID: ${rid}` : `${friendly}\nReference ID: not-captured`);
+        setLoading(false);
+        return;
+      }
+
+      // Network failure — request never reached the server.
+      if (status === 0) {
+        toast.error('Network error — check your connection and try again.\nReference ID: not-captured (request never reached the server)');
+        setLoading(false);
+        return;
+      }
+
+      // Unexpected shape — render with HTTP code so support has a hook.
+      const fallback = (typeof data?.detail === 'string' ? data.detail : null) || `Generation failed (HTTP ${status}). Please try again.`;
+      toast.error(rid ? `${fallback}\nReference ID: ${rid}` : `${fallback}\nReference ID: not-captured (HTTP ${status})`);
       setLoading(false);
-      const errorMsg = e.response?.data?.detail || 'Generation failed';
-      toast.error(typeof errorMsg === 'string' ? errorMsg : 'Generation failed');
+    } finally {
+      // Always release the synchronous re-entrancy guard — both on
+      // success (the polling loop now owns the lifecycle) and on every
+      // failure path. Without this finally a transient error would
+      // permanently soft-lock the button until page reload.
+      submittingRef.current = false;
     }
   };
 

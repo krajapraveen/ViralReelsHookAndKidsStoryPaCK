@@ -8,6 +8,59 @@ Evolve the platform from a standard AI content generator into a highly addictive
 
 ## What's Been Implemented
 
+### P0 PRODUCTION BUG — Comic Story Book "already generating" lock-trap — May 19, 2026
+**Status**: SHIPPED in preview. Live HTTP regression green. **Awaiting your redeploy + production verification.**
+
+**Production symptom** (screenshot): On the Preview & Generate step, clicking "Generate Full Comic Book" surfaced a dead red toast: *"Your comic is already generating. Please wait a moment and try again."* Users were trapped — no progress page, no recovery, no Reference ID.
+
+**Root cause**: The `/api/comic-storybook-v2/generate` endpoint inserted an idempotency row with `status=PENDING` BEFORE the `comic_storybook_v2_jobs` row. If the request died between those two writes (`asyncio.CancelledError` from a client disconnect, worker OOM, supervisor restart), the orphan PENDING row sat for up to 10 minutes (`STALE_PENDING_MINUTES`). A retry within that window hit `is_dup=True && cached=None && no existing_job` → backend raised HTTP 409 → frontend's `/history` fallback found nothing → dead toast.
+
+**Fix — proper job lifecycle + idempotency, NOT a longer timeout**:
+
+`backend/services/idempotency_service.py`:
+- `STALE_PENDING_MINUTES`: 10 → **2** (whole synchronous /generate path is <5s)
+
+`backend/routes/comic_storybook_v2.py`:
+- Route now takes `http_request: Request` and pulls `request_id` from the reliability middleware (`get_request_id`)
+- Every error envelope now structured: `{code, message, request_id, retryable, ...}`. No more bare-string details.
+- New `code: EXISTING_ACTIVE_JOB` envelope (200, NOT 409) when a real in-flight job is found for the idempotency key — frontend silently attaches to progress
+- **Orphan PENDING auto-recovery**: when `is_dup=True && cached=None && no existing_job`, the prior request is presumed dead. The orphan row is deleted, re-inserted fresh, and the request proceeds as a clean submit. The legacy 409 `"Duplicate request in progress"` path is GONE.
+- `INSUFFICIENT_CREDITS` envelope normalized: legacy string detail → structured shape with request_id
+- New **`except BaseException`** catch on the route: `asyncio.CancelledError` (inherits from BaseException, not Exception) now triggers `mark_failed` before re-raise — closes the client-disconnect race that produced the orphan in the first place
+- `except Exception` now wraps the legacy raise in a structured `GENERATE_FAILED` envelope so the toast carries Reference ID
+
+`frontend/src/pages/ComicStorybookBuilder.js :: generateComicBook`:
+- New `submittingRef` synchronous double-submit guard (refs flip immediately; React state batching can't trip the race)
+- Honors structured `code: EXISTING_ACTIVE_JOB` → silently attaches to progress (no error toast on idempotent retry)
+- 409 path now extremely rare (only fires if backend genuinely cannot recover) — surfaces `Reference ID: <id>` instead of dead toast
+- Every error path renders `Reference ID:` (real id from envelope/header OR `not-captured` sentinel) — 4+ render sites across structured / 409 / network / catch-all branches
+- `finally { submittingRef.current = false }` guarantees the button is never permanently locked client-side
+
+**Files changed (4)**:
+- `backend/services/idempotency_service.py` (TTL 10→2 min, comment block updated)
+- `backend/routes/comic_storybook_v2.py` (`+http_request`, structured envelopes, orphan-recovery branch, `except BaseException`, `INSUFFICIENT_CREDITS` normalization)
+- `frontend/src/pages/ComicStorybookBuilder.js` (`submittingRef`, structured handler, Reference ID on every path, finally release)
+- `backend/tests/test_storybook_lock_recovery_2026_05.py` (NEW, 18 tests)
+- `backend/tests/test_storybook_lock_recovery_e2e_2026_05.py` (NEW, 2 live HTTP tests)
+
+**Tests added (20, all passing)**:
+- TTL contract pinned to 2 min (1)
+- Idempotency state machine (5): first/fresh-pending/stale-pending-recovers/young-pending-blocks/failed-recovers
+- Backend source-level (6): Request import, BaseException catch, orphan recovery, EXISTING_ACTIVE_JOB envelope, ≥6 request_id placements, INSUFFICIENT_CREDITS normalization
+- Frontend source-level (6): submittingRef synchronous guard, no dead toast string, ≥4 Reference ID render sites, setLoading release on every catch path, finally releases submittingRef, button still wired to loading
+- Live HTTP (2): orphan PENDING + retry → 200 with fresh jobId; legitimate in-flight job → structured `EXISTING_ACTIVE_JOB` envelope with `jobId + request_id`
+
+**Cumulative test count for this fix**: 20/20 green. Cross-suite (with the photo-to-comic catalog): 36/36 green.
+
+**Action required from you**:
+1. Deploy preview → production via Emergent UI
+2. Verify on `https://visionary-suite.com/app/comic-storybook-builder`:
+   - Click "Generate Full Comic Book" once → should land on the progress page (not the dead toast)
+   - Double-click the button rapidly → only one job created, no error
+   - Refresh the page mid-generation → click again → silently attaches to in-flight job
+   - On any real failure → toast shows `Reference ID: <id>` for support traceability
+3. Paste back CASE A (clean) or CASE B (failing scenario + Reference ID).
+
 ### P0 Platform Stability Sprint — Session 2 (Canonical State Machine) — May 17, 2026
 **Status**: Foundation SHIPPED. Live page migration NOT started (gated, per founder).
 

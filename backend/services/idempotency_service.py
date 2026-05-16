@@ -16,11 +16,21 @@ class IdempotencyService:
 
     COLLECTION_NAME = "idempotency_keys"
     DEFAULT_TTL_HOURS = 24
-    # P0 2026-05 — auto-expire PENDING records whose owning request crashed
-    # before reaching update_result / mark_failed. 10 minutes is a generous
-    # ceiling for any single sync request (the longest synchronous path —
-    # comic-storybook /generate — completes in <5 s on healthy infra).
-    STALE_PENDING_MINUTES = 10
+    # P0 2026-05-19 — auto-expire PENDING records whose owning request died
+    # before reaching update_result / mark_failed.
+    #
+    # Previous value (10 min) was the source of the production "Your comic
+    # is already generating" lock-trap: when a worker crashed or a client
+    # disconnect (asyncio.CancelledError) interrupted /generate AFTER the
+    # PENDING row was inserted but BEFORE either update_result or
+    # mark_failed ran, the user was soft-locked for 10 minutes with a dead
+    # toast and no way to recover.
+    #
+    # 2 minutes is the new ceiling. The longest synchronous /generate path
+    # on healthy infra is <5 s; the new BaseException guard on the route
+    # also calls mark_failed on CancelledError so legitimate retries
+    # rarely have to wait for this TTL anymore.
+    STALE_PENDING_MINUTES = 2
     
     def __init__(self, db):
         self.db = db

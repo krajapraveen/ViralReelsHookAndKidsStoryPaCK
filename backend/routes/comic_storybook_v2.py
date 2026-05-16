@@ -15,7 +15,7 @@ Architecture:
 Each stage: status = queued|running|completed|failed|retrying
 DB must never claim success before storage confirms success.
 """
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Header
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Header, Request
 from pydantic import BaseModel
 from datetime import datetime, timezone
 from typing import Optional, Dict
@@ -371,6 +371,7 @@ class GenerateComicRequest(BaseModel):
 @router.post("/generate")
 async def generate_comic_book(
     request: GenerateComicRequest,
+    http_request: Request,
     user: dict = Depends(get_current_user),
     idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
 ):
@@ -385,6 +386,12 @@ async def generate_comic_book(
       5. Queue placement
       6. Job creation
     """
+    # P0 2026-05-19 — request_id for the founder-mandated correlation
+    # contract. Every error envelope below carries this id so the user's
+    # toast Reference ID maps 1:1 to a server-side log line.
+    from middleware.reliability import get_request_id
+    rid = get_request_id(http_request)
+
     user_id = user["id"]
     user_plan = user.get("plan", "free")
     tier = resolve_tier(user_plan)
@@ -392,16 +399,25 @@ async def generate_comic_book(
     # ── 0. Content check ──────────────────────────────────────────────
     is_blocked, kw = check_blocked(request.storyIdea)
     if is_blocked:
-        raise HTTPException(status_code=400, detail=f"Blocked content: '{kw}'")
+        raise HTTPException(status_code=400, detail={
+            "code": "BLOCKED_CONTENT", "message": f"Blocked content: '{kw}'",
+            "request_id": rid, "retryable": False,
+        })
     is_blocked, kw = check_blocked(request.title)
     if is_blocked:
-        raise HTTPException(status_code=400, detail=f"Blocked content in title: '{kw}'")
+        raise HTTPException(status_code=400, detail={
+            "code": "BLOCKED_CONTENT", "message": f"Blocked content in title: '{kw}'",
+            "request_id": rid, "retryable": False,
+        })
 
     # Full safety pipeline — sanitize story idea and title
     from services.rewrite_engine import check_and_rewrite
     safety = await check_and_rewrite(user_id, "comic_storybook", request, ["storyIdea", "title"])
     if safety.blocked:
-        raise HTTPException(status_code=400, detail=safety.block_reason)
+        raise HTTPException(status_code=400, detail={
+            "code": "SAFETY_BLOCKED", "message": safety.block_reason,
+            "request_id": rid, "retryable": False,
+        })
 
     genre = request.genre if request.genre in STORY_GENRES else "kids_adventure"
     add_ons = request.addOns or {}
@@ -419,7 +435,10 @@ async def generate_comic_book(
     is_dup, cached = await idem_svc.check_and_store(idempotency_key)
     if is_dup:
         if cached:
-            return cached
+            # True idempotent retry (prior submit COMPLETED with a result).
+            # Return the cached result PLUS request_id so the client can
+            # tell apart a fresh job from a replayed one.
+            return {**cached, "resumed": True, "request_id": rid}
         # No cached payload yet — look up the in-flight job so the client can
         # transparently resume polling instead of being stranded. P0 2026-05.
         existing_job = await db.comic_storybook_v2_jobs.find_one(
@@ -428,23 +447,46 @@ async def generate_comic_book(
             sort=[("createdAt", -1)],
         )
         if existing_job and existing_job.get("id"):
+            # Legitimate in-flight resumption — NOT an error. Founder
+            # mandate: "If existing job is active and fresh, return
+            # existing job_id. Frontend routes/attaches to progress."
             return {
                 "success": True,
                 "jobId": existing_job["id"],
                 "status": existing_job.get("status", "QUEUED"),
                 "progress": existing_job.get("progress", 0),
                 "resumed": True,
+                "code": "EXISTING_ACTIVE_JOB",
                 "message": "Your comic is already generating. Resuming progress…",
+                "request_id": rid,
             }
-        # Genuinely concurrent (no job row yet) — tell client to poll briefly.
-        raise HTTPException(status_code=409, detail="Duplicate request in progress. Please poll job status.")
+        # P0 2026-05-19 — ORPHANED PENDING RECOVERY.
+        # is_dup=True + cached=None + no existing job row means the prior
+        # request died after inserting the PENDING row but before
+        # creating the job (asyncio.CancelledError from a client
+        # disconnect, worker OOM, supervisor restart, etc.). The user
+        # was previously trapped by a 409 here for up to STALE_PENDING_MINUTES.
+        # We now release the orphan immediately and let this request
+        # proceed as a fresh submit.
+        logger.warning(
+            "[storybook/generate] orphan PENDING idempotency recovered "
+            "key=%s user_id=%s request_id=%s",
+            idempotency_key[:8], user_id, rid,
+        )
+        await idem_svc.delete_key(idempotency_key)
+        # Re-insert as PENDING (fresh) so the rest of this request
+        # retains idempotent semantics for any retry the user fires.
+        await idem_svc.check_and_store(idempotency_key)
 
     try:
         # ── 2. Cost guardrails ────────────────────────────────────────
         guardrail = await check_guardrails(user_id, user_plan, request.pageCount)
         if not guardrail.allowed:
             await idem_svc.mark_failed(idempotency_key, guardrail.reason)
-            raise HTTPException(status_code=429, detail=guardrail.reason)
+            raise HTTPException(status_code=429, detail={
+                "code": "GUARDRAIL_BLOCKED", "message": guardrail.reason,
+                "request_id": rid, "retryable": True,
+            })
 
         # ── 3. Admission controller ──────────────────────────────────
         admission = await check_admission(user_id, user_plan, job_type="COMIC_STORYBOOK")
@@ -452,7 +494,11 @@ async def generate_comic_book(
             await idem_svc.mark_failed(idempotency_key, admission.reason)
             raise HTTPException(
                 status_code=503,
-                detail=admission.reason,
+                detail={
+                    "code": "ADMISSION_REJECTED", "message": admission.reason,
+                    "request_id": rid, "retryable": True,
+                    "retry_after_sec": admission.retry_after_sec,
+                },
                 headers={"Retry-After": str(admission.retry_after_sec)} if admission.retry_after_sec else {},
             )
 
@@ -461,7 +507,11 @@ async def generate_comic_book(
         limits = get_degraded_limits(load_level, user_plan)
         if limits["blocked"]:
             await idem_svc.mark_failed(idempotency_key, "Blocked by degradation matrix")
-            raise HTTPException(status_code=503, detail="System under heavy load. Your tier is temporarily paused. Please try again shortly or upgrade.")
+            raise HTTPException(status_code=503, detail={
+                "code": "DEGRADATION_BLOCKED",
+                "message": "System under heavy load. Your tier is temporarily paused. Please try again shortly or upgrade.",
+                "request_id": rid, "retryable": True,
+            })
 
         enforced_pages = min(request.pageCount, limits["max_pages"])
         if enforced_pages not in [10, 20, 30]:
@@ -483,7 +533,19 @@ async def generate_comic_book(
                 require_credits(user, cost=cost, feature="comic storybook")
             except HTTPException as e:
                 await idem_svc.mark_failed(idempotency_key, "Insufficient credits")
-                raise e
+                # Wrap legacy entitlement detail in the structured envelope so
+                # the frontend can surface request_id like every other path.
+                detail = e.detail
+                if isinstance(detail, dict):
+                    detail.setdefault("request_id", rid)
+                else:
+                    detail = {
+                        "code": "INSUFFICIENT_CREDITS",
+                        "message": str(detail) if detail else "Insufficient credits",
+                        "request_id": rid,
+                        "retryable": False,
+                    }
+                raise HTTPException(status_code=e.status_code, detail=detail)
 
         # ── 6. Job creation + queue placement ────────────────────────
         job_id = str(uuid.uuid4())
@@ -554,6 +616,29 @@ async def generate_comic_book(
         raise
     except Exception as e:
         await idem_svc.mark_failed(idempotency_key, str(e))
+        # Surface a structured envelope so the user gets a Reference ID
+        # instead of a generic 500.
+        raise HTTPException(status_code=500, detail={
+            "code": "GENERATE_FAILED",
+            "message": "Comic generation could not start. Please try again.",
+            "request_id": rid,
+            "retryable": True,
+            "internal_error": str(e)[:200],
+        })
+    except BaseException:
+        # P0 2026-05-19 — Catch asyncio.CancelledError (client disconnect,
+        # worker restart, OOM kill) so the PENDING idempotency row is
+        # released INSTANTLY instead of soft-locking the user. Without
+        # this catch, the row sat PENDING for STALE_PENDING_MINUTES and
+        # produced the production "Your comic is already generating"
+        # trap shown in the screenshot.
+        try:
+            await idem_svc.mark_failed(
+                idempotency_key,
+                f"request cancelled / worker died (request_id={rid})",
+            )
+        except Exception:
+            pass  # never swallow the cancellation
         raise
 
 
