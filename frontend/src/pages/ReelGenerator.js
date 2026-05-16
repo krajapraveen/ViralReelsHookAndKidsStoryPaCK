@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
@@ -7,6 +7,12 @@ import { Textarea } from '../components/ui/textarea';
 import { generationAPI, creditAPI } from '../utils/api';
 import { markFeatureUsed } from '../utils/feedbackSession';
 import { useProductGuide } from '../contexts/ProductGuideContext';
+import { trackFunnel } from '../utils/funnelTracker';
+import {
+  beginGeneration,
+  consumePendingLogin,
+  hasPendingLogin,
+} from '../utils/generationLifecycle';
 import { toast } from 'sonner';
 import {
   Sparkles, Copy, Download, Loader2, ArrowLeft, Coins, AlertCircle,
@@ -509,6 +515,12 @@ function VideoConfigModal({ isOpen, onClose, onGenerate }) {
 // ═══════════════════════════════════════════════════════
 // ── Main Component ────────────────────────────────────
 // ═══════════════════════════════════════════════════════
+// P0 2026-05-16 — sessionStorage key for the reward-loop survival cache.
+// If the user accidentally refreshes / loses auth between generation
+// completion and viewing, we re-hydrate from this so the result is never
+// destroyed by an auth churn. Cleared on user-initiated reset only.
+const REEL_RESULT_CACHE_KEY = 'reel_engine:last_result';
+
 export default function ReelGenerator() {
   const [credits, setCredits] = useState(null);
   const [creditsLoaded, setCreditsLoaded] = useState(false);
@@ -531,6 +543,14 @@ export default function ReelGenerator() {
   const location = useLocation();
   const { updateStep: trackJourneyStep } = useProductGuide();
   const { remixData: incomingRemix, sourceTool: remixSource, sourceTitle: remixTitle, consumed: hasRemix, dismiss: dismissRemix } = useRemixData('reels');
+
+  // P0 2026-05-16 — reward-moment hardening refs.
+  // resultPanelRef → auto-scroll/focus target when generation completes.
+  // alreadyDisplayedResult → idempotency guard so polling / re-renders /
+  //   sessionStorage hydration never re-fire the "result viewed" event or
+  //   re-scroll mid-read.
+  const resultPanelRef = useRef(null);
+  const alreadyDisplayedResult = useRef(false);
 
   const [formData, setFormData] = useState({
     topic: '',
@@ -556,7 +576,59 @@ export default function ReelGenerator() {
       if (fields.tone) setFormData(prev => ({ ...prev, tone: fields.tone }));
       if (fields.duration) setFormData(prev => ({ ...prev, duration: fields.duration }));
     }
+    // P0 2026-05-16 — re-hydrate last successful result from sessionStorage.
+    // Survives accidental refresh + 401 redirect bounces, so the reward
+    // moment is never destroyed by auth churn.
+    try {
+      const cached = sessionStorage.getItem(REEL_RESULT_CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && parsed.result) {
+          setResult(parsed.result);
+          if (parsed.generationId) setLastGenerationId(parsed.generationId);
+        }
+      }
+    } catch (_) { /* sessionStorage may be disabled; never break UX */ }
   }, []);
+
+  // P0 2026-05-16 — result-mount side effects (auto-scroll + funnel event).
+  // Idempotent via alreadyDisplayedResult ref so polling/re-render never
+  // re-fires either side effect. Spec: "if (alreadyDisplayedResult) return;"
+  useEffect(() => {
+    if (!result) return;
+    if (alreadyDisplayedResult.current) return;
+    alreadyDisplayedResult.current = true;
+
+    // Mobile-friendly smooth scroll to the result panel.
+    try {
+      requestAnimationFrame(() => {
+        const el = resultPanelRef.current;
+        if (el && typeof el.scrollIntoView === 'function') {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    } catch (_) { /* noop */ }
+
+    // Persist for refresh / 401 survival.
+    try {
+      sessionStorage.setItem(REEL_RESULT_CACHE_KEY, JSON.stringify({
+        result,
+        generationId: lastGenerationId,
+        cachedAt: Date.now(),
+      }));
+    } catch (_) { /* noop */ }
+
+    // Activation funnel: completion → result viewed.
+    try {
+      trackFunnel('reel_generation_result_viewed', {
+        meta: {
+          generation_id: lastGenerationId,
+          platform: formData.platform,
+          output_type: formData.outputType,
+        },
+      });
+    } catch (_) { /* noop */ }
+  }, [result, lastGenerationId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchCredits = async () => {
     try {
@@ -587,7 +659,19 @@ export default function ReelGenerator() {
       return;
     }
 
+    // P0 2026-05-16 — funnel event + in-flight guard.
+    // beginGeneration() returns an `end()` finalizer we MUST call in finally
+    // so the api.js 401-deferral guard can re-enable hard redirects once
+    // the reward moment has been shown (or the request has cleanly failed).
+    try {
+      trackFunnel('reel_generation_started', {
+        meta: { platform: formData.platform, output_type: formData.outputType },
+      });
+    } catch (_) { /* noop */ }
+    const endGeneration = beginGeneration();
+
     setResult(null);
+    alreadyDisplayedResult.current = false;
     setLoading(true);
     setActiveTab('script');
     try {
@@ -605,10 +689,19 @@ export default function ReelGenerator() {
       if (referenceMode && response.data.result?.is_reference_based) {
         setActiveTab('reference_analysis');
       }
-      toast.success('Reel content pack generated!');
+      toast.success('Your reel is ready');
       markFeatureUsed('reel_generator');
       trackJourneyStep('generate', 'generation_complete', 'reel_generator');
       analytics.trackGeneration('reel_generator', 10);
+      try {
+        trackFunnel('reel_generation_completed', {
+          meta: {
+            generation_id: response.data.generationId || null,
+            platform: formData.platform,
+            output_type: formData.outputType,
+          },
+        });
+      } catch (_) { /* noop */ }
       // 2026-05 — completion-moment fix.
       // The previous flow popped a rating modal at 2s and an upsell modal at
       // 4s right after success, blocking the user from reading their just-
@@ -618,6 +711,25 @@ export default function ReelGenerator() {
       toast.error(error.response?.data?.detail || error.response?.data?.message || 'Generation failed');
     } finally {
       setLoading(false);
+      endGeneration();
+      // P0 2026-05-16 — flush any 401 that was deferred during the
+      // in-flight window. Done AFTER setLoading(false) so the result has
+      // mounted; user sees their reel for the brief moment before the
+      // forced login. Login screen will round-trip back here on success.
+      try {
+        if (hasPendingLogin()) {
+          const loginUrl = consumePendingLogin();
+          if (loginUrl) {
+            // Give the reward UI two frames to mount before the redirect,
+            // so the user at least registers that the result existed.
+            setTimeout(() => {
+              localStorage.removeItem('token');
+              localStorage.removeItem('user');
+              window.location.href = loginUrl;
+            }, 1500);
+          }
+        }
+      } catch (_) { /* noop */ }
     }
   };
 
@@ -945,12 +1057,12 @@ export default function ReelGenerator() {
           </div>
 
           {/* ──────────── OUTPUT PANEL (3 cols) ──────────── */}
-          <div className="lg:col-span-3 space-y-4" data-guide="reel-output">
+          <div ref={resultPanelRef} className="lg:col-span-3 space-y-4" data-guide="reel-output" data-testid="reel-output-panel">
             <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-5 shadow-xl">
               {/* Output Header */}
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-white">
-                  {result ? 'Content Pack' : 'Generated Output'}
+                <h2 className="text-lg font-bold text-white" data-testid="reel-output-heading">
+                  {result ? 'Your reel is ready' : 'Generated Output'}
                 </h2>
                 {result && (
                   <div className="flex gap-2">

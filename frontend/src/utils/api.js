@@ -118,6 +118,28 @@ api.interceptors.response.use(
       const isOpenAccess = openAccessPaths.some(p => path.startsWith(p));
       const isAuthEndpoint = url.includes('/auth/google-signin') || url.includes('/auth/login') || url.includes('/auth/register');
       if (!isOpenAccess && !isAuthEndpoint) {
+        // P0 2026-05-16 — generation-in-flight 401 deferral.
+        // Token can expire DURING a 30-60s reel/trailer/story render.
+        // Yanking the user to /login the moment their result is about to
+        // land destroys the reward moment. Defer the hard redirect: show
+        // a non-blocking toast, keep the page mounted, and let the page's
+        // own finally{} flush the pending login AFTER the result has
+        // rendered (or the generation has cleanly failed).
+        try {
+          // Dynamic import keeps generationLifecycle out of the api.js
+          // dependency graph at module load (avoids any TDZ/circular risk).
+          // eslint-disable-next-line global-require
+          const lifecycle = require('./generationLifecycle');
+          if (lifecycle.isGenerationInFlight()) {
+            lifecycle.deferLogin(window.location.pathname + window.location.search);
+            toast.error('Session expired. Please log in again to continue.', {
+              duration: 6000,
+              id: 'session-expired-deferred',
+            });
+            return Promise.reject(error);
+          }
+        } catch (_) { /* fall through to hard redirect */ }
+
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         const returnPath = window.location.pathname + window.location.search;
