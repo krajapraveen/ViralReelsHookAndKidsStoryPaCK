@@ -218,6 +218,8 @@ FUNNEL_STEPS = [
     "prompt_to_teaser",                  # ms from prompt_submitted → first teaser visible
     "generation_total_latency",          # ms full server-side generation
     "generation_failure_reason",         # explicit error code/category emitted on failure
+    # P0-4 May 2026 — anonymous pre-wow flow
+    "session_resurrected",               # anon session restored from localStorage <24h
 ]
 
 
@@ -916,16 +918,54 @@ async def activation_funnel(
         })
 
     top_exit = None
-    biggest_drop = 0
+    top_exit_drop_count = 0
     for i in range(len(stages) - 1):
         drop = stages[i]["sessions"] - stages[i + 1]["sessions"]
-        if drop > biggest_drop:
-            biggest_drop = drop
+        if drop > top_exit_drop_count:
+            top_exit_drop_count = drop
             top_exit = {
                 "after_step": stages[i]["label"],
                 "drop_count": drop,
                 "drop_pct": round((drop / stages[i]["sessions"]) * 100, 1) if stages[i]["sessions"] else 0.0,
             }
+
+    # ─── 2026-05 V13.1 — Auth-wall detection (separate, above-the-fold) ───
+    # The single most expensive failure mode: signup blocking the wow moment.
+    # Count sessions that ever fired any of these explicit signals.
+    auth_wall_pipe = [
+        {"$match": {**base_match, "$or": [
+            {"abandonment_reason": {"$in": ["auth_wall_before_preview", "payment_wall_pre_wow"]}},
+            {"step": "auth_redirect_loop_detected"},
+        ]}},
+        {"$group": {
+            "_id": {
+                "reason": {"$ifNull": ["$abandonment_reason", "$step"]},
+            },
+            "sessions": {"$addToSet": "$session_id"},
+        }},
+        {"$project": {"reason": "$_id.reason", "_id": 0, "session_count": {"$size": "$sessions"}}},
+    ]
+    auth_wall_breakdown = []
+    auth_wall_total_sessions = set()
+    async for d in db.funnel_events.aggregate(auth_wall_pipe):
+        auth_wall_breakdown.append(d)
+    # Count unique sessions across all reasons
+    auth_wall_session_pipe = [
+        {"$match": {**base_match, "$or": [
+            {"abandonment_reason": {"$in": ["auth_wall_before_preview", "payment_wall_pre_wow"]}},
+            {"step": "auth_redirect_loop_detected"},
+        ]}},
+        {"$group": {"_id": "$session_id"}},
+        {"$count": "total"},
+    ]
+    async for d in db.funnel_events.aggregate(auth_wall_session_pipe):
+        auth_wall_total_sessions = d.get("total", 0)
+    if isinstance(auth_wall_total_sessions, set):
+        auth_wall_total_sessions = 0
+    auth_wall_pct = 0.0
+    landing_sessions = stages[0]["sessions"] if stages else 0
+    if landing_sessions:
+        auth_wall_pct = round((auth_wall_total_sessions / landing_sessions) * 100, 1)
 
     browser_split: dict = {}
     for sess in session_timelines.values():
@@ -1020,9 +1060,212 @@ async def activation_funnel(
         "repeated_cta_sessions": repeated_cta_sessions,
         "median_time_to_abandon_ms": median_time_to_abandon_ms,
         "abandonment_heatmap": heatmap,
+        "auth_wall": {
+            "total_sessions": auth_wall_total_sessions,
+            "pct_of_landing": auth_wall_pct,
+            "breakdown": auth_wall_breakdown,
+        },
         "canonical_abandonment_reasons": sorted(ABANDONMENT_REASONS),
         "total_sessions_seen": len(session_timelines),
     }
+
+
+# ─── 2026-05 V13.1 — P0-4 Before / After Comparison ────────────────────
+# Founder directive: when we ship the anonymous pre-wow flow we MUST be
+# able to answer "did it work?" within 48h. This endpoint splits all the
+# critical activation metrics into pre-P0-4 vs post-P0-4 cohorts based on
+# a marker timestamp stored in `funnel_config.p04_launch_ts`.
+@router.get("/p04-comparison")
+async def p04_comparison(
+    user: dict = Depends(get_admin_user),
+    days_before: int = Query(7, ge=1, le=30, description="Days to look back from launch"),
+    days_after: int = Query(7, ge=1, le=30, description="Days to look forward from launch"),
+):
+    cfg = await db.funnel_config.find_one({"_id": "p04"}, {"_id": 0})
+    if not cfg or not cfg.get("p04_launch_ts"):
+        return {
+            "success": False,
+            "error": "p04_launch_ts not set. POST /api/funnel/p04-launch to mark the flip moment.",
+        }
+    launch_ts = cfg["p04_launch_ts"]
+    try:
+        launch_dt = datetime.fromisoformat(launch_ts.replace("Z", "+00:00"))
+    except Exception:
+        return {"success": False, "error": f"Invalid launch ts: {launch_ts}"}
+
+    pre_start = (launch_dt - timedelta(days=days_before)).isoformat()
+    pre_end = launch_dt.isoformat()
+    post_start = launch_dt.isoformat()
+    post_end = (launch_dt + timedelta(days=days_after)).isoformat()
+
+    async def _cohort_metrics(ts_start: str, ts_end: str) -> dict:
+        base = {"timestamp": {"$gte": ts_start, "$lt": ts_end}}
+
+        async def _unique(step: str, extra: dict | None = None) -> int:
+            match = {**base, "step": step}
+            if extra:
+                match.update(extra)
+            rows = await db.funnel_events.aggregate([
+                {"$match": match},
+                {"$group": {"_id": "$session_id"}},
+                {"$count": "n"},
+            ]).to_list(1)
+            return rows[0]["n"] if rows else 0
+
+        landing = await _unique("landing_view")
+        cta = await _unique("hero_cta_clicked")
+        prompt_started = await _unique("story_prompt_started")
+        generated = await _unique("story_generation_completed") or await _unique("story_generated_success")
+        published = await _unique("story_published")
+
+        # Anon vs Auth split for generation completed
+        anon_generated_rows = await db.funnel_events.aggregate([
+            {"$match": {**base, "step": {"$in": ["story_generation_completed", "story_generated_success"]},
+                        "auth_state": {"$ne": "authenticated"}}},
+            {"$group": {"_id": "$session_id"}},
+            {"$count": "n"},
+        ]).to_list(1)
+        auth_generated_rows = await db.funnel_events.aggregate([
+            {"$match": {**base, "step": {"$in": ["story_generation_completed", "story_generated_success"]},
+                        "auth_state": "authenticated"}},
+            {"$group": {"_id": "$session_id"}},
+            {"$count": "n"},
+        ]).to_list(1)
+        anon_generated = anon_generated_rows[0]["n"] if anon_generated_rows else 0
+        auth_generated = auth_generated_rows[0]["n"] if auth_generated_rows else 0
+
+        # Teaser latency (prompt_to_teaser median + p95)
+        latency_rows = []
+        cursor = db.funnel_events.find(
+            {**base, "step": "prompt_to_teaser", "latency_ms": {"$gt": 0}},
+            {"_id": 0, "latency_ms": 1},
+        )
+        async for d in cursor:
+            v = d.get("latency_ms")
+            if isinstance(v, (int, float)):
+                latency_rows.append(v)
+        latency_rows.sort()
+        teaser_median = int(latency_rows[len(latency_rows) // 2]) if latency_rows else None
+        teaser_p95 = int(latency_rows[max(0, int(len(latency_rows) * 0.95) - 1)]) if latency_rows else None
+
+        # Abandonment: sessions that hit hero_cta but never reached generation_completed
+        cta_sessions = await db.funnel_events.aggregate([
+            {"$match": {**base, "step": "hero_cta_clicked"}},
+            {"$group": {"_id": "$session_id"}},
+        ]).to_list(None)
+        completed_sessions = await db.funnel_events.aggregate([
+            {"$match": {**base, "step": {"$in": ["story_generation_completed", "story_generated_success"]}}},
+            {"$group": {"_id": "$session_id"}},
+        ]).to_list(None)
+        cta_set = {r["_id"] for r in cta_sessions}
+        completed_set = {r["_id"] for r in completed_sessions}
+        abandoned = len(cta_set - completed_set)
+        abandonment_pct = round((abandoned / len(cta_set)) * 100, 1) if cta_set else 0.0
+
+        # Auth-wall hits in this window
+        auth_wall_rows = await db.funnel_events.aggregate([
+            {"$match": {**base, "$or": [
+                {"abandonment_reason": {"$in": ["auth_wall_before_preview", "payment_wall_pre_wow"]}},
+                {"step": "auth_redirect_loop_detected"},
+            ]}},
+            {"$group": {"_id": "$session_id"}},
+            {"$count": "n"},
+        ]).to_list(1)
+        auth_wall = auth_wall_rows[0]["n"] if auth_wall_rows else 0
+
+        return {
+            "landing_sessions": landing,
+            "cta_clicked": cta,
+            "prompt_started": prompt_started,
+            "story_generated": generated,
+            "story_published": published,
+            "anon_generated": anon_generated,
+            "auth_generated": auth_generated,
+            "cta_to_generation_pct": round((generated / cta) * 100, 1) if cta else 0.0,
+            "landing_to_generation_pct": round((generated / landing) * 100, 1) if landing else 0.0,
+            "anon_share_of_generation_pct": round((anon_generated / generated) * 100, 1) if generated else 0.0,
+            "teaser_median_ms": teaser_median,
+            "teaser_p95_ms": teaser_p95,
+            "abandoned_after_cta": abandoned,
+            "abandonment_pct": abandonment_pct,
+            "auth_wall_sessions": auth_wall,
+        }
+
+    pre = await _cohort_metrics(pre_start, pre_end)
+    post = await _cohort_metrics(post_start, post_end)
+
+    def _delta(post_v, pre_v):
+        if post_v is None or pre_v is None:
+            return None
+        return round(post_v - pre_v, 1)
+
+    deltas = {
+        "story_generated_delta": post["story_generated"] - pre["story_generated"],
+        "cta_to_generation_pct_delta": _delta(post["cta_to_generation_pct"], pre["cta_to_generation_pct"]),
+        "landing_to_generation_pct_delta": _delta(post["landing_to_generation_pct"], pre["landing_to_generation_pct"]),
+        "anon_share_of_generation_pct_delta": _delta(post["anon_share_of_generation_pct"], pre["anon_share_of_generation_pct"]),
+        "teaser_median_ms_delta": _delta(post["teaser_median_ms"], pre["teaser_median_ms"]),
+        "abandonment_pct_delta": _delta(post["abandonment_pct"], pre["abandonment_pct"]),
+        "auth_wall_delta": post["auth_wall_sessions"] - pre["auth_wall_sessions"],
+    }
+
+    # Hard verdict — did P0-4 work?
+    verdict_signals = []
+    if deltas.get("cta_to_generation_pct_delta") is not None:
+        if deltas["cta_to_generation_pct_delta"] >= 5.0:
+            verdict_signals.append("CTA→Generation up by ≥5pp")
+        elif deltas["cta_to_generation_pct_delta"] <= -2.0:
+            verdict_signals.append("CTA→Generation regressed")
+    if deltas.get("abandonment_pct_delta") is not None and deltas["abandonment_pct_delta"] <= -5.0:
+        verdict_signals.append("Abandonment dropped ≥5pp")
+    if deltas.get("auth_wall_delta") is not None and deltas["auth_wall_delta"] < 0:
+        verdict_signals.append("Auth-wall hits reduced")
+
+    if deltas.get("cta_to_generation_pct_delta") is not None and deltas["cta_to_generation_pct_delta"] >= 5.0:
+        verdict = "IMPROVED"
+    elif deltas.get("cta_to_generation_pct_delta") is not None and deltas["cta_to_generation_pct_delta"] <= -2.0:
+        verdict = "REGRESSED"
+    elif pre["landing_sessions"] < 50 or post["landing_sessions"] < 50:
+        verdict = "INSUFFICIENT_DATA"
+    else:
+        verdict = "FLAT"
+
+    return {
+        "success": True,
+        "p04_launch_ts": launch_ts,
+        "window": {
+            "pre_start": pre_start, "pre_end": pre_end,
+            "post_start": post_start, "post_end": post_end,
+            "days_before": days_before, "days_after": days_after,
+        },
+        "pre": pre,
+        "post": post,
+        "deltas": deltas,
+        "verdict": verdict,
+        "verdict_signals": verdict_signals,
+    }
+
+
+@router.post("/p04-launch")
+async def p04_set_launch(
+    user: dict = Depends(get_admin_user),
+    ts: Optional[str] = Query(None, description="ISO8601 launch ts; defaults to now"),
+):
+    """Marks the moment P0-4 (anonymous pre-wow flow) goes live so the
+    /p04-comparison endpoint can split metrics before/after."""
+    launch_ts = ts or datetime.now(timezone.utc).isoformat()
+    await db.funnel_config.update_one(
+        {"_id": "p04"},
+        {"$set": {"p04_launch_ts": launch_ts, "updated_by": user.get("id"), "updated_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True,
+    )
+    return {"success": True, "p04_launch_ts": launch_ts}
+
+
+@router.get("/p04-launch")
+async def p04_get_launch(user: dict = Depends(get_admin_user)):
+    cfg = await db.funnel_config.find_one({"_id": "p04"}, {"_id": 0})
+    return {"success": True, "p04_launch_ts": (cfg or {}).get("p04_launch_ts")}
 
 
 @router.get("/revenue-conversion")

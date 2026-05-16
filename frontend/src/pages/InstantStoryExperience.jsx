@@ -58,6 +58,38 @@ const CONTINUE_LOADING_TEXTS = [
 
 const GENERATION_TIMEOUT_MS = 20000;
 
+// ─── P0-4 Session Resurrection — 24h TTL ───────────────────────────────
+// Preserves anonymous teaser + continuations so a user who leaves mid-story
+// returns to the exact same state instead of a cold start. Founder
+// directive 2026-05: zero blind spots in the activation funnel.
+const SESSION_RESURRECTION_TTL_MS = 24 * 60 * 60 * 1000;
+const SESSION_STORAGE_KEY = 'ist_anon_session_v1';
+
+function loadResurrectableSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.savedAt || Date.now() - parsed.savedAt > SESSION_RESURRECTION_TTL_MS) {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+      return null;
+    }
+    return parsed;
+  } catch (_) {
+    return null;
+  }
+}
+
+function saveResurrectableSession(payload) {
+  try {
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ ...payload, savedAt: Date.now() }));
+  } catch (_) { /* quota — ignore */ }
+}
+
+function clearResurrectableSession() {
+  try { localStorage.removeItem(SESSION_STORAGE_KEY); } catch (_) {}
+}
+
 function getSessionId() {
   let id = sessionStorage.getItem('instant_session');
   if (!id) {
@@ -127,17 +159,19 @@ export default function InstantStoryExperience() {
 
   // ─── Initial load state ────────────────────────────────────────
   // P0 Apr 2026 — paint demo on first frame (no loading spinner gap).
-  const [phase, setPhase] = useState('demo');
+  // P0-4 May 2026 — check for resurrectable anonymous session (<24h old).
+  const resurrected = useRef(loadResurrectableSession()).current;
+  const [phase, setPhase] = useState(resurrected?.realStory ? 'real' : 'demo');
   const [demoStory, setDemoStory] = useState(() => DEMO_STORIES[Math.floor(Math.random() * DEMO_STORIES.length)]);
-  const [realStory, setRealStory] = useState(null);
+  const [realStory, setRealStory] = useState(resurrected?.realStory || null);
   const [loadingTextIdx, setLoadingTextIdx] = useState(0);
-  const [transitionState, setTransitionState] = useState('idle');
+  const [transitionState, setTransitionState] = useState(resurrected?.realStory ? 'complete' : 'idle');
   const [genFailed, setGenFailed] = useState(false);
-  const generationRef = useRef(false);
+  const generationRef = useRef(Boolean(resurrected?.realStory));
   const timeoutRef = useRef(null);
 
   // ─── Continuation loop state ───────────────────────────────────
-  const [continuations, setContinuations] = useState([]);
+  const [continuations, setContinuations] = useState(resurrected?.continuations || []);
   const [isGeneratingPart, setIsGeneratingPart] = useState(false);
   const [continueLoadingIdx, setContinueLoadingIdx] = useState(0);
   const [showTeaser, setShowTeaser] = useState(false);
@@ -188,9 +222,35 @@ export default function InstantStoryExperience() {
     // V13 2026-05 — prompt-started canonical event (founder brief). Fires
     // as soon as the experience surface paints, regardless of typing.
     try { trackFunnel('story_prompt_started', { source }); } catch {}
+    // P0-4 May 2026 — emit resurrection event if we restored a prior anon session
+    if (resurrected?.realStory) {
+      try {
+        trackFunnel('session_resurrected', {
+          source,
+          generation_id: resurrected.realStory.story_id,
+          meta: {
+            age_ms: Date.now() - (resurrected.savedAt || 0),
+            continuation_count: (resurrected.continuations || []).length,
+          },
+        });
+      } catch {}
+    }
     const ctaTs = Number(sessionStorage.getItem('cta_clicked_ts') || 0);
     if (ctaTs > 0) emitSpeedSla('cta_to_first_paint', Date.now() - ctaTs);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── P0-4 — Persist anon session to localStorage on every state change ──
+  // 24h TTL. Lets the user return to mid-story exactly where they left off.
+  useEffect(() => {
+    if (realStory) {
+      saveResurrectableSession({
+        realStory,
+        continuations,
+        demoImage: demoStory?.image || null,
+        source,
+      });
+    }
+  }, [realStory, continuations, demoStory?.image, source]);
 
   // V13 2026-05 — Abandonment detectors. Fire canonical reasons:
   //   - user_idle_after_prompt  : no realStory after 60s of inactivity
@@ -343,7 +403,11 @@ export default function InstantStoryExperience() {
     }
   }, [source, sourceTitle, sourceSnippet, theme, realStory]);
 
-  useEffect(() => { if (phase === 'demo') startGeneration(); }, [phase, startGeneration]);
+  useEffect(() => {
+    // P0-4 — skip background generation if we resurrected a saved session
+    if (resurrected?.realStory) return;
+    if (phase === 'demo') startGeneration();
+  }, [phase, startGeneration, resurrected]);
 
   useEffect(() => {
     if (realStory && phase === 'demo' && transitionState === 'idle') {
@@ -479,6 +543,18 @@ export default function InstantStoryExperience() {
       sessionStorage.setItem('pw_view_count', String(newCount));
       setShowPaywall(true);
       try { trackFunnel('paywall_shown', { meta: { part_number: nextPart, story_id: activeStory?.story_id, view_count: newCount, entry_source: source } }); } catch {}
+      // P0-4 May 2026 — explicit auth-wall abandonment-risk signal. The
+      // paywall is firing before the user has reached the FULL emotional
+      // wow (Part 4+); diagnostics needs to know.
+      try {
+        trackFunnel('story_generation_abandoned', {
+          source,
+          generation_id: activeStory?.story_id,
+          abandonment_step: 'paywall_shown',
+          abandonment_reason: 'auth_wall_before_preview',
+          meta: { part_number: nextPart, view_count: newCount },
+        });
+      } catch {}
     }
   }, [partNumber, generateContinuation, activeStory?.story_id, source, paywallViewCount, allowFreeView, videoCtaVariant]);
 
@@ -544,6 +620,8 @@ export default function InstantStoryExperience() {
   };
 
   const handleRegenerate = () => {
+    // P0-4 — clear resurrection so we don't restore the old story
+    clearResurrectableSession();
     generationRef.current = false;
     setGenFailed(false);
     setRealStory(null);
