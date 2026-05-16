@@ -804,10 +804,14 @@ function ResultStep({ job, onCreateAnother, onBackToWizard }) {
   // - canPlay state so the overlay/Play CTA only enables after the
   //   browser has fetched enough metadata to fulfil .play() synchronously
   // - playFailed state surfaces a visible reason if .play() rejects
+  // - canPlayStuck flag fires after 8s of no canplay so the user can
+  //   manually re-trigger video.load() with a fresh cache-buster
   const videoRef = React.useRef(null);
   const [canPlay, setCanPlay] = React.useState(false);
   const [isPlaying, setIsPlaying] = React.useState(false);
   const [playFailed, setPlayFailed] = React.useState(null);
+  const [canPlayStuck, setCanPlayStuck] = React.useState(false);
+  const [reloadNonce, setReloadNonce] = React.useState(0);
   React.useEffect(() => {
     let cancelled = false;
     const load = async () => {
@@ -837,8 +841,41 @@ function ResultStep({ job, onCreateAnother, onBackToWizard }) {
     setCanPlay(false);
     setIsPlaying(false);
     setPlayFailed(null);
+    setCanPlayStuck(false);
     if (videoRef.current && streamUrl) {
       try { videoRef.current.load(); } catch (_) { /* noop */ }
+    }
+  }, [streamUrl, reloadNonce]);
+
+  // P0-C 2026-05-16 — if `canplay` hasn't fired within 8s of the src being
+  // set, the browser is most likely stuck on a stale signed URL or a slow
+  // R2 origin. Surface a visible "Tap to load trailer" button so the user
+  // can force a fresh .load() (with a cache-buster) inside a user gesture.
+  React.useEffect(() => {
+    if (!streamUrl || canPlay) return undefined;
+    const t = setTimeout(() => setCanPlayStuck(true), 8000);
+    return () => clearTimeout(t);
+  }, [streamUrl, canPlay, reloadNonce]);
+
+  const handleForceReload = React.useCallback(() => {
+    // User gesture: bump the nonce, which both re-runs the load effect
+    // and re-arms the 8s stuck timer. Also wipe the bound src first so
+    // Safari/iOS WebKit reliably re-fetch.
+    setCanPlay(false);
+    setIsPlaying(false);
+    setPlayFailed(null);
+    setCanPlayStuck(false);
+    const el = videoRef.current;
+    if (el) {
+      try { el.pause(); } catch (_) { /* noop */ }
+    }
+    setReloadNonce((n) => n + 1);
+    // Light cache-buster on the URL itself — guarantees the next .load()
+    // hits R2 fresh instead of replaying a half-buffered response.
+    if (streamUrl) {
+      const sep = streamUrl.includes('?') ? '&' : '?';
+      const stripped = streamUrl.replace(/([?&])_r=\d+/g, '');
+      setStreamUrl(`${stripped}${stripped.includes('?') ? '&' : sep}_r=${Date.now()}`);
     }
   }, [streamUrl]);
 
@@ -1058,13 +1095,34 @@ function ResultStep({ job, onCreateAnother, onBackToWizard }) {
             </span>
           </button>
         )}
-        {streamUrl && !canPlay && (
+        {streamUrl && !canPlay && !canPlayStuck && (
           <div
             className="absolute inset-0 flex items-center justify-center bg-black/55 rounded-2xl pointer-events-none"
             data-testid="trailer-buffering"
             aria-live="polite"
           >
             <span className="text-white text-sm font-medium animate-pulse">Loading video…</span>
+          </div>
+        )}
+        {/* P0-C 2026-05-16 — canplay never fired within 8s. Surface a user-
+            gesture force-reload button so the player isn't a permanent dead
+            "Loading video…" state on slow R2 or stale signed URLs. */}
+        {streamUrl && !canPlay && canPlayStuck && (
+          <div
+            className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 rounded-2xl"
+            data-testid="trailer-canplay-stuck"
+            aria-live="polite"
+          >
+            <span className="text-white text-sm">Trailer is taking longer than usual.</span>
+            <button
+              type="button"
+              onClick={handleForceReload}
+              className="px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold flex items-center gap-2 transition-colors"
+              data-testid="trailer-tap-to-load"
+              aria-label="Tap to load trailer"
+            >
+              <RefreshCw className="w-4 h-4" /> Tap to load trailer
+            </button>
           </div>
         )}
         {playFailed && (

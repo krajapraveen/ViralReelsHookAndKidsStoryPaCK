@@ -63,21 +63,24 @@ async def _run_janitor(admin_token: str) -> dict:
 
 # ─── 1. Hard-max thresholds match founder spec ────────────────────────────────
 def test_hard_max_thresholds_match_spec():
-    """20s = 8min, 45/60s = 15min, 90s = 25min — never one global cutoff."""
+    """P0-A 2026-05-16 — founder normalized to 10 min wall-clock for ALL
+    duration tiers. Any trailer pipeline > 10 min from enqueue is broken
+    by definition and must be reaped + refunded."""
     import sys
     sys.path.insert(0, "/app/backend")
     from routes.photo_trailer import (
         _hard_max_runtime_for, HARD_MAX_RUNTIME_BY_DURATION,
         _render_timeout_for, RENDER_TIMEOUT_BY_DURATION,
     )
-    assert HARD_MAX_RUNTIME_BY_DURATION[20] == 8
-    assert HARD_MAX_RUNTIME_BY_DURATION[60] == 15
-    assert HARD_MAX_RUNTIME_BY_DURATION[90] == 25
-    assert _hard_max_runtime_for(20) == 8
-    assert _hard_max_runtime_for(60) == 15
-    assert _hard_max_runtime_for(90) == 25
-    assert _hard_max_runtime_for(None) == 15
-    # Render timeouts (per-stage)
+    assert HARD_MAX_RUNTIME_BY_DURATION[20] == 10
+    assert HARD_MAX_RUNTIME_BY_DURATION[60] == 10
+    assert HARD_MAX_RUNTIME_BY_DURATION[90] == 10
+    assert _hard_max_runtime_for(20) == 10
+    assert _hard_max_runtime_for(60) == 10
+    assert _hard_max_runtime_for(90) == 10
+    assert _hard_max_runtime_for(None) == 10
+    # Render timeouts (per-stage) — kept tier-aware so the per-stage budget
+    # for the long-render 90s tier remains generous within the 10-min wall.
     assert RENDER_TIMEOUT_BY_DURATION[20] == 5
     assert RENDER_TIMEOUT_BY_DURATION[60] == 8
     assert RENDER_TIMEOUT_BY_DURATION[90] == 12
@@ -203,9 +206,11 @@ async def test_admin_stuck_jobs_surfaces_stuck(admin_token):
         assert ours["current_stage"] == "RENDERING_TRAILER"
         assert ours["progress_percent"] == 88
         assert ours["since_last_heartbeat_minutes"] >= 7
-        assert ours["hard_max_runtime_minutes"] == 15
+        assert ours["hard_max_runtime_minutes"] == 10
         assert ours["render_timeout_minutes"] == 8
-        # Not yet reapable — 8 min < 15 min hard-max, but past 3-min query gate
+        # 8 min < 10 min hard-max but heartbeat is stale (8min > 3min) so the
+        # job is still in the heartbeat-protection grace zone (won't be reaped
+        # yet because age < hard_max). Predict accordingly.
         assert ours["will_be_reaped_next_sweep"] is False
     finally:
         await db.photo_trailer_jobs.delete_one({"_id": jid})

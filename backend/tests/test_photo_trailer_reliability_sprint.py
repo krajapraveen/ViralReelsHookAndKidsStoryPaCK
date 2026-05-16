@@ -71,27 +71,28 @@ async def _run_janitor(admin_token: str) -> dict:
 
 # ─── 1. Per-duration stale threshold table is honest ──────────────────────────
 def test_stale_threshold_per_duration_tier():
-    """20s = 10min, 60s = 20min, 90s = 35min, missing = 15min default."""
+    """P0-A 2026-05-16 — founder normalized to 10 min wall-clock for ALL tiers."""
     import sys
     sys.path.insert(0, "/app/backend")
     from routes.photo_trailer import _stale_threshold_for, STALE_MIN_BY_DURATION
     assert _stale_threshold_for(20) == 10
-    assert _stale_threshold_for(60) == 20
-    assert _stale_threshold_for(90) == 35
-    assert _stale_threshold_for(45) == 20
-    assert _stale_threshold_for(None) == 15
-    assert _stale_threshold_for(999) == 15
+    assert _stale_threshold_for(60) == 10
+    assert _stale_threshold_for(90) == 10
+    assert _stale_threshold_for(45) == 10
+    assert _stale_threshold_for(None) == 10
+    assert _stale_threshold_for(999) == 10
     assert STALE_MIN_BY_DURATION[20] == 10
-    assert STALE_MIN_BY_DURATION[60] == 20
-    assert STALE_MIN_BY_DURATION[90] == 35
+    assert STALE_MIN_BY_DURATION[60] == 10
+    assert STALE_MIN_BY_DURATION[90] == 10
 
 
-# ─── 2. Janitor: 90s job at 12 min must NOT be reaped ─────────────────────────
+# ─── 2. Janitor: 90s job at 8 min must NOT be reaped ──────────────────────────
 @pytest.mark.asyncio
 async def test_janitor_respects_per_duration_threshold(admin_token):
-    """A 90s job that started 12 minutes ago is well within its 35-min
-    threshold and must remain PROCESSING. The OLD janitor (5-min cutoff for
-    everything) would have reaped it — this is the regression we're fixing."""
+    """P0-A 2026-05-16 — founder normalized hard-max to 10 min for ALL tiers.
+    A 90s job at 8 min is still inside the 10-min wall and must remain
+    PROCESSING. (The OLD spec was 35min for 90s; the new tighter spec
+    accepts that 90s renders > 10min are by-definition broken.)"""
     cli = AsyncIOMotorClient(os.environ["MONGO_URL"])
     db = cli[os.environ["DB_NAME"]]
     jid = f"reliab-90s-{uuid.uuid4().hex[:8]}"
@@ -100,16 +101,16 @@ async def test_janitor_respects_per_duration_threshold(admin_token):
             "_id": jid, "user_id": "reliab-user", "status": "PROCESSING",
             "current_stage": "GENERATING_SCENES",
             "duration_target_seconds": 90,
-            "started_at": _iso_minutes_ago(12),
-            "created_at": _iso_minutes_ago(12),
-            "updated_at": _iso_minutes_ago(12),
-            "last_progress_at": _iso_minutes_ago(12),
+            "started_at": _iso_minutes_ago(8),
+            "created_at": _iso_minutes_ago(8),
+            "updated_at": _iso_minutes_ago(8),
+            "last_progress_at": _iso_minutes_ago(8),
             "retry_count": 0,
         })
         await _run_janitor(admin_token)
         doc = await db.photo_trailer_jobs.find_one({"_id": jid})
         assert doc["status"] == "PROCESSING", \
-            f"90s job at 12min should not be reaped (threshold=35min); got {doc.get('status')}"
+            f"90s job at 8min should not be reaped (hard_max=10min); got {doc.get('status')}"
         assert doc.get("retry_count", 0) == 0
     finally:
         await db.photo_trailer_jobs.delete_one({"_id": jid})
@@ -119,54 +120,63 @@ async def test_janitor_respects_per_duration_threshold(admin_token):
 # ─── 3. Heartbeat protection: alive job must NOT be reaped ────────────────────
 @pytest.mark.asyncio
 async def test_janitor_heartbeat_protection(admin_token):
-    """A job past its tier threshold but with a fresh heartbeat (< 3min) is
-    actively making progress and must not be touched."""
+    """P0-A 2026-05-16 — heartbeat protection now only works within the
+    [0, 10] min wall. Past 10 min the job is reaped regardless. Verify the
+    in-window case: age=6min (within 10-min wall), fresh heartbeat → alive."""
     cli = AsyncIOMotorClient(os.environ["MONGO_URL"])
     db = cli[os.environ["DB_NAME"]]
     jid = f"reliab-hb-{uuid.uuid4().hex[:8]}"
     try:
-        # 60s tier: hard_max=15min, stale_threshold=20min. Heartbeat-extension
-        # window is [15, 20]. Age=17min is past hard_max — heartbeat MUST save
-        # the job from reaping.
+        # 60s tier under new spec: hard_max==stale_threshold==10min.
+        # Age=6min is inside the wall; heartbeat 30s ago is fresh.
+        # Job must remain PROCESSING.
         await db.photo_trailer_jobs.insert_one({
             "_id": jid, "user_id": "reliab-user", "status": "PROCESSING",
             "current_stage": "GENERATING_SCENES",
             "duration_target_seconds": 60,
-            "started_at": _iso_minutes_ago(17),
-            "created_at": _iso_minutes_ago(17),
+            "started_at": _iso_minutes_ago(6),
+            "created_at": _iso_minutes_ago(6),
             "updated_at": _iso_minutes_ago(0.5),
             "last_progress_at": _iso_minutes_ago(0.5),  # 30s ago — alive
             "retry_count": 0,
         })
-        result = await _run_janitor(admin_token)
+        await _run_janitor(admin_token)
         doc = await db.photo_trailer_jobs.find_one({"_id": jid})
         assert doc["status"] == "PROCESSING", \
-            f"alive job (heartbeat 30s ago) must not be reaped; got {doc.get('status')}"
-        assert result["skipped_alive_heartbeat"] >= 1
+            f"alive job inside 10-min wall must not be reaped; got {doc.get('status')}"
     finally:
         await db.photo_trailer_jobs.delete_one({"_id": jid})
         cli.close()
 
 
-# ─── 4. AUTO-RECOVERY: first stale auto-requeues, no refund ───────────────────
+# ─── 4. WALL-CLOCK ENFORCEMENT: past 10-min wall → refund, no auto-requeue ────
 @pytest.mark.asyncio
 async def test_stale_auto_requeue_first_time(admin_token):
-    """retry_count=0 stale job → status QUEUED, retry_count=1, NO refund."""
+    """P0-A 2026-05-16 — auto-requeue path is now disabled by the 10-min
+    wall (hard_max == stale_threshold == 10 min). A retry_count=0 job past
+    the wall is reaped + refunded directly. The founder-stated reason:
+    "a trailer that hangs >10min is broken by definition; silently auto-
+    retrying just wastes more credits."
+    """
     cli = AsyncIOMotorClient(os.environ["MONGO_URL"])
     db = cli[os.environ["DB_NAME"]]
     jid = f"reliab-rq1-{uuid.uuid4().hex[:8]}"
+    user_id = f"reliab-rq1-user-{uuid.uuid4().hex[:6]}"
     try:
-        # 60s tier: hard_max=15min, stale_threshold=20min. Use age=17min
-        # (past hard_max, before stale_threshold) WITH stale heartbeat
-        # so the job is reapable. retry_count=0 → must auto-requeue.
+        await db.users.insert_one({
+            "_id": user_id, "id": user_id, "email": f"{user_id}@test.local",
+            "credits_balance": 0,
+        })
+        # Age=12min: past the 10-min wall. retry_count=0 must STILL be
+        # reaped (no auto-requeue) per new founder spec.
         await db.photo_trailer_jobs.insert_one({
-            "_id": jid, "user_id": "reliab-user", "status": "PROCESSING",
+            "_id": jid, "user_id": user_id, "status": "PROCESSING",
             "current_stage": "GENERATING_SCENES",
             "duration_target_seconds": 60,
-            "started_at": _iso_minutes_ago(17),
-            "created_at": _iso_minutes_ago(17),
-            "updated_at": _iso_minutes_ago(10),
-            "last_progress_at": _iso_minutes_ago(10),  # >3min → stale
+            "started_at": _iso_minutes_ago(12),
+            "created_at": _iso_minutes_ago(12),
+            "updated_at": _iso_minutes_ago(8),
+            "last_progress_at": _iso_minutes_ago(8),
             "retry_count": 0,
             "charged_credits": 25,
             "refunded_credits": 0,
@@ -174,24 +184,14 @@ async def test_stale_auto_requeue_first_time(admin_token):
         })
         result = await _run_janitor(admin_token)
         doc = await db.photo_trailer_jobs.find_one({"_id": jid})
-        # The auto-requeue itself is the assertion — once requeued, the
-        # orchestrator may re-run the pipeline and that re-run can land in
-        # any terminal state for unrelated reasons (test job has no real
-        # hero asset, etc). What matters is:
-        #  • retry_count was bumped
-        #  • auto_requeued_at was stamped
-        #  • NO refund was issued by the janitor on this pass
-        #  • janitor's metric counted this as auto_requeued, not reaped
-        assert doc["retry_count"] == 1, f"retry_count should be 1, got {doc.get('retry_count')}"
-        assert doc.get("auto_requeued_at") is not None, "auto_requeued_at must be stamped"
-        # Refund must NOT have been issued by the auto-requeue path
-        # (a downstream real failure can issue one later, but not on the
-        # janitor sweep that did the requeue).
-        assert result["auto_requeued"] >= 1
-        assert result["refunded_credits_total"] == 0, \
-            f"auto-requeue must not refund, got {result['refunded_credits_total']}"
+        assert doc["status"] == "FAILED", f"job past 10-min wall must FAIL; got {doc.get('status')}"
+        assert doc.get("refunded_credits") == 25
+        assert result["reaped"] >= 1
+        assert result["auto_requeued"] == 0, \
+            "auto-requeue path must be disabled under the 10-min single-wall spec"
     finally:
         await db.photo_trailer_jobs.delete_one({"_id": jid})
+        await db.users.delete_one({"_id": user_id})
         cli.close()
 
 
@@ -282,39 +282,44 @@ def test_scene_gather_uses_return_exceptions():
     assert "Couldn't render scene" in src or "scene {failed_idx[0]+1}" in src
 
 
-# ─── 10. Recovery shows up in dashboard auto_requeued metric ──────────────────
+# ─── 10. Failure event emitted on wall-clock reap ─────────────────────────────
 @pytest.mark.asyncio
 async def test_auto_requeued_event_emitted(admin_token):
-    """When auto-requeue fires, photo_trailer_auto_requeued must appear in
-    funnel_events — that gives the dashboard a count of how many jobs the
-    auto-recovery saved."""
+    """P0-A 2026-05-16 — auto-requeue is dead under 10-min wall.
+    Verify instead that `photo_trailer_generation_failed` event fires when
+    the janitor reaps a job past the wall (with via=janitor meta tag)."""
     cli = AsyncIOMotorClient(os.environ["MONGO_URL"])
     db = cli[os.environ["DB_NAME"]]
     jid = f"reliab-evt-{uuid.uuid4().hex[:8]}"
     user_id = f"reliab-evt-user-{uuid.uuid4().hex[:6]}"
     try:
-        # 60s tier: hard_max=15min, stale_threshold=20min. Use age=17min
-        # so we hit the auto-requeue path (not hard-max-suppression).
+        await db.users.insert_one({
+            "_id": user_id, "id": user_id, "email": f"{user_id}@test.local",
+            "credits_balance": 0,
+        })
+        # Past the 10-min wall → janitor reaps + fires failure event
         await db.photo_trailer_jobs.insert_one({
             "_id": jid, "user_id": user_id, "status": "PROCESSING",
             "current_stage": "GENERATING_SCENES",
             "duration_target_seconds": 60,
-            "started_at": _iso_minutes_ago(17),
-            "created_at": _iso_minutes_ago(17),
-            "last_progress_at": _iso_minutes_ago(10),
+            "started_at": _iso_minutes_ago(12),
+            "created_at": _iso_minutes_ago(12),
+            "last_progress_at": _iso_minutes_ago(8),
             "retry_count": 0,
+            "charged_credits": 25,
+            "refunded_credits": 0,
         })
         await _run_janitor(admin_token)
-        # Allow the bg event insert a moment
         import asyncio
         await asyncio.sleep(0.5)
         ev = await db.funnel_events.find_one({
-            "step": "photo_trailer_auto_requeued",
+            "step": "photo_trailer_generation_failed",
             "meta.job_id": jid,
         })
-        assert ev is not None, "auto-requeue event should be emitted to funnel_events"
-        assert ev["meta"]["retry_count"] == 1
+        assert ev is not None, "generation_failed event must be emitted on wall-clock reap"
+        assert ev["meta"].get("via") == "janitor"
     finally:
         await db.photo_trailer_jobs.delete_one({"_id": jid})
+        await db.users.delete_one({"_id": user_id})
         await db.funnel_events.delete_many({"meta.job_id": jid})
         cli.close()

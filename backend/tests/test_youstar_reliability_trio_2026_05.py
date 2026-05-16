@@ -121,6 +121,45 @@ def test_per_stage_sla_table_present():
         assert f'"{stage}"' in src
 
 
+def test_hard_max_runtime_normalized_to_10_minutes():
+    """P0-A 2026-05-16 — founder mandate: 10-minute wall-clock cap for ALL
+    duration tiers. Any trailer pipeline that runs longer is broken by
+    definition and must be reaped + refunded."""
+    import sys
+    sys.path.insert(0, str(ROOT / "backend"))
+    from routes.photo_trailer import (
+        HARD_MAX_RUNTIME_BY_DURATION,
+        HARD_MAX_RUNTIME_DEFAULT_MIN,
+        _hard_max_runtime_for,
+    )
+    for dur in (20, 45, 60, 90):
+        assert HARD_MAX_RUNTIME_BY_DURATION[dur] == 10, \
+            f"Hard-max for {dur}s must be 10 min, got {HARD_MAX_RUNTIME_BY_DURATION[dur]}"
+    assert HARD_MAX_RUNTIME_DEFAULT_MIN == 10
+    # Helper must return 10 for every known tier AND for unknown durations
+    assert _hard_max_runtime_for(20) == 10
+    assert _hard_max_runtime_for(90) == 10
+    assert _hard_max_runtime_for(None) == 10
+    assert _hard_max_runtime_for(123) == 10
+
+
+def test_admin_youstar_canonical_alias_admin_gated():
+    """P0-A 2026-05-16 — canonical alias `/api/admin/youstar/jobs/{id}/debug`
+    must exist and remain admin-gated."""
+    r = requests.get(f"{BASE}/api/admin/youstar/jobs/anything/debug", timeout=10)
+    assert r.status_code in (401, 403)
+
+
+def test_admin_youstar_canonical_alias_returns_404_for_unknown_id():
+    tok = _admin_token()
+    r = requests.get(
+        f"{BASE}/api/admin/youstar/jobs/__pytest_unknown__/debug",
+        headers={"Authorization": f"Bearer {tok}"},
+        timeout=10,
+    )
+    assert r.status_code == 404
+
+
 # ─── P0-C: first-click Play frontend fix ─────────────────────────────
 def test_frontend_video_uses_ref_and_explicit_load():
     src = FRONTEND.read_text(encoding="utf-8")
@@ -150,6 +189,18 @@ def test_frontend_streamurl_cache_busted():
     assert "_v=${Date.now()}" in src, "stream URL must include cache-busting query param"
 
 
+def test_frontend_canplay_stuck_fallback_button_present():
+    """P0-C 2026-05-16 — if canplay never fires within 8s the user MUST get
+    a force-reload button instead of a forever-spinning 'Loading video…'."""
+    src = FRONTEND.read_text(encoding="utf-8")
+    assert "canPlayStuck" in src, "canPlayStuck state flag missing"
+    assert "setCanPlayStuck(true)" in src, "8s setTimeout must flip canPlayStuck"
+    assert "trailer-tap-to-load" in src, "Tap-to-load fallback button missing"
+    assert "handleForceReload" in src, "Force-reload handler missing"
+    # The timeout window must literally be 8000ms — matches user contract
+    assert "8000" in src
+
+
 # ─── P0-D: ffprobe validation ────────────────────────────────────────
 @pytest.fixture(scope="module")
 def render_fixtures(tmp_path_factory):
@@ -175,17 +226,23 @@ def render_fixtures(tmp_path_factory):
 
 
 def test_validate_render_accepts_valid_mp4(render_fixtures):
+    import sys
+    sys.path.insert(0, str(ROOT / "backend"))
     from routes.photo_trailer import _validate_render
     asyncio.run(_validate_render(render_fixtures["valid"], 2.0))
 
 
 def test_validate_render_rejects_no_audio(render_fixtures):
+    import sys
+    sys.path.insert(0, str(ROOT / "backend"))
     from routes.photo_trailer import _validate_render, RenderValidationError
     with pytest.raises(RenderValidationError, match="audio"):
         asyncio.run(_validate_render(render_fixtures["no_audio"], 3.0))
 
 
 def test_validate_render_rejects_missing_file(render_fixtures):
+    import sys
+    sys.path.insert(0, str(ROOT / "backend"))
     from routes.photo_trailer import _validate_render, RenderValidationError
     with pytest.raises(RenderValidationError, match="missing"):
         asyncio.run(_validate_render(render_fixtures["missing"], 5.0))

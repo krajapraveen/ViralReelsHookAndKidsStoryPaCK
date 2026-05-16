@@ -45,6 +45,11 @@ from services.cloudflare_r2_storage import R2_CUSTOM_DOMAIN, R2_PUBLIC_URL, R2_B
 load_dotenv()
 log = logging.getLogger("photo_trailer")
 router = APIRouter(prefix="/photo-trailer", tags=["photo-trailer"])
+# P0-A 2026-05-16 — canonical admin alias. Founder mandate: ops mental model
+# must be `/api/admin/<feature>/jobs/{id}/debug` across Story-to-Video,
+# Story-Series, and YouStar. We keep the existing `/photo-trailer/admin/...`
+# path live for backwards compat, but the new alias is the canonical one.
+youstar_admin_router = APIRouter(prefix="/admin/youstar", tags=["admin-youstar"])
 EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
 
 # ─── Bounded parallel workers per pipeline stage ───────────────────────────────
@@ -734,7 +739,11 @@ async def admin_overview(user: dict = Depends(get_admin_user), days: int = Query
 
 # P0-A 2026-05-16 — Admin per-job diagnostic. Mirrors the Story-to-Video
 # /jobs/:id/debug contract so operators have a single mental model.
+# Exposed at TWO paths for backwards-compat + canonical mental model:
+#   /api/photo-trailer/admin/jobs/{job_id}/debug  ← legacy
+#   /api/admin/youstar/jobs/{job_id}/debug        ← canonical (P0-A)
 @router.get("/admin/jobs/{job_id}/debug")
+@youstar_admin_router.get("/jobs/{job_id}/debug")
 async def admin_debug_youstar_job(job_id: str, user: dict = Depends(get_admin_user)):
     job = await db.photo_trailer_jobs.find_one({"_id": job_id}, {"_id": 1})
     job_full = await db.photo_trailer_jobs.find_one({"_id": job_id})
@@ -1808,16 +1817,15 @@ async def _upload_video_bytes(data: bytes, name: str, user_id: str) -> tuple:
 #      preserving credits. Only the second stale → real refund + fail.
 
 # Per-duration stale thresholds (founder directive):
-#   20s trailer  = 10 min
-#   45-60s       = 20 min
-#   90s          = 35 min
+#   P0-A 2026-05-16 — normalized to 10 minutes across ALL tiers so the
+#   janitor + heartbeat-extension window collapse to a single 10-min wall.
 STALE_MIN_BY_DURATION = {
     20: 10,
-    45: 20,
-    60: 20,
-    90: 35,
+    45: 10,
+    60: 10,
+    90: 10,
 }
-STALE_THRESHOLD_DEFAULT_MIN = 15  # used when duration_target_seconds is missing
+STALE_THRESHOLD_DEFAULT_MIN = 10  # used when duration_target_seconds is missing
 
 # ─── HARD-MAX WALL-CLOCK BUDGETS (P0 — 2026-04-29 founder directive) ─────────
 # Heartbeat protection alone is dangerous: a hung subprocess that periodically
@@ -1825,13 +1833,18 @@ STALE_THRESHOLD_DEFAULT_MIN = 15  # used when duration_target_seconds is missing
 # but still) — or worse, an UPLOAD that genuinely makes no DB writes — could
 # spin forever. These are the absolute ceilings: once exceeded, the janitor
 # WILL reap regardless of heartbeat freshness.
+#
+# P0-A 2026-05-16 — founder directive: normalize to **10 minutes** wall-clock
+# for ALL duration tiers. Trailer pipeline that hasn't terminated within 10
+# minutes from enqueue is, by definition, broken — refund + fail loudly so
+# the user can retry instead of staring at a 88% bar.
 HARD_MAX_RUNTIME_BY_DURATION = {
-    20: 8,
-    45: 15,
-    60: 15,
-    90: 25,
+    20: 10,
+    45: 10,
+    60: 10,
+    90: 10,
 }
-HARD_MAX_RUNTIME_DEFAULT_MIN = 15
+HARD_MAX_RUNTIME_DEFAULT_MIN = 10
 
 # Per-stage timeouts for the longest-running pipeline stage (RENDERING_TRAILER
 # wraps ffmpeg stitch + music mix + watermark + R2 upload + vertical cut +

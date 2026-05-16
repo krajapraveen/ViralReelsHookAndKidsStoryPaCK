@@ -46,8 +46,16 @@ def admin_headers(admin_token):
 
 
 @pytest.fixture(scope="module")
-def db():
-    client = AsyncIOMotorClient(os.environ["MONGO_URL"])
+def event_loop():
+    """Create a single event loop for the entire module."""
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
+
+
+@pytest.fixture(scope="module")
+def db(event_loop):
+    client = AsyncIOMotorClient(os.environ["MONGO_URL"], io_loop=event_loop)
     return client[os.environ["DB_NAME"]]
 
 
@@ -101,21 +109,21 @@ async def _user_credits(db, email: str) -> int:
     return (u or {}).get("credits", 0)
 
 
-def _run(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+def _run(coro, loop):
+    return loop.run_until_complete(coro)
 
 
 # ────────────────────────────────────────────────────────────────────────────
 class TestStaleJobJanitor:
     """End-to-end janitor verification using real DB writes + admin endpoint."""
 
-    def test_stale_processing_job_is_reaped_and_refunded(self, admin_headers, db):
+    def test_stale_processing_job_is_reaped_and_refunded(self, admin_headers, db, event_loop):
         """6-minute-old PROCESSING job (stale) -> FAILED + refunded exactly once.
         Tolerates the background janitor loop sweeping the job first — what
         matters is that EXACTLY ONE reap happens (manual or auto)."""
         # Setup
-        jid = _run(_seed_job(db, age_min=STALE_MIN + 1, charged=5, refunded=0))
-        before_credits = _run(_user_credits(db, ADMIN_EMAIL))
+        jid = _run(_seed_job(db, age_min=STALE_MIN + 1, charged=5, refunded=0), event_loop)
+        before_credits = _run(_user_credits(db, ADMIN_EMAIL), event_loop)
 
         # Trigger manual sweep — may or may not catch this job depending on
         # whether the background loop got there first.
@@ -130,7 +138,7 @@ class TestStaleJobJanitor:
         deadline = time.time() + 2.5
         job = None
         while time.time() < deadline:
-            job = _run(db.photo_trailer_jobs.find_one({"_id": jid}))
+            job = _run(db.photo_trailer_jobs.find_one({"_id": jid}), event_loop)
             if job["status"] == "FAILED" and job["refunded_credits"] == 5:
                 break
             time.sleep(0.2)
@@ -143,14 +151,14 @@ class TestStaleJobJanitor:
 
         # Verify user credits restored (delta >= 5; could be more if other tests
         # also seeded jobs in parallel, but never less).
-        after_credits = _run(_user_credits(db, ADMIN_EMAIL))
+        after_credits = _run(_user_credits(db, ADMIN_EMAIL), event_loop)
         assert after_credits >= before_credits + 5, \
             f"credits not refunded: before={before_credits} after={after_credits}"
 
-    def test_idempotent_double_run_does_not_double_refund(self, admin_headers, db):
+    def test_idempotent_double_run_does_not_double_refund(self, admin_headers, db, event_loop):
         """Running the janitor twice in a row on the same stale job refunds ONCE."""
-        jid = _run(_seed_job(db, age_min=STALE_MIN + 2, charged=7, refunded=0))
-        before_credits = _run(_user_credits(db, ADMIN_EMAIL))
+        jid = _run(_seed_job(db, age_min=STALE_MIN + 2, charged=7, refunded=0), event_loop)
+        before_credits = _run(_user_credits(db, ADMIN_EMAIL), event_loop)
 
         # First run reaps + refunds
         r1 = requests.post(f"{BASE_URL}/api/photo-trailer/admin/janitor/run-now",
@@ -161,11 +169,11 @@ class TestStaleJobJanitor:
                            headers=admin_headers, timeout=30)
         assert r2.status_code == 200
 
-        after_credits = _run(_user_credits(db, ADMIN_EMAIL))
+        after_credits = _run(_user_credits(db, ADMIN_EMAIL), event_loop)
         # Refund delta must be exactly 7 (this test's job) — not 14.
         delta = after_credits - before_credits
         # Because other tests can also seed jobs, just assert THIS job's refund stayed at 7
-        job = _run(db.photo_trailer_jobs.find_one({"_id": jid}))
+        job = _run(db.photo_trailer_jobs.find_one({"_id": jid}), event_loop)
         assert job["refunded_credits"] == 7, f"refund mutated on second run: {job['refunded_credits']}"
         assert job["status"] == "FAILED"
         # And the second sweep must NOT report this job as freshly reaped
@@ -174,34 +182,34 @@ class TestStaleJobJanitor:
         # refunded_credits check above is the strict idempotency proof.
         assert delta >= 7, f"first refund missing: delta={delta}"
 
-    def test_fresh_processing_job_is_not_reaped(self, admin_headers, db):
+    def test_fresh_processing_job_is_not_reaped(self, admin_headers, db, event_loop):
         """A 1-minute-old PROCESSING job is healthy and must NOT be touched."""
-        jid = _run(_seed_job(db, age_min=1, charged=5, refunded=0))
+        jid = _run(_seed_job(db, age_min=1, charged=5, refunded=0), event_loop)
 
         r = requests.post(f"{BASE_URL}/api/photo-trailer/admin/janitor/run-now",
                           headers=admin_headers, timeout=30)
         assert r.status_code == 200
 
-        job = _run(db.photo_trailer_jobs.find_one({"_id": jid}))
+        job = _run(db.photo_trailer_jobs.find_one({"_id": jid}), event_loop)
         assert job["status"] == "PROCESSING", f"fresh job should not be reaped: {job}"
         assert job.get("error_code") is None
         assert job["refunded_credits"] == 0
 
         # Cleanup so we don't leave fake PROCESSING jobs lying around
-        _run(db.photo_trailer_jobs.delete_one({"_id": jid}))
+        _run(db.photo_trailer_jobs.delete_one({"_id": jid}), event_loop)
 
-    def test_terminal_job_is_not_reaped(self, admin_headers, db):
+    def test_terminal_job_is_not_reaped(self, admin_headers, db, event_loop):
         """An old COMPLETED job must be skipped — only PROCESSING is in scope."""
         jid = _run(_seed_job(db, age_min=STALE_MIN + 5, charged=5,
-                             refunded=0, status="COMPLETED"))
+                             refunded=0, status="COMPLETED"), event_loop)
 
         r = requests.post(f"{BASE_URL}/api/photo-trailer/admin/janitor/run-now",
                           headers=admin_headers, timeout=30)
         assert r.status_code == 200
 
-        job = _run(db.photo_trailer_jobs.find_one({"_id": jid}))
+        job = _run(db.photo_trailer_jobs.find_one({"_id": jid}), event_loop)
         assert job["status"] == "COMPLETED"
         assert job["refunded_credits"] == 0
         assert job.get("error_code") is None
 
-        _run(db.photo_trailer_jobs.delete_one({"_id": jid}))
+        _run(db.photo_trailer_jobs.delete_one({"_id": jid}), event_loop)
