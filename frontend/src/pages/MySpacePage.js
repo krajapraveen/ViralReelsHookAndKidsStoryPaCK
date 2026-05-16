@@ -963,13 +963,34 @@ function HowThisWorks() {
 
 // ─── COMPLETION PROMPT MODAL ──────────────────────────────────────────────────
 function CompletionPromptModal({ job, onClose, onDownload, onShareWhatsApp, onCreateAnother }) {
+  // P0 2026-05-16 — modal trust-flow audit fixes:
+  //   • ESC key closes modal (was: no keyboard support)
+  //   • Body scroll-lock while open (was: page scrolled behind backdrop)
+  //   • Listeners cleaned up on unmount / job change (no memory leak)
+  React.useEffect(() => {
+    if (!job) return undefined;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [job, onClose]);
   if (!job) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" data-testid="completion-prompt-modal">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-sm bg-zinc-900 border border-zinc-700/50 rounded-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto"
+      data-testid="completion-prompt-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="completion-prompt-heading"
+    >
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} data-testid="completion-prompt-backdrop" />
+      <div className="relative w-full max-w-sm my-auto bg-zinc-900 border border-zinc-700/50 rounded-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200 max-h-[calc(100vh-2rem)] overflow-y-auto">
         <style>{`@keyframes pulseShare { 0%,100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); } 50% { box-shadow: 0 0 0 12px rgba(16,185,129,0); } }`}</style>
-        <button onClick={onClose} className="absolute top-3 right-3 z-10 p-1 rounded-full bg-zinc-800/80 hover:bg-zinc-700 text-zinc-400 hover:text-white transition-colors" data-testid="completion-prompt-close">
+        <button onClick={onClose} className="absolute top-3 right-3 z-10 p-1 rounded-full bg-zinc-800/80 hover:bg-zinc-700 text-zinc-400 hover:text-white transition-colors" data-testid="completion-prompt-close" aria-label="Close completion prompt">
           <X className="w-4 h-4" />
         </button>
         <div className="relative aspect-video bg-zinc-800">
@@ -980,7 +1001,7 @@ function CompletionPromptModal({ job, onClose, onDownload, onShareWhatsApp, onCr
               <span className="w-2 h-2 rounded-full bg-emerald-400" />
               <span className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider">Ready</span>
             </div>
-            <h3 className="text-white font-semibold text-base truncate" data-testid="completion-prompt-title">{job.title}</h3>
+            <h3 id="completion-prompt-heading" className="text-white font-semibold text-base truncate" data-testid="completion-prompt-title">{job.title}</h3>
           </div>
         </div>
         <div className="p-4 space-y-2">
@@ -1338,6 +1359,14 @@ export default function MySpacePage() {
     navigate('/app');
   };
   const handleShare = async (job) => {
+    // P0 2026-05-16 — modal trust-flow audit. Validate job_id BEFORE any
+    // share URL is constructed (the silent `/share/undefined` URL leak is
+    // gone). Surface a structured error toast on missing id.
+    if (!job?.job_id && !job?.public_share_slug && !job?.share_slug) {
+      const rid = (window.lastRequestId || 'n/a');
+      toast.error(`Unable to share: missing project id. Reference ID: ${rid}`);
+      return;
+    }
     // Photo trailers share via the public /trailer/:slug page (server re-signs).
     if (job.type === 'photo_trailer') {
       // public_share_slug is on the raw API row, not always projected onto job;
@@ -1368,7 +1397,19 @@ export default function MySpacePage() {
     try { await api.delete(`/api/story-engine/jobs/${job.job_id}`); toast.success('Project deleted'); fetchJobs(); }
     catch { toast.error('Failed to delete project'); }
   };
-  const handleCreateAnother = () => navigate('/app/story-video-studio');
+  // P0 2026-05-16 — modal trust-flow audit. Create Another must produce a
+  // CLEAN editor (the contract is "NOT stale previous generation"). If we
+  // don't clear the localStorage shadows left by Make-it-funnier / Change
+  // style / Remix Gallery, the studio's mount-time hydration will re-load
+  // the OLD story. Clear them deterministically here.
+  const handleCreateAnother = () => {
+    try {
+      localStorage.removeItem('remix_video');
+      localStorage.removeItem('remix_data');
+    } catch (_) { /* sessionStorage may be disabled — never break UX */ }
+    // Cache-buster `t=` so even same-route mounts re-init cleanly.
+    navigate(`/app/story-video-studio?t=${Date.now()}`);
+  };
   const toggleSection = (section) => setCollapsedSections(prev => ({ ...prev, [section]: !prev[section] }));
   const toggleAutoDownload = () => {
     setAutoDownload(prev => {

@@ -81,24 +81,45 @@ export default function RemixGallery({ placement = 'myspace', limit = 8, classNa
   }, [limit]);
 
   const handleRemix = async (item) => {
+    // P0 2026-05-16 — modal trust-flow audit fix.
+    // ROOT CAUSE: previously navigated with `state` payload only, which the
+    // Story Video Studio doesn't read — it hydrates from
+    // localStorage.getItem('remix_video') when `?remix=` is set. So the
+    // trending cards silently dropped their payload → blank editor.
+    //
+    // FIX: validate id, write the canonical remix_video shape, add
+    // `?remix=trending&source_item=<id>` query params for hydration +
+    // traceability, then navigate.
+    if (!item?.item_id) {
+      const rid = (window.lastRequestId || 'n/a');
+      toast.error(`Unable to load trending project. Reference ID: ${rid}`);
+      return;
+    }
+    const sourceStory = item.story_text || item.description || '';
+    if (!sourceStory.trim()) {
+      toast.error('Unable to load trending project: missing story content.');
+      return;
+    }
+
     try {
       await api.post(`/api/gallery/${item.item_id}/remix`);
-    } catch { /* fire-and-forget */ }
+    } catch { /* fire-and-forget — telemetry only */ }
 
-    navigate('/app/story-video-studio', {
-      state: {
-        prompt: item.story_text || item.description || '',
-        remixFrom: {
-          title: item.title,
-          item_id: item.item_id,
-          remixes_count: (item.remixes_count || 0) + 1,
-          source: 'remix_gallery',
-        },
-        source_tool: 'remix-gallery',
-        isRemix: true,
-      },
-    });
-
+    try {
+      localStorage.setItem('remix_video', JSON.stringify({
+        parent_video_id: item.item_id,
+        title: item.title || 'Trending remix',
+        story_text: sourceStory,
+        age_group: item.age_group,
+        voice_preset: item.voice_preset,
+      }));
+    } catch (_) {
+      toast.error('Could not stage remix. Please try again.');
+      return;
+    }
+    navigate(
+      `/app/story-video-studio?remix=trending&source_item=${encodeURIComponent(item.item_id)}`,
+    );
     toast.success("You're remixing a trending story", { duration: 3000 });
   };
 
