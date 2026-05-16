@@ -226,6 +226,12 @@ FUNNEL_STEPS = [
     "story_generation_completed",        # job reached READY
     "story_generation_failed",           # terminal FAILED_* state
     "story_generation_timeout",          # recovery daemon killed a stuck job
+    # P0 2026-05-16 — Create Series reliability instrumentation
+    "create_series_clicked",             # frontend button click (pre-network)
+    "create_series_started",             # backend accepted the request
+    "create_series_completed",           # series row written
+    "create_series_failed",              # any non-timeout backend failure
+    "create_series_timeout",             # bounded LLM timeout fired
 ]
 
 

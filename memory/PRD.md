@@ -2611,3 +2611,97 @@ Pages exempt:  /, /login, /signup, /auth/callback, /verify-email,
                /reset-password, /forgot-password, /experience (any depth),
                /app (exact), /app/admin (exact).
 
+
+─────────────────────────────────────────────────────────
+[2026-05-16] P0 CREATE SERIES — "TEMPORARILY UNAVAILABLE" PROD BUG FIXED
+─────────────────────────────────────────────────────────
+Founder report: user clicks Create Series on production → generic red toast
+"The service is temporarily unavailable. Please try again." Activation killer.
+
+═══ ROOT CAUSE ═══
+The endpoint awaited the LLM call inline. On preview it completes in
+~18-35s. On production with peak load it occasionally exceeds the
+Cloudflare/ingress timeout (~60s default), returning a 504/HTML body that
+the frontend axios interceptor translates to the generic gateway toast.
+
+The endpoint also had no per-failure-class error mapping — every LLM error
+fell through to `HTTPException(500, "Failed to generate series foundation")`
+which the frontend rendered as the generic message.
+
+═══ FIX (backend/routes/story_series.py) ═══
+  • _llm_json now wraps send_message in asyncio.wait_for with 50s default,
+    raising TimeoutError BEFORE the 60s gateway kill-switch.
+  • _llm_json catches json.JSONDecodeError → raises ValueError for clean
+    branching in the caller.
+  • create_series try/except now maps every failure class to a structured
+    detail dict {code, message, retryable, elapsed_s?}:
+      LLM_TIMEOUT             → 504
+      LLM_BAD_JSON            → 502
+      LLM_RATE_LIMITED        → 429
+      LLM_BUDGET_EXHAUSTED    → 402
+      LLM_AUTH_FAILED         → 502
+      LLM_UPSTREAM_ERROR      → 502
+  • Duplicate-submission idempotency: same (user_id, title) within 60s
+    returns {success: true, duplicate: true, series_id}. Fixes "click twice
+    = both fail" trust kill.
+  • Structured logging: single canonical "[series/create] START" and
+    "[series/create] DONE" log lines with timing + counts.
+
+═══ INSTRUMENTATION ═══
+  Whitelisted in routes/funnel_tracking.py FUNNEL_STEPS:
+    • create_series_clicked      (frontend pre-network)
+    • create_series_started      (backend accepted)
+    • create_series_completed    (DB rows written)
+    • create_series_failed       (any non-timeout backend fail)
+    • create_series_timeout      (bounded LLM timeout fired)
+
+═══ ADMIN DEBUG ENDPOINT ═══
+  GET /api/story-series/jobs/:series_id/debug  (admin only)
+  Returns: series row + last 10 funnel events scoped by series_id.
+  Returns 404 cleanly on unknown id (no false-positive matching).
+
+═══ FRONTEND FIX (frontend/src/pages/CreateSeries.js) ═══
+  • Duplicate-click guard: `if (creating) return` before setCreating(true)
+  • 60s axios timeout on the create call (safety net beyond backend's 50s)
+  • Structured error rendering:
+      d.detail.message (new structured shape) preferred
+      → bare string fallback
+      → 502/gateway fallback message: "AI service is briefly unavailable.
+         Tap Create Series again — this usually clears in 10 seconds."
+      → ECONNABORTED → "Generation timed out. Tap Create Series to try
+         again — your draft is preserved."
+  • Emits create_series_clicked + create_series_failed funnel events.
+  • Duplicate response: surfaces info toast + navigates to existing series.
+
+═══ E2E PROOF (preview) ═══
+  Live UI submission:
+    Title: "Bolt and the Singing Tree"
+    Prompt: short Bolt+seed story
+    Elapsed: 35.5s end-to-end
+    Result: SUCCESS — green toast + Characters Detected screen
+      Bolt (100% match) + Luna (85% match) auto-extracted
+  Screenshots:
+    /tmp/series_form_filled.png      — form populated
+    /tmp/series_clicking.png         — "Creating universe…" loading state
+    /tmp/series_success.png          — success + characters screen
+
+═══ REGRESSION TESTS (9/9 PASS) ═══
+  backend/tests/test_create_series_reliability_2026_05.py:
+    • test_llm_json_has_bounded_timeout
+    • test_create_returns_structured_codes_for_each_failure_class
+    • test_duplicate_submission_returns_existing_series       ← real e2e
+    • test_admin_debug_endpoint_admin_gated
+    • test_admin_debug_returns_404_for_unknown_id
+    • test_create_series_funnel_events_whitelisted
+    • test_funnel_endpoint_accepts_create_series_events
+    • test_frontend_handles_structured_detail_object_and_double_click
+    • test_validation_errors_are_not_swallowed_by_gateway_handler
+
+═══ FILES CHANGED ═══
+  • backend/routes/story_series.py (bounded _llm_json + structured errors +
+    duplicate idempotency + admin debug endpoint + instrumentation)
+  • backend/routes/funnel_tracking.py (5 new whitelisted events)
+  • frontend/src/pages/CreateSeries.js (duplicate guard + 60s timeout +
+    code-aware error rendering + funnel events)
+  • backend/tests/test_create_series_reliability_2026_05.py (NEW)
+

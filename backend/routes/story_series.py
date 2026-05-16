@@ -15,13 +15,14 @@ Collections: story_series, story_episodes, character_bibles, world_bibles, story
 import os
 import json
 import uuid
+import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Depends, Query
 
-from shared import db, get_current_user
+from shared import db, get_current_user, get_admin_user
 
 logger = logging.getLogger("story_series")
 
@@ -88,7 +89,10 @@ class ConfirmCharactersRequest(BaseModel):
 
 # ─── LLM HELPERS ──────────────────────────────────────────────────────────────
 
-async def _llm_json(system_msg: str, user_msg: str, session_id: str = "series") -> dict:
+async def _llm_json(system_msg: str, user_msg: str, session_id: str = "series", *, timeout_s: float = 50.0) -> dict:
+    """Send a JSON-only LLM completion. Hard-bounded to `timeout_s` seconds so
+    we always return a structured error BEFORE the ingress/Cloudflare 524/504
+    kicks in (~60s default). P0 2026-05-16."""
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     chat = LlmChat(
         api_key=_get_llm_key(),
@@ -96,13 +100,22 @@ async def _llm_json(system_msg: str, user_msg: str, session_id: str = "series") 
         system_message=system_msg,
     )
     chat.with_model("openai", "gpt-4o-mini")
-    response = await chat.send_message(UserMessage(text=user_msg))
+    try:
+        response = await asyncio.wait_for(
+            chat.send_message(UserMessage(text=user_msg)),
+            timeout=timeout_s,
+        )
+    except asyncio.TimeoutError as e:
+        raise TimeoutError(f"LLM call exceeded {timeout_s}s budget") from e
     text = response.strip()
     if "```json" in text:
         text = text.split("```json")[1].split("```")[0].strip()
     elif "```" in text:
         text = text.split("```")[1].split("```")[0].strip()
-    return json.loads(text)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"LLM returned non-JSON: {str(e)[:120]}") from e
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -221,11 +234,121 @@ Generate 4-5 scenes for Episode 1. Make characters visually distinct. Every scen
 
 CRITICAL: The episode MUST end with a powerful open-loop cliffhanger — an unresolved mystery, an unexpected arrival, a shocking reveal, or a character in danger. Do NOT resolve the story neatly. The viewer must feel compelled to see the next episode."""
 
+    # ─── 2026-05-16 P0 — Duplicate-submission idempotency ────────────────
+    # Same user posting same title+prompt within 60s returns the existing
+    # series instead of trying to generate a second one.
+    try:
+        cutoff = (datetime.now(timezone.utc) - timedelta(seconds=60)).isoformat()
+        recent = await db.story_series.find_one({
+            "user_id": user_id,
+            "title": request.title,
+            "created_at": {"$gte": cutoff},
+        }, {"_id": 0, "series_id": 1, "status": 1})
+        if recent and recent.get("status") == "active":
+            return {
+                "success": True,
+                "duplicate": True,
+                "series_id": recent["series_id"],
+                "message": "Series already exists from a recent submission.",
+            }
+    except Exception as _e:
+        logger.warning(f"[series/create] duplicate-check failed: {_e}")
+
+    # Structured logging — every invocation gets a single canonical line
+    started_at = datetime.now(timezone.utc)
+    logger.info(
+        f"[series/create] START user={user_id[:8]} title={request.title!r} "
+        f"genre={request.genre} audience={request.audience} prompt_chars={len(request.initial_prompt or '')}"
+    )
+    # P0 instrumentation — fire-and-forget funnel event
+    try:
+        await db.funnel_events.insert_one({
+            "step": "create_series_started",
+            "session_id": f"series_create_{user_id[:8]}_{started_at.timestamp():.0f}",
+            "user_id": user_id,
+            "context": {"series_id": series_id, "title": request.title, "genre": request.genre, "audience": request.audience},
+            "timestamp": started_at.isoformat(),
+        })
+    except Exception:
+        pass
+
     try:
         foundation = await _llm_json(system_prompt, user_prompt, f"create_{series_id[:8]}")
+    except TimeoutError as e:
+        # Bounded LLM timeout — return BEFORE the gateway 524/504 fires.
+        elapsed = (datetime.now(timezone.utc) - started_at).total_seconds()
+        logger.error(f"[series/create] LLM_TIMEOUT user={user_id[:8]} elapsed={elapsed:.1f}s err={e}")
+        try:
+            await db.funnel_events.insert_one({
+                "step": "create_series_timeout",
+                "user_id": user_id,
+                "context": {"series_id": series_id, "elapsed_s": elapsed, "title": request.title},
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            })
+        except Exception:
+            pass
+        raise HTTPException(
+            status_code=504,
+            detail={
+                "code": "LLM_TIMEOUT",
+                "message": "Story generation is taking longer than expected. Please tap Create Series again — your draft is preserved.",
+                "elapsed_s": round(elapsed, 1),
+                "retryable": True,
+            },
+        )
+    except ValueError as e:
+        logger.error(f"[series/create] LLM_BAD_JSON user={user_id[:8]} err={e}")
+        try:
+            await db.funnel_events.insert_one({
+                "step": "create_series_failed",
+                "user_id": user_id,
+                "context": {"series_id": series_id, "reason": "llm_bad_json", "title": request.title},
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            })
+        except Exception:
+            pass
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "code": "LLM_BAD_JSON",
+                "message": "The AI returned an unexpected format. Tap Create Series again — usually works on the second try.",
+                "retryable": True,
+            },
+        )
     except Exception as e:
-        logger.error(f"LLM foundation generation failed: {e}")
-        raise HTTPException(status_code=500, detail="Failed to generate series foundation")
+        elapsed = (datetime.now(timezone.utc) - started_at).total_seconds()
+        emsg = str(e).lower()
+        # Map common provider failures to actionable codes
+        if "rate" in emsg or "429" in emsg or "quota" in emsg:
+            code = "LLM_RATE_LIMITED"
+            msg = "AI is rate-limited right now. Wait 30 seconds and try again."
+            status = 429
+        elif "budget" in emsg or "balance" in emsg or "credit" in emsg or "billing" in emsg:
+            code = "LLM_BUDGET_EXHAUSTED"
+            msg = "Generation service is over budget. Please contact support — your account was not charged."
+            status = 402
+        elif "key" in emsg or "auth" in emsg or "unauthorized" in emsg:
+            code = "LLM_AUTH_FAILED"
+            msg = "Generation service authentication failed. Please contact support."
+            status = 502
+        else:
+            code = "LLM_UPSTREAM_ERROR"
+            msg = "AI generation hit an upstream error. Tap Create Series to retry."
+            status = 502
+        logger.error(f"[series/create] {code} user={user_id[:8]} elapsed={elapsed:.1f}s err={e}")
+        try:
+            await db.funnel_events.insert_one({
+                "step": "create_series_failed",
+                "user_id": user_id,
+                "context": {"series_id": series_id, "code": code, "elapsed_s": elapsed, "title": request.title, "raw": str(e)[:200]},
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            })
+        except Exception:
+            pass
+        raise HTTPException(
+            status_code=status,
+            detail={"code": code, "message": msg, "retryable": True, "elapsed_s": round(elapsed, 1)},
+        )
 
     characters = foundation.get("characters", [])
     world = foundation.get("world", {})
@@ -354,6 +477,27 @@ CRITICAL: The episode MUST end with a powerful open-loop cliffhanger — an unre
     await db.world_bibles.insert_one(world_bible)
     await db.story_memories.insert_one(story_memory)
 
+    # P0 instrumentation — success path
+    try:
+        elapsed_s = (datetime.now(timezone.utc) - started_at).total_seconds()
+        await db.funnel_events.insert_one({
+            "step": "create_series_completed",
+            "user_id": user_id,
+            "context": {
+                "series_id": series_id,
+                "elapsed_s": round(elapsed_s, 2),
+                "scene_count": episode["scene_count"],
+                "character_count": len(characters),
+            },
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+        logger.info(
+            f"[series/create] DONE user={user_id[:8]} series={series_id[:8]} "
+            f"elapsed={elapsed_s:.2f}s scenes={episode['scene_count']} chars={len(characters)}"
+        )
+    except Exception:
+        pass
+
     return {
         "success": True,
         "series_id": series_id,
@@ -382,6 +526,43 @@ CRITICAL: The episode MUST end with a powerful open-loop cliffhanger — an unre
 MAIN_ROLES = {"protagonist", "antagonist", "main", "hero", "heroine", "villain"}
 SUPPORTING_ROLES = {"sidekick", "mentor", "supporting", "ally", "companion", "guide"}
 BACKGROUND_ROLES = {"background", "minor", "extra", "narrator", "crowd"}
+
+
+# ─── ADMIN DEBUG ENDPOINT — 2026-05-16 P0 ──────────────────────────────
+# Mirrors /api/story-engine/jobs/:id/debug. Returns enough detail for an
+# operator to triage a "Create Series" failure end-to-end (last LLM error,
+# last funnel events, elapsed time, full row).
+@router.get("/jobs/{series_id}/debug")
+async def admin_debug_series(series_id: str, user: dict = Depends(get_admin_user)):
+    series = await db.story_series.find_one({"series_id": series_id}, {"_id": 0})
+    # Last 10 funnel events for this series_id. We deliberately scope by
+    # context.series_id only (not title) to avoid false-positives from
+    # other series that happen to share a title.
+    events: list = []
+    cursor = db.funnel_events.find(
+        {
+            "step": {"$in": [
+                "create_series_clicked", "create_series_started",
+                "create_series_completed", "create_series_failed",
+                "create_series_timeout",
+            ]},
+            "context.series_id": series_id,
+        },
+        {"_id": 0},
+    ).sort("timestamp", -1).limit(10)
+    async for d in cursor:
+        events.append(d)
+
+    if not series and not events:
+        raise HTTPException(status_code=404, detail="Series not found and no recent funnel events")
+
+    return {
+        "success": True,
+        "series_id": series_id,
+        "series": series,
+        "recent_funnel_events": events,
+        "found": bool(series),
+    }
 
 
 def _score_and_deduplicate_characters(characters: list, episode_data: dict) -> list:

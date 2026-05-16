@@ -60,10 +60,22 @@ export default function CreateSeries() {
   const handleCreate = async () => {
     if (!form.title.trim()) { toast.error('Title is required'); return; }
     if (!form.initial_prompt.trim()) { toast.error('Story prompt is required'); return; }
+    if (creating) return;  // P0 2026-05-16 duplicate-click guard
     setCreating(true);
+    // Instrumentation — pre-network click
     try {
-      const res = await api.post('/api/story-series/create', form);
+      const { trackFunnel } = await import('../utils/funnelTracker');
+      trackFunnel('create_series_clicked', { source_page: '/app/story-series', meta: { title: form.title, genre: form.genre, audience: form.audience } });
+    } catch (_) { /* never block UX */ }
+    try {
+      // 60s frontend timeout — backend has its own 50s LLM cap; this is the safety net.
+      const res = await api.post('/api/story-series/create', form, { timeout: 60000 });
       if (res.data.success) {
+        if (res.data.duplicate) {
+          toast.info('Series already exists from a recent submission.');
+          navigate(`/app/story-series/${res.data.series_id}`);
+          return;
+        }
         setSeriesData(res.data);
         const chars = res.data.extracted_characters || [];
         // Mark all as confirmed by default
@@ -77,7 +89,36 @@ export default function CreateSeries() {
         }
       }
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to create series');
+      // P0 2026-05-16 — actionable, code-aware error rendering.
+      // Backend now returns: detail = { code, message, retryable, elapsed_s? }
+      // OR detail = "string" (legacy 4xx paths)
+      // OR detail = generic gateway shape from axios interceptor.
+      const d = err?.response?.data;
+      const status = err?.response?.status || 0;
+      const isAxiosTimeout = err?.code === 'ECONNABORTED';
+
+      let message;
+      if (isAxiosTimeout) {
+        message = 'Generation timed out. Tap Create Series to try again — your draft is preserved.';
+      } else if (d?.detail && typeof d.detail === 'object' && d.detail.message) {
+        // Structured backend error (new shape)
+        message = d.detail.message;
+      } else if (typeof d?.detail === 'string') {
+        message = d.detail;
+      } else if (d?.gateway || status >= 502) {
+        message = 'AI service is briefly unavailable. Tap Create Series again — this usually clears in 10 seconds.';
+      } else {
+        message = 'Could not create series. Tap Create Series to retry.';
+      }
+
+      toast.error(message);
+      try {
+        const { trackFunnel } = await import('../utils/funnelTracker');
+        trackFunnel('create_series_failed', {
+          source_page: '/app/story-series',
+          meta: { status, code: d?.detail?.code, message_shown: message },
+        });
+      } catch (_) { /* */ }
     } finally {
       setCreating(false);
     }
