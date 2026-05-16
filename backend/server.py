@@ -124,6 +124,7 @@ from routes.content_trending import router as content_trending_router
 
 # Funnel Tracking & Pricing API
 from routes.funnel_tracking import router as funnel_tracking_router
+from routes.activation_digest import router as activation_digest_router
 from routes.photo_trailer import router as photo_trailer_router
 from routes.avatar_studio import router as avatar_studio_router
 from routes.pricing_api import router as pricing_api_router
@@ -501,6 +502,7 @@ api_router.include_router(content_trending_router)
 
 # Funnel Tracking & Pricing API
 api_router.include_router(funnel_tracking_router)
+api_router.include_router(activation_digest_router)
 api_router.include_router(photo_trailer_router)
 api_router.include_router(avatar_studio_router)
 api_router.include_router(pricing_api_router)
@@ -1376,6 +1378,14 @@ async def startup():
         logger.info("Daily report scheduler started (sends at 23:55 UTC)")
     except Exception as e:
         logger.warning(f"Daily report scheduler warning: {e}")
+
+    # Start Activation Digest Scheduler (08:00 IST = 02:30 UTC) — P0 May 2026
+    try:
+        from services.activation_digest_scheduler import start_activation_digest_scheduler
+        start_activation_digest_scheduler(db)
+        logger.info("Activation digest scheduler started (08:00 IST)")
+    except Exception as e:
+        logger.warning(f"Activation digest scheduler warning: {e}")
     
     # Start Environment Monitor Scheduler
     try:

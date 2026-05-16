@@ -2223,3 +2223,73 @@ activation.
    3. /api/funnel/p04-comparison delivers the hard before/after verdict:
       "Did P0-4 materially improve activation, or not?"
 
+
+─────────────────────────────────────────────────────────
+[2026-05-16] ACTIVATION DIGEST — 8 AM IST OPERATIONAL TRUTH (Observe-only phase)
+─────────────────────────────────────────────────────────
+Founder directive: 48h freeze on feature work. The only thing that matters
+is whether story creation materially increased. A daily 8 AM IST digest
+must answer that question. Brutally concise. Operational only.
+
+✅ Persistent operational digest pipeline
+   • backend/services/activation_digest_service.py (NEW)
+       - compute() → returns 6 fields: leak / improvement / bottleneck /
+         p04_delta / alerts / next_action  +  metadata (timestamp,
+         traffic_sample, confidence).
+       - Confidence ladder: INSUFFICIENT_DATA (<50) / LOW (<200) /
+         MEDIUM (<1000) / HIGH (≥1000) — sample = landing_view sessions
+         in last 24h.
+       - persist() trims activation_digests collection to last 30 docs.
+       - email() reuses the SendGrid breaker pattern from daily_report_service:
+         silent fail on 401/403, never blocks DB write.
+       - run_once() = compute + persist + (optionally) email.
+
+✅ Regression protection (>20% DoD drop = RED alert)
+   - story_generated, cta_to_generation_pct, landing_to_generation_pct
+     (higher=better) and auth_wall_sessions, teaser_median_ms
+     (lower=better) tracked.
+   - When sample is INSUFFICIENT_DATA, alerts are forced to [] to
+     prevent fabricated conclusions on noise.
+
+✅ ONE next-move recommendation only — no idea spam
+   - Bottleneck-driven: maps biggest-drop step → exact next intervention.
+   - Regression overrides bottleneck: investigate the regressed metric first.
+   - INSUFFICIENT_DATA → "Wait for traffic. Push distribution."
+
+✅ Admin endpoints (backend/routes/activation_digest.py)
+   - GET  /api/admin/activation-digest/latest
+   - GET  /api/admin/activation-digest/history?limit=N (cap=30)
+   - POST /api/admin/activation-digest/run-now?skip_email=bool
+   - GET  /api/admin/activation-digest/preview  (compute fresh, no persist)
+   All admin-gated (401 for anon, verified).
+
+✅ Scheduler (backend/services/activation_digest_scheduler.py)
+   - Fires daily at 08:00 IST = 02:30 UTC.
+   - Wired into server.py startup beside the existing daily_report scheduler.
+   - Logged on boot: "Activation digest: next run at … IST (in N.N h)".
+
+✅ Tests — backend/tests/test_activation_digest_2026_05.py (7/7 PASS)
+   - admin-gating, preview structure, run-now persists, history cap,
+     INSUFFICIENT_DATA on low sample, RED-alert detector at >20% threshold,
+     single-string next_action.
+
+📝 Output format (verbatim from preview, current low-traffic state):
+   ACTIVATION DIGEST · 2026-05-16 08:00 IST
+   CONFIDENCE:  INSUFFICIENT_DATA  (traffic_sample=8)
+   STATUS:      INSUFFICIENT_DATA — not enough traffic to call directionality.
+   NEXT:        Wait for traffic. Push distribution.
+
+   Once sample ≥ 50 the digest fills with LEAK / IMPROVE / BOTTLENECK /
+   DELTA / ALERTS / NEXT — operational only.
+
+📁 Files Changed:
+   • backend/services/activation_digest_service.py (NEW)
+   • backend/services/activation_digest_scheduler.py (NEW)
+   • backend/routes/activation_digest.py (NEW)
+   • backend/server.py (import + router include + scheduler start)
+   • backend/tests/test_activation_digest_2026_05.py (NEW)
+
+🚫 Discipline: NO new activation features built. NO emotional title work.
+   NO auto-continuations. NO replay systems. NO story quality panels.
+   This is pure observability so the next decision is data-driven.
+
