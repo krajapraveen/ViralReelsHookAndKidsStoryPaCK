@@ -1025,34 +1025,50 @@ async def _stage_keyframes(job: dict) -> Dict:
 
 
 async def _stage_scene_clips(job: dict) -> Dict:
-    """Generate scene clips using Sora 2 with Ken Burns fallback."""
+    """Generate scene clips using Sora 2 with Ken Burns fallback.
+
+    P0 2026-05-16 reliability sprint:
+      • Honors quality_config.use_sora (fast mode skips Sora entirely → ~10x
+        faster on GENERATING_SCENE_CLIPS).
+      • Parallelizes clip generation across scenes when Sora is enabled
+        (was sequential — single biggest latency hotspot, ~73% of total).
+    """
     job = await db.story_engine_jobs.find_one({"job_id": job["job_id"]}, {"_id": 0})
     plans = job.get("scene_motion_plans", [])
     keyframes = job.get("keyframe_urls", [])
     keyframe_paths = job.get("keyframe_local_paths", [])
     continuity = job.get("character_continuity", {})
     job_id = job["job_id"]
+    quality_config = job.get("quality_config") or {}
+    use_sora = quality_config.get("use_sora", True)
 
-    clip_urls = []
-    clip_local_paths = []
     sora_count = 0
     fallback_count = 0
 
-    for i, plan in enumerate(plans):
+    async def _make_clip(i: int, plan: dict):
+        """Per-scene worker. Returns (url, local_path, used_sora_bool)."""
         await update_heartbeat(db, job_id, f"Generating clip {i+1}/{len(plans)}")
-
         kf_url = keyframes[i] if i < len(keyframes) else None
         kf_path = keyframe_paths[i] if i < len(keyframe_paths) else None
 
+        # FAST mode: skip Sora entirely. Ken Burns on the keyframe is ~3s/scene
+        # vs Sora's ~110s/scene. This is the dominant unlock for sub-2-min videos.
+        if not use_sora and kf_path and os.path.exists(kf_path):
+            scene_num = plan.get("scene_number", i + 1)
+            duration = plan.get("clip_duration_seconds", 5.0)
+            fallback_path = str(Path("/app/backend/static/generated") / f"se_{job_id[:8]}_fast_{scene_num}.mp4")
+            ok = await ffmpeg_assembly.create_ken_burns_fallback(kf_path, fallback_path, duration)
+            if ok and os.path.exists(fallback_path):
+                return (f"/api/generated/se_{job_id[:8]}_fast_{scene_num}.mp4", fallback_path, False)
+            return (None, None, False)
+
+        # Default path: Sora with Ken Burns fallback on failure
         result = await video_gen.generate_scene_clip(
             scene_plan=plan, keyframe_url=kf_url, keyframe_local_path=kf_path,
             continuity=continuity, style_id=job.get("style_id", "cartoon_2d"), job_id=job_id,
         )
-
         if result.get("status") == "ready" and result.get("local_path"):
-            clip_urls.append(result.get("url"))
-            clip_local_paths.append(result.get("local_path"))
-            sora_count += 1
+            return (result.get("url"), result.get("local_path"), True)
         elif kf_path and os.path.exists(kf_path):
             logger.warning(f"[PIPELINE] Sora failed for scene {i+1}, falling back to Ken Burns")
             scene_num = plan.get("scene_number", i + 1)
@@ -1060,16 +1076,18 @@ async def _stage_scene_clips(job: dict) -> Dict:
             fallback_path = str(Path("/app/backend/static/generated") / f"se_{job_id[:8]}_fallback_{scene_num}.mp4")
             ok = await ffmpeg_assembly.create_ken_burns_fallback(kf_path, fallback_path, duration)
             if ok and os.path.exists(fallback_path):
-                fallback_url = f"/api/generated/se_{job_id[:8]}_fallback_{scene_num}.mp4"
-                clip_urls.append(fallback_url)
-                clip_local_paths.append(fallback_path)
-                fallback_count += 1
-            else:
-                clip_urls.append(None)
-                clip_local_paths.append(None)
+                return (f"/api/generated/se_{job_id[:8]}_fallback_{scene_num}.mp4", fallback_path, False)
+        return (None, None, False)
+
+    # Parallel fan-out across scenes (was sequential).
+    results = await asyncio.gather(*[_make_clip(i, p) for i, p in enumerate(plans)])
+    clip_urls = [r[0] for r in results]
+    clip_local_paths = [r[1] for r in results]
+    for _, _, used_sora in results:
+        if used_sora:
+            sora_count += 1
         else:
-            clip_urls.append(None)
-            clip_local_paths.append(None)
+            fallback_count += 1
 
     await db.story_engine_jobs.update_one(
         {"job_id": job_id},

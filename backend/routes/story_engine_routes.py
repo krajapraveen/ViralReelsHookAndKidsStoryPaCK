@@ -1074,8 +1074,91 @@ async def get_quality_modes():
     return {
         "success": True,
         "modes": QUALITY_MODES,
-        "default": "balanced",
+        "default": "fast",
     }
+
+
+# ─── ADMIN DEBUG ENDPOINT — 2026-05-16 P0 reliability sprint ──────────
+# Founder directive: admins need a one-shot diagnostic showing exactly what
+# stage a job is in, how long it has been there, and the latest provider /
+# log state. Frontend admin uses this for "View Progress" deep-dive.
+@router.get("/jobs/{job_id}/debug")
+async def admin_debug_job(job_id: str, current_user: dict = Depends(_get_admin)):
+    job = await db.story_engine_jobs.find_one({"job_id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    state = job.get("state")
+    now = datetime.now(timezone.utc)
+
+    # Stage start timestamp = most recent stage_results entry that hasn't completed
+    stage_started_at = None
+    last_log = None
+    failure_reason = job.get("error_message")
+    provider_status = None
+    stage_results = job.get("stage_results", []) or []
+    for s in stage_results:
+        if s.get("stage") == state and not s.get("completed_at"):
+            stage_started_at = s.get("started_at")
+            last_log = s.get("note") or s.get("output", {}).get("status") if isinstance(s.get("output"), dict) else None
+            provider_status = s.get("model_used")
+            break
+    # Fallback for non-active state
+    if stage_started_at is None and stage_results:
+        latest = stage_results[-1]
+        stage_started_at = latest.get("started_at")
+        last_log = latest.get("note")
+        provider_status = latest.get("model_used")
+
+    elapsed_ms = None
+    if stage_started_at:
+        try:
+            t = datetime.fromisoformat(stage_started_at.replace("Z", "+00:00"))
+            elapsed_ms = int((now - t).total_seconds() * 1000)
+        except Exception:
+            pass
+
+    # SLA per stage (mirrors heartbeat thresholds × 1000 for ms)
+    from services.story_engine.state_machine import HEARTBEAT_THRESHOLDS as _SLA
+    stage_sla_ms = (_SLA.get(state, 300)) * 1000 if state else None
+    over_sla = elapsed_ms is not None and stage_sla_ms is not None and elapsed_ms > stage_sla_ms
+
+    return {
+        "success": True,
+        "job_id": job_id,
+        "current_stage": state,
+        "stage_started_at": stage_started_at,
+        "elapsed_ms": elapsed_ms,
+        "stage_sla_ms": stage_sla_ms,
+        "over_sla": over_sla,
+        "last_log": last_log,
+        "failure_reason": failure_reason,
+        "last_error_code": job.get("last_error_code"),
+        "last_error_stage": job.get("last_error_stage"),
+        "provider_status": provider_status,
+        "output_url": job.get("output_url") or job.get("video_url"),
+        "quality_mode": job.get("quality_mode"),
+        "quality_config": job.get("quality_config"),
+        "last_heartbeat_at": job.get("last_heartbeat_at"),
+        "stage_retry_counts": job.get("stage_retry_counts", {}),
+        "credits_refunded": bool(job.get("credits_refunded")),
+        "credits_charged": job.get("credits_charged"),
+        "created_at": job.get("created_at"),
+        "completed_at": job.get("completed_at"),
+        "stage_results": [
+            {
+                "stage": s.get("stage"),
+                "status": s.get("status"),
+                "duration_seconds": s.get("duration_seconds"),
+                "started_at": s.get("started_at"),
+                "completed_at": s.get("completed_at"),
+                "attempt_number": s.get("attempt_number"),
+                "model_used": s.get("model_used"),
+            }
+            for s in stage_results
+        ],
+    }
+
 
 
 

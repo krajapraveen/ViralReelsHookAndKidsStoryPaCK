@@ -2450,3 +2450,95 @@ This is an activation-killing trust bug — users think generation is frozen.
   • backend/routes/funnel_tracking.py (3 new whitelisted events)
   • backend/tests/test_progress_cta_dead_button_2026_05.py (NEW)
 
+
+─────────────────────────────────────────────────────────
+[2026-05-16] P0 STORY-TO-VIDEO RELIABILITY/PERF SPRINT — 3× FASTER, FAST IS DEFAULT
+─────────────────────────────────────────────────────────
+Founder directive: Story-to-Video must complete fast and reliably. Run a real
+e2e generation, surface stage timeline, kill stuck jobs cleanly, ship admin
+debug visibility. No new features. Sub-2-minute first-output target.
+
+═══ ROOT CAUSE (from real e2e run #1) ═══
+   Job 687fd08b-... in quality_mode='fast' took 310.38s.
+   GENERATING_SCENE_CLIPS alone = 226.47s (73% of total time, +46s OVER SLA).
+   Cause: _stage_scene_clips never read quality_config.use_sora. Fast mode
+   said use_sora=False but the code always called Sora anyway. The loop was
+   also sequential — each scene blocked on the previous one.
+
+═══ FIX ═══
+   • services/story_engine/pipeline.py
+     - _stage_scene_clips now reads `quality_config.use_sora`.
+     - When False: short-circuits to Ken Burns on the keyframe (~3s/scene).
+     - When True: fans out scenes via `asyncio.gather` (was a sequential for).
+   • services/story_engine/state_machine.py — heartbeat thresholds tightened:
+       PLANNING / CHAR_CTX / SCENE_MOTION: 180-120s → 25s
+       GENERATING_KEYFRAMES:                300s   → 90s
+       GENERATING_SCENE_CLIPS:              600s   → 180s
+       GENERATING_AUDIO:                    240s   → 60s
+       ASSEMBLING_VIDEO:                    480s   → 90s
+       VALIDATING:                           60s   → 45s
+   • frontend/src/pages/StoryVideoPipeline.js — default qualityMode='fast'.
+   • routes/story_engine_routes.py — /quality-modes default='fast'.
+
+═══ ADMIN DEBUG ENDPOINT (NEW) ═══
+   GET /api/story-engine/jobs/:job_id/debug   (admin only)
+   Returns: current_stage, stage_started_at, elapsed_ms, stage_sla_ms,
+   over_sla, last_log, failure_reason, last_error_code, last_error_stage,
+   provider_status, output_url, quality_mode, quality_config,
+   last_heartbeat_at, stage_retry_counts, credits_refunded,
+   credits_charged, created_at, completed_at, stage_results[].
+
+═══ STUCK-JOB JANITOR (already existed, now wired correctly) ═══
+   services/story_engine/recovery_daemon.py runs every 120s.
+   On terminal kill (max retries exceeded):
+     • transitions job to FAILED_* state
+     • calls _refund_credits(job_id) — credits restored
+     • inserts funnel_events record with step=story_generation_timeout,
+       abandonment_reason=generation_timeout, stuck_stage=<state>,
+       stale_seconds=<int> — so /activation-funnel surfaces it without
+       fabricated reasons.
+
+═══ INSTRUMENTATION ═══
+   Whitelisted in routes/funnel_tracking.py FUNNEL_STEPS:
+     • story_generation_started
+     • story_generation_completed
+     • story_generation_failed
+     • story_generation_timeout
+   Verified via /api/funnel/track curl — all return success:true.
+
+═══ END-TO-END PROOF (real R2-hosted videos) ═══
+   Run #1 (BEFORE):  Job 687fd08b-...  total=310.38s  SCENE_CLIPS=226.47s
+     URL: https://pub-c251248e414545848d34b8c1b97ecdb3.r2.dev/videos/687fd08b-6d8c-415e-a527-7099001c8672/se_687fd08b_final.mp4
+
+   Run #2 (AFTER):   Job e63e6055-...  total=101.02s  SCENE_CLIPS=9.01s
+     URL: https://pub-c251248e414545848d34b8c1b97ecdb3.r2.dev/videos/e63e6055-ad8e-4b1f-ba0c-23df1f155f26/se_e63e6055_final.mp4
+
+   Delta: -209s, 3.07× faster, GENERATING_SCENE_CLIPS 25× faster,
+          comfortably under 2-min target, every stage within SLA.
+
+   Full stage-latency table: /app/memory/svp_proof/COMPARISON.md
+
+═══ REGRESSION TESTS (10/10 PASS) ═══
+   backend/tests/test_story_to_video_reliability_2026_05.py:
+     • test_quality_modes_default_is_fast
+     • test_frontend_default_state_is_fast
+     • test_pipeline_honors_use_sora_flag_and_parallelizes
+     • test_heartbeat_thresholds_tightened
+     • test_debug_endpoint_admin_gated
+     • test_debug_endpoint_returns_contract_for_admin
+     • test_generation_funnel_events_whitelisted
+     • test_funnel_endpoint_accepts_generation_events
+     • test_recovery_daemon_emits_timeout_funnel_event_on_terminal_kill
+     • test_recovery_daemon_refunds_credits_on_terminal
+
+═══ FILES CHANGED ═══
+   • backend/services/story_engine/pipeline.py (use_sora + asyncio.gather)
+   • backend/services/story_engine/state_machine.py (heartbeat thresholds)
+   • backend/services/story_engine/recovery_daemon.py (funnel event + refund)
+   • backend/routes/story_engine_routes.py (default + admin debug endpoint)
+   • backend/routes/funnel_tracking.py (4 new whitelisted events)
+   • frontend/src/pages/StoryVideoPipeline.js (default qualityMode='fast')
+   • backend/tests/test_story_to_video_reliability_2026_05.py (NEW)
+   • memory/svp_proof/COMPARISON.md (NEW)
+   • memory/svp_proof/job_687fd08b-...txt (BEFORE run)
+

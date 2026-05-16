@@ -221,6 +221,11 @@ FUNNEL_STEPS = [
     "progress_cta_clicked",              # user clicked any progress CTA on /my-space card
     "progress_view_opened",              # the CTA produced visible navigation/focus
     "progress_view_failed",              # handler exception or missing job_id
+    # P0 2026-05-16 — Story-to-Video reliability sprint instrumentation
+    "story_generation_started",          # /api/story-engine/create returned 200
+    "story_generation_completed",        # job reached READY
+    "story_generation_failed",           # terminal FAILED_* state
+    "story_generation_timeout",          # recovery daemon killed a stuck job
 ]
 
 

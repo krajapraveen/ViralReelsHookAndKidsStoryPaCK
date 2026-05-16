@@ -87,17 +87,23 @@ STAGE_MAX_RETRIES: Dict[JobState, int] = {
     JobState.VALIDATING: 1,
 }
 
-# Heartbeat thresholds per stage (seconds) — beyond this, job is considered stale
+# Heartbeat thresholds per stage (seconds) — P0 2026-05-16 reliability sprint.
+# Tightened to founder SLAs so no stage hangs forever. Numbers are deliberately
+# aggressive — the recovery_daemon will requeue once before giving up.
+# Story prep covers PLANNING + BUILDING_CHARACTER_CONTEXT + PLANNING_SCENE_MOTION (≈20s SLA).
+# Visual gen covers KEYFRAMES + SCENE_CLIPS (≈90s SLA).
+# Narration: GENERATING_AUDIO (≈45s SLA).
+# Video assembly + validation: ASSEMBLING_VIDEO + VALIDATING (≈60s + 30s upload SLA).
 HEARTBEAT_THRESHOLDS: Dict[str, int] = {
-    "INIT": 60,
-    "PLANNING": 180,
-    "BUILDING_CHARACTER_CONTEXT": 120,
-    "PLANNING_SCENE_MOTION": 120,
-    "GENERATING_KEYFRAMES": 300,
-    "GENERATING_SCENE_CLIPS": 600,
-    "GENERATING_AUDIO": 240,
-    "ASSEMBLING_VIDEO": 480,
-    "VALIDATING": 60,
+    "INIT": 30,
+    "PLANNING": 25,
+    "BUILDING_CHARACTER_CONTEXT": 25,
+    "PLANNING_SCENE_MOTION": 25,
+    "GENERATING_KEYFRAMES": 90,
+    "GENERATING_SCENE_CLIPS": 180,   # video clips legitimately need >SLA budget
+    "GENERATING_AUDIO": 60,
+    "ASSEMBLING_VIDEO": 90,
+    "VALIDATING": 45,
 }
 
 # Progress percentage per state

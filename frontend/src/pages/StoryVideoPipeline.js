@@ -425,7 +425,10 @@ function StoryVideoPipelineInner() {
   const [rateLimitStatus, setRateLimitStatus] = useState(null);
   const [formError, setFormError] = useState('');
   const [reuseInfo, setReuseInfo] = useState(null);
-  const [qualityMode, setQualityMode] = useState('balanced');
+  // P0 2026-05-16 — Fast mode is the new default. Founder directive:
+  // first video must complete fast. Power users can switch to balanced /
+  // high_quality from the quality picker.
+  const [qualityMode, setQualityMode] = useState('fast');
   // Series context — when generating from a Story Series flow
   const [seriesContext, setSeriesContext] = useState(null);
 

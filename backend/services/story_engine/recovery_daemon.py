@@ -120,6 +120,26 @@ async def _recover_stale_jobs():
             # Refund credits
             from .pipeline import _refund_credits
             await _refund_credits(job_id)
+            # P0 2026-05-16 — explicit funnel event so /activation-funnel
+            # diagnostics surfaces stuck-stage breakdown (no fabricated reasons).
+            try:
+                await db.funnel_events.insert_one({
+                    "step": "story_generation_timeout",
+                    "session_id": f"recovery_{job_id}",
+                    "anonymous_id": None,
+                    "user_id": job.get("user_id"),
+                    "context": {
+                        "job_id": job_id,
+                        "stuck_stage": state,
+                        "stale_seconds": int(seconds_stale),
+                        "stage_retries": stage_retries,
+                    },
+                    "abandonment_reason": "generation_timeout",
+                    "abandonment_step": state,
+                    "timestamp": now.isoformat(),
+                })
+            except Exception:
+                pass
             failed += 1
         else:
             # Requeue — increment retry and reset heartbeat so the job can be picked up

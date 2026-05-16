@@ -1,0 +1,25 @@
+=== STORY-TO-VIDEO GENERATION — END-TO-END PROOF ===
+Job ID: 687fd08b-6d8c-415e-a527-7099001c8672
+Quality mode: fast
+State: READY
+Created: 2026-05-16T07:20:01.663992+00:00
+Completed: 2026-05-16T07:25:12.893689+00:00
+
+STAGE LATENCY TABLE:
+  Stage                            |   Duration |    SLA | Within?
+  ----------------------------------------------------------------------
+  PLANNING                         |   10.27s  |    25s | ✓
+  BUILDING_CHARACTER_CONTEXT       |    5.10s  |    25s | ✓
+  PLANNING_SCENE_MOTION            |    9.95s  |    25s | ✓
+  GENERATING_KEYFRAMES             |   24.11s  |    90s | ✓
+  GENERATING_SCENE_CLIPS           |  226.47s  |   180s | ✗ BREACH
+  GENERATING_AUDIO                 |    2.26s  |    60s | ✓
+  ASSEMBLING_VIDEO                 |   32.22s  |    90s | ✓
+  VALIDATING                       |    0.00s  |    45s | ✓
+  ----------------------------------------------------------------------
+  TOTAL                            |  310.38s  |        |
+
+SLA BREACHES:
+  - GENERATING_SCENE_CLIPS: 226.47s vs SLA 180s (46s over)
+
+OUTPUT URL: https://pub-c251248e414545848d34b8c1b97ecdb3.r2.dev/videos/687fd08b-6d8c-415e-a527-7099001c8672/se_687fd08b_final.mp4
