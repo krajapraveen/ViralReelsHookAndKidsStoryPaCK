@@ -21,8 +21,33 @@ export default function ShareButtons({ url, title = '', compact = false, storyId
   const encodedUrl = encodeURIComponent(shareUrl);
   const encodedText = encodeURIComponent(shareText);
 
+  // V13 2026-05 — Track sheet-opened on first render (component mount
+  // implies the share surface is visible to the user).
+  React.useEffect(() => {
+    try {
+      trackFunnel('share_sheet_opened', {
+        meta: { story_id: storyId, category, url: shareUrl },
+        share_story_id: storyId,
+      });
+    } catch (_) {}
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const logShare = (channel) => {
     try {
+      // V13 2026-05 — canonical share events from founder brief.
+      trackFunnel('share_channel_selected', {
+        share_channel: channel,
+        share_story_id: storyId,
+        meta: { story_id: storyId, category, url: shareUrl },
+      });
+      if (channel === 'copy_link' || channel === 'copy') {
+        trackFunnel('share_link_copied', {
+          share_channel: channel,
+          share_story_id: storyId,
+          meta: { story_id: storyId },
+        });
+      }
+      // Back-compat (legacy dashboards)
       trackFunnel('cta_share_clicked', {
         meta: { channel, story_id: storyId, category, url: shareUrl },
       });

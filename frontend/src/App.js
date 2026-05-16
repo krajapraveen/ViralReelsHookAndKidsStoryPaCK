@@ -175,6 +175,7 @@ const UserAnalyticsDashboard = lazy(() => import('./pages/Admin/UserAnalyticsDas
 const AdminSecurityDashboard = lazy(() => import('./pages/AdminSecurityDashboard'));
 const BioTemplatesAdmin = lazy(() => import('./pages/Admin/BioTemplatesAdmin'));
 const WorkerDashboard = lazy(() => import('./pages/admin/WorkerDashboard'));
+const ActivationDiagnostics = lazy(() => import('./pages/Admin/ActivationDiagnostics'));
 const TTFDDashboard = lazy(() => import('./pages/admin/TTFDDashboard'));
 const PaymentsDashboard = lazy(() => import('./pages/admin/PaymentsDashboard'));
 const TemplateAnalyticsDashboard = lazy(() => import('./pages/Admin/TemplateAnalyticsDashboard'));
@@ -476,6 +477,7 @@ function App() {
           <Route path="ga4-tester" element={<L><GA4EventTester /></L>} />
           <Route path="feedback" element={<L><AdminFeedbackPage /></L>} />
           <Route path="growth" element={<L><GrowthDashboard /></L>} />
+          <Route path="activation-diagnostics" element={<L><ActivationDiagnostics /></L>} />
           <Route path="production-metrics" element={<L><ProductionMetrics /></L>} />
           <Route path="media-security" element={<L><MediaSecurityDashboard /></L>} />
           <Route path="content-engine" element={<L><ContentEngine /></L>} />

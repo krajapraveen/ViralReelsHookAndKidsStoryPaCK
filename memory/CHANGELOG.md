@@ -1441,3 +1441,46 @@ db.idempotency_keys.deleteMany({ status: { $in: ["FAILED", "PENDING"] } })
 7. Admin `/media/download-token` → 200 + single-use URL.
 
 **Honesty**: Screenshots cannot be prevented and the UI does not claim to. Protection = backend subscription gate (security) + UX deterrents (no select / no context menu / no drag / blocked shortcuts) + paywall modal (conversion).
+
+## 2026-05-15 — P0 V13 Growth Intervention Spine (Phase 1 of 3)
+
+Founder directive: **stop feature expansion, fix activation**. Funnel showed 3797 landing visits → 510 CTA clicks → 0 stories created. Acquisition is fine; activation is catastrophic. Phase 1 ships the MEASUREMENT spine so Phases 2 (anonymous flow) and 3 (content fill) can be data-driven.
+
+### P0-1 Kill loser headline (`headline_a`)
+- `routes/ab_testing.py::INITIAL_EXPERIMENTS["hero_headline"]`: `traffic_weights = {headline_b:1.0, headline_a:0.0, headline_c:0.0}` + `frozen_variants: ["headline_a"]` + `frozen_reason` explaining the kill.
+- `routes/ab_testing.py::seed_experiments()` now **force-syncs** `traffic_weights`/`frozen_variants`/`frozen_reason`/`active`/`min_sessions` to Mongo on every call (was: only updated when variant IDs changed).
+- `server.py` startup hook calls `seed_experiments()` so every deploy resets DB to code-defined weights. **No manual Mongo update required to kill the loser** — just redeploy.
+- Soft admin lock via `frozen_variants`. (Hard lock would require a redeploy to reverse; soft lock survives a Mongo wipe via the same seed sync.)
+
+### P0-2 + P0-7 + P0-9 Funnel events
+- `routes/funnel_tracking.py::FUNNEL_STEPS` now includes the 12 canonical activation events + 6 share-loop events + 3 performance SLA events from the founder brief.
+- `routes/funnel_tracking.py::ACTIVATION_FUNNEL_ORDER` rewritten as the canonical 7-step chain (`landing_view → hero_cta_clicked → story_prompt_started → story_prompt_submitted → story_generation_started → story_generation_completed → story_published`).
+- Event document enriched with `anonymous_id`, `auth_state`, `latency_ms`, `generation_id`, `abandonment_step`, `abandonment_reason`, `share_channel`, `share_story_id`.
+- Frontend `utils/funnelTracker.js` now generates and persists `anonymous_id` in `localStorage` (separate from auth user ID — captures real anon-vs-auth split), and threads all new fields through `trackFunnel()`.
+- Emitters wired:
+  - **Landing** (`Landing.js`): `hero_cta_clicked` on both hook-tile and Create-Fresh CTAs (back-compat `landing_cta_clicked` still fires).
+  - **Experience** (`InstantStoryExperience.jsx`): `story_prompt_started` on mount, `story_prompt_submitted` + `story_generation_started` on quick-generate kickoff, `story_generation_completed` / `_failed` / `_timeout` with `latency_ms` + `generation_id` + `abandonment_reason`, plus `prompt_to_teaser` and `generation_total_latency` SLA events.
+  - **Share** (`ShareButtons.jsx`): `share_sheet_opened` on mount, `share_channel_selected` + `share_link_copied` with `share_channel`.
+
+### P0-3 Activation Diagnostics admin page
+- New page `/app/admin/activation-diagnostics` (`pages/Admin/ActivationDiagnostics.jsx`).
+- Consumes the extended `/api/funnel/activation-funnel`, which now also returns:
+  - `red_alerts[]` — auto-flagged threshold breaches: `CTA→Prompt Started < 60%`, `Prompt Submitted→Generation Started < 85%`, `Generation Success < 90%`, `Median Generation Latency > 8s`.
+  - `abandonment_breakdown[]` — top abandonment reasons (rolled up from `abandonment_step` × `abandonment_reason`).
+  - Per-stage `p95_to_next_ms` and `auth_sessions` / `anon_sessions`.
+- Page renders red-alert strip, funnel table (step / sessions / conv. from prev / median → next / P95 → next / mobile vs desktop / anon vs auth), abandonment table, speed SLA JSON.
+
+### Tests
+- `tests/test_growth_spine_v13_2026_05.py` — **5/5 PASS**:
+  - Mongo doc reflects kill-switch + freeze lock.
+  - Variant assignment honors weights — 100% to `headline_b` across 40 sessions.
+  - `/activation-funnel` response shape (red_alerts, abandonment_breakdown, p95_to_next_ms, auth/anon per stage, 7-step chain order).
+  - Funnel ingest accepts new event names + persists `anonymous_id` / `latency_ms` / `generation_id` / `auth_state`.
+  - Share-loop events ingest and persist `share_channel`.
+
+### Pending — Phases 2 & 3 (next sessions, NOT in this deploy)
+- **Phase 2 — P0-4** Anonymous story creation (~1 day).
+- **Phase 3 — P0-5** Auto-generate 5 continuations per public story (worker fan-out).
+- **Phase 3 — P0-6** Emotional title rewrite + backfill.
+- **Phase 3 — P0-10** Story-quality admin panel.
+

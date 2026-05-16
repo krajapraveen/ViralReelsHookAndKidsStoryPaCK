@@ -209,6 +209,13 @@ export default function Landing() {
   const startFromHook = (hook) => {
     sessionStorage.setItem('cta_clicked_ts', String(Date.now()));
     localStorage.setItem('onboarding_prompt', hook.prompt);
+    // V13 2026-05 — canonical hero CTA event from founder brief.
+    trackFunnel('hero_cta_clicked', {
+      source_page: 'landing',
+      variant_seen: heroVariant,
+      meta: { action: 'hook', hook_id: hook.id, prompt: hook.prompt.slice(0, 80) },
+    });
+    // Back-compat
     trackFunnel('landing_cta_clicked', {
       source_page: 'landing',
       meta: { action: 'hook', hook_id: hook.id, prompt: hook.prompt.slice(0, 80) },
@@ -218,13 +225,18 @@ export default function Landing() {
 
   const goCreateFresh = () => {
     sessionStorage.setItem('cta_clicked_ts', String(Date.now()));
-    // Canonical activation funnel event (founder spec Apr 2026)
+    // V13 2026-05 — canonical hero CTA event.
+    trackFunnel('hero_cta_clicked', {
+      source_page: 'landing',
+      variant_seen: heroVariant,
+      meta: { action: 'create_fresh', cta_position: 'primary' },
+    });
+    // Back-compat with existing dashboards.
     trackFunnel('landing_cta_clicked', {
       source_page: 'landing',
       meta: { action: 'create_fresh', cta_position: 'primary', variant_seen: heroVariant },
       variant_seen: heroVariant,
     });
-    // Keep legacy event for back-compat with existing dashboards
     trackFunnel('first_action_click', { source_page: 'landing', meta: { action: 'create_fresh' } });
     navigate('/experience?source=landing');
   };

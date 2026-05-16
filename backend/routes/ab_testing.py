@@ -454,14 +454,18 @@ INITIAL_EXPERIMENTS = [
         "secondary_event": "paywall_shown",
         "active": True,
         "min_sessions": 500,
-        # 🎯 P0 Apr 2026 — 90/10 winner rollout. headline_b leads at 16.2% conversion.
-        # Assignment honors these weights deterministically; smart-route source-winner
-        # logic still overrides for confident source-specific winners.
+        # 🛑 2026-05 P0-1 — KILL LOSER. headline_b (16.1%) beat headline_a
+        # (2.9%) by 5.5x. Founder directive: 100% to B, 0% to A. Other
+        # variants set to 0 to prevent traffic leakage.
+        # `frozen_variants` is the soft admin lock that prevents accidental
+        # reactivation via the admin UI (see /ab/admin/experiments/:id PATCH).
         "traffic_weights": {
-            "headline_b": 0.90,
-            "headline_a": 0.05,
-            "headline_c": 0.05,
+            "headline_b": 1.00,
+            "headline_a": 0.00,
+            "headline_c": 0.00,
         },
+        "frozen_variants": ["headline_a"],
+        "frozen_reason": "Lost A/B test 2026-05: 2.9% vs headline_b 16.1%. Do not reactivate without a new experiment.",
         "variants": [
             {
                 "id": "headline_a",
@@ -612,15 +616,25 @@ async def seed_experiments():
             await db.ab_experiments.insert_one(exp)
             seeded.append(exp["experiment_id"])
         else:
-            # Update variants if changed (e.g., adding variant C)
+            # P0-1 2026-05 — ALWAYS force-sync traffic_weights, frozen_variants,
+            # and frozen_reason from code to DB on every startup. This is the
+            # mechanism that kills headline_a on the next deploy without a
+            # manual Mongo update.
+            sync_fields = {}
+            for f in ("traffic_weights", "frozen_variants", "frozen_reason", "active", "min_sessions"):
+                if f in exp and existing.get(f) != exp[f]:
+                    sync_fields[f] = exp[f]
             existing_variant_ids = {v["id"] for v in existing.get("variants", [])}
             new_variant_ids = {v["id"] for v in exp.get("variants", [])}
             if existing_variant_ids != new_variant_ids:
+                sync_fields["variants"] = exp["variants"]
+                sync_fields["name"] = exp["name"]
+            if sync_fields:
                 await db.ab_experiments.update_one(
                     {"experiment_id": exp["experiment_id"]},
-                    {"$set": {"variants": exp["variants"], "name": exp["name"]}}
+                    {"$set": sync_fields},
                 )
-                updated.append(exp["experiment_id"])
+                updated.append({"experiment_id": exp["experiment_id"], "fields": list(sync_fields.keys())})
     return {"seeded": seeded, "updated": updated, "total_experiments": len(INITIAL_EXPERIMENTS)}
 
 

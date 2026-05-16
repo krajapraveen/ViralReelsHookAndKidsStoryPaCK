@@ -899,6 +899,16 @@ async def startup():
     except Exception as e:
         logger.warning(f"Gallery seed warning: {e}")
 
+    # P0-1 2026-05 — Force-sync A/B experiment weights + frozen variants
+    # on every startup. This is what kills headline_a in production after
+    # the next deploy (no manual Mongo update required).
+    try:
+        from routes.ab_testing import seed_experiments as _seed_ab
+        _result = await _seed_ab()
+        logger.info(f"[STARTUP] A/B experiments synced: {_result}")
+    except Exception as e:
+        logger.warning(f"A/B experiment sync warning: {e}")
+
     # Create database indexes
     try:
         await db.users.create_index("email", unique=True)

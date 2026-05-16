@@ -185,6 +185,9 @@ export default function InstantStoryExperience() {
   // This effect only fires telemetry + kicks off background generation.
   useEffect(() => {
     try { trackFunnel('demo_viewed', { source }); } catch {}
+    // V13 2026-05 — prompt-started canonical event (founder brief). Fires
+    // as soon as the experience surface paints, regardless of typing.
+    try { trackFunnel('story_prompt_started', { source }); } catch {}
     const ctaTs = Number(sessionStorage.getItem('cta_clicked_ts') || 0);
     if (ctaTs > 0) emitSpeedSla('cta_to_first_paint', Date.now() - ctaTs);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -200,12 +203,24 @@ export default function InstantStoryExperience() {
     generationRef.current = true;
     const ctaTs = Number(sessionStorage.getItem('cta_clicked_ts') || 0) || Date.now();
     const genStartedAt = Date.now();
+    // V13 2026-05 — Canonical: the user's intent is submitted to the
+    // backend the moment we fire quick-generate. Emit both
+    // `story_prompt_submitted` and `story_generation_started`.
+    try { trackFunnel('story_prompt_submitted', { source }); } catch {}
     try { trackFunnel('story_generation_started', { source }); } catch {}
 
     timeoutRef.current = setTimeout(() => {
       if (!realStory) {
         setGenFailed(true);
-        try { trackFunnel('story_generation_timeout', { source }); } catch {}
+        const lat = Date.now() - genStartedAt;
+        try {
+          trackFunnel('story_generation_timeout', {
+            source,
+            latency_ms: lat,
+            abandonment_step: 'story_generation_started',
+            abandonment_reason: 'client_timeout',
+          });
+        } catch {}
       }
     }, GENERATION_TIMEOUT_MS);
 
@@ -228,23 +243,38 @@ export default function InstantStoryExperience() {
         setRealStory(data);
         if (data.allow_free_view) setAllowFreeView(true);
         // SLA: teaser ready = CTA click → quick-generate response received.
+        const apiLat = Date.now() - genStartedAt;
         emitSpeedSla('teaser_ready', Date.now() - ctaTs, {
-          api_duration_ms: Date.now() - genStartedAt,
+          api_duration_ms: apiLat,
           story_id: data.story_id,
         });
-        // Canonical funnel name (matches activation dashboard).
+        // V13 2026-05 — canonical generation_completed + prompt_to_teaser
+        // + generation_total_latency events with explicit latency_ms.
         try {
-          trackFunnel('story_generated_success', { source, meta: { story_id: data.story_id, allow_free_view: data.allow_free_view } });
-          trackFunnel('story_generation_completed', { source, meta: { story_id: data.story_id } });
+          trackFunnel('story_generated_success', { source, generation_id: data.story_id, latency_ms: apiLat, meta: { story_id: data.story_id, allow_free_view: data.allow_free_view } });
+          trackFunnel('story_generation_completed', { source, generation_id: data.story_id, latency_ms: apiLat, meta: { story_id: data.story_id } });
+          trackFunnel('prompt_to_teaser', { source, generation_id: data.story_id, latency_ms: Date.now() - ctaTs });
+          trackFunnel('generation_total_latency', { source, generation_id: data.story_id, latency_ms: apiLat });
         } catch {}
       } else {
         setGenFailed(true);
-        try { trackFunnel('story_generated_failed', { source, meta: { status: res.status } }); } catch {}
+        const lat = Date.now() - genStartedAt;
+        try {
+          trackFunnel('story_generated_failed', { source, latency_ms: lat, abandonment_reason: `http_${res.status}`, meta: { status: res.status } });
+          trackFunnel('story_generation_failed', { source, latency_ms: lat, abandonment_reason: `http_${res.status}` });
+          trackFunnel('generation_failure_reason', { source, abandonment_reason: `http_${res.status}`, meta: { http_status: res.status } });
+        } catch {}
       }
     } catch (err) {
       clearTimeout(timeoutRef.current);
       setGenFailed(true);
-      try { trackFunnel('story_generated_failed', { source, meta: { error: String(err).slice(0, 120) } }); } catch {}
+      const lat = Date.now() - genStartedAt;
+      const reason = String(err?.name || 'network_error').slice(0, 80);
+      try {
+        trackFunnel('story_generated_failed', { source, latency_ms: lat, abandonment_reason: reason, meta: { error: String(err).slice(0, 120) } });
+        trackFunnel('story_generation_failed', { source, latency_ms: lat, abandonment_reason: reason });
+        trackFunnel('generation_failure_reason', { source, abandonment_reason: reason });
+      } catch {}
     }
   }, [source, sourceTitle, sourceSnippet, theme, realStory]);
 

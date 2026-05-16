@@ -25,6 +25,16 @@ import api from './api';
 
 const SESSION_KEY = 'funnel_session_id';
 const TRAFFIC_SOURCE_KEY = 'funnel_traffic_source';
+const ANON_KEY = 'funnel_anonymous_id';
+
+export function getAnonymousId() {
+  let aid = localStorage.getItem(ANON_KEY);
+  if (!aid) {
+    aid = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem(ANON_KEY, aid);
+  }
+  return aid;
+}
 
 export function getSessionId() {
   let sid = sessionStorage.getItem(SESSION_KEY);
@@ -139,6 +149,7 @@ export function trackFunnel(step, extra = {}) {
     step,
     session_id: getSessionId(),
     user_id: getUserId(),
+    anonymous_id: getAnonymousId(),
     context: {
       source_page: extra.source_page || inferSourcePage(),
       page: extra.page || (typeof window !== 'undefined' ? window.location.pathname : null),
@@ -156,6 +167,14 @@ export function trackFunnel(step, extra = {}) {
       has_preview: extra.has_preview ?? null,
       plan_shown: extra.plan_shown || null,
       plan_selected: extra.plan_selected || null,
+      // V13 2026-05 — explicit telemetry fields from founder brief
+      anonymous_id: getAnonymousId(),
+      latency_ms: extra.latency_ms ?? null,
+      generation_id: extra.generation_id || null,
+      abandonment_step: extra.abandonment_step || null,
+      abandonment_reason: extra.abandonment_reason || null,
+      share_channel: extra.share_channel || null,
+      share_story_id: extra.share_story_id || null,
       meta: extra.meta || extra.data || {},
     },
   };

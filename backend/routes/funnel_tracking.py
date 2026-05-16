@@ -197,21 +197,41 @@ FUNNEL_STEPS = [
     "credit_gate_buy_credits_clicked",
     "credit_gate_view_plans_clicked",
     "billing_section_opened_from_gate",
+    # ═══ V13 — P0 Activation Funnel Re-Spine (2026-05) ═══
+    # Founder directive 2026-05: a single canonical activation chain with
+    # explicit abandonment attribution. Mirrors the brief verbatim.
+    "hero_cta_clicked",
+    "story_prompt_started",
+    "story_first_keystroke",
+    "story_prompt_submitted",
+    "story_generation_abandoned",
+    "story_publish_clicked",
+    "story_published",
+    # Share-loop instrumentation (per-channel)
+    "share_sheet_opened",
+    "share_channel_selected",
+    "share_link_copied",
+    "share_link_opened",
+    "continued_from_share",
+    "reshared_story",
+    # Performance SLA telemetry — explicit names from the founder brief
+    "prompt_to_teaser",                  # ms from prompt_submitted → first teaser visible
+    "generation_total_latency",          # ms full server-side generation
+    "generation_failure_reason",         # explicit error code/category emitted on failure
 ]
 
 
-# Canonical activation-funnel ordering — REWRITTEN for Instant Demo flow
-# (founder directive Apr 2026: no signup gate before wow moment).
-# Old funnel asked for signup → dashboard → prompt → generation, but the new
-# flow is gate-free until intent. This order matches reality so the dashboard
-# shows useful drop-off insights instead of phantom 0% rates.
+# Canonical activation-funnel ordering — V13 rewritten 2026-05 per founder
+# brief. Six explicit steps from landing to publish, in order. Anything that
+# breaks this order is the bug.
 ACTIVATION_FUNNEL_ORDER = [
-    ("landing_view",                "Landing"),
-    ("landing_cta_clicked",         "CTA Clicked"),
-    ("demo_viewed",                 "Demo Visible"),
-    ("story_generated_success",     "Personalized Story Ready"),
-    ("continue_clicked",            "Engaged (Continue)"),
-    ("cta_video_clicked",           "Intent: Video"),
+    ("landing_view",                  "Landing"),
+    ("hero_cta_clicked",              "CTA Clicked"),
+    ("story_prompt_started",          "Prompt Started"),
+    ("story_prompt_submitted",        "Prompt Submitted"),
+    ("story_generation_started",      "Generation Started"),
+    ("story_generation_completed",    "Generation Completed"),
+    ("story_published",               "Published"),
 ]
 
 
@@ -289,6 +309,11 @@ async def track_funnel_event(request: Request):
         "step_index": FUNNEL_STEPS.index(step),
         "session_id": session_id,
         "user_id": user_id,
+        # V13 2026-05 — explicit anonymous identifier (frontend-supplied,
+        # persistent across page loads via localStorage). Captures real
+        # anonymous-vs-auth split independent of user_id presence.
+        "anonymous_id": ctx.get("anonymous_id") or body.get("anonymous_id"),
+        "auth_state": ("authenticated" if user_id else "anonymous"),
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "source_page": ctx.get("source_page", "unknown"),
         "generation_count": ctx.get("generation_count", 0),
@@ -305,6 +330,13 @@ async def track_funnel_event(request: Request):
         "page": ctx.get("page", ctx.get("source_page", "unknown")),
         "variant_seen": ctx.get("variant_seen"),
         "time_since_landing_ms": ctx.get("time_since_landing_ms"),
+        # V13 2026-05 — explicit telemetry fields from founder brief
+        "latency_ms": ctx.get("latency_ms"),
+        "generation_id": ctx.get("generation_id"),
+        "abandonment_step": ctx.get("abandonment_step"),
+        "abandonment_reason": ctx.get("abandonment_reason"),
+        "share_channel": ctx.get("share_channel"),         # whatsapp | instagram | telegram | x | copy | native
+        "share_story_id": ctx.get("share_story_id"),
         "story_id": ctx.get("story_id"),
         "battle_id": ctx.get("battle_id"),
         "has_preview": ctx.get("has_preview"),
@@ -640,6 +672,7 @@ async def activation_funnel(
             "device_type": {"$first": "$device_type"},
             "browser": {"$first": "$browser"},
             "country": {"$first": "$country"},
+            "auth_state": {"$first": "$auth_state"},
         }},
     ]
     session_timelines: dict = {}
@@ -647,8 +680,12 @@ async def activation_funnel(
         sid = d["_id"]["session"]
         st = d["_id"]["step"]
         node = session_timelines.setdefault(sid, {"steps": {}, "device_type": d.get("device_type"),
-                                                  "browser": d.get("browser"), "country": d.get("country")})
+                                                  "browser": d.get("browser"), "country": d.get("country"),
+                                                  "auth_state": d.get("auth_state")})
         node["steps"][st] = d["ts"]
+        # auth_state can be set on later events even if first event was anon
+        if d.get("auth_state") == "authenticated":
+            node["auth_state"] = "authenticated"
 
     stages = []
     prev_count = None
@@ -662,6 +699,7 @@ async def activation_funnel(
         prev_count = count
 
         median_to_next_ms = None
+        p95_to_next_ms = None
         if i < len(ACTIVATION_FUNNEL_ORDER) - 1:
             next_step = ACTIVATION_FUNNEL_ORDER[i + 1][0]
             deltas = []
@@ -678,10 +716,13 @@ async def activation_funnel(
             if deltas:
                 deltas.sort()
                 median_to_next_ms = int(deltas[len(deltas) // 2])
+                p95_to_next_ms = int(deltas[max(0, int(len(deltas) * 0.95) - 1)])
 
         mobile = sum(1 for s in sessions_at_stage if s.get("device_type") == "mobile")
         desktop = sum(1 for s in sessions_at_stage if s.get("device_type") == "desktop")
         tablet = sum(1 for s in sessions_at_stage if s.get("device_type") == "tablet")
+        auth_sessions = sum(1 for s in sessions_at_stage if s.get("auth_state") == "authenticated")
+        anon_sessions = count - auth_sessions
 
         stages.append({
             "step": step,
@@ -689,9 +730,69 @@ async def activation_funnel(
             "sessions": count,
             "conversion_from_prev_pct": conv_pct,
             "median_to_next_ms": median_to_next_ms,
+            "p95_to_next_ms": p95_to_next_ms,
             "mobile": mobile,
             "desktop": desktop,
             "tablet": tablet,
+            "auth_sessions": auth_sessions,
+            "anon_sessions": anon_sessions,
+        })
+
+    # ─── 2026-05 V13 — Red-alert thresholds from founder brief ────────
+    # The brief specifies hard floors for each transition; flag any breach.
+    RED_THRESHOLDS = {
+        ("hero_cta_clicked", "story_prompt_started"): {"min_conv_pct": 60.0, "label": "CTA→Prompt Started"},
+        ("story_prompt_submitted", "story_generation_started"): {"min_conv_pct": 85.0, "label": "Prompt Submitted→Generation Started"},
+        ("story_generation_started", "story_generation_completed"): {"min_conv_pct": 90.0, "label": "Generation Success Rate"},
+        ("story_prompt_submitted", "story_generation_completed"): {"max_median_ms": 8000, "label": "Median Generation Latency"},
+    }
+    red_alerts = []
+    step_to_idx = {s["step"]: idx for idx, s in enumerate(stages)}
+    for (from_step, to_step), rule in RED_THRESHOLDS.items():
+        if from_step not in step_to_idx or to_step not in step_to_idx:
+            continue
+        from_s = stages[step_to_idx[from_step]]
+        to_s = stages[step_to_idx[to_step]]
+        if from_s["sessions"] == 0:
+            continue
+        conv = round((to_s["sessions"] / from_s["sessions"]) * 100, 1)
+        if "min_conv_pct" in rule and conv < rule["min_conv_pct"]:
+            red_alerts.append({
+                "rule": rule["label"],
+                "observed_pct": conv,
+                "threshold_pct": rule["min_conv_pct"],
+                "from_step": from_step,
+                "to_step": to_step,
+                "severity": "red",
+            })
+        if "max_median_ms" in rule and from_s.get("median_to_next_ms"):
+            if from_s["median_to_next_ms"] > rule["max_median_ms"]:
+                red_alerts.append({
+                    "rule": rule["label"],
+                    "observed_ms": from_s["median_to_next_ms"],
+                    "threshold_ms": rule["max_median_ms"],
+                    "from_step": from_step,
+                    "to_step": to_step,
+                    "severity": "red",
+                })
+
+    # ─── 2026-05 V13 — Abandonment-reason rollup ─────────────────────
+    # Top reasons for each abandonment step, sourced from the
+    # abandonment_step + abandonment_reason context fields on the events.
+    abandon_pipe = [
+        {"$match": {**base_match, "step": {"$in": ["story_generation_abandoned", "story_generation_failed", "story_generation_timeout"]},
+                    "abandonment_reason": {"$ne": None}}},
+        {"$group": {"_id": {"step": "$abandonment_step", "reason": "$abandonment_reason"},
+                    "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 20},
+    ]
+    abandonment_breakdown = []
+    async for d in db.funnel_events.aggregate(abandon_pipe):
+        abandonment_breakdown.append({
+            "abandonment_step": d["_id"].get("step"),
+            "abandonment_reason": d["_id"].get("reason"),
+            "count": d["count"],
         })
 
     top_exit = None
@@ -791,6 +892,8 @@ async def activation_funnel(
         "country_split": country_split_sorted,
         "error_breakdown": error_breakdown,
         "speed_sla": speed_sla,
+        "red_alerts": red_alerts,
+        "abandonment_breakdown": abandonment_breakdown,
         "total_sessions_seen": len(session_timelines),
     }
 
