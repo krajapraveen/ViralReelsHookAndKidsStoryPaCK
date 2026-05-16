@@ -138,9 +138,11 @@ def test_p2c_strip_mode_accepts_all_12_canonical_styles(style_key):
 # ─── Backend source-level checks for log + envelope ──────────────────────────
 def test_p2c_logs_request_id_on_invalid_style():
     src = P2C_PY.read_text(encoding="utf-8")
-    # The warning log must include the request_id
-    assert "INVALID_STYLE request_id=%s" in src
-    # And the envelope must include the field
+    # Session 1 refactor: log is now via structured_log() on the
+    # "p2c/invalid-style" event. The middleware fills request_id.
+    assert '"p2c/invalid-style"' in src
+    assert "structured_log(" in src
+    # And the envelope must still include the field
     idx = src.find('"code": "INVALID_STYLE"')
     assert idx > 0
     block = src[idx:idx + 800]
@@ -150,8 +152,8 @@ def test_p2c_logs_request_id_on_invalid_style():
 
 def test_create_series_envelopes_include_request_id():
     src = SERIES_PY.read_text(encoding="utf-8")
-    # The function-scope request_id is created early
-    assert "request_id = _uuid()" in src
+    # Session 1 refactor: request_id sourced from middleware via get_request_id
+    assert "request_id = get_request_id(_http)" in src
     # All three structured envelopes must carry request_id
     # LLM_TIMEOUT
     idx = src.find('"code": "LLM_TIMEOUT"')

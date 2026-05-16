@@ -20,7 +20,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from pydantic import BaseModel
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, Request as StarletteRequest
 
 from shared import db, get_current_user, get_admin_user
 
@@ -123,16 +123,16 @@ async def _llm_json(system_msg: str, user_msg: str, session_id: str = "series", 
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @router.post("/create")
-async def create_series(request: CreateSeriesRequest, user: dict = Depends(get_current_user)):
+async def create_series(request: CreateSeriesRequest, _http: StarletteRequest, user: dict = Depends(get_current_user)):
     user_id = user["id"]
     user_plan = user.get("plan", "free")
 
-    # P0 2026-05-16 — per-request correlation id.
-    # Stamped on every structured error envelope + every server-side log
-    # line so users hitting a failure can paste this into support and ops
-    # can pull the exact trace in one query. Foundation for the full
-    # request_id correlation middleware shipping in Session 1.
-    request_id = _uuid()
+    # P0 2026-05-16 (Session 1) — request_id sourced from reliability
+    # middleware. `_http` is the Starlette Request; `request` is the
+    # Pydantic body model (legacy parameter name we don't want to rename
+    # because it's referenced 15+ times in this handler).
+    from middleware.reliability import get_request_id
+    request_id = get_request_id(_http)
 
     # ─── 2026-05 Admin/Unlimited bypass ───────────────────────────────────
     # Internal testing surface: admin/dev/qa/test/owner + is_unlimited users

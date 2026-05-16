@@ -10,13 +10,14 @@ Features:
 - Safe style presets (no IP)
 - Revenue-optimized pricing
 """
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks, Request
 from pydantic import BaseModel
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List
 import uuid
 import os
 import sys
+import logging
 import base64
 import asyncio
 import json
@@ -537,6 +538,7 @@ async def check_photo_quality(
 
 @router.post("/generate")
 async def generate_comic(
+    request: Request,
     background_tasks: BackgroundTasks,
     photo: UploadFile = File(None),
     storage_key: Optional[str] = Form(None),
@@ -607,19 +609,16 @@ async def generate_comic(
     # return a structured envelope: {code: INVALID_STYLE, message: ...}.
     style = _normalize_style_input(style)
     if style not in SAFE_STYLES:
-        # Per-request correlation id so users hitting INVALID_STYLE can
-        # paste it into support and ops can pull the matching log line in
-        # one query. Foundation for the full request_id middleware
-        # shipping in Session 1.
-        request_id = str(uuid.uuid4())
-        logger.warning(
-            "[p2c/generate] INVALID_STYLE request_id=%s user=%s mode=%s "
-            "received_type=%s received=%r",
-            request_id,
-            (user.get("id") or "anon")[:8],
-            mode,
-            type(style).__name__,
-            (style[:80] if isinstance(style, str) else style),
+        # P0 2026-05-16 (Session 1) — read the canonical request_id from the
+        # reliability middleware. Falls back to a fresh uuid if middleware
+        # was bypassed (tests, direct ASGI invocation).
+        from middleware.reliability import get_request_id, structured_log
+        request_id = get_request_id(request)
+        structured_log(
+            logger, logging.WARNING, "p2c/invalid-style", request=request,
+            user=(user.get("id") or "anon")[:8], mode=mode,
+            received_type=type(style).__name__,
+            received=(style[:80] if isinstance(style, str) else str(style)),
         )
         # Structured envelope — the frontend maps `code` → user-friendly copy.
         raise HTTPException(

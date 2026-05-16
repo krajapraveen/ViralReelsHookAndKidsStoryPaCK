@@ -161,6 +161,7 @@ from services.webhook_retry_queue import WebhookRetryQueue, webhook_queue
 
 # Security middleware
 from middleware.security import SecurityHeadersMiddleware, RateLimitMiddleware
+from middleware.reliability import RequestIdMiddleware
 
 # Self-healing system imports
 from routes.self_healing_monitoring import router as self_healing_monitoring_router
@@ -279,6 +280,12 @@ class LatencyTrackingMiddleware(BaseHTTPMiddleware):
             raise
 
 app.add_middleware(LatencyTrackingMiddleware)
+
+# P0 2026-05-16 (Session 1) — Reliability foundation: request_id correlation.
+# Added LAST so it runs FIRST in the request path → request.state.request_id
+# is populated BEFORE any other middleware / handler accesses it. The
+# corresponding `X-Request-Id` response header is stamped on the way out.
+app.add_middleware(RequestIdMiddleware)
 
 # ==================== MIDDLEWARE ====================
 
