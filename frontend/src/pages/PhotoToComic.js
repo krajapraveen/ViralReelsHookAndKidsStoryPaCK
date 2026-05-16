@@ -454,6 +454,10 @@ function PhotoToComicInner() {
       }
       // P0 2026-05-18 — append request_id (from envelope OR response header)
       // so ALL non-structured failure paths still give the user a support ref.
+      // Founder mandate: "request_id on every path". When no correlation id
+      // is physically capturable (true network failure, unexpected error
+      // shape with no body) we surface a "not-captured" sentinel so the
+      // user always has SOMETHING to send to support.
       const headerRid =
         err?.response?.headers?.['x-request-id'] ||
         err?.response?.headers?.['X-Request-Id'] ||
@@ -464,6 +468,10 @@ function PhotoToComicInner() {
         finalMsg = `${finalMsg}\nReference ID: ${rid}`;
       } else if (isGatewayError) {
         finalMsg = `${finalMsg}\nReference ID: not-captured (gateway-level failure — please retry; if persistent, contact support)`;
+      } else if (code === 0) {
+        finalMsg = `${finalMsg}\nReference ID: not-captured (request never reached the server — check your connection)`;
+      } else {
+        finalMsg = `${finalMsg}\nReference ID: not-captured (HTTP ${code} — please retry; if persistent, contact support)`;
       }
       toast.error(finalMsg);
       console.error('[p2c/create] error', { status: code, gateway: isGatewayError, message: err?.message, request_id: rid });

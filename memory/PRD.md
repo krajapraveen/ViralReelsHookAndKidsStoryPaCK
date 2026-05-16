@@ -125,6 +125,12 @@ Both return the same 12 enabled keys (today every enabled style supports both mo
 
 **Cumulative test count**: 43/43 in the comic-styles + legacy P2C suite passing. Sprint total: ~150+ tests across the active stability sprint.
 
+**Hardening pass — Feb 2026 fork (request_id on EVERY error path)**:
+- The non-structured catch block in `PhotoToComic.js :: handleGenerate` previously only emitted a `Reference ID:` line for real ids and gateway errors. Network failures (`code === 0`) and unexpected error shapes (e.g. 500 with non-standard body) silently dropped the support ref, leaving users with nothing to paste into a ticket.
+- Added two more branches so EVERY non-structured path now emits a Reference ID line — real id when capturable, or a `not-captured` sentinel that explains the cause (gateway / network / unexpected HTTP shape).
+- `test_page_error_handler_surfaces_request_id_on_all_paths` strengthened: now locks in 4 exhaustive branches (`if (rid)`, `else if (isGatewayError)`, `else if (code === 0)`, catch-all `else`) and asserts ≥5 Reference ID render sites globally (previously ≥2).
+- Suite still 16/16 green. Cross-suite regression: 46/46 passing (`test_create_series_envelope_2026_05`, `test_story_video_preview_actions_2026_05`, `test_character_help_layout_viewports_2026_05`, `test_comic_styles_catalog_2026_05`).
+
 **Action required from you**:
 1. Deploy preview → production via Emergent UI
 2. Verify on `https://visionary-suite.com/app/photo-to-comic`:

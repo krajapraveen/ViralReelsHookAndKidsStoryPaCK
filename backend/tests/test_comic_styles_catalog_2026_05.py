@@ -311,6 +311,28 @@ def test_page_error_handler_surfaces_request_id_on_all_paths():
     # Globally the structured branch ALSO renders Reference ID — at least
     # 2 sites total in the file
     assert src.count("Reference ID:") >= 2
+    # Founder mandate: EVERY non-structured error path must surface a
+    # Reference ID line — real or "not-captured" sentinel. Lock in the
+    # four exhaustive branches: real rid, gateway, network (code===0),
+    # and unexpected-shape catch-all (else).
+    assert "if (rid)" in block, "Real-rid branch missing"
+    assert "else if (isGatewayError)" in block, "Gateway not-captured branch missing"
+    assert "else if (code === 0)" in block, "Network-failure not-captured branch missing"
+    # The trailing else ensures any HTTP shape we don't recognise still
+    # gets a Reference ID line. We split after the network branch and
+    # take everything up to `toast.error(` — that's the catch-all else.
+    after_network = block.split("else if (code === 0)", 1)[1]
+    catchall_else = after_network.split("toast.error(", 1)[0]
+    assert "else {" in catchall_else, "Catch-all else branch missing"
+    assert "Reference ID:" in catchall_else, \
+        "Catch-all else branch missing Reference ID render for unexpected error shapes"
+    assert "HTTP" in catchall_else, \
+        "Catch-all else branch should reference the HTTP status code"
+    # Sanity: there should now be at least 4 distinct Reference ID
+    # render sites in the catch block (real, gateway, network,
+    # catch-all) plus the structured branch up top → ≥5 globally.
+    assert src.count("Reference ID:") >= 5, \
+        f"Expected ≥5 Reference ID render sites; found {src.count('Reference ID:')}"
 
 
 def test_page_handles_style_mode_mismatch_envelope():
