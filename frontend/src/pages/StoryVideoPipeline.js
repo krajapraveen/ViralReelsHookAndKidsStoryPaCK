@@ -28,12 +28,12 @@ import { ForceShareGate, ShareRewardBar } from '../components/ForceShareGate';
 import ViralMomentumBadge from '../components/ViralMomentumBadge';
 import ContinuationModal from '../components/ContinuationModal';
 import CompetitionPulse from '../components/CompetitionPulse';
-// P0 Stability Sprint Phase 3a (2026-05-17) — read-only shadow observer.
-// Mounts the canonical useStorySession in parallel with this page's legacy
-// useState ownership. Compares fields and emits structured divergence logs.
-// READ-ONLY: this hook NEVER calls commit/transition/startFresh. See
-// frontend/src/state/useStorySessionShadow.js for the full contract.
-import { useStorySessionShadow } from '../state/useStorySessionShadow';
+// P0 Stability Sprint Phase 3b (2026-05-17) — canonical version-locked autosave.
+// Replaces the legacy POST /api/drafts/save last-write-wins flow with
+// commit() against POST /api/drafts/{id}/patch. STALE_WRITE recovery is
+// non-destructive (local text preserved + next debounce tick replays).
+// Shadow divergence logs from Phase 3a remain active inside this hook.
+import { useStorySessionAutosave } from '../state/useStorySessionAutosave';
 import { LiveViewerBadge } from '../components/AnimatedSocialProof';
 import EntitledDownloadButton from '../components/EntitledDownloadButton';
 import { useMediaEntitlement } from '../contexts/MediaEntitlementContext';
@@ -452,50 +452,44 @@ function StoryVideoPipelineInner() {
   const lastSavedRef = useRef({ title: '', storyText: '' });
   const isFreshSession = !!location.state?.freshSession;
 
-  // P0 Stability Sprint Phase 3a (2026-05-17) — canonical state shadow observer.
-  // The hook fetches GET /api/drafts/{id}/state on draftId change and compares
-  // legacy vs canonical fields, emitting console.info divergence lines with
-  // request_id + draft_id. It is READ-ONLY by construction (no commit, no
-  // transition, no startFresh). Migration of real writes happens in Phase 3b.
-  useStorySessionShadow({
+  // P0 Stability Sprint Phase 3b (2026-05-17) — canonical version-locked autosave.
+  // Replaces the legacy POST /api/drafts/save flow. The hook:
+  //   • Auto-creates a canonical session the first time the user types
+  //     (fires onDraftCreated → setActiveDraftId).
+  //   • Debounces 3,000 ms (same cadence as the legacy autosave).
+  //   • Sends version-locked patches; STALE_WRITE recovery is non-destructive.
+  //   • Keeps Phase 3a divergence logging active inside the hook.
+  useStorySessionAutosave({
     draftId: activeDraftId,
-    legacy: {
+    enabled: phase === 'input',
+    fields: {
       title,
       storyText,
       animationStyle: animStyle,
       ageGroup,
       voicePreset,
-      // legacy doesn't have a lifecycle concept yet — pass null so the
-      // shadow only flags drift the editor can actually be responsible for.
       lifecycle: null,
+    },
+    onDraftCreated: (newDraftId) => {
+      // First-time session creation — adopt the draft id and let the
+      // page's URL deep-link logic stay coherent.
+      if (newDraftId && newDraftId !== activeDraftId) {
+        setActiveDraftId(newDraftId);
+      }
     },
   });
 
-  // Auto-save draft (debounced — saves 3s after last change, only if content changed)
+  // Phase 3a legacy autosave (POST /api/drafts/save) — REMOVED in Phase 3b
+  // in favour of the version-locked patch above. The 3-second debounce is
+  // preserved inside the hook. typing_started instrumentation is preserved
+  // here so the funnel pipeline is untouched.
   useEffect(() => {
     if (phase !== 'input') return;
     if (!title.trim() && !storyText.trim()) return;
-
-    // Fire typing_started ONCE per session
-    if (!typingStartedRef.current && (title.trim() || storyText.trim())) {
-      typingStartedRef.current = true;
-      trackFunnel('typing_started', { meta: { source: isFreshSession ? 'fresh' : 'return' } });
-    }
-
-    // Don't save if content hasn't changed
-    if (title === lastSavedRef.current.title && storyText === lastSavedRef.current.storyText) return;
-
-    if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
-    draftSaveTimer.current = setTimeout(() => {
-      lastSavedRef.current = { title, storyText };
-      api.post('/api/drafts/save', {
-        title, story_text: storyText, animation_style: animStyle,
-        age_group: ageGroup, voice_preset: voicePreset,
-      }).catch(() => {}); // silent save
-    }, 3000);
-
-    return () => { if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current); };
-  }, [title, storyText, animStyle, ageGroup, voicePreset, phase]);
+    if (typingStartedRef.current) return;
+    typingStartedRef.current = true;
+    trackFunnel('typing_started', { meta: { source: isFreshSession ? 'fresh' : 'return' } });
+  }, [title, storyText, phase, isFreshSession]);
 
   // Check for existing draft on fresh session mount
   useEffect(() => {

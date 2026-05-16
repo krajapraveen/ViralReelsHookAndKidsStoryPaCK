@@ -65,6 +65,59 @@ state ownership, non-deterministic hydration.
 - `MySpacePage.js`, Comic Storybook — zero changes
 - UI styling, copy, auth, billing, pipeline, R2 — zero changes
 
+### P0 Stability Sprint — Phase 3b (Autosave Migration) — May 17, 2026
+**Status**: SHIPPED. End-to-end live-verified + 103/103 backend + 23/23 frontend tests.
+
+**Migration summary**:
+- Legacy `POST /api/drafts/save` autosave (last-write-wins, no version) → DECOMMISSIONED in the editor
+- New `useStorySessionAutosave` hook (NEW, 240 LOC) takes over:
+  - Auto-creates a canonical session on first user keystroke via `POST /api/drafts/session`
+  - Debounces 3,000 ms (same UX cadence as legacy)
+  - Sends version-locked PATCH via `POST /api/drafts/{id}/patch` with `expected_version` + `next_lifecycle='EDITING'`
+  - On STALE_WRITE: refetches canonical via `GET /api/drafts/{id}/state`, syncs local version, KEEPS local text intact, shows a non-destructive toast ("Loaded the latest version from another tab — your unsaved text is preserved and will save shortly"), retries on next debounce tick
+  - On other failures: structured `console.warn` with `request_id` (no spammy toasts)
+  - Keeps Phase 3a divergence logging built in (same 6-field whitelist, per-version dedupe)
+
+**Editor changes**:
+- `StoryVideoPipeline.js`: replaced the legacy autosave `useEffect` block with a single `useStorySessionAutosave({...})` call. Preserved: `typing_started` funnel event, Resume Draft modal, Start Fresh (`archive` + `create`), `/api/drafts/status` pipeline signals.
+
+**Discipline maintained**:
+- No new endpoints added (router still has 13 decorators on `drafts.py`)
+- No generation-worker changes
+- No Comic Storybook changes
+- No UI redesign / no new feature surface
+- Lifecycle progression strictly limited to `EDITING` (READY_TO_GENERATE / GENERATING / etc. are Phase 3c)
+- Hook never calls `transitionSession` or `startFresh` (asserted by tests)
+
+**Old vs new autosave flow**:
+| Concern | Old (`/api/drafts/save`) | New (`/api/drafts/{id}/patch`) |
+|---|---|---|
+| Concurrency | Last-write-wins, silent overwrite | Optimistic CAS with `expected_version` |
+| Draft identity | Implicit upsert by `(user_id, status='draft')` | Explicit `draft_id` (auto-created) |
+| Version counter | None | Monotonic, server-authoritative |
+| Stale rejection | Impossible — silent overwrite | `STALE_WRITE` envelope with `current_version` + `request_id` + `retryable=true` |
+| Recovery UX | None (data could be lost silently) | Non-destructive: refetch + keep local + toast + retry |
+| request_id | Missing on failures | Stamped on every response + every error envelope |
+
+**Multi-tab test result (real DB):**
+- Tab A patches at v=0 → succeeds, server now at v=1
+- Tab B patches at v=0 → rejected with `STALE_WRITE` (`current_version=1`, `request_id=<rid>`)
+- Tab B refetches `/state` → learns v=1
+- Tab B replays at v=1 → succeeds, final document carries Tab B's text at v=2
+- Concurrent patch race: exactly ONE writer wins, the other gets `STALE_WRITE`
+
+**Resume Draft regression result**: 11/11 tests passing — `archive` + `create` flow, hydration via canonical `/state`, ownership/404, schema-version guard, legacy `discard` archive-not-delete, Start Fresh state reset all preserved.
+
+**Tests added (20 new in `test_phase3b_autosave_migration_2026_05.py`)**:
+- Editor wiring (6 tests): hook call shape, no legacy `/save`, no direct mutator surface, typing_started preserved, Resume Draft modal intact, `/drafts/status` calls preserved
+- Hook self-contract (7 tests): 3s debounce, version-locked patch, session auto-creation, non-destructive STALE_WRITE recovery, request_id on failure, divergence logging preserved, only EDITING lifecycle
+- Backend integration (4 tests): monotonic version increment, multi-tab overwrite protection, request_id stamping, concurrent CAS race
+- Architecture invariants (3 tests): shadow module still read-only, no new endpoints introduced, router has exactly 13 decorators
+
+**Divergence detected by shadow observer (now embedded in autosave hook)**: none yet — needs real user-edit traffic to surface drift. Channel is in place and runs on every autosave tick.
+
+**Cumulative sprint tests**: 103 backend (was 90 → +13 net for Phase 3b after old 14 Phase 3a editor-wiring tests refactored into 7 module-contract tests) + 23 frontend reducer = **126 sprint tests, 100% green**.
+
 ### P0 Stability Sprint — Phase 3a (Shadow Observer) + Character Detail UX — May 17, 2026
 **Status**: SHIPPED. Source-level + backend integration verified (113/113 tests).
 
