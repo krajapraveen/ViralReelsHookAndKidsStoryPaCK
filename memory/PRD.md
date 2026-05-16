@@ -2705,3 +2705,105 @@ which the frontend rendered as the generic message.
     code-aware error rendering + funnel events)
   • backend/tests/test_create_series_reliability_2026_05.py (NEW)
 
+
+─────────────────────────────────────────────────────────
+[2026-05-16] P0 YOUSTAR RELIABILITY TRIO — Stuck render, Play bug, Audio validation
+─────────────────────────────────────────────────────────
+Founder report (prod screenshots):
+  1. Stuck at ~88% / RENDERING_TRAILER
+  2. First-click Play fails; only works after page refresh
+  3. Audio missing/short in final trailer
+
+═══ P0-A — Stage timestamps + admin debug + sub-stage heartbeats ═══
+
+  • routes/photo_trailer.py
+    - _set_stage now records stage_started_at.<stage>, closes out
+      stage_completed_at.<prev> + stage_duration_s.<prev>. Future jobs
+      will have a real per-stage timeline in the debug payload.
+    - _render_trailer fires sub-stage heartbeats so the UI no longer
+      shows generic "88% RENDERING_TRAILER":
+        "Combining scenes (i/N)" · "Adding end card" · "Stitching trailer"
+        · "Adding music"
+    - New admin endpoint: GET /api/photo-trailer/admin/jobs/{job_id}/debug
+      (admin-gated, returns 404 for unknown).
+      Payload: success, job_id, status, current_stage, stage_started_at,
+      elapsed_in_stage_s, elapsed_total_s, elapsed_since_progress_s,
+      stage_sla_s, over_stage_sla, last_error_code, last_error_message,
+      output_url_present, audio_url_present, video_url, r2_key,
+      vertical_r2_key, credits_refunded, credits_charged,
+      duration_target_seconds, template_id, stage_timeline[],
+      ffmpeg_stderr_tail, created_at, completed_at.
+    - HEARTBEAT_THRESHOLDS_YS table (per-stage SLAs in seconds) is now
+      exposed for both the debug endpoint and the existing janitor.
+
+═══ P0-C — First-click Play frontend fix ═══
+
+  Root cause: <video src={...}> swap in React doesn't trigger .load() on
+  every browser, so the first .play() inside the native controls races the
+  buffering. Safari/iOS in particular needs explicit .load() + canplay
+  before play() can succeed inside a user gesture.
+
+  • pages/PhotoTrailerPage.jsx ResultStep
+    - Added videoRef (React.useRef). On streamUrl change → forces
+      videoRef.current.load().
+    - canPlay state driven by onLoadedMetadata + onCanPlay events.
+    - isPlaying state driven by onPlay + onPlaying + onPause + onEnded.
+    - playFailed state on .play() promise rejection → visible error toast.
+    - "Tap to play trailer" overlay (data-testid="trailer-tap-to-play")
+      shown ONLY when canPlay && !isPlaying.
+    - "Loading video…" overlay shown while !canPlay (so user knows the
+      buffering is happening, not a hang).
+    - Cache-busting query param ?_v=Date.now() on the stream URL prevents
+      a stale browser-cached MP4 from re-mounting on regenerate.
+    - All event handlers wired: play, playing, pause, ended, error,
+      canplay, loadedmetadata.
+
+═══ P0-D — ffprobe audio validation before COMPLETED ═══
+
+  • routes/photo_trailer.py
+    - New _validate_render(path, expected_duration) helper.
+    - Checks: file exists, has video stream, has audio stream, codecs are
+      h264+aac, audio_duration ≥ video_duration - 0.5s.
+    - Robust ffprobe lookup: env var → which → /usr/local/bin/ffprobe →
+      /usr/bin/ffprobe. If ffprobe is missing or doesn't support
+      -print_format json (base-image stub), falls back to "ffmpeg -i"
+      parsing for the minimum "video stream present + audio stream
+      present" assertion.
+    - New RenderValidationError exception class.
+    - _render_trailer now calls _validate_render before returning the
+      final path.
+    - The pipeline's `except` block catches RenderValidationError and
+      marks the job with structured code RENDER_INVALID, refunds credits,
+      and shows the user the specific reason.
+
+═══ REGRESSION TESTS (14/14 PASS) ═══
+  backend/tests/test_youstar_reliability_trio_2026_05.py:
+    • test_set_stage_records_started_and_completed_at
+    • test_render_trailer_emits_substage_heartbeats
+    • test_admin_debug_endpoint_admin_gated
+    • test_admin_debug_endpoint_returns_404_for_unknown_id
+    • test_admin_debug_endpoint_returns_contract_for_real_job
+    • test_per_stage_sla_table_present
+    • test_frontend_video_uses_ref_and_explicit_load
+    • test_frontend_play_button_gated_by_canplay
+    • test_frontend_handle_tap_to_play_runs_in_user_gesture
+    • test_frontend_streamurl_cache_busted
+    • test_validate_render_accepts_valid_mp4        ← real ffmpeg fixtures
+    • test_validate_render_rejects_no_audio         ← real ffmpeg fixtures
+    • test_validate_render_rejects_missing_file     ← real ffmpeg fixtures
+    • test_create_flow_handles_validation_error
+
+═══ FILES CHANGED ═══
+  • backend/routes/photo_trailer.py (_set_stage, _render_trailer,
+    admin debug endpoint, _validate_render + RenderValidationError,
+    HEARTBEAT_THRESHOLDS_YS table)
+  • frontend/src/pages/PhotoTrailerPage.jsx (ResultStep player upgrade:
+    videoRef + canPlay + isPlaying + playFailed + handleTapToPlay +
+    Tap-to-play overlay + Loading overlay + cache-busting + event sync)
+  • backend/tests/test_youstar_reliability_trio_2026_05.py (NEW)
+
+═══ DEFERRED (per founder spec, do NOT touch in this push) ═══
+  • P0-B  Speed optimization (concurrent image/audio gen)
+  • P0-E  "How to use Raj" character usage guide
+  • P0-F  Sub-stage labels surfaced in the user-facing progress UI
+

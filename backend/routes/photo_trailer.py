@@ -732,6 +732,94 @@ async def admin_overview(user: dict = Depends(get_admin_user), days: int = Query
     }
 
 
+# P0-A 2026-05-16 — Admin per-job diagnostic. Mirrors the Story-to-Video
+# /jobs/:id/debug contract so operators have a single mental model.
+@router.get("/admin/jobs/{job_id}/debug")
+async def admin_debug_youstar_job(job_id: str, user: dict = Depends(get_admin_user)):
+    job = await db.photo_trailer_jobs.find_one({"_id": job_id}, {"_id": 1})
+    job_full = await db.photo_trailer_jobs.find_one({"_id": job_id})
+    if not job_full:
+        raise HTTPException(status_code=404, detail="Trailer job not found")
+    now = datetime.now(timezone.utc)
+    created_at = job_full.get("created_at")
+    last_progress_at = job_full.get("last_progress_at") or created_at
+    last_stage_change_at = job_full.get("last_stage_change_at") or created_at
+
+    def _elapsed(ts: Optional[str]) -> Optional[float]:
+        if not ts:
+            return None
+        try:
+            return round((now - datetime.fromisoformat(ts.replace("Z", "+00:00"))).total_seconds(), 2)
+        except Exception:
+            return None
+
+    started_map = job_full.get("stage_started_at") or {}
+    completed_map = job_full.get("stage_completed_at") or {}
+    duration_map = job_full.get("stage_duration_s") or {}
+    current_stage = job_full.get("current_stage")
+    stage_started_at = started_map.get(current_stage)
+
+    stages_report = []
+    for s in STAGES:
+        stages_report.append({
+            "stage": s,
+            "started_at": started_map.get(s),
+            "completed_at": completed_map.get(s),
+            "duration_s": duration_map.get(s),
+            "sla_s": HEARTBEAT_THRESHOLDS_YS.get(s),
+            "over_sla": (duration_map.get(s) or 0) > (HEARTBEAT_THRESHOLDS_YS.get(s) or 1e9),
+        })
+
+    # ffmpeg stderr tail (if any)
+    ffmpeg_stderr_tail = (job_full.get("last_ffmpeg_stderr") or "")[-2000:]
+
+    return {
+        "success": True,
+        "job_id": job_id,
+        "status": job_full.get("status"),
+        "current_stage": current_stage,
+        "stage_started_at": stage_started_at,
+        "elapsed_in_stage_s": _elapsed(stage_started_at),
+        "elapsed_total_s": _elapsed(created_at),
+        "elapsed_since_progress_s": _elapsed(last_progress_at),
+        "stage_sla_s": HEARTBEAT_THRESHOLDS_YS.get(current_stage),
+        "over_stage_sla": ((_elapsed(stage_started_at) or 0) > (HEARTBEAT_THRESHOLDS_YS.get(current_stage) or 1e9)),
+        "last_error_code": job_full.get("last_error_code"),
+        "last_error_message": job_full.get("last_error_message"),
+        "output_url_present": bool(job_full.get("output_url") or job_full.get("video_url")),
+        "audio_url_present": bool(job_full.get("audio_url") or any(
+            s.get("audio_url") for s in (job_full.get("scenes") or [])
+        )),
+        "video_url": job_full.get("output_url") or job_full.get("video_url"),
+        "r2_key": job_full.get("r2_key"),
+        "vertical_r2_key": job_full.get("vertical_r2_key"),
+        "credits_refunded": bool(job_full.get("credits_refunded")),
+        "credits_charged": job_full.get("charged_credits"),
+        "duration_target_seconds": job_full.get("duration_target_seconds"),
+        "template_id": job_full.get("template_id"),
+        "stage_timeline": stages_report,
+        "last_progress_at": last_progress_at,
+        "last_stage_change_at": last_stage_change_at,
+        "progress_message": job_full.get("progress_message"),
+        "ffmpeg_stderr_tail": ffmpeg_stderr_tail,
+        "created_at": created_at,
+        "completed_at": job_full.get("completed_at"),
+    }
+
+
+# Per-stage SLAs used by /admin/jobs/{id}/debug AND by the stuck-job janitor.
+HEARTBEAT_THRESHOLDS_YS = {
+    "VALIDATING": 30,
+    "ANALYZING_PHOTOS": 60,
+    "BUILDING_CHARACTER": 60,
+    "WRITING_TRAILER_SCRIPT": 60,
+    "GENERATING_SCENES": 240,
+    "GENERATING_VOICEOVER": 90,
+    "ADDING_MUSIC": 60,
+    "RENDERING_TRAILER": 240,
+}
+
+
 # ═════════════════════════ PIPELINE ORCHESTRATOR ═══════════════════════════════
 
 STAGES = ["VALIDATING", "ANALYZING_PHOTOS", "BUILDING_CHARACTER", "WRITING_TRAILER_SCRIPT",
@@ -749,16 +837,38 @@ MUSIC_TRACK_BY_MOOD = {
 async def _set_stage(job_id: str, stage: str, **extra):
     """Move the job to a new stage AND update the progress heartbeat. The
     `last_progress_at` + `last_stage_change_at` fields tell the janitor this
-    job is alive; without them, slow scene-gens were getting reaped at 5min."""
+    job is alive; without them, slow scene-gens were getting reaped at 5min.
+
+    P0 2026-05-16 — also records stage_started_at[stage] = now and, if the
+    previous stage exists, stage_completed_at[prev_stage] + per-stage
+    duration. Powers /api/admin/youstar/jobs/{job_id}/debug.
+    """
+    now_iso = _now()
+    j = await db.photo_trailer_jobs.find_one(
+        {"_id": job_id}, {"current_stage": 1, "stage_started_at": 1}
+    ) or {}
+    prev_stage = j.get("current_stage")
+    started_map = j.get("stage_started_at") or {}
+
     upd = {
         "current_stage": stage,
         "progress_percent": STAGE_PCT.get(stage, 0),
-        "updated_at": _now(),
-        "last_progress_at": _now(),
-        "last_stage_change_at": _now(),
+        "updated_at": now_iso,
+        "last_progress_at": now_iso,
+        "last_stage_change_at": now_iso,
+        f"stage_started_at.{stage}": now_iso,
         # Clear any previous transient progress message — the new stage starts fresh
         "progress_message": None,
     }
+    # Close-out duration for previous stage
+    if prev_stage and prev_stage not in ("COMPLETED", "FAILED") and prev_stage in started_map:
+        try:
+            t_start = datetime.fromisoformat(started_map[prev_stage].replace("Z", "+00:00"))
+            t_now = datetime.fromisoformat(now_iso.replace("Z", "+00:00"))
+            upd[f"stage_completed_at.{prev_stage}"] = now_iso
+            upd[f"stage_duration_s.{prev_stage}"] = round((t_now - t_start).total_seconds(), 2)
+        except Exception:
+            pass
     upd.update(extra)
     await db.photo_trailer_jobs.update_one({"_id": job_id}, {"$set": upd})
 
@@ -1034,7 +1144,12 @@ def _subtitle_filter(narration: str) -> str:
 async def _render_trailer(job: dict, scenes_data: List[dict], tmp: str) -> str:
     """ffmpeg: stitch images with varied motion + voiceover + music +
     subtitles + end card. Each scene gets a distinct camera move + tone
-    grade + scene subtitle + 0.25s fade-in/out so cuts feel cinematic."""
+    grade + scene subtitle + 0.25s fade-in/out so cuts feel cinematic.
+
+    P0 2026-05-16 — fires sub-stage heartbeats so the user no longer sees
+    the job stuck at a generic 88% / RENDERING_TRAILER for the full render.
+    """
+    job_id = str(job.get("_id", ""))
     import imageio_ffmpeg
     # Prefer system ffmpeg (has drawtext + libfreetype). Fall back to bundled.
     ffmpeg = "/usr/bin/ffmpeg" if os.path.exists("/usr/bin/ffmpeg") else imageio_ffmpeg.get_ffmpeg_exe()
@@ -1044,6 +1159,9 @@ async def _render_trailer(job: dict, scenes_data: List[dict], tmp: str) -> str:
     grade = _TONE_GRADE.get(tone)
 
     out_clips = []
+    total = len(scenes_data)
+    if job_id:
+        await _heartbeat(job_id, f"Combining scenes (0/{total})")
     for i, s in enumerate(scenes_data):
         img = s["image_path"]; aud = s["audio_path"]; dur = max(3.0, s["duration"])
         clip = os.path.join(tmp, f"clip_{i}.mp4")
@@ -1085,7 +1203,11 @@ async def _render_trailer(job: dict, scenes_data: List[dict], tmp: str) -> str:
                      "-c:a", "aac", "-b:a", "128k", "-r", "25", "-t", f"{dur}",
                      "-movflags", "+faststart", clip])
         out_clips.append(clip)
+        if job_id:
+            await _heartbeat(job_id, f"Combining scenes ({i+1}/{total})")
     # End card — 2.5s static branded text
+    if job_id:
+        await _heartbeat(job_id, "Adding end card")
     end_card = os.path.join(tmp, "endcard.mp4")
     await _ffmpeg([ffmpeg, "-y", "-f", "lavfi", "-i", "color=c=black:s=1280x720:d=2.5:r=25",
                  "-vf", "drawtext=text='Created with Visionary Suite':fontcolor=white:fontsize=42:x=(w-tw)/2:y=(h-th)/2-30,"
@@ -1094,6 +1216,8 @@ async def _render_trailer(job: dict, scenes_data: List[dict], tmp: str) -> str:
                  "-c:a", "aac", "-shortest", end_card])
     out_clips.append(end_card)
     # Concat
+    if job_id:
+        await _heartbeat(job_id, "Stitching trailer")
     concat_txt = os.path.join(tmp, "concat.txt")
     with open(concat_txt, "w") as f:
         for c in out_clips: f.write(f"file '{c}'\n")
@@ -1121,6 +1245,8 @@ async def _render_trailer(job: dict, scenes_data: List[dict], tmp: str) -> str:
         "-metadata", f"description=Photo Trailer Job {job_id_short} | {job.get('template_id', 'custom')}",
     ]
     if music_path:
+        if job_id:
+            await _heartbeat(job_id, "Adding music")
         await _ffmpeg([ffmpeg, "-y", "-i", stitched, "-stream_loop", "-1", "-i", music_path,
                      "-filter_complex", wm_filter + ";[1:a]volume=0.18[m];[0:a][m]amix=inputs=2:duration=shortest[a]",
                      "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
@@ -1131,7 +1257,120 @@ async def _render_trailer(job: dict, scenes_data: List[dict], tmp: str) -> str:
                      "x=w-tw-22:y=h-th-22:box=1:boxcolor=black@0.25:boxborderw=8",
                      "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
                      "-c:a", "copy", *meta_args, "-movflags", "+faststart", final])
+    # P0-D 2026-05-16 — ffprobe validation: fail if audio is missing/short
+    # (silent renders are a worse user experience than a clean failure).
+    try:
+        await _validate_render(final, expected_duration=float(job.get("duration_target_seconds", 0)))
+    except RenderValidationError as e:
+        log.error(f"[trailer {job_id}] RENDER_INVALID: {e}")
+        raise
     return final
+
+
+class RenderValidationError(Exception):
+    """Raised when the final MP4 fails ffprobe sanity checks."""
+
+
+async def _validate_render(path: str, expected_duration: float = 0.0) -> None:
+    """ffprobe the final MP4. Refuses to mark COMPLETED if:
+      • no video stream OR no audio stream
+      • audio duration < video_duration - 0.5s
+      • video codec ≠ h264 OR audio codec ≠ aac
+    P0-D 2026-05-16 — prevents the 'video ready but no audio' production
+    bug from making it past the pipeline silently.
+    """
+    if not os.path.exists(path):
+        raise RenderValidationError(f"render output missing: {path}")
+    # Locate ffprobe robustly. The base image's /usr/local/bin/ffprobe is
+    # actually a stub that doesn't accept -print_format, so we MUST resolve
+    # through PATH and verify the binary supports JSON output.
+    import shutil as _shutil
+    cand = []
+    for env_path in (os.environ.get("FFPROBE_BIN"),):
+        if env_path and os.path.exists(env_path):
+            cand.append(env_path)
+    which_path = _shutil.which("ffprobe")
+    if which_path:
+        cand.append(which_path)
+    cand += ["/usr/local/bin/ffprobe", "/usr/bin/ffprobe"]
+    # Try each; first one that supports -print_format wins.
+    ffprobe = None
+    last_err = None
+    for c in cand:
+        if not c or not os.path.exists(c):
+            continue
+        try:
+            test = await asyncio.create_subprocess_exec(
+                c, "-v", "error", "-print_format", "json", "-show_format", path,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
+            _, t_stderr = await test.communicate()
+            if test.returncode == 0:
+                ffprobe = c
+                break
+            last_err = t_stderr.decode(errors="replace")[:120]
+        except Exception as _e:
+            last_err = str(_e)
+    if not ffprobe:
+        # If no real ffprobe is available, fall back to ffmpeg -i parsing.
+        # We tolerate this gracefully rather than failing the whole job.
+        log.warning(f"[validate_render] ffprobe unavailable ({last_err}); using ffmpeg -i fallback")
+        ffmpeg_bin = "/usr/local/bin/ffmpeg" if os.path.exists("/usr/local/bin/ffmpeg") else "ffmpeg"
+        proc = await asyncio.create_subprocess_exec(
+            ffmpeg_bin, "-i", path, "-hide_banner",
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        _, err = await proc.communicate()
+        err_txt = err.decode(errors="replace")
+        has_video = "Video:" in err_txt
+        has_audio = "Audio:" in err_txt
+        if not has_video:
+            raise RenderValidationError("no video stream in final MP4 (ffmpeg fallback)")
+        if not has_audio:
+            raise RenderValidationError("no audio stream in final MP4 (ffmpeg fallback)")
+        log.info("[validate_render] OK (ffmpeg fallback): video+audio streams present")
+        return
+    proc = await asyncio.create_subprocess_exec(
+        ffprobe, "-v", "error", "-print_format", "json",
+        "-show_streams", "-show_format", path,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        raise RenderValidationError(f"ffprobe rc={proc.returncode}: {stderr.decode(errors='replace')[:200]}")
+    try:
+        info = json.loads(stdout.decode())
+    except Exception as e:
+        raise RenderValidationError(f"ffprobe non-JSON: {e}")
+
+    streams = info.get("streams", []) or []
+    v = next((s for s in streams if s.get("codec_type") == "video"), None)
+    a = next((s for s in streams if s.get("codec_type") == "audio"), None)
+    if not v:
+        raise RenderValidationError("no video stream in final MP4")
+    if not a:
+        raise RenderValidationError("no audio stream in final MP4")
+    if v.get("codec_name") != "h264":
+        raise RenderValidationError(f"video codec={v.get('codec_name')} (expected h264)")
+    if a.get("codec_name") not in ("aac", "mp4a"):
+        raise RenderValidationError(f"audio codec={a.get('codec_name')} (expected aac)")
+
+    def _dur(s):
+        try:
+            return float(s.get("duration") or s.get("tags", {}).get("DURATION", 0) or 0)
+        except Exception:
+            return 0.0
+
+    v_dur = _dur(v) or float(info.get("format", {}).get("duration", 0) or 0)
+    a_dur = _dur(a) or float(info.get("format", {}).get("duration", 0) or 0)
+    if a_dur < (v_dur - 0.5):
+        raise RenderValidationError(
+            f"audio shorter than video (audio={a_dur:.2f}s, video={v_dur:.2f}s)"
+        )
+    log.info(
+        f"[validate_render] OK video={v_dur:.2f}s audio={a_dur:.2f}s "
+        f"v_codec={v.get('codec_name')} a_codec={a.get('codec_name')}"
+    )
 
 
 # ─── 9:16 vertical auto-cut ──────────────────────────────────────────────────
@@ -1390,6 +1629,15 @@ async def _run_pipeline_inner(job_id: str):
                 job_id, "RENDER_TIMEOUT",
                 f"Final render took longer than {render_budget_min} minutes. "
                 "Credits refunded — please retry.",
+            )
+        except RenderValidationError as e:
+            # P0-D 2026-05-16 — final MP4 failed ffprobe (missing/short audio,
+            # wrong codec, no streams). Refuse to mark COMPLETED with a broken
+            # output. User gets a clean error + credit refund.
+            log.error(f"[trailer {job_id}] RENDER_INVALID: {e}")
+            return await _fail(
+                job_id, "RENDER_INVALID",
+                f"Final video failed quality check: {e}. Credits refunded — please retry.",
             )
         except Exception:
             log.exception(f"render failed for {job_id}")

@@ -799,6 +799,15 @@ function ResultStep({ job, onCreateAnother, onBackToWizard }) {
   const [format, setFormat] = React.useState('wide'); // wide | vertical
   const [hasVertical, setHasVertical] = React.useState(false);
   const downloadHrefRef = React.useRef(null);
+  // P0-C 2026-05-16 — first-click Play bug fix
+  // - ref to the <video> so we can call .load() after src change
+  // - canPlay state so the overlay/Play CTA only enables after the
+  //   browser has fetched enough metadata to fulfil .play() synchronously
+  // - playFailed state surfaces a visible reason if .play() rejects
+  const videoRef = React.useRef(null);
+  const [canPlay, setCanPlay] = React.useState(false);
+  const [isPlaying, setIsPlaying] = React.useState(false);
+  const [playFailed, setPlayFailed] = React.useState(null);
   React.useEffect(() => {
     let cancelled = false;
     const load = async () => {
@@ -808,7 +817,10 @@ function ResultStep({ job, onCreateAnother, onBackToWizard }) {
         if (!r.ok) return;
         const j = await r.json();
         if (!cancelled) {
-          setStreamUrl(j.url);
+          // Cache-bust so the SAME job_id + format never reuses a stale
+          // browser-cached MP4 from a previous regenerate.
+          const bust = (j.url && !j.url.includes('?')) ? '?' : '&';
+          setStreamUrl(j.url ? `${j.url}${bust}_v=${Date.now()}` : null);
           if (j.thumbnail_url) setThumbUrl(j.thumbnail_url);
           setHasVertical(!!j.has_vertical);
         }
@@ -818,6 +830,30 @@ function ResultStep({ job, onCreateAnother, onBackToWizard }) {
     const timer = setInterval(load, 9 * 60 * 1000);
     return () => { cancelled = true; clearInterval(timer); };
   }, [job._id, job.job_id, format]);
+
+  // P0-C — when streamUrl changes, force the element to re-load.
+  // Browsers don't always re-fetch on a src prop swap inside React.
+  React.useEffect(() => {
+    setCanPlay(false);
+    setIsPlaying(false);
+    setPlayFailed(null);
+    if (videoRef.current && streamUrl) {
+      try { videoRef.current.load(); } catch (_) { /* noop */ }
+    }
+  }, [streamUrl]);
+
+  const handleTapToPlay = React.useCallback(() => {
+    setPlayFailed(null);
+    const el = videoRef.current;
+    if (!el) return;
+    // Must run inside the user gesture handler — no awaits before play().
+    const p = el.play();
+    if (p && typeof p.then === 'function') {
+      p.catch((err) => {
+        setPlayFailed(`${err?.name || 'PlayError'}: ${err?.message || 'unable to play'}`);
+      });
+    }
+  }, []);
 
   const PUBLIC_BASE = window.location.origin;
   const slug = job.public_share_slug;
@@ -985,14 +1021,61 @@ function ResultStep({ job, onCreateAnother, onBackToWizard }) {
           </div>
         </div>
       )}
-      <video
-        key={format}
-        src={streamUrl || undefined}
-        controls
-        poster={thumbUrl || undefined}
-        className={`w-full rounded-2xl border border-white/10 bg-black ${format === 'vertical' ? 'max-w-[360px] mx-auto block' : ''}`}
-        data-testid="trailer-result-video"
-      />
+      <div className="relative">
+        <video
+          ref={videoRef}
+          key={format}
+          src={streamUrl || undefined}
+          controls
+          playsInline
+          preload="metadata"
+          poster={thumbUrl || undefined}
+          onLoadedMetadata={() => setCanPlay(true)}
+          onCanPlay={() => setCanPlay(true)}
+          onPlay={() => { setIsPlaying(true); setPlayFailed(null); }}
+          onPlaying={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+          onEnded={() => setIsPlaying(false)}
+          onError={() => setPlayFailed('Video failed to load. Tap reload or refresh the page.')}
+          className={`w-full rounded-2xl border border-white/10 bg-black ${format === 'vertical' ? 'max-w-[360px] mx-auto block' : ''}`}
+          data-testid="trailer-result-video"
+        />
+        {/* P0-C — visible "Tap to play" overlay, only AFTER canplay AND
+            before first successful play. Native controls remain available;
+            this overlay just guarantees a reliable first-click gesture. */}
+        {streamUrl && canPlay && !isPlaying && (
+          <button
+            type="button"
+            onClick={handleTapToPlay}
+            className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition-colors rounded-2xl group"
+            data-testid="trailer-tap-to-play"
+            aria-label="Tap to play trailer"
+          >
+            <span className="w-20 h-20 rounded-full bg-white/95 group-hover:scale-105 active:scale-95 transition-transform flex items-center justify-center shadow-2xl">
+              <svg viewBox="0 0 24 24" className="w-9 h-9 ml-1 text-violet-700" fill="currentColor">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            </span>
+          </button>
+        )}
+        {streamUrl && !canPlay && (
+          <div
+            className="absolute inset-0 flex items-center justify-center bg-black/55 rounded-2xl pointer-events-none"
+            data-testid="trailer-buffering"
+            aria-live="polite"
+          >
+            <span className="text-white text-sm font-medium animate-pulse">Loading video…</span>
+          </div>
+        )}
+        {playFailed && (
+          <div
+            className="absolute left-3 right-3 bottom-3 px-3 py-2 rounded-lg bg-red-600/90 text-white text-xs font-medium"
+            data-testid="trailer-play-error"
+          >
+            {playFailed}
+          </div>
+        )}
+      </div>
       <div className="flex flex-wrap gap-2">
         <button onClick={handleDownload} className="flex-1 min-w-[120px] py-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors" data-testid="trailer-download-btn">
           <Download className="w-4 h-4" /> Download {format === 'vertical' ? '9:16' : '16:9'}
