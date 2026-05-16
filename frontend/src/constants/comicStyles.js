@@ -1,61 +1,136 @@
 /**
- * Canonical Photo-to-Comic style registry — 2026-05-16 P0
+ * Comic Styles — frontend wire to the backend canonical catalog
+ * ===============================================================
  *
- * Single source of truth for comic styles. The page imports `COMIC_STYLES`
- * for the grid rendering AND `normalizeComicStyle()` to defensively coerce
- * any value (string | object | nullish) into the canonical API string the
- * backend expects.
+ * P0 2026-05-18 — single source of truth.
  *
- * The previous bug: an upstream caller occasionally passed a raw style
- * OBJECT into `formData.append('style', s)`, which serialized to the
- * literal string "[object Object]" — the backend then rejected it with
- * "Invalid style '[object Object]'".
+ * The backend `SAFE_STYLES` dict in `routes/photo_to_comic.py` is now
+ * THE authoritative catalog. This module:
+ *
+ *   • Fetches the catalog from `GET /api/photo-to-comic/styles-catalog`
+ *     filtered by mode (avatar / strip).
+ *   • Caches in memory per mount.
+ *   • Falls back to a HARDCODED MIRROR of the catalog if the network is
+ *     down — this is intentionally a SUBSET of SAFE_STYLES (only the
+ *     entries with `enabled: True`). Any drift between this mirror and
+ *     the backend is caught by the regression tests.
+ *
+ * The exported `normalizeComicStyle()` keeps its old contract: pass a
+ * raw user/UI value, get back the canonical key (or null if invalid).
  */
+import api from '../utils/api';
 
-export const COMIC_STYLES = [
-  { id: 'bold_superhero',  apiValue: 'bold_superhero',  label: 'Bold Hero',   color: 'from-red-600 to-orange-500',     tier: 'free' },
-  { id: 'cartoon_fun',     apiValue: 'cartoon_fun',     label: 'Cartoon',     color: 'from-yellow-500 to-amber-400',   tier: 'free' },
-  { id: 'retro_action',    apiValue: 'retro_action',    label: 'Retro Pop',   color: 'from-pink-500 to-rose-400',      tier: 'free' },
-  { id: 'soft_manga',      apiValue: 'soft_manga',      label: 'Manga',       color: 'from-indigo-500 to-violet-400',  tier: 'free' },
-  { id: 'cute_chibi',      apiValue: 'cute_chibi',      label: 'Chibi',       color: 'from-emerald-500 to-teal-400',   tier: 'free' },
-  { id: 'kids_storybook',  apiValue: 'kids_storybook',  label: 'Storybook',   color: 'from-sky-500 to-cyan-400',       tier: 'free' },
-  { id: 'noir_comic',      apiValue: 'noir_comic',      label: 'Noir',        color: 'from-slate-600 to-zinc-500',     tier: 'free' },
-  { id: 'scifi_neon',      apiValue: 'scifi_neon',      label: 'Sci-Fi Neon', color: 'from-fuchsia-600 to-purple-500', tier: 'paid' },
-  { id: 'cyberpunk_comic', apiValue: 'cyberpunk_comic', label: 'Cyberpunk',   color: 'from-cyan-500 to-blue-600',      tier: 'paid' },
-  { id: 'magical_fantasy', apiValue: 'magical_fantasy', label: 'Fantasy',     color: 'from-violet-600 to-indigo-500',  tier: 'paid' },
-  { id: 'dreamy_pastel',   apiValue: 'dreamy_pastel',   label: 'Pastel',      color: 'from-rose-400 to-pink-300',      tier: 'paid' },
-  { id: 'black_white_ink', apiValue: 'black_white_ink', label: 'Ink Art',     color: 'from-gray-700 to-gray-500',      tier: 'paid' },
-];
+// ────────────────────────────────────────────────────────────────────────
+// Hardcoded mirror — used ONLY when the backend catalog fetch fails.
+// MUST stay in lockstep with the `enabled: True` entries of
+// `routes/photo_to_comic.py :: SAFE_STYLES`. Tests enforce this.
+// ────────────────────────────────────────────────────────────────────────
+export const COMIC_STYLES = Object.freeze([
+  { key: 'bold_superhero', label: 'Bold Hero',     description: 'Action & courage',        preview_color: 'from-red-600 to-orange-500',     modes: ['avatar', 'strip'], tier: 'free' },
+  { key: 'cartoon_fun',    label: 'Cartoon',       description: 'Bright & playful',        preview_color: 'from-yellow-500 to-amber-400',   modes: ['avatar', 'strip'], tier: 'free' },
+  { key: 'retro_action',   label: 'Retro Pop',     description: 'Vibrant & dynamic',       preview_color: 'from-pink-500 to-rose-400',      modes: ['avatar', 'strip'], tier: 'free' },
+  { key: 'soft_manga',     label: 'Manga',         description: 'Gentle & expressive',     preview_color: 'from-indigo-500 to-violet-400',  modes: ['avatar', 'strip'], tier: 'free' },
+  { key: 'cute_chibi',     label: 'Chibi',         description: 'Adorable & mini',         preview_color: 'from-emerald-500 to-teal-400',   modes: ['avatar', 'strip'], tier: 'free' },
+  { key: 'kids_storybook', label: 'Storybook',     description: 'Friendly & wholesome',    preview_color: 'from-sky-500 to-cyan-400',       modes: ['avatar', 'strip'], tier: 'free' },
+  { key: 'noir_comic',     label: 'Noir',          description: 'Dramatic & shadowed',     preview_color: 'from-slate-600 to-zinc-500',     modes: ['avatar', 'strip'], tier: 'free' },
+  { key: 'scifi_neon',     label: 'Sci-Fi Neon',   description: 'Futuristic & vibrant',    preview_color: 'from-fuchsia-600 to-purple-500', modes: ['avatar', 'strip'], tier: 'paid' },
+  { key: 'cyberpunk_comic',label: 'Cyberpunk',     description: 'High-tech dystopia',      preview_color: 'from-cyan-500 to-blue-600',      modes: ['avatar', 'strip'], tier: 'paid' },
+  { key: 'magical_fantasy',label: 'Fantasy',       description: 'Enchanted & mystical',    preview_color: 'from-violet-600 to-indigo-500',  modes: ['avatar', 'strip'], tier: 'paid' },
+  { key: 'dreamy_pastel',  label: 'Pastel',        description: 'Soft & dreamy',           preview_color: 'from-rose-400 to-pink-300',      modes: ['avatar', 'strip'], tier: 'paid' },
+  { key: 'black_white_ink',label: 'Ink Art',       description: 'Bold & contrasted',       preview_color: 'from-gray-700 to-gray-500',      modes: ['avatar', 'strip'], tier: 'paid' },
+]);
 
-const VALID_KEYS = new Set(COMIC_STYLES.map((s) => s.apiValue));
+// Map of canonical keys → label, used by normalizeComicStyle below.
+const STYLE_KEYS = new Set(COMIC_STYLES.map(s => s.key));
+const STYLE_KEY_BY_LABEL = new Map(
+  COMIC_STYLES.map(s => [s.label.toLowerCase(), s.key])
+);
 
 /**
- * Coerce any input to the canonical API string the backend expects.
- * Accepts:
- *   - string: "soft_manga"           → "soft_manga"
- *   - object: { id: "soft_manga" }   → "soft_manga"
- *   - object: { apiValue: "soft_manga" } → "soft_manga"
- *   - object: { key: "soft_manga" }  → "soft_manga"
- *   - object: { value: "soft_manga" }→ "soft_manga"
- *   - anything else                  → null (caller must surface an error)
+ * Normalize any user/UI input to a canonical style key.
  *
- * Returns null on any unsupported / unknown value so the caller can show
- * the structured "Selected comic style is not supported." toast and refuse
- * to send the request.
+ * Accepts:
+ *   • exact canonical key  ('cartoon_fun')
+ *   • case-insensitive label ('Cartoon', 'CARTOON')
+ *   • already-normalized object { key } from older code paths
+ *
+ * Returns the canonical string key, or `null` if it cannot be normalized.
+ * `null` MUST be treated as a UI bug — the grid should never let the user
+ * pick something that doesn't normalize.
  */
 export function normalizeComicStyle(input) {
   if (input == null) return null;
-  let candidate = null;
   if (typeof input === 'string') {
-    candidate = input.trim();
-  } else if (typeof input === 'object') {
-    candidate = input.apiValue || input.id || input.key || input.value || input.style || null;
-    if (typeof candidate === 'string') candidate = candidate.trim();
+    const t = input.trim();
+    if (!t) return null;
+    if (STYLE_KEYS.has(t)) return t;
+    const byLabel = STYLE_KEY_BY_LABEL.get(t.toLowerCase());
+    return byLabel || null;
   }
-  if (!candidate || typeof candidate !== 'string') return null;
-  return VALID_KEYS.has(candidate) ? candidate : null;
+  if (typeof input === 'object' && typeof input.key === 'string') {
+    return STYLE_KEYS.has(input.key) ? input.key : null;
+  }
+  return null;
 }
 
 export function isValidComicStyle(input) {
   return normalizeComicStyle(input) !== null;
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Backend-backed catalog fetch (P0 2026-05-18)
+// ────────────────────────────────────────────────────────────────────────
+
+const _modeCache = new Map(); // mode → { ts, styles }
+const CACHE_TTL_MS = 60_000;
+
+/**
+ * Fetch the canonical comic-style catalog from the backend filtered by
+ * mode. Returns an Array of `{ key, label, name, modes, tier,
+ * preview_color, provider_style }`. On network failure, returns the
+ * hardcoded mirror filtered by mode.
+ *
+ * @param {('avatar'|'strip')} mode
+ * @returns {Promise<Array>} catalog entries valid for `mode`
+ */
+export async function fetchComicStylesCatalog(mode) {
+  if (mode !== 'avatar' && mode !== 'strip') {
+    throw new Error(`fetchComicStylesCatalog: invalid mode '${mode}'`);
+  }
+  const cached = _modeCache.get(mode);
+  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+    return cached.styles;
+  }
+  try {
+    const r = await api.get(
+      `/api/photo-to-comic/styles-catalog?mode=${encodeURIComponent(mode)}`
+    );
+    const styles = Array.isArray(r?.data?.styles) ? r.data.styles : null;
+    if (!styles || styles.length === 0) throw new Error('empty catalog');
+    _modeCache.set(mode, { ts: Date.now(), styles });
+    return styles;
+  } catch (_) {
+    // Fallback: filter the hardcoded mirror by mode. This guarantees the
+    // grid always renders SOMETHING, and every entry is in the
+    // hardcoded mirror — which the regression tests prove is a strict
+    // subset of the backend's `enabled: True` entries.
+    const fallback = COMIC_STYLES.filter(s => s.modes.includes(mode));
+    return fallback.map(s => ({
+      key: s.key,
+      label: s.label,
+      name: s.label,
+      modes: s.modes,
+      tier: s.tier,
+      preview_color: s.preview_color,
+      provider_style: s.key,
+      enabled: true,
+    }));
+  }
+}
+
+/** Synchronous accessor for the hardcoded mirror filtered by mode. Used
+ *  by tests and any UI that needs an instant render before the fetch
+ *  completes. */
+export function comicStylesMirrorForMode(mode) {
+  return COMIC_STYLES.filter(s => s.modes.includes(mode));
 }

@@ -50,13 +50,15 @@ class ComicErrorBoundary extends React.Component {
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────
-import { COMIC_STYLES, normalizeComicStyle } from '../constants/comicStyles';
-// Page kept a local STYLES alias for back-compat with the existing JSX that
-// references s.id / s.name / s.color / s.tier. Map apiValue → id and label
-// → name so no existing render line has to change.
-const STYLES = COMIC_STYLES.map((s) => ({
-  id: s.apiValue, name: s.label, color: s.color, tier: s.tier,
-}));
+// P0 2026-05-18 — Catalog is mode-aware and fetched from the canonical
+// backend endpoint `/api/photo-to-comic/styles-catalog`. The page no
+// longer maintains its own STYLES alias.
+import {
+  COMIC_STYLES,
+  normalizeComicStyle,
+  fetchComicStylesCatalog,
+  comicStylesMirrorForMode,
+} from '../constants/comicStyles';
 
 const GENRES = [
   { id: 'action', name: 'Action' }, { id: 'comedy', name: 'Comedy' },
@@ -110,6 +112,52 @@ function PhotoToComicInner() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [mode, setMode] = useState('avatar');
   const [style, setStyle] = useState('cartoon_fun');
+
+  // P0 2026-05-18 — Mode-aware catalog. Initial render uses the synchronous
+  // hardcoded mirror for the active mode so the grid never shows empty
+  // state. Once mounted we fetch the canonical catalog from the backend
+  // and replace `availableStyles` with that. This is the single source
+  // of truth — the legacy module-scope `STYLES` was removed.
+  const [availableStyles, setAvailableStyles] = useState(() =>
+    comicStylesMirrorForMode('avatar').map(s => ({
+      id: s.key, name: s.label, color: s.preview_color, tier: s.tier,
+    }))
+  );
+
+  // Re-fetch the catalog when the user toggles avatar ↔ strip. If the
+  // currently-selected `style` is not legal for the new mode, reset it
+  // to the first available legal style. Founder spec: "Switching Comic
+  // Avatar ↔ Comic Strip must reset invalid style selections."
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const catalog = await fetchComicStylesCatalog(mode);
+        if (cancelled) return;
+        const mapped = catalog.map(s => ({
+          id: s.key,
+          name: s.label,
+          color: s.preview_color,
+          tier: s.tier,
+        }));
+        setAvailableStyles(mapped);
+        // Reset invalid selection on mode-switch.
+        const legalKeys = new Set(mapped.map(s => s.id));
+        if (!legalKeys.has(style)) {
+          // Pick the first FREE-tier style as the safe default; fall
+          // back to the very first item if the catalog has no free tier.
+          const next = mapped.find(s => s.tier === 'free') || mapped[0];
+          if (next) setStyle(next.id);
+        }
+      } catch (_) {
+        // Hard fallback: leave the current `availableStyles` as-is (the
+        // mirror), don't break the page.
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+
   const [genre, setGenre] = useState('action');
   const [panelCount, setPanelCount] = useState(4);
   const [storyPrompt, setStoryPrompt] = useState('');
@@ -359,6 +407,12 @@ function PhotoToComicInner() {
       if (structured?.code) {
         const codeMap = {
           INVALID_STYLE: 'Selected comic style is not supported. Please try another style.',
+          // P0 2026-05-18 — mode-aware mismatch (Avatar style picked while
+          // Strip mode is active, or vice versa). The backend returns the
+          // legal modes for the picked style in `allowed_modes` but the
+          // canonical fix is the mode-aware grid which prevents this from
+          // ever being reachable. This branch exists for defense in depth.
+          STYLE_MODE_MISMATCH: 'This style isn\u2019t available for the selected mode. Please pick another.',
           INSUFFICIENT_CREDITS: 'You need more credits to continue.',
           RATE_LIMITED: 'Too many requests right now. Please wait a moment and try again.',
           AUTH_EXPIRED: 'Your session expired. Please log in again.',
@@ -398,8 +452,21 @@ function PhotoToComicInner() {
       } else {
         fallback = `Comic generation failed (HTTP ${code}). Please try again.`;
       }
-      toast.error(serverMsg || fallback);
-      console.error('[p2c/create] error', { status: code, gateway: isGatewayError, message: err?.message });
+      // P0 2026-05-18 — append request_id (from envelope OR response header)
+      // so ALL non-structured failure paths still give the user a support ref.
+      const headerRid =
+        err?.response?.headers?.['x-request-id'] ||
+        err?.response?.headers?.['X-Request-Id'] ||
+        null;
+      const rid = data?.request_id || data?.detail?.request_id || headerRid || null;
+      let finalMsg = serverMsg || fallback;
+      if (rid) {
+        finalMsg = `${finalMsg}\nReference ID: ${rid}`;
+      } else if (isGatewayError) {
+        finalMsg = `${finalMsg}\nReference ID: not-captured (gateway-level failure — please retry; if persistent, contact support)`;
+      }
+      toast.error(finalMsg);
+      console.error('[p2c/create] error', { status: code, gateway: isGatewayError, message: err?.message, request_id: rid });
       setGenerating(false);
     }
   };
@@ -1036,7 +1103,7 @@ function PhotoToComicInner() {
                 </div>
                 <p className="text-xs text-slate-400">Same photo, different style. Quick re-create.</p>
                 <div className="grid grid-cols-4 gap-1.5">
-                  {STYLES.filter(s => s.id !== style).slice(0, 4).map(s => (
+                  {availableStyles.filter(s => s.id !== style).slice(0, 4).map(s => (
                     <button
                       key={s.id}
                       onClick={() => handleRemix(s.id)}
@@ -1310,7 +1377,7 @@ function PhotoToComicInner() {
                   <Palette className="w-3.5 h-3.5" /> Style
                 </h3>
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2" data-testid="style-grid">
-                  {STYLES.map((s) => {
+                  {availableStyles.map((s) => {
                     const locked = isLocked(s.tier);
                     const selected = style === s.id;
                     return (

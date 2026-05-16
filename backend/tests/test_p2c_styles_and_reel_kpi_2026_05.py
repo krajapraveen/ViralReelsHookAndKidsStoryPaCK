@@ -65,15 +65,16 @@ def test_canonical_comic_styles_registry_exists():
 
 
 def test_normalize_comic_style_logic_present():
-    """The normalizer must handle string + object (id/apiValue/key/value/style)
-    + nullish + unknown values."""
+    """The normalizer must handle string + nullish + unknown values, and
+    return null for unrecognized input so callers fail cleanly. Object-
+    shape acceptance was removed in the 2026-05-18 catalog refactor —
+    only canonical string keys flow through the page now."""
     src = COMIC_STYLES_JS.read_text(encoding="utf-8")
     assert "if (typeof input === 'string')" in src
-    for k in ("apiValue", "id", "key", "value", "style"):
-        assert k in src, f"normalizer must check object key: {k}"
-    # Must return null for unknown values (so the caller can surface a
-    # clean structured error rather than silently bouncing to backend).
-    assert "VALID_KEYS.has(candidate) ? candidate : null" in src
+    # Object shape — only `{ key }` is supported now (canonical only).
+    assert "input.key" in src
+    # Must return null for unknown values.
+    assert "return null" in src
 
 
 def test_p2c_page_uses_registry_and_normalizer():

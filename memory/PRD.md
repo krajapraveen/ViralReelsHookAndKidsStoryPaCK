@@ -65,6 +65,74 @@ state ownership, non-deterministic hydration.
 - `MySpacePage.js`, Comic Storybook — zero changes
 - UI styling, copy, auth, billing, pipeline, R2 — zero changes
 
+### P0 PRODUCTION BUG — Photo to Comic / Comic Strip "Style not supported" — May 18, 2026
+**Status**: SHIPPED in preview. Single source of truth. **Awaiting your redeploy + production verification.**
+
+**Production symptom**: Selecting a visible style on Photo to Comic (Avatar or Strip) sometimes triggered "Selected comic style is not supported. Please try another style." Toast carried no request_id, no actionable diagnostic.
+
+**Root cause** (founder's diagnosis confirmed): contract drift between two duplicated catalogs:
+- Frontend `constants/comicStyles.js`: 12 hard-coded styles
+- Backend `routes/photo_to_comic.py :: SAFE_STYLES`: 24 entries
+- No mode awareness on either side
+- No mechanism to keep them in lockstep
+
+When a deploy shipped a frontend label whose canonical key didn't exist in the backend (or vice versa, after a backend rename), the validator surfaced a hard `INVALID_STYLE` even though the UI was offering it.
+
+**Fix — single source of truth + mode-aware grid**:
+
+`backend/routes/photo_to_comic.py`:
+- `SAFE_STYLES` enriched with founder-spec metadata: `name`, `label`, `prompt`, `modes` (per-style avatar/strip availability), `tier`, `preview_color`, `enabled`
+- New `_styles_catalog_for_mode(mode)` returns only entries with `enabled: True` AND legal for the mode
+- New `is_style_valid_for_mode(key, mode)` is the authoritative validator used by the create endpoint
+- New `GET /api/photo-to-comic/styles-catalog?mode=avatar|strip` exposes the canonical filtered catalog
+- Create endpoint now returns:
+  - `400 INVALID_STYLE` for unknown keys (with `request_id`, `allowed_sample`, `retryable: false`)
+  - `422 STYLE_MODE_MISMATCH` for known keys that aren't legal for the active mode (with `request_id`, `allowed_modes`, `mode`)
+  - Both envelopes carry `request_id` from the reliability middleware
+
+`frontend/src/constants/comicStyles.js`:
+- Hardcoded mirror is now an explicit minimal subset of the backend `enabled: True` entries (12 entries)
+- New `fetchComicStylesCatalog(mode)` calls the canonical endpoint and caches per-mount, with the hardcoded mirror as the only fallback path
+- `normalizeComicStyle()` simplified — accepts string keys + label aliases only (canonical-only flow)
+
+`frontend/src/pages/PhotoToComic.js`:
+- Module-scope `STYLES = COMIC_STYLES.map(...)` REMOVED
+- New `availableStyles` state, initialized from the synchronous mirror, replaced by the backend catalog on mount + on every mode toggle
+- `useEffect([mode])` re-fetches the catalog and **resets `style` if it's not legal for the new mode** (founder spec verbatim: "Switching Comic Avatar ↔ Comic Strip must reset invalid style selections")
+- Error handler maps both `INVALID_STYLE` and `STYLE_MODE_MISMATCH` codes
+- Gateway/non-structured failure path now ALSO appends `Reference ID:` from response header or envelope (or `not-captured` for ingress-level failures)
+
+**Live wire test** (preview):
+```
+GET /api/photo-to-comic/styles-catalog?mode=avatar  → 12 styles
+GET /api/photo-to-comic/styles-catalog?mode=strip   → 12 styles
+```
+Both return the same 12 enabled keys (today every enabled style supports both modes). The catalog is mode-aware so future avatar-only or strip-only styles can be added cleanly without code changes anywhere except `SAFE_STYLES`.
+
+**Files changed**:
+- `backend/routes/photo_to_comic.py` (catalog enrichment + new endpoint + mode-aware validator)
+- `frontend/src/constants/comicStyles.js` (rewrite to backend-fetch with mirror fallback)
+- `frontend/src/pages/PhotoToComic.js` (mode-aware state + reset on switch + STYLE_MODE_MISMATCH handling + request_id on every error path)
+- `backend/tests/test_comic_styles_catalog_2026_05.py` (NEW, 16 tests)
+- `backend/tests/test_p2c_styles_and_reel_kpi_2026_05.py` (1 test updated for the new normalizer shape)
+
+**Tests added (16, all passing)**:
+- Backend shape (3): every entry has required metadata, catalog filter excludes disabled, validator consistent with catalog
+- Backend live API (3): avatar mode returns subset, strip mode returns subset, invalid mode rejected
+- Backend create-endpoint (2): unknown style → 400 INVALID_STYLE w/ request_id, mode mismatch → 422 STYLE_MODE_MISMATCH w/ request_id
+- Cross-side parity (2): frontend mirror ⊆ backend enabled set, every frontend mirror style passes validator for its modes
+- Frontend page wiring (5): fetches catalog endpoint, resets selection on mode switch, renders from `availableStyles` state, error handler surfaces request_id, handles STYLE_MODE_MISMATCH
+
+**Cumulative test count**: 43/43 in the comic-styles + legacy P2C suite passing. Sprint total: ~150+ tests across the active stability sprint.
+
+**Action required from you**:
+1. Deploy preview → production via Emergent UI
+2. Verify on `https://visionary-suite.com/app/photo-to-comic`:
+   - Click "Comic Avatar" → upload photo → cycle through every visible style → click Create. None should toast "Selected comic style is not supported."
+   - Switch to "Comic Strip" → cycle through every visible style → click Create. None should toast unsupported.
+   - Toggle Avatar ↔ Strip rapidly — the selected style should auto-reset if it doesn't fit the new mode (today same set, but the contract is in place for future drift)
+3. Paste back either CASE A (no unsupported toast for any visible style) or CASE B with the failing style + request_id from the toast.
+
 ### P0 PRODUCT — Story-to-Video Preview-First Contract — May 18, 2026
 **Status**: SHIPPED in preview. Source-level + behavioral tests passing. **Awaiting your redeploy + production verification.**
 

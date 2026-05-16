@@ -114,109 +114,244 @@ UNIVERSAL_NEGATIVE_PROMPTS = [
 # SAFE STYLE PRESETS
 # ============================================
 SAFE_STYLES = {
+    # ────────────────────────────────────────────────────────────────────
+    # P0 2026-05-18 — Single source of truth for the comic-style catalog.
+    # Every entry MUST carry these fields:
+    #   • name           — short label shown in the API list
+    #   • label          — display label shown in the UI grid (founder spec)
+    #   • prompt         — provider-side prompt fragment
+    #   • modes          — list of modes the style is valid for ("avatar"
+    #                      and/or "strip"). The frontend filters its grid
+    #                      by this list — styles not in the active mode
+    #                      are NOT shown so users can't pick something the
+    #                      backend will then reject.
+    #   • tier           — "free" or "paid"
+    #   • preview_color  — Tailwind gradient class used by the UI tile
+    #   • enabled        — kill-switch (defaults true). Set false to hide
+    #                      a style from the grid without deleting prompts.
+    #
+    # Founder-spec routing (exposed via GET /api/photo-to-comic/styles-catalog):
+    #   key, label, modes, enabled, provider_style, preview_color
+    # ────────────────────────────────────────────────────────────────────
     # Action Styles
     "bold_superhero": {
         "name": "Bold Superhero",
-        "prompt": "bold superhero comic style, dynamic heroic poses, vibrant colors, strong lines, original character design"
+        "label": "Bold Hero",
+        "prompt": "bold superhero comic style, dynamic heroic poses, vibrant colors, strong lines, original character design",
+        "modes": ["avatar", "strip"], "tier": "free", "enabled": True,
+        "preview_color": "from-red-600 to-orange-500",
     },
     "dark_vigilante": {
         "name": "Dark Vigilante",
-        "prompt": "dark vigilante comic style, moody shadows, noir atmosphere, mysterious character"
+        "label": "Dark Vigilante",
+        "prompt": "dark vigilante comic style, moody shadows, noir atmosphere, mysterious character",
+        "modes": ["avatar", "strip"], "tier": "paid", "enabled": False,
+        "preview_color": "from-slate-700 to-slate-500",
     },
     "retro_action": {
         "name": "Retro Action Comic",
-        "prompt": "retro 80s action comic style, halftone dots, bold colors, classic comic book aesthetic"
+        "label": "Retro Pop",
+        "prompt": "retro 80s action comic style, halftone dots, bold colors, classic comic book aesthetic",
+        "modes": ["avatar", "strip"], "tier": "free", "enabled": True,
+        "preview_color": "from-pink-500 to-rose-400",
     },
     "dynamic_battle": {
         "name": "Dynamic Battle Scene",
-        "prompt": "dynamic action scene, high energy, motion lines, impact effects, comic book style"
+        "label": "Dynamic Battle",
+        "prompt": "dynamic action scene, high energy, motion lines, impact effects, comic book style",
+        # Multi-panel scene by nature — strip-only
+        "modes": ["strip"], "tier": "paid", "enabled": False,
+        "preview_color": "from-amber-500 to-red-500",
     },
     # Fun Styles
     "cartoon_fun": {
         "name": "Cartoon Fun",
-        "prompt": "bright cheerful cartoon style, playful character, exaggerated features, fun comic"
+        "label": "Cartoon",
+        "prompt": "bright cheerful cartoon style, playful character, exaggerated features, fun comic",
+        "modes": ["avatar", "strip"], "tier": "free", "enabled": True,
+        "preview_color": "from-yellow-500 to-amber-400",
     },
     "meme_expression": {
         "name": "Meme Expression",
-        "prompt": "exaggerated funny expression, meme-worthy reaction, comedic cartoon style"
+        "label": "Meme Expression",
+        "prompt": "exaggerated funny expression, meme-worthy reaction, comedic cartoon style",
+        # Single-frame reaction shot — avatar-only
+        "modes": ["avatar"], "tier": "paid", "enabled": False,
+        "preview_color": "from-orange-400 to-yellow-400",
     },
     "comic_caricature": {
         "name": "Comic Caricature",
-        "prompt": "playful caricature style, exaggerated features, humorous character design"
+        "label": "Caricature",
+        "prompt": "playful caricature style, exaggerated features, humorous character design",
+        "modes": ["avatar"], "tier": "paid", "enabled": False,
+        "preview_color": "from-pink-400 to-fuchsia-500",
     },
     "exaggerated_reaction": {
         "name": "Exaggerated Reaction",
-        "prompt": "over-the-top emotional reaction, comedic expression, cartoon style"
+        "label": "Big Reaction",
+        "prompt": "over-the-top emotional reaction, comedic expression, cartoon style",
+        "modes": ["avatar"], "tier": "paid", "enabled": False,
+        "preview_color": "from-red-400 to-pink-500",
     },
     # Soft Styles
     "romance_comic": {
         "name": "Romance Comic",
-        "prompt": "soft romantic comic style, dreamy atmosphere, gentle colors, shoujo influence"
+        "label": "Romance",
+        "prompt": "soft romantic comic style, dreamy atmosphere, gentle colors, shoujo influence",
+        "modes": ["avatar", "strip"], "tier": "paid", "enabled": False,
+        "preview_color": "from-pink-400 to-rose-500",
     },
     "dreamy_pastel": {
         "name": "Dreamy Pastel",
-        "prompt": "soft pastel color palette, dreamy illustration, gentle comic style"
+        "label": "Pastel",
+        "prompt": "soft pastel color palette, dreamy illustration, gentle comic style",
+        "modes": ["avatar", "strip"], "tier": "paid", "enabled": True,
+        "preview_color": "from-rose-400 to-pink-300",
     },
     "soft_manga": {
         "name": "Soft Manga Inspired",
-        "prompt": "soft manga-inspired style, gentle lines, expressive eyes, original character"
+        "label": "Manga",
+        "prompt": "soft manga-inspired style, gentle lines, expressive eyes, original character",
+        "modes": ["avatar", "strip"], "tier": "free", "enabled": True,
+        "preview_color": "from-indigo-500 to-violet-400",
     },
     "cute_chibi": {
         "name": "Cute Chibi",
-        "prompt": "adorable chibi style, mini character, big head, cute proportions"
+        "label": "Chibi",
+        "prompt": "adorable chibi style, mini character, big head, cute proportions",
+        "modes": ["avatar", "strip"], "tier": "free", "enabled": True,
+        "preview_color": "from-emerald-500 to-teal-400",
     },
     # Fantasy Styles
     "magical_fantasy": {
         "name": "Magical Fantasy",
-        "prompt": "magical fantasy comic style, enchanted atmosphere, mystical elements, original design"
+        "label": "Fantasy",
+        "prompt": "magical fantasy comic style, enchanted atmosphere, mystical elements, original design",
+        "modes": ["avatar", "strip"], "tier": "paid", "enabled": True,
+        "preview_color": "from-violet-600 to-indigo-500",
     },
     "medieval_adventure": {
         "name": "Medieval Adventure",
-        "prompt": "medieval adventure comic, knights and castles theme, fantasy setting"
+        "label": "Medieval",
+        "prompt": "medieval adventure comic, knights and castles theme, fantasy setting",
+        "modes": ["avatar", "strip"], "tier": "paid", "enabled": False,
+        "preview_color": "from-amber-700 to-stone-500",
     },
     "scifi_neon": {
         "name": "Sci-Fi Neon",
-        "prompt": "futuristic sci-fi style, neon colors, cyberpunk comic aesthetic, original character"
+        "label": "Sci-Fi Neon",
+        "prompt": "futuristic sci-fi style, neon colors, cyberpunk comic aesthetic, original character",
+        "modes": ["avatar", "strip"], "tier": "paid", "enabled": True,
+        "preview_color": "from-fuchsia-600 to-purple-500",
     },
     "cyberpunk_comic": {
         "name": "Cyberpunk Comic",
-        "prompt": "cyberpunk comic style, high-tech dystopia, neon lights, futuristic"
+        "label": "Cyberpunk",
+        "prompt": "cyberpunk comic style, high-tech dystopia, neon lights, futuristic",
+        "modes": ["avatar", "strip"], "tier": "paid", "enabled": True,
+        "preview_color": "from-cyan-500 to-blue-600",
     },
     # Kids Friendly
     "kids_storybook": {
         "name": "Kids Storybook Comic",
-        "prompt": "children's storybook comic style, friendly characters, bright colors, wholesome"
+        "label": "Storybook",
+        "prompt": "children's storybook comic style, friendly characters, bright colors, wholesome",
+        "modes": ["avatar", "strip"], "tier": "free", "enabled": True,
+        "preview_color": "from-sky-500 to-cyan-400",
     },
     "friendly_animal": {
         "name": "Friendly Animal Comic",
-        "prompt": "cute animal character comic, friendly design, child-safe, adorable"
+        "label": "Animal Friend",
+        "prompt": "cute animal character comic, friendly design, child-safe, adorable",
+        "modes": ["avatar", "strip"], "tier": "paid", "enabled": False,
+        "preview_color": "from-lime-500 to-emerald-400",
     },
     "classroom_comic": {
         "name": "Classroom Comic",
-        "prompt": "school-themed comic style, classroom setting, fun educational vibe"
+        "label": "Classroom",
+        "prompt": "school-themed comic style, classroom setting, fun educational vibe",
+        "modes": ["strip"], "tier": "paid", "enabled": False,
+        "preview_color": "from-blue-400 to-cyan-300",
     },
     "adventure_kids": {
         "name": "Adventure Kids Style",
-        "prompt": "kid-friendly adventure comic, young hero character, exciting but safe"
+        "label": "Kids Adventure",
+        "prompt": "kid-friendly adventure comic, young hero character, exciting but safe",
+        "modes": ["avatar", "strip"], "tier": "paid", "enabled": False,
+        "preview_color": "from-orange-400 to-amber-500",
     },
     # Minimal Styles
     "black_white_ink": {
         "name": "Black & White Ink",
-        "prompt": "black and white ink illustration, classic comic style, high contrast"
+        "label": "Ink Art",
+        "prompt": "black and white ink illustration, classic comic style, high contrast",
+        "modes": ["avatar", "strip"], "tier": "paid", "enabled": True,
+        "preview_color": "from-gray-700 to-gray-500",
     },
     "sketch_outline": {
         "name": "Sketch Outline",
-        "prompt": "hand-drawn sketch style, pencil outline look, artistic comic"
+        "label": "Sketch",
+        "prompt": "hand-drawn sketch style, pencil outline look, artistic comic",
+        "modes": ["avatar", "strip"], "tier": "paid", "enabled": False,
+        "preview_color": "from-stone-400 to-zinc-500",
     },
     "noir_comic": {
         "name": "Noir Comic",
-        "prompt": "film noir comic style, dramatic shadows, black and white, detective theme"
+        "label": "Noir",
+        "prompt": "film noir comic style, dramatic shadows, black and white, detective theme",
+        "modes": ["avatar", "strip"], "tier": "free", "enabled": True,
+        "preview_color": "from-slate-600 to-zinc-500",
     },
     "vintage_print": {
         "name": "Vintage Print Style",
-        "prompt": "vintage newspaper print style, retro comic aesthetic, classic halftone"
+        "label": "Vintage",
+        "prompt": "vintage newspaper print style, retro comic aesthetic, classic halftone",
+        "modes": ["avatar", "strip"], "tier": "paid", "enabled": False,
+        "preview_color": "from-amber-200 to-stone-400",
     },
 }
+
+
+def _styles_catalog_for_mode(mode: str | None = None) -> list[dict]:
+    """Render the founder-spec catalog: list of dicts containing
+    {key, label, modes, enabled, provider_style, preview_color, tier, name}.
+
+    Filtering rules:
+      • If `mode` is None: returns ALL enabled entries (admin/inspection).
+      • If `mode` in {"avatar", "strip"}: returns only enabled entries whose
+        `modes` contains that mode.
+
+    Disabled entries are NEVER returned to the frontend so they can't
+    appear in the grid and trip a validator rejection later.
+    """
+    out: list[dict] = []
+    for key, meta in SAFE_STYLES.items():
+        if not meta.get("enabled", True):
+            continue
+        modes = meta.get("modes", ["avatar", "strip"])
+        if mode and mode not in modes:
+            continue
+        out.append({
+            "key": key,
+            "label": meta.get("label") or meta.get("name") or key,
+            "name": meta.get("name") or key,
+            "modes": modes,
+            "tier": meta.get("tier", "free"),
+            "preview_color": meta.get("preview_color", "from-slate-500 to-slate-400"),
+            "provider_style": key,  # provider name is the same as the canonical key today
+            "enabled": True,
+        })
+    return out
+
+
+def is_style_valid_for_mode(style_key: str, mode: str) -> bool:
+    """Backend-side authoritative check used by the create endpoints.
+    Returns True iff the style is enabled AND legal for the given mode."""
+    meta = SAFE_STYLES.get(style_key)
+    if not meta or not meta.get("enabled", True):
+        return False
+    modes = meta.get("modes", ["avatar", "strip"])
+    return mode in modes
 
 # ============================================
 # PRICING CONFIGURATION
@@ -488,6 +623,59 @@ async def get_pricing(user: dict = Depends(get_current_user)):
     return {"pricing": PRICING}
 
 
+# ════════════════════════════════════════════════════════════════════════
+# P0 2026-05-18 — Mode-aware Style Catalog (single source of truth)
+# ════════════════════════════════════════════════════════════════════════
+# Founder spec: build the shared catalog and kill the contract-drift
+# class of bug. Both the frontend grid and the backend validator MUST
+# read from the same `SAFE_STYLES` dict. This endpoint is the canonical
+# read path the frontend calls on mount.
+#
+# Response shape:
+#   {
+#     "styles": [
+#       { key, label, name, modes, tier, preview_color, provider_style, enabled },
+#       ...
+#     ],
+#     "mode": "avatar" | "strip" | "all",
+#     "version": 1
+#   }
+#
+# When ?mode=avatar (or strip) is supplied, only styles enabled for that
+# mode are returned. The frontend uses this to filter its grid so users
+# never see a style the validator would later reject.
+
+@router.get("/styles-catalog")
+async def get_styles_catalog(
+    mode: Optional[str] = None,
+    user: dict = Depends(get_current_user),
+):
+    """Return the canonical comic-style catalog filtered by `mode`.
+
+    Frontend consumers (PhotoToComic page) call this with
+    `?mode=avatar` or `?mode=strip` to build the style grid. The
+    response excludes any style that:
+      • has `enabled: False` in the catalog, OR
+      • does not include the requested mode in its `modes` list.
+
+    This guarantees that EVERY visible UI style passes the validator.
+    """
+    if mode is not None and mode not in ("avatar", "strip"):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "INVALID_MODE",
+                "message": "mode must be 'avatar', 'strip', or omitted",
+                "received": mode,
+            },
+        )
+    return {
+        "styles": _styles_catalog_for_mode(mode),
+        "mode": mode or "all",
+        "version": 1,
+    }
+
+
 # ============================================
 # PHOTO QUALITY CHECK (P1.5-B)
 # ============================================
@@ -608,19 +796,21 @@ async def generate_comic(
     # case some caller switches to JSON body in the future, and (c) ALWAYS
     # return a structured envelope: {code: INVALID_STYLE, message: ...}.
     style = _normalize_style_input(style)
+    # Mode-aware validation (P0 2026-05-18). Founder spec:
+    #   • Reject styles that aren't in the catalog at all → 400 INVALID_STYLE
+    #   • Reject styles that exist but aren't legal for the SELECTED mode
+    #     → 422 STYLE_MODE_MISMATCH (NOT a generic 503)
+    # Both envelopes carry request_id + the mode in `received` for support.
+    from middleware.reliability import get_request_id, structured_log
+    request_id = get_request_id(request)
+
     if style not in SAFE_STYLES:
-        # P0 2026-05-16 (Session 1) — read the canonical request_id from the
-        # reliability middleware. Falls back to a fresh uuid if middleware
-        # was bypassed (tests, direct ASGI invocation).
-        from middleware.reliability import get_request_id, structured_log
-        request_id = get_request_id(request)
         structured_log(
             logger, logging.WARNING, "p2c/invalid-style", request=request,
             user=(user.get("id") or "anon")[:8], mode=mode,
             received_type=type(style).__name__,
             received=(style[:80] if isinstance(style, str) else str(style)),
         )
-        # Structured envelope — the frontend maps `code` → user-friendly copy.
         raise HTTPException(
             status_code=400,
             detail={
@@ -628,6 +818,30 @@ async def generate_comic(
                 "message": "Selected comic style is not supported. Please try another style.",
                 "received": style[:50] if isinstance(style, str) else type(style).__name__,
                 "allowed_sample": sorted(SAFE_STYLES)[:8],
+                "request_id": request_id,
+                "retryable": False,
+            },
+        )
+
+    if not is_style_valid_for_mode(style, mode):
+        # The style is in the catalog but disabled OR not legal for this mode.
+        # We don't say "disabled" to the user — we just say it's not for this
+        # mode; that's clearer in product copy.
+        meta = SAFE_STYLES.get(style, {})
+        structured_log(
+            logger, logging.WARNING, "p2c/style-mode-mismatch", request=request,
+            user=(user.get("id") or "anon")[:8], mode=mode, style=style,
+            allowed_modes=meta.get("modes", []),
+            enabled=meta.get("enabled", True),
+        )
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "STYLE_MODE_MISMATCH",
+                "message": f"This style isn't available for {('Comic Avatar' if mode == 'avatar' else 'Comic Strip')} mode. Please pick another.",
+                "style": style,
+                "mode": mode,
+                "allowed_modes": meta.get("modes", []),
                 "request_id": request_id,
                 "retryable": False,
             },
