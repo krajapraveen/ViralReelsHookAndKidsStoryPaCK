@@ -301,11 +301,42 @@ function InfoSection({ label, text, icon: Icon }) {
 }
 
 // ─── RE-ENGAGEMENT VARIANTS ───────────────────────────────────────────────────
+// P0 2026-05-16 — bounded fix for the four broken post-gen action cards.
+// Each variant declares: destination route, remix mode, localStorage key,
+// and an optional `injectComedy` flag. The click handler reads these and
+// writes the correct shape so the destination tool's hydration code picks
+// it up. Previously all four navigated to /app/story-video-studio with
+// `state` payload only — which the studio doesn't read (it reads
+// localStorage.getItem('remix_video')) → silent no-ops.
 const VARIATION_BUTTONS = [
-  { label: 'Make it funnier', icon: Sparkles, tone: 'comedy', style: null, desc: 'Same story, comedy twist' },
-  { label: 'Change style', icon: Palette, tone: null, style: 'explore', desc: 'Try anime, 3D, or watercolor' },
-  { label: 'Turn into reel', icon: Zap, tone: 'short_reel', style: null, desc: 'Shorter, punchier version' },
-  { label: 'Turn into storybook', icon: BookOpen, tone: null, style: 'storybook', desc: 'Classic illustrated style' },
+  {
+    label: 'Make it funnier', icon: Sparkles, desc: 'Same story, comedy twist',
+    route: '/app/story-video-studio',
+    mode: 'funny',
+    storageKey: 'remix_video',
+    injectComedy: true,
+  },
+  {
+    label: 'Change style', icon: Palette, desc: 'Try anime, 3D, or watercolor',
+    route: '/app/story-video-studio',
+    mode: 'style',
+    storageKey: 'remix_video',
+    injectComedy: false,
+  },
+  {
+    label: 'Turn into reel', icon: Zap, desc: 'Shorter, punchier version',
+    route: '/app/reel-generator',
+    mode: 'reel',
+    storageKey: 'remix_data',
+    injectComedy: false,
+  },
+  {
+    label: 'Turn into storybook', icon: BookOpen, desc: 'Classic illustrated style',
+    route: '/app/comic-storybook',
+    mode: 'storybook',
+    storageKey: 'remix_data',
+    injectComedy: false,
+  },
 ];
 
 // ─── PHOTO TRAILER CARD (YouStar — minimal, isolated from story-engine logic) ─
@@ -481,15 +512,102 @@ function StoryProjectCard({ job, highlighted, justCompleted, isPulsing, onShare,
   const handleWatch = () => { if (job.output_url) window.open(job.output_url, '_blank'); };
 
   const handleVariation = (variant) => {
-    const statePayload = {
-      prompt: '',
-      remixFrom: { title: job.title, job_id: job.job_id },
-      source_tool: 'myspace-reengage',
-    };
-    let path = '/app/story-video-studio';
-    if (variant.tone) path += `?tone=${variant.tone}`;
-    if (variant.style) path += `?style=${variant.style}`;
-    navigate(path, { state: statePayload });
+    // P0 2026-05-16 — bounded fix for the four broken post-gen action cards.
+    // ROOT CAUSE: previous handler did navigate(path, { state: payload }),
+    // but the destination tools don't read location.state — they hydrate
+    // from localStorage. So all four buttons silently no-op'd.
+    //
+    // FIX: validate source ids first, write to the CORRECT localStorage
+    // key with the CORRECT shape, then navigate to the CORRECT route with
+    // ?source_job=<id> for traceability.
+
+    // Guard 1: source job must exist
+    if (!job?.job_id) {
+      const rid = (window.lastRequestId || 'n/a');
+      toast.error(`Unable to load source project. Reference ID: ${rid}`);
+      return;
+    }
+
+    // Guard 2: source must have story content (every variant needs it)
+    const sourceStory = job.story_text || job.prompt || job.title || '';
+    if (!sourceStory.trim()) {
+      toast.error('Unable to load source project: missing story content.');
+      return;
+    }
+
+    const sourceTitle = job.title || 'Untitled Project';
+    const sourceJobId = job.job_id;
+
+    if (variant.storageKey === 'remix_video') {
+      // Story Video Studio shape — read in StoryVideoPipeline init when
+      // ?remix=... query param is present.
+      // For "Make it funnier" we inject a comedy directive at the head of
+      // the story so the LLM generates a funnier variant of the same plot;
+      // for "Change style" we keep the original story untouched and let
+      // the user pick a new animation_style in the studio's style picker.
+      const story = variant.injectComedy
+        ? `[Make this funnier — same plot, comedy twist, exaggerated reactions]\n\n${sourceStory}`
+        : sourceStory;
+      try {
+        localStorage.setItem('remix_video', JSON.stringify({
+          parent_video_id: sourceJobId,
+          title: sourceTitle,
+          story_text: story,
+          age_group: job.age_group,
+          voice_preset: job.voice_preset,
+          // Deliberately omit animation_style for "Change style" so the
+          // studio's style picker prompts the user to choose a new one.
+          ...(variant.injectComedy ? { animation_style: job.animation_style } : {}),
+        }));
+      } catch (e) {
+        toast.error('Could not stage variation. Please try again.');
+        return;
+      }
+      navigate(
+        `${variant.route}?remix=${variant.mode}&source_job=${encodeURIComponent(sourceJobId)}`,
+      );
+      toast.success(`Opening: ${variant.label}`);
+      return;
+    }
+
+    if (variant.storageKey === 'remix_data') {
+      // Reel + Storybook shape — read by useRemixData hook on the
+      // destination tool's mount.
+      const sourceToolKey = variant.mode === 'reel' ? 'reels' : 'comic-storybook';
+      try {
+        localStorage.setItem('remix_data', JSON.stringify({
+          timestamp: Date.now(),
+          prompt: sourceStory,
+          source_tool: 'myspace-reengage',
+          source_slug: sourceJobId,
+          remixFrom: {
+            title: sourceTitle,
+            prompt: sourceStory,
+            tool: 'story-video-studio',
+            parentId: sourceJobId,
+          },
+          // Provide canonical seed fields the destination tools accept
+          ...(variant.mode === 'reel' ? {
+            topic: sourceTitle,
+            tone: 'energetic',
+          } : {
+            story_text: sourceStory,
+            genre: 'adventure',
+          }),
+        }));
+      } catch (e) {
+        toast.error('Could not stage variation. Please try again.');
+        return;
+      }
+      navigate(
+        `${variant.route}?source_job=${encodeURIComponent(sourceJobId)}&source_tool=${sourceToolKey}`,
+      );
+      toast.success(`Opening: ${variant.label}`);
+      return;
+    }
+
+    // Defensive: should never reach here. Surface structured error.
+    toast.error('Unknown variation type. Please refresh and try again.');
   };
 
   return (
