@@ -339,6 +339,59 @@ def check_blocked_keywords(text: str) -> tuple:
     return False, None
 
 
+def _normalize_style_input(raw):
+    """P0 2026-05-16 — defensive style input coercion.
+
+    Production was failing with `Invalid style '[object Object]'` — the
+    frontend was occasionally serializing a style OBJECT into multipart,
+    which JS default-stringifies to the literal "[object Object]".
+
+    Accept (in order of preference):
+      • clean string  → returned trimmed
+      • JSON object dumped into the form field (e.g. `{"id":"manga"}`) →
+        extract id/apiValue/key/value/style
+      • the literal "[object Object]" — explicitly logged + rejected as a
+        client-side bug signal
+      • anything else → returned as-is so the SAFE_STYLES check fails with
+        a clean structured error (we don't want to swallow garbage).
+    """
+    if raw is None:
+        return ""
+    if not isinstance(raw, str):
+        # FastAPI Form(...) always hands us a string, but guard anyway.
+        return str(raw).strip()
+    s = raw.strip()
+    if not s:
+        return ""
+    if s == "[object Object]":
+        # Highly diagnostic — the client passed a JS object directly. Log
+        # this loudly so we can attribute future occurrences to a specific
+        # code path.
+        logger.warning(
+            "[p2c/style-normalize] received literal '[object Object]' — "
+            "frontend passed a non-string style. Rejecting cleanly."
+        )
+        return s  # falls through to SAFE_STYLES check → INVALID_STYLE
+    # JSON-encoded object (defensive — opens the door to future JSON body)
+    if s.startswith("{") and s.endswith("}"):
+        try:
+            import json as _json
+            parsed = _json.loads(s)
+            if isinstance(parsed, dict):
+                for k in ("apiValue", "id", "key", "value", "style"):
+                    v = parsed.get(k)
+                    if isinstance(v, str) and v.strip():
+                        logger.info(
+                            "[p2c/style-normalize] extracted style=%s from "
+                            "JSON-encoded object key=%s", v.strip(), k,
+                        )
+                        return v.strip()
+        except Exception:
+            # Fall through — SAFE_STYLES check will reject it cleanly.
+            pass
+    return s
+
+
 def build_safe_prompt(style_key: str, custom_details: str = "", genre: str = "action") -> str:
     """
     Build a safe generation prompt with style and universal negative prompts.
@@ -545,12 +598,24 @@ async def generate_comic(
     
     # Blocked keywords check (harmful content only)
     
-    # Validate style — reject unknown enum values explicitly (was: silent
-    # fallback to cartoon_fun, which masked client-side bugs). 2026-05 P1.
+    # P0 2026-05-16 — defensive style normalization + structured error.
+    # The previous failure mode: frontend formData.append('style', someObject)
+    # serializes to the literal string "[object Object]" and the backend
+    # responded with the not-very-helpful "Invalid style '[object Object]'".
+    # Now we (a) strip whitespace, (b) accept JSON-encoded style objects in
+    # case some caller switches to JSON body in the future, and (c) ALWAYS
+    # return a structured envelope: {code: INVALID_STYLE, message: ...}.
+    style = _normalize_style_input(style)
     if style not in SAFE_STYLES:
+        # Structured envelope — the frontend maps `code` → user-friendly copy.
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid style '{style}'. Allowed: {sorted(SAFE_STYLES)[:8]}...",
+            detail={
+                "code": "INVALID_STYLE",
+                "message": "Selected comic style is not supported. Please try another style.",
+                "received": style[:50] if isinstance(style, str) else type(style).__name__,
+                "allowed_sample": sorted(SAFE_STYLES)[:8],
+            },
         )
     
     # ============================================

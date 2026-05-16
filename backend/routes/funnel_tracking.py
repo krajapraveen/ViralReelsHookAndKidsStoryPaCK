@@ -1865,4 +1865,60 @@ async def youstar_kpi_pack(
     plays   = await _sessions("video_play_clicked")
     completes = await _sessions("completed_watch")
     cta_clicks  = await _sessions("make_your_own_clicked")
+
+
+# ─── Reel Engine reward-moment KPI ──────────────────────────────────────────
+# Founder directive 2026-05-16: "Want one tile showing reward-moment success
+# rate = result_viewed / completed. Should be ~100% post-fix; if it ever
+# dips, the redirect bug regressed."
+# Read from `funnel_events` ONLY — uses the three events ReelGenerator.js
+# already emits (no new tracking).
+@router.get("/reel/reward-moment")
+async def reel_reward_moment_kpi(
+    user: dict = Depends(get_admin_user),
+    days: int = Query(7, ge=1, le=90),
+):
+    """Reel Engine reward-moment success rate.
+
+    Returns:
+      started:        # of reel_generation_started events
+      completed:      # of reel_generation_completed events
+      result_viewed:  # of reel_generation_result_viewed events
+      success_pct:    result_viewed / completed * 100 (rounded)
+                      None when completed == 0 (empty-state handling)
+      completion_pct: completed / started * 100 (rounded)
+                      None when started == 0
+      window_days:    rolling-window size
+      cutoff_iso:     UTC cutoff timestamp the counts were measured from
+    """
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+    async def _count(step: str) -> int:
+        return await db.funnel_events.count_documents({
+            "step": step,
+            "timestamp": {"$gte": cutoff},
+        })
+
+    started = await _count("reel_generation_started")
+    completed = await _count("reel_generation_completed")
+    result_viewed = await _count("reel_generation_result_viewed")
+
+    def _pct(num: int, den: int):
+        # Empty-state handling per spec: explicit None rather than 0.0 so
+        # the dashboard can render "—" / "No data yet" instead of a
+        # misleading "0% success rate".
+        if not den:
+            return None
+        return round(100.0 * num / den, 2)
+
+    return {
+        "started": started,
+        "completed": completed,
+        "result_viewed": result_viewed,
+        "success_pct": _pct(result_viewed, completed),
+        "completion_pct": _pct(completed, started),
+        "window_days": days,
+        "cutoff_iso": cutoff,
+    }
+
     

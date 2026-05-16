@@ -150,10 +150,30 @@ api.interceptors.response.use(
       }
     }
 
-    // Kill switch 503 — honest user messaging, no retry storm
+    // Kill switch 503 — honest user messaging, no retry storm.
+    // P0 2026-05-16 — but suppress for the two pages that own their own
+    // structured error mapping (Create Series + Photo-to-Comic). These
+    // pages map backend `{code, message}` envelopes to actionable copy and
+    // the global toast was creating a duplicate, less helpful overlay.
     if (error.response?.status === 503) {
-      const msg = error.response?.data?.detail || 'This feature is temporarily unavailable. Please try again shortly.';
-      toast.error(msg, { duration: 5000, id: 'service-unavailable' });
+      const reqUrl = error.config?.url || '';
+      const pagePath = window.location.pathname || '';
+      const SELF_HANDLED_URLS = [
+        '/api/photo-to-comic/',
+        '/api/story-series/',
+      ];
+      const SELF_HANDLED_PAGES = [
+        '/app/photo-to-comic',
+        '/app/create-series',
+        '/app/story-series',
+      ];
+      const isSelfHandled =
+        SELF_HANDLED_URLS.some((u) => reqUrl.includes(u)) ||
+        SELF_HANDLED_PAGES.some((p) => pagePath.startsWith(p));
+      if (!isSelfHandled) {
+        const msg = error.response?.data?.detail || 'This feature is temporarily unavailable. Please try again shortly.';
+        toast.error(msg, { duration: 5000, id: 'service-unavailable' });
+      }
     }
 
     // ─── 2026-05 Mandatory Subscription / Zero Free Credits ──────────────

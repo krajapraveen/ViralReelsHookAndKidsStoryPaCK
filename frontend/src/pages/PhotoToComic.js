@@ -50,20 +50,13 @@ class ComicErrorBoundary extends React.Component {
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────
-const STYLES = [
-  { id: 'bold_superhero', name: 'Bold Hero', color: 'from-red-600 to-orange-500', tier: 'free' },
-  { id: 'cartoon_fun', name: 'Cartoon', color: 'from-yellow-500 to-amber-400', tier: 'free' },
-  { id: 'retro_action', name: 'Retro Pop', color: 'from-pink-500 to-rose-400', tier: 'free' },
-  { id: 'soft_manga', name: 'Manga', color: 'from-indigo-500 to-violet-400', tier: 'free' },
-  { id: 'cute_chibi', name: 'Chibi', color: 'from-emerald-500 to-teal-400', tier: 'free' },
-  { id: 'kids_storybook', name: 'Storybook', color: 'from-sky-500 to-cyan-400', tier: 'free' },
-  { id: 'noir_comic', name: 'Noir', color: 'from-slate-600 to-zinc-500', tier: 'free' },
-  { id: 'scifi_neon', name: 'Sci-Fi Neon', color: 'from-fuchsia-600 to-purple-500', tier: 'paid' },
-  { id: 'cyberpunk_comic', name: 'Cyberpunk', color: 'from-cyan-500 to-blue-600', tier: 'paid' },
-  { id: 'magical_fantasy', name: 'Fantasy', color: 'from-violet-600 to-indigo-500', tier: 'paid' },
-  { id: 'dreamy_pastel', name: 'Pastel', color: 'from-rose-400 to-pink-300', tier: 'paid' },
-  { id: 'black_white_ink', name: 'Ink Art', color: 'from-gray-700 to-gray-500', tier: 'paid' },
-];
+import { COMIC_STYLES, normalizeComicStyle } from '../constants/comicStyles';
+// Page kept a local STYLES alias for back-compat with the existing JSX that
+// references s.id / s.name / s.color / s.tier. Map apiValue → id and label
+// → name so no existing render line has to change.
+const STYLES = COMIC_STYLES.map((s) => ({
+  id: s.apiValue, name: s.label, color: s.color, tier: s.tier,
+}));
 
 const GENRES = [
   { id: 'action', name: 'Action' }, { id: 'comedy', name: 'Comedy' },
@@ -274,8 +267,18 @@ function PhotoToComicInner() {
 
   // ─── Generate ────────────────────────────────────────────────────
   const handleGenerate = async (overrideStyle = null) => {
-    const activeStyle = overrideStyle || style;
+    // P0 2026-05-16 — bulletproof style serialization.
+    // Pre-flight coerce whatever was passed (string | object | nullish)
+    // into the canonical backend enum string. If it can't be normalized,
+    // refuse to send the request — backend would just bounce with
+    // INVALID_STYLE anyway and the user gets a clearer message now.
+    const activeStyle = normalizeComicStyle(overrideStyle || style);
     if (!photoFile) { toast.error('Upload a photo first'); return; }
+    if (!activeStyle) {
+      toast.error('Selected comic style is not supported. Please try another style.');
+      console.error('[p2c/create] invalid style input', { override: overrideStyle, current: style });
+      return;
+    }
     if (!canAfford) { toast.error(`Need ${cost} credits`); navigate('/app/billing'); return; }
     if (storyPrompt) {
       const lower = storyPrompt.toLowerCase();
@@ -347,6 +350,26 @@ function PhotoToComicInner() {
       // pages) and refuse to surface them to the user as a toast.
       const looksLikeHtml = (v) =>
         typeof v === 'string' && /^\s*<(?:!doctype|html|head|body|center|h1)/i.test(v);
+
+      // P0 2026-05-16 — structured error envelope from the backend.
+      // If backend returned { detail: { code, message } } use the friendly
+      // message and skip the generic fallback entirely.
+      const structured = data?.detail && typeof data.detail === 'object' && !Array.isArray(data.detail)
+        ? data.detail : null;
+      if (structured?.code) {
+        const codeMap = {
+          INVALID_STYLE: 'Selected comic style is not supported. Please try another style.',
+          INSUFFICIENT_CREDITS: 'You need more credits to continue.',
+          RATE_LIMITED: 'Too many requests right now. Please wait a moment and try again.',
+          AUTH_EXPIRED: 'Your session expired. Please log in again.',
+          LLM_TIMEOUT: 'Generation is taking longer than expected. Please try again.',
+        };
+        const friendly = codeMap[structured.code] || structured.message || 'Comic generation failed. Please try again.';
+        toast.error(friendly);
+        console.error('[p2c/create] structured error', { status: code, ...structured });
+        setGenerating(false);
+        return;
+      }
 
       if (typeof data?.detail === 'string') {
         serverMsg = data.detail;

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   TrendingUp, Flame, AlertTriangle, Activity, ArrowDown,
   RefreshCcw, Zap, Eye, MousePointerClick, Play, ArrowRight, Share2,
-  UserPlus, Clock
+  UserPlus, Clock, Sparkles
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -41,6 +41,73 @@ function HealthBar({ health }) {
           <p className={`text-[10px] mt-1 font-bold uppercase ${benchColor(m.benchmark)}`}>{m.benchmark}</p>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ─── SECTION 2: FUNNEL ────────────────────────────────────────────
+// ─── REEL REWARD-MOMENT TILE ──────────────────────────────────────
+// P0 2026-05-16 — single observability tile for "reward-moment success
+// rate" = result_viewed / completed. Should be ~100% post the redirect-
+// bug fix. Dips below ~95% mean the bug regressed somewhere.
+function RewardMomentTile({ days }) {
+  const [kpi, setKpi] = useState(null);
+  const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    const fetchIt = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await axios.get(`${API}/api/funnel/reel/reward-moment?days=${days}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (active) { setKpi(res.data); setErr(null); }
+      } catch (e) {
+        if (active) setErr(e?.response?.data?.detail || 'Failed to load');
+      }
+    };
+    fetchIt();
+    return () => { active = false; };
+  }, [days]);
+
+  // Empty-state handling — backend returns null when denominator is 0.
+  const successPct = kpi?.success_pct;
+  const completionPct = kpi?.completion_pct;
+  const hasData = kpi && kpi.completed > 0;
+  const statusColor = !hasData
+    ? 'text-slate-500'
+    : successPct >= 95 ? 'text-emerald-400'
+    : successPct >= 80 ? 'text-amber-400'
+    : 'text-red-400';
+  const statusBg = !hasData
+    ? 'bg-slate-900/40 border-white/[0.06]'
+    : successPct >= 95 ? 'bg-emerald-500/10 border-emerald-500/20'
+    : successPct >= 80 ? 'bg-amber-500/10 border-amber-500/20'
+    : 'bg-red-500/10 border-red-500/20';
+
+  return (
+    <div className={`rounded-xl border p-4 ${statusBg}`} data-testid="reel-reward-moment-tile">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <Sparkles className={`w-4 h-4 ${statusColor}`} />
+          <span className="text-[10px] text-slate-500 uppercase tracking-wider">Reel Reward-Moment Success</span>
+        </div>
+        {err && <span className="text-[10px] text-red-400">{err}</span>}
+      </div>
+      <p className={`text-2xl font-black font-mono ${statusColor}`} data-testid="reel-reward-moment-pct">
+        {hasData ? `${successPct}%` : '—'}
+      </p>
+      <p className="text-[10px] text-slate-500 mt-1" data-testid="reel-reward-moment-detail">
+        {hasData
+          ? `${kpi.result_viewed} of ${kpi.completed} completions surfaced`
+          : 'No completions in window'}
+      </p>
+      {hasData && completionPct !== null && (
+        <p className="text-[9px] text-slate-600 mt-1">
+          Completion rate: <span className="font-mono">{completionPct}%</span> ({kpi.completed}/{kpi.started})
+        </p>
+      )}
     </div>
   );
 }
@@ -286,6 +353,9 @@ export default function GrowthDashboard() {
 
       {/* Section 1: Growth Loop Health */}
       <HealthBar health={data.health} />
+
+      {/* Reel Engine reward-moment success rate (P0 observability) */}
+      <RewardMomentTile days={days} />
 
       {/* Section 2 + 3 side by side */}
       <div className="grid lg:grid-cols-2 gap-4">
