@@ -437,6 +437,10 @@ function StoryVideoPipelineInner() {
 
   // ─── DRAFT PERSISTENCE ─────────────────────────────────────────────────────
   const [showResumeDraft, setShowResumeDraft] = useState(false);
+  // P0 2026-05-16 (Resume-Draft contract) — canonical id of the draft the
+  // editor is currently bound to. Set on Start Fresh after /drafts/create,
+  // and after a successful Continue hydration.
+  const [activeDraftId, setActiveDraftId] = useState(null);
   const [pendingDraft, setPendingDraft] = useState(null);
   const draftSaveTimer = useRef(null);
   const lastSavedRef = useRef({ title: '', storyText: '' });
@@ -481,21 +485,97 @@ function StoryVideoPipelineInner() {
     }).catch(() => {});
   }, [isFreshSession]);
 
-  const handleResumeDraft = () => {
-    if (pendingDraft) {
-      setTitle(pendingDraft.title || '');
-      setStoryText(pendingDraft.story_text || '');
-      if (pendingDraft.animation_style) setAnimStyle(pendingDraft.animation_style);
-      if (pendingDraft.age_group) setAgeGroup(pendingDraft.age_group);
-      if (pendingDraft.voice_preset) setVoicePreset(pendingDraft.voice_preset);
-      lastSavedRef.current = { title: pendingDraft.title || '', storyText: pendingDraft.story_text || '' };
-    }
+  // ─── Resume-Draft contract (2026-05-16 P0) ──────────────────────────────
+  // "Continue":
+  //   • Fetch CANONICAL draft state from backend (NOT the snapshot we got
+  //     at mount, NOT localStorage, NOT cache). The page hydrates only
+  //     from the GET /drafts/{id} payload — single source of truth.
+  //   • Backend validates ownership + schema; on failure show recovery
+  //     UX with the request_id from the structured envelope.
+  //   • Navigate to ?restore=true on success so any downstream code can
+  //     detect a hydration session.
+  const handleResumeDraft = async () => {
+    if (!pendingDraft) { setShowResumeDraft(false); return; }
+    const draftId = pendingDraft.draft_id; // may be undefined for legacy
     setShowResumeDraft(false);
+    try {
+      // Canonical hydration: refetch by id (NEVER trust the mount snapshot)
+      let fresh = null;
+      if (draftId) {
+        const res = await api.get(`/api/drafts/${draftId}`);
+        fresh = res.data?.draft;
+      }
+      // Legacy fallback for drafts without a draft_id field — refetch via /current
+      if (!fresh) {
+        const res = await api.get('/api/drafts/current');
+        fresh = res.data?.draft;
+      }
+      if (!fresh) throw new Error('NOT_FOUND');
+      setTitle(fresh.title || '');
+      setStoryText(fresh.story_text || '');
+      if (fresh.animation_style) setAnimStyle(fresh.animation_style);
+      if (fresh.age_group) setAgeGroup(fresh.age_group);
+      if (fresh.voice_preset) setVoicePreset(fresh.voice_preset);
+      lastSavedRef.current = {
+        title: fresh.title || '',
+        storyText: fresh.story_text || '',
+      };
+      if (fresh.draft_id) setActiveDraftId(fresh.draft_id);
+      // ?restore=true → tag the URL so downstream hydration code can detect a restore session
+      const params = new URLSearchParams(window.location.search);
+      params.set('restore', 'true');
+      navigate(`${window.location.pathname}?${params.toString()}`, { replace: true });
+    } catch (err) {
+      // Recovery UX — surface request_id from structured envelope
+      const detail = err?.response?.data?.detail;
+      const requestId = detail?.request_id;
+      const msg = (detail?.message)
+        || 'We found an issue restoring this draft. Recover safe content or start fresh.';
+      toast.error(requestId ? `${msg}\nReference ID: ${requestId}` : msg, { duration: 8000 });
+    }
   };
 
-  const handleDiscardDraft = () => {
-    api.delete('/api/drafts/discard').catch(() => {});
+  // "Start Fresh":
+  //   • Cancel in-flight autosave timer
+  //   • Archive old draft on the backend (assets preserved, NOT deleted)
+  //   • Hard-reset editor state in this component
+  //   • Create a new blank draft and stash its draft_id locally
+  //   • Close the modal
+  const handleDiscardDraft = async () => {
     setShowResumeDraft(false);
+    // 1) Cancel pending autosave so it doesn't write to the now-archived draft
+    if (draftSaveTimer.current) {
+      clearTimeout(draftSaveTimer.current);
+      draftSaveTimer.current = null;
+    }
+    // 2) Backend: archive old + create new (both return request_id for tracing)
+    let newDraftId = null;
+    try {
+      await api.post('/api/drafts/archive');
+      const created = await api.post('/api/drafts/create');
+      newDraftId = created?.data?.draft_id || null;
+    } catch (err) {
+      // Non-fatal: editor still resets locally so the user isn't trapped.
+      // The next autosave's upsert will create a fresh draft anyway.
+      const detail = err?.response?.data?.detail;
+      const requestId = detail?.request_id;
+      if (requestId) {
+        console.warn('[drafts/start-fresh] backend error', detail);
+      }
+    }
+    // 3) Hard reset editor state in this component
+    setTitle('');
+    setStoryText('');
+    setAnimStyle('cartoon_2d');
+    setAgeGroup('kids_5_8');
+    setVoicePreset('narrator_warm');
+    setPendingDraft(null);
+    lastSavedRef.current = { title: '', storyText: '' };
+    setActiveDraftId(newDraftId);
+    // 4) Replace the URL so an accidental refresh doesn't re-trigger the modal
+    //    (we drop any ?projectId / ?draft_id from the legacy session).
+    const base = window.location.pathname;
+    navigate(newDraftId ? `${base}?draft_id=${newDraftId}` : base, { replace: true });
   };
 
   // Clear draft when story is successfully generated (status-based, never delete)
