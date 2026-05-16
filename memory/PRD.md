@@ -8,6 +8,63 @@ Evolve the platform from a standard AI content generator into a highly addictive
 
 ## What's Been Implemented
 
+### P0 Platform Stability Sprint — Session 2 (Canonical State Machine) — May 17, 2026
+**Status**: Foundation SHIPPED. Live page migration NOT started (gated, per founder).
+
+Built the foundation primitives that close the architectural class of bugs the
+founder flagged: race-saved overwrites, phantom UI, tab corruption, distributed
+state ownership, non-deterministic hydration.
+
+**10 founder-mandated requirements** — all met:
+1. ONE canonical `StorySessionState`            → `backend/models/story_session.py`
+2. Explicit lifecycle transitions               → `Lifecycle` enum + `_LEGAL_TRANSITIONS`
+3. Illegal transition guards                    → `is_legal_transition()` + raises `ILLEGAL_TRANSITION`
+4. Draft version incrementing                   → `version` bumped on every accepted write
+5. Stale write rejection                        → service uses optimistic-lock CAS, returns `STALE_WRITE`
+6. Deterministic hydration                      → `GET /api/drafts/{id}/state` is the single read path
+7. Single source of truth                       → all writes route through `story_session_service`
+8. Immutable updates                            → Pydantic `frozen=True` + `patched()` returns new instance
+9. Strict ownership by draft_id/job_id          → every service call requires `(draft_id, user_id)`
+10. Regression coverage first-class             → 38 backend + 23 frontend = 61 new tests
+
+**New backend surface** (backward-compatible — legacy endpoints untouched):
+- `GET    /api/drafts/{draft_id}/state`        canonical hydration (version + lifecycle + allowed_next)
+- `POST   /api/drafts/session`                 service-backed session create
+- `POST   /api/drafts/{draft_id}/patch`        version-locked partial update + optional transition
+- `POST   /api/drafts/{draft_id}/transition`   pure lifecycle move
+
+**New frontend surface** (NOT wired into any live page yet — pure infrastructure):
+- `frontend/src/state/storySession.js` — pure reducer + lifecycle constants + selectors + wire mapping
+- `frontend/src/state/storySessionClient.js` — version-aware API client
+- `frontend/src/state/useStorySession.js` — React hook with auto-resync on STALE_WRITE
+
+**Files**:
+- `backend/models/story_session.py` (NEW, 312 LOC)
+- `backend/services/story_session_service.py` (NEW, 285 LOC)
+- `backend/routes/drafts.py` (additions only — legacy intact)
+- `backend/tests/test_story_session_state_machine_2026_05.py` (NEW, 24 tests)
+- `backend/tests/test_session2_drafts_service_2026_05.py` (NEW, 14 tests)
+- `frontend/src/state/storySession.js` (NEW)
+- `frontend/src/state/storySessionClient.js` (NEW)
+- `frontend/src/state/useStorySession.js` (NEW)
+- `frontend/src/state/__tests__/storySession.test.js` (NEW, 23 tests)
+- `memory/SESSION2_ARCHITECTURE.md` (NEW — architecture map, transition diagram, migration strategy, risks)
+
+**Tests**: 38 new backend + 23 new frontend = 61 new tests, all passing.
+**Cumulative across Stability Sprint Sessions 0-2**: 167 tests, 100% green.
+
+**Migration plan** (per `SESSION2_ARCHITECTURE.md`):
+- Phase 3a — wire `useStorySession` into `StoryVideoPipeline.js` as read-only observer
+- Phase 3b — migrate autosave from `/drafts/save` to `commit({nextLifecycle:'AUTOSAVING'})`
+- Phase 3c — pipeline workers transition to `POST /drafts/{id}/transition`
+- Phase 4 — Comic Storybook stuck-active fix becomes structurally impossible
+- Phase 5+ — legacy endpoints deprecated
+
+**What was NOT touched** (production freeze maintained):
+- `StoryVideoPipeline.js` (3,467 lines) — zero changes
+- `MySpacePage.js`, Comic Storybook — zero changes
+- UI styling, copy, auth, billing, pipeline, R2 — zero changes
+
 ### YouStar Activation-Killer Trio (P0-A, P0-C, P0-D) — May 16, 2026
 **Production-freeze hot-fix.** Three trust bugs eliminated:
 

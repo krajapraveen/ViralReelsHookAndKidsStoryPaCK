@@ -15,9 +15,31 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from shared import db, get_current_user
 from security import sanitize_input
 from middleware.reliability import get_request_id, structured_log
+from models.story_session import (
+    Lifecycle,
+    StorySessionError,
+    StorySessionPatch,
+    legal_next_states,
+)
+from services import story_session_service
 
 logger = logging.getLogger("drafts")
 router = APIRouter(prefix="/drafts", tags=["Drafts"])
+
+
+def _session_error_to_http(err: StorySessionError, request_id: str) -> HTTPException:
+    """Map a domain error from the session service to an HTTP envelope
+    with `code`, `message`, `request_id`, `retryable` and any extra
+    diagnostic fields the service attached (current_version, allowed_next…)."""
+    detail = {
+        "code": err.code.value,
+        "message": err.message,
+        "request_id": request_id,
+        "retryable": err.retryable,
+    }
+    if err.extra:
+        detail.update(err.extra)
+    return HTTPException(status_code=err.status_code, detail=detail)
 
 # P0 2026-05-16 (Resume-Draft contract) — schema version stamped on every
 # draft. Hydration rejects unknown versions and surfaces a recovery UX
@@ -416,6 +438,271 @@ async def discard_draft(
         user=user_id[:8], archived=res.modified_count,
     )
     return {"success": True, "archived": res.modified_count}
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Session 2 — Canonical State Endpoints (2026-05-17 P0)
+# ════════════════════════════════════════════════════════════════════════════
+# These endpoints are the new SOURCE OF TRUTH for draft mutations. Older
+# routes (/save, /status, /current) remain intact for backward compatibility
+# during the foundation phase; new frontend code should target these.
+#
+# Contract surface:
+#   GET    /drafts/{draft_id}/state         — canonical hydration + version
+#   POST   /drafts/{draft_id}/patch         — version-checked field update
+#   POST   /drafts/{draft_id}/transition    — pure lifecycle transition
+#   POST   /drafts/session                  — create a fresh session (alias of
+#                                              /create using the service)
+#
+# Every successful response includes:
+#   • `state`        — full canonical state (draft_id, version, lifecycle, …)
+#   • `request_id`   — stamped from the reliability middleware
+# Every error response includes:
+#   • `code`         — machine-readable (STALE_WRITE, ILLEGAL_TRANSITION, …)
+#   • `message`      — human-readable
+#   • `request_id`
+#   • `retryable`    — whether the client should retry on this error
+#   • `current_version` / `allowed_next` — diagnostics when applicable
+
+
+class _PatchBody(BaseModel):
+    expected_version: int
+    patch: dict = {}  # accepted: title, story_text, animation_style, age_group, voice_preset
+    next_lifecycle: Optional[str] = None  # one of Lifecycle values
+
+
+class _TransitionBody(BaseModel):
+    expected_version: int
+    next_lifecycle: str
+    attached_job_id: Optional[str] = None
+
+
+def _serialize_state(state) -> dict:
+    """Build the canonical state response payload (frontend-friendly shape)."""
+    return {
+        "draft_id": state.draft_id,
+        "schema_version": state.schema_version,
+        "version": state.version,
+        "lifecycle": state.lifecycle.value,
+        "legacy_status": state.legacy_status,
+        "title": state.title,
+        "story_text": state.story_text,
+        "animation_style": state.animation_style,
+        "age_group": state.age_group,
+        "voice_preset": state.voice_preset,
+        "attached_job_id": state.attached_job_id,
+        "created_at": state.created_at,
+        "updated_at": state.updated_at,
+        "archived_at": state.archived_at,
+        "allowed_next": sorted(s.value for s in legal_next_states(state.lifecycle)),
+    }
+
+
+@router.get("/{draft_id}/state")
+async def get_session_state(
+    draft_id: str,
+    _http: StarletteRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Canonical hydration endpoint (Session 2).
+
+    Differs from `GET /drafts/{draft_id}` by exposing `version`, `lifecycle`
+    and `allowed_next` in a flat shape designed for the new frontend reducer.
+    The legacy endpoint is preserved for older callers.
+    """
+    user_id = current_user.get("id") or str(current_user.get("_id", ""))
+    request_id = get_request_id(_http)
+    try:
+        state = await story_session_service.get_session_by_id(
+            db, draft_id=draft_id, user_id=user_id,
+        )
+    except StorySessionError as e:
+        raise _session_error_to_http(e, request_id)
+
+    structured_log(
+        logger, logging.INFO, "drafts/state-read",
+        request=_http, user=user_id[:8],
+        draft_id=draft_id, version=state.version, lifecycle=state.lifecycle.value,
+    )
+    return {
+        "success": True,
+        "state": _serialize_state(state),
+        "request_id": request_id,
+    }
+
+
+@router.post("/{draft_id}/patch")
+async def patch_session_state(
+    draft_id: str,
+    body: _PatchBody,
+    _http: StarletteRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Apply a version-checked partial update.
+
+    Body:
+      {
+        "expected_version": <int>,
+        "patch": { "title": "...", "story_text": "...", ... },
+        "next_lifecycle": "EDITING" | "AUTOSAVING" | ...  (optional)
+      }
+
+    On 409 STALE_WRITE the response carries `current_version` so the client
+    can refetch + replay its local edit.
+    """
+    user_id = current_user.get("id") or str(current_user.get("_id", ""))
+    request_id = get_request_id(_http)
+
+    # Sanitize string fields (defense in depth — same rules as /save).
+    sanitized: dict = {}
+    if "title" in body.patch and body.patch["title"] is not None:
+        sanitized["title"] = sanitize_input(str(body.patch["title"]), max_length=500)
+    if "story_text" in body.patch and body.patch["story_text"] is not None:
+        sanitized["story_text"] = sanitize_input(str(body.patch["story_text"]), max_length=10000)
+    for k in ("animation_style", "age_group", "voice_preset"):
+        if k in body.patch and body.patch[k] is not None:
+            sanitized[k] = str(body.patch[k])[:64]
+
+    # Strip dangerous URI schemes from text fields
+    import re as _re
+    _uri = _re.compile(r"(?i)(javascript|vbscript|data)\s*:", _re.IGNORECASE)
+    if "title" in sanitized:
+        sanitized["title"] = _uri.sub("", sanitized["title"])
+    if "story_text" in sanitized:
+        sanitized["story_text"] = _uri.sub("", sanitized["story_text"])
+
+    try:
+        patch = StorySessionPatch(**sanitized)
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "INVALID_PATCH",
+                "message": "Patch contained unsupported fields.",
+                "request_id": request_id,
+                "retryable": False,
+            },
+        )
+
+    next_lifecycle = None
+    if body.next_lifecycle:
+        try:
+            next_lifecycle = Lifecycle(body.next_lifecycle)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "ILLEGAL_TRANSITION",
+                    "message": f"Unknown lifecycle '{body.next_lifecycle}'.",
+                    "request_id": request_id,
+                    "retryable": False,
+                    "allowed": [lc.value for lc in Lifecycle],
+                },
+            )
+
+    try:
+        state = await story_session_service.patch_session(
+            db,
+            draft_id=draft_id,
+            user_id=user_id,
+            expected_version=body.expected_version,
+            patch=patch,
+            next_lifecycle=next_lifecycle,
+        )
+    except StorySessionError as e:
+        raise _session_error_to_http(e, request_id)
+
+    return {
+        "success": True,
+        "state": _serialize_state(state),
+        "request_id": request_id,
+    }
+
+
+@router.post("/{draft_id}/transition")
+async def transition_session_state(
+    draft_id: str,
+    body: _TransitionBody,
+    _http: StarletteRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Pure lifecycle transition. Use this when no domain fields change
+    (e.g., EDITING → READY_TO_GENERATE on click, or GENERATING → READY
+    from the pipeline workers)."""
+    user_id = current_user.get("id") or str(current_user.get("_id", ""))
+    request_id = get_request_id(_http)
+
+    try:
+        next_lifecycle = Lifecycle(body.next_lifecycle)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "ILLEGAL_TRANSITION",
+                "message": f"Unknown lifecycle '{body.next_lifecycle}'.",
+                "request_id": request_id,
+                "retryable": False,
+                "allowed": [lc.value for lc in Lifecycle],
+            },
+        )
+
+    try:
+        state = await story_session_service.transition_session(
+            db,
+            draft_id=draft_id,
+            user_id=user_id,
+            expected_version=body.expected_version,
+            next_lifecycle=next_lifecycle,
+            attached_job_id=body.attached_job_id,
+        )
+    except StorySessionError as e:
+        raise _session_error_to_http(e, request_id)
+
+    return {
+        "success": True,
+        "state": _serialize_state(state),
+        "request_id": request_id,
+    }
+
+
+@router.post("/session")
+async def create_canonical_session(
+    _http: StarletteRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Service-backed alias of POST /drafts/create.
+
+    Returns the FULL canonical state (with `version` + `lifecycle`) rather
+    than just `{draft_id, schema_version}` like the legacy endpoint. Use
+    this from the new reducer-based frontend.
+    """
+    user_id = current_user.get("id") or str(current_user.get("_id", ""))
+    request_id = get_request_id(_http)
+
+    # Refuse if an active draft already exists — same contract as /create.
+    existing = await story_session_service.get_active_session(db, user_id=user_id)
+    if existing is not None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "DRAFT_ALREADY_ACTIVE",
+                "message": "An active draft already exists. Archive it first.",
+                "active_draft_id": existing.draft_id,
+                "request_id": request_id,
+                "retryable": False,
+            },
+        )
+
+    state = await story_session_service.create_session(db, user_id=user_id)
+    structured_log(
+        logger, logging.INFO, "drafts/session-create",
+        request=_http, user=user_id[:8], draft_id=state.draft_id,
+    )
+    return {
+        "success": True,
+        "state": _serialize_state(state),
+        "request_id": request_id,
+    }
 
 
 # ═══ GUIDED START V2 — Category-based ideas ═════════════════════════════════
