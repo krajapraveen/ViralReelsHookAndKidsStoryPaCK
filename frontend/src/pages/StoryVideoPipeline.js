@@ -2475,6 +2475,17 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
     const modifier = direction.id === 'custom' ? customDirection : direction.modifier;
     if (!modifier.trim()) return;
 
+    // Guard: if we don't have a parent job id, we cannot create a meaningful
+    // continuation. Surface a structured error with request_id so support
+    // can pinpoint the failure — DO NOT silently no-op.
+    if (!jid) {
+      toast.error(
+        'Could not start continuation: missing story id. Refresh and try again.\nReference ID: ' +
+        (window.lastRequestId || 'n/a'),
+      );
+      return;
+    }
+
     const continuePrompt = `[Continuation of "${displayTitle}"]\n\nPrevious story:\n${baseStory.slice(0, 500)}...\n\nDirection: ${modifier}`;
 
     localStorage.setItem('remix_video', JSON.stringify({
@@ -2485,7 +2496,20 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
       age_group: job?.age_group,
       voice_preset: job?.voice_preset,
     }));
-    navigate(`/app/story-video-studio?remix=continue`);
+    // P0 2026-05-16 — when the user is ALREADY on /app/story-video-studio
+    // (e.g., the post-gen view of the story they want to continue),
+    // react-router's `navigate(...)` to the same path with new query params
+    // does not unmount the page → the loaded `job` state continues to render
+    // the post-gen view and the user sees nothing happen.
+    // Force a HARD navigation so the editor re-mounts and reads the new
+    // remix_video payload from localStorage.
+    const samePathname = window.location.pathname === '/app/story-video-studio';
+    const target = `/app/story-video-studio?remix=continue&continue_from=${encodeURIComponent(jid)}&t=${Date.now()}`;
+    if (samePathname) {
+      window.location.href = target;
+    } else {
+      navigate(target);
+    }
     toast.success(`Creating continuation: ${direction.label}`);
   };
 

@@ -92,9 +92,24 @@ export default function EntitledDownloadButton({
           window.open(data.download_url, '_blank');
           toast.success('Download started!');
         }
+      } else {
+        // P0 2026-05-16 — never silent-fail. If the response shape is
+        // unexpected (success=false, missing download_url, etc.), surface
+        // a structured error with the request_id from the response header
+        // so the user can paste it into support.
+        const requestId = res.headers.get('X-Request-Id') || res.headers.get('x-request-id') || 'n/a';
+        toast.error(
+          `Download response was empty. Please try again.\nReference ID: ${requestId}`,
+        );
+        console.error('[download] empty response', { assetId, data, requestId });
       }
     } catch (err) {
-      toast.error('Download failed. Please try again.');
+      // P0 2026-05-16 — log + surface structured error with request_id
+      // (if available) so the user has a debuggable reference instead of
+      // a generic "Download failed" toast.
+      const requestId = err?.response?.headers?.get?.('X-Request-Id') || 'n/a';
+      console.error('[download] error', err);
+      toast.error(`Download failed. Please try again.\nReference ID: ${requestId}`);
     } finally {
       setDownloading(false);
     }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Share2, Copy, Check, X, Sparkles, ChevronRight, Trophy, TrendingUp, Heart, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { trackEvent } from '../utils/analytics';
@@ -137,10 +138,14 @@ export default function SharePromptModal({ jobId, title, characterName, slug, on
 
   if (!slug) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" data-testid="share-prompt-modal">
+  // P0 2026-05-16 — render via portal to document.body so any ancestor
+  // `transform` / `filter` / `perspective` CSS doesn't create a new
+  // containing block for the fixed-position overlay (was causing the
+  // modal to render lower-than-center on production).
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto" data-testid="share-prompt-modal">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={handleDismiss} />
-      <div className="relative bg-[#0d0d18] border border-white/10 rounded-2xl max-w-sm w-full p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative bg-[#0d0d18] border border-white/10 rounded-2xl max-w-sm w-full my-auto p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200 max-h-[calc(100vh-2rem)] overflow-y-auto">
         <button onClick={handleDismiss} className="absolute top-3 right-3 text-slate-500 hover:text-white" data-testid="share-prompt-close">
           <X className="w-4 h-4" />
         </button>
@@ -230,6 +235,7 @@ export default function SharePromptModal({ jobId, title, characterName, slug, on
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

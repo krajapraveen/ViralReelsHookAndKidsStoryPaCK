@@ -97,9 +97,9 @@ export function ForceShareGate({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" data-testid="force-share-gate">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto" data-testid="force-share-gate">
       <div
-        className="w-full max-w-md mx-4 bg-[#0c0c14] border border-violet-500/30 rounded-2xl overflow-hidden shadow-2xl shadow-violet-500/10"
+        className="w-full max-w-md mx-4 my-auto bg-[#0c0c14] border border-violet-500/30 rounded-2xl overflow-hidden shadow-2xl shadow-violet-500/10 max-h-[calc(100vh-2rem)] overflow-y-auto"
         style={{ animation: 'gate-enter 0.4s cubic-bezier(0.16,1,0.3,1)' }}
       >
         <div className="h-1 bg-gradient-to-r from-violet-600 via-rose-500 to-amber-500" />
