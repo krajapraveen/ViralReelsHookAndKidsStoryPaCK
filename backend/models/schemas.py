@@ -162,14 +162,17 @@ class AdminExceptionLog(BaseModel):
     created_at: str
 
 
+from .payload_validators import PaymentStatus, PaymentCurrency
+
+
 class PaymentLog(BaseModel):
     id: str
     user_id: str
     user_email: str
     order_id: str
     amount: int
-    currency: str
-    status: str  # SUCCESS, FAILED, PENDING, REFUNDED
+    currency: PaymentCurrency
+    status: PaymentStatus  # SUCCESS, FAILED, PENDING, REFUNDED
     product_id: str
     credits: int
     failure_reason: Optional[str] = None

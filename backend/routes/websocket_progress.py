@@ -12,6 +12,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, HTTPExcept
 from jose import jwt, JWTError
 
 from shared import db, logger
+from models.payload_validators import TokenStr
 
 router = APIRouter(tags=["WebSocket Progress"])
 
@@ -161,7 +162,7 @@ def verify_token(token: str) -> Optional[dict]:
 @router.websocket("/ws/progress")
 async def websocket_progress_endpoint(
     websocket: WebSocket,
-    token: str = Query(...),
+    token: TokenStr = Query(...),
     job_id: Optional[str] = Query(None)
 ):
     """

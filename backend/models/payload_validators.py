@@ -31,7 +31,7 @@ Usage:
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import Field, StringConstraints
 
@@ -113,3 +113,70 @@ LongText = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=0, max_length=8000),
 ]
+
+
+# ── Tokens (JWT-shaped, opaque, content-protection, stream) ──────────
+# Allows the full JWT alphabet (`[A-Za-z0-9_\-\.]`) plus the `~` and `=`
+# we see from a few legacy URL-safe-base64 variants. Length is bounded
+# so an attacker cannot mail us a gigabyte of bytes.
+TokenStr = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        min_length=16,
+        max_length=4096,
+        pattern=r"^[A-Za-z0-9_\-\.~=]{16,4096}$",
+    ),
+]
+
+# ── OTP (numeric, exactly N digits — Verify2FA enforces 6) ───────────
+# Stripped to a strict 6-digit token. The longer OTP variants (8 digits
+# for some recovery flows) should use Otp8DigitStr.
+Otp6DigitStr = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        min_length=6,
+        max_length=6,
+        pattern=r"^\d{6}$",
+    ),
+]
+
+# ── User-supplied API key (BYO-key flow) ─────────────────────────────
+# OpenAI/Gemini/Anthropic keys are at minimum ~32 chars and we never
+# accept anything beyond a few hundred. The length cap is a DoS guard;
+# the actual provider validates the key on first use.
+ApiKeyStr = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        min_length=10,
+        max_length=512,
+    ),
+]
+
+# ── Password — length cap + min strength threshold ───────────────────
+# We bound max_length to 128 so an attacker can't waste bcrypt cycles
+# on multi-MB inputs. Min length is set on a per-route basis (auth
+# allows 8, schemas.UserCreate allows 6 for legacy reasons).
+Password6PlusStr = Annotated[
+    str,
+    StringConstraints(min_length=6, max_length=128),
+]
+Password8PlusStr = Annotated[
+    str,
+    StringConstraints(min_length=8, max_length=128),
+]
+
+
+# ── Wallet ledger Literals (P0 — money) ──────────────────────────────
+# These mirror the comments in routes/wallet.py:LedgerEntry.
+LedgerEntryType = Literal["HOLD", "CAPTURE", "RELEASE", "TOPUP", "ADJUST"]
+LedgerRefType = Literal["JOB", "SUBSCRIPTION", "ADMIN", "REFUND"]
+LedgerStatus = Literal["ACTIVE", "REVERSED"]
+
+
+# ── Payment ledger Literals (P0 — money) ─────────────────────────────
+# Mirror models/schemas.py:PaymentLog comments.
+PaymentStatus = Literal["SUCCESS", "FAILED", "PENDING", "REFUNDED"]
+PaymentCurrency = Literal["INR", "USD"]

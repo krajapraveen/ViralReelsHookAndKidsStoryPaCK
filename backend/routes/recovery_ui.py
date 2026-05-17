@@ -21,6 +21,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared import db, logger, get_current_user
+from models.payload_validators import OrderIdStr
 from services.self_healing_core import (
     metrics, CorrelationContext, generate_correlation_id
 )
@@ -302,7 +303,7 @@ async def get_preview_fallback(
 
 @router.get("/payment/{order_id}")
 async def get_payment_recovery_status(
-    order_id: str,
+    order_id: OrderIdStr,
     current_user: dict = Depends(get_current_user)
 ):
     """

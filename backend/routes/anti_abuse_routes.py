@@ -28,13 +28,16 @@ class SignupValidationRequest(BaseModel):
     phone_number: Optional[str] = None
 
 
+from models.payload_validators import Otp6DigitStr
+
+
 class PhoneOTPRequest(BaseModel):
     phone_number: str
 
 
 class PhoneVerifyRequest(BaseModel):
     phone_number: str
-    otp: str
+    otp: Otp6DigitStr
 
 
 @router.post("/validate-signup")

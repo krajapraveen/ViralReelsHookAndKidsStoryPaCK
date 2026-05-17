@@ -2,6 +2,118 @@
 
 
 ─────────────────────────────────────────────────────────
+[2026-05-19] BATCH A — PAYMENT & AUTH BOUNDARY HARDENING — SHIPPED
+─────────────────────────────────────────────────────────
+Founder mandate: tighten the P0 money/auth boundary. Freeze intact.
+
+FIELDS TIGHTENED (14 sites)
+  Cashfree order_id — now OrderIdStr:
+    • routes/cashfree_payments.py
+        CashfreeVerifyRequest.order_id
+        RefundStatus.order_id
+        get_order_status(order_id)        [path]
+        create_cashfree_refund(order_id)  [path]
+        get_refund_status(order_id)       [path]
+        retry_credit_delivery(order_id)   [path]
+    • routes/recovery_ui.py  get_payment_recovery_status [path]
+    • routes/revenue_analytics.py  get_transaction_detail [path]
+    • routes/self_healing_monitoring.py  manual_reconcile_payment [path]
+    • routes/admin_payments.py  get_orders.order_id [Query, Optional]
+    • routes/admin_payments.py  get_webhooks.order_id [Query, Optional]
+
+  Auth tokens — now TokenStr:
+    • routes/auth.py  ResetPasswordRequest.token, VerifyEmailRequest.token
+
+  Content-protection tokens — now TokenStr:
+    • routes/content_protection_routes.py
+        StreamTokenValidation.token
+        get_hls_playlist.token [Query]
+        get_hls_segment.token [Query]
+
+  WebSocket token — now TokenStr:
+    • routes/websocket_progress.py  /ws/progress.token [Query]
+
+  OTP — now Otp6DigitStr (exactly 6 digits, numeric):
+    • routes/anti_abuse_routes.py  PhoneVerifyRequest.otp
+
+  Password length cap — now Password8PlusStr (min 8, max 128):
+    • routes/admin.py  CreateUserRequest.password
+    • routes/security_management.py  Enable2FARequest.password
+
+  BYO api_key length cap — now ApiKeyStr (min 10, max 512):
+    • routes/comix_ai.py  save_user_api_key.api_key [Form]
+
+  Wallet ledger Literals:
+    • routes/wallet.py  LedgerEntry.entryType  → Literal[5 values]
+    • routes/wallet.py  LedgerEntry.refType    → Literal[4 values]
+    • routes/wallet.py  LedgerEntry.status     → Literal[2 values]
+
+  Payment ledger Literals:
+    • models/schemas.py  PaymentLog.status   → Literal[SUCCESS/FAILED/PENDING/REFUNDED]
+    • models/schemas.py  PaymentLog.currency → Literal[INR/USD]
+
+EXTENSIONS TO models/payload_validators.py
+  + TokenStr             (regex `^[A-Za-z0-9_\-\.~=]{16,4096}$`)
+  + Otp6DigitStr         (regex `^\d{6}$`)
+  + ApiKeyStr            (length 10..512)
+  + Password6PlusStr     (length 6..128)
+  + Password8PlusStr     (length 8..128)
+  + LedgerEntryType / LedgerRefType / LedgerStatus  (Literals)
+  + PaymentStatus / PaymentCurrency  (Literals)
+
+REGRESSION TESTS — 28 (backend/tests/test_payment_auth_batch_a_2026_05.py)
+  Cashfree order_id parametrized over 7 junk shapes
+    (empty/short/long/spaces/object/array/null) + canonical accept.
+  Auth tokens — 6 cases (junk values × 2 endpoints + password length).
+  OTP — 7 junk shapes + 6-digit accept.
+  BYO api_key — short-key reject.
+  Credit-grant trust audits (source-level, no network):
+    • add_credits(...) calls must NOT read amount/credits/status from
+      client request body.
+    • Credit count MUST derive from server-side PRODUCTS registry.
+  payload_validators module presence of all Batch-A exports.
+  Source-level pin: wallet.LedgerEntry + PaymentLog use Literal types.
+
+BEHAVIOR CHANGES
+  • Invalid Cashfree order_id (object, array, null, malformed string)
+    now returns 422 VALIDATION_ERROR with envelope. Previously fell
+    through to a DB query and surfaced as a 404 or opaque 500.
+  • Reset/verify/stream/WS tokens shorter than 16 chars or containing
+    invalid characters now rejected at the boundary.
+  • Phone OTP must be exactly 6 numeric digits (previously accepted
+    any string).
+  • Password fields capped at 128 chars (bcrypt-DoS guard).
+  • BYO api_key bounded 10..512 chars.
+  • Wallet ledger writes / PaymentLog reads with unknown enum values
+    now rejected with envelope.
+  • Legitimate inputs continue to work.
+
+ENVELOPE CONTRACT — preserved & verified end-to-end
+  Every rejection returns the canonical envelope:
+    {detail: {code: "VALIDATION_ERROR", message, request_id,
+              field_errors[]}, code, request_id}
+  + matching X-Request-Id header.
+  No stack traces, no Pydantic internals, no raw input echo.
+
+CREDIT-GRANT TRUST POSTURE (re-verified)
+  • Cashfree grant flow reads `product = PRODUCTS.get(data.productId)`
+    then `product["credits"]` — server-side only.
+  • No `add_credits(..., data.amount)` / `data.credits` / `data.status`
+    paths exist. Static audit test will fail CI if they ever appear.
+
+FULL SUITE: 177 passed, 1 skipped. Lint clean.
+
+WHAT BATCH A DID NOT TOUCH (still frozen / future batches):
+  ✗ Batch B — `mode` Literal sweep (~6 sites)
+  ✗ Batch C — `job_id`/`*_id` typed sweep (~20 sites)
+  ✗ Free-text fields, categorical labels, user_id paths
+  ✗ Phase 3c / Phase 4 / canonical migration
+  ✗ Admin diagnostics panel
+  ✗ CI consolidation (`make audit-boundaries`) — deferred per direction.
+
+
+
+─────────────────────────────────────────────────────────
 [2026-05-19] P1 URL/PATH/QUERY BOUNDARY AUDIT — SHIPPED
 ─────────────────────────────────────────────────────────
 Founder mandate: "Prevent unsafe handler/default-arg values from

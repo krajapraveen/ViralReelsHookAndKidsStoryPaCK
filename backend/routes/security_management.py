@@ -33,13 +33,16 @@ class BlockIPRequest(BaseModel):
     duration_hours: int = Field(24, ge=1, le=720, description="Block duration in hours")
 
 
+from models.payload_validators import Password8PlusStr
+
+
 class WhitelistIPRequest(BaseModel):
     ip_address: str = Field(..., description="IP address to whitelist")
     reason: str = Field(..., description="Reason for whitelisting")
 
 
 class Enable2FARequest(BaseModel):
-    password: str = Field(..., description="Current password for verification")
+    password: Password8PlusStr = Field(..., description="Current password for verification")
 
 
 class Verify2FARequest(BaseModel):

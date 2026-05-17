@@ -90,12 +90,17 @@ class JobResponse(BaseModel):
     errorMessage: Optional[str] = None
 
 
+from models.payload_validators import (
+    LedgerEntryType, LedgerRefType, LedgerStatus,
+)
+
+
 class LedgerEntry(BaseModel):
-    entryType: str  # HOLD, CAPTURE, RELEASE, TOPUP, ADJUST
+    entryType: LedgerEntryType  # HOLD, CAPTURE, RELEASE, TOPUP, ADJUST
     amount: int
-    refType: str  # JOB, SUBSCRIPTION, ADMIN, REFUND
+    refType: LedgerRefType  # JOB, SUBSCRIPTION, ADMIN, REFUND
     refId: str
-    status: str  # ACTIVE, REVERSED
+    status: LedgerStatus  # ACTIVE, REVERSED
 
 
 # =============================================================================

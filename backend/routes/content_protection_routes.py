@@ -15,6 +15,7 @@ from services.content_protection_service import (
     get_pdf_protection_service,
     get_video_streaming_service
 )
+from models.payload_validators import TokenStr
 
 router = APIRouter(prefix="/content-protection", tags=["Content Protection"])
 
@@ -32,7 +33,7 @@ class VideoStreamRequest(BaseModel):
 
 
 class StreamTokenValidation(BaseModel):
-    token: str
+    token: TokenStr
     video_id: str
 
 
@@ -173,7 +174,7 @@ async def get_video_service_status():
 @router.get("/stream/{video_id}/playlist.m3u8")
 async def get_hls_playlist(
     video_id: str,
-    token: str = Query(..., description="Stream authentication token")
+    token: TokenStr = Query(..., description="Stream authentication token")
 ):
     """
     Get HLS playlist for video streaming.
@@ -207,7 +208,7 @@ async def get_hls_playlist(
 async def get_hls_segment(
     video_id: str,
     segment: str,
-    token: str = Query(..., description="Stream authentication token")
+    token: TokenStr = Query(..., description="Stream authentication token")
 ):
     """
     Get HLS segment for video streaming.

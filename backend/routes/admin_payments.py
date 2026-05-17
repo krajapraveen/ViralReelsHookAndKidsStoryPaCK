@@ -16,6 +16,7 @@ import traceback
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared import db, logger, get_admin_user, add_credits
+from models.payload_validators import OrderIdStr
 
 router = APIRouter(prefix="/admin/payments", tags=["Admin Payments"])
 
@@ -132,7 +133,7 @@ async def get_orders(
     user: dict = Depends(get_admin_user),
     status: Optional[str] = None,
     email: Optional[str] = None,
-    order_id: Optional[str] = None,
+    order_id: Optional[OrderIdStr] = None,
     unreconciled_only: bool = False,
     days: int = Query(default=7, le=90),
     skip: int = 0,
@@ -474,7 +475,7 @@ async def reconcile_order(order_id: str, user: dict = Depends(get_admin_user)):
 @router.get("/webhooks")
 async def get_webhooks(
     user: dict = Depends(get_admin_user),
-    order_id: Optional[str] = None,
+    order_id: Optional[OrderIdStr] = None,
     status: Optional[str] = None,
     days: int = Query(default=7, le=90),
     skip: int = 0,

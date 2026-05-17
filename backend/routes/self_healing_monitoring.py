@@ -21,6 +21,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared import db, logger, get_admin_user, get_current_user
+from models.payload_validators import OrderIdStr
 from services.self_healing_core import (
     metrics, alert_manager, IncidentLogger, orchestrator,
     AlertSeverity, CorrelationContext
@@ -515,7 +516,7 @@ async def get_reconciliation_status(
 
 @router.post("/payments/{order_id}/reconcile")
 async def manual_reconcile_payment(
-    order_id: str,
+    order_id: OrderIdStr,
     current_user: dict = Depends(get_admin_user)
 ):
     """

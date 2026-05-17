@@ -102,13 +102,15 @@ def get_product_price(product: dict, currency: str) -> float:
     """Return product price — always INR for now."""
     return float(product.get("price_inr", 0))
 
+from models.payload_validators import OrderIdStr
+
 # Pydantic Models
 class CashfreeOrderRequest(BaseModel):
     productId: str
     currency: str = "INR"
 
 class CashfreeVerifyRequest(BaseModel):
-    order_id: str
+    order_id: OrderIdStr
     cf_order_id: Optional[str] = None
 
 
@@ -118,7 +120,7 @@ class CashfreeRefundRequest(BaseModel):
 
 
 class RefundStatus(BaseModel):
-    order_id: str
+    order_id: OrderIdStr
     cf_order_id: Optional[str] = None
 
 
@@ -692,7 +694,7 @@ async def cashfree_health():
 
 @router.get("/order/{order_id}/status")
 async def get_order_status(
-    order_id: str,
+    order_id: OrderIdStr,
     current_user: dict = Depends(get_current_user)
 ):
     """Get the status of a specific order"""
@@ -779,7 +781,7 @@ async def get_payment_history(
 @router.post("/refund/{order_id}")
 @limiter.limit("10/minute")
 async def create_cashfree_refund(
-    order_id: str,
+    order_id: OrderIdStr,
     request: Request,
     data: CashfreeRefundRequest,
     admin: dict = Depends(get_admin_user)
@@ -942,7 +944,7 @@ async def create_cashfree_refund(
 
 @router.get("/refund/{order_id}/status")
 async def get_refund_status(
-    order_id: str,
+    order_id: OrderIdStr,
     admin: dict = Depends(get_admin_user)
 ):
     """Get refund status for an order (Admin Only)"""
@@ -1047,7 +1049,7 @@ async def get_orders_pending_delivery(
 @router.post("/orders/{order_id}/retry-delivery")
 @limiter.limit("5/minute")
 async def retry_credit_delivery(
-    order_id: str,
+    order_id: OrderIdStr,
     request: Request,
     admin: dict = Depends(get_admin_user)
 ):

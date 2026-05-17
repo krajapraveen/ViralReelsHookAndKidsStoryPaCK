@@ -32,10 +32,12 @@ class ResetCreditsRequest(BaseModel):
     reason: str = Field(min_length=5, max_length=500)
 
 
+from models.payload_validators import Password8PlusStr  # noqa: E402
+
 class CreateUserRequest(BaseModel):
     name: str = Field(min_length=2, max_length=100)
     email: str
-    password: str = Field(min_length=8)
+    password: Password8PlusStr
     credits: int = Field(default=100, ge=0, le=999999999)
     role: str = Field(default="user")
 

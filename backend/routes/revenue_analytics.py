@@ -16,6 +16,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared import db, get_admin_user, logger
+from models.payload_validators import OrderIdStr
 
 router = APIRouter(prefix="/revenue-analytics", tags=["Revenue Analytics"])
 
@@ -821,7 +822,7 @@ async def get_user_payment_history(
 
 @router.get("/transaction/{order_id}")
 async def get_transaction_detail(
-    order_id: str,
+    order_id: OrderIdStr,
     admin: dict = Depends(get_admin_user)
 ):
     """

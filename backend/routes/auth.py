@@ -82,13 +82,15 @@ async def verify_recaptcha(token: str, expected_action: str = None) -> bool:
 
 
 # Request/Response Models
+from models.payload_validators import TokenStr, Password8PlusStr  # noqa: E402
+
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
 
 class ResetPasswordRequest(BaseModel):
-    token: str
-    newPassword: str = Field(min_length=8, max_length=128)
+    token: TokenStr
+    newPassword: Password8PlusStr
 
 
 class GoogleSignInRequest(BaseModel):
@@ -98,7 +100,7 @@ class GoogleSignInRequest(BaseModel):
 
 
 class VerifyEmailRequest(BaseModel):
-    token: str
+    token: TokenStr
 
 
 @router.get("/captcha-config")

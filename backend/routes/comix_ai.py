@@ -926,11 +926,13 @@ async def delete_comic_job(job_id: str, user: dict = Depends(get_current_user)):
     return {"success": True, "message": "Job deleted"}
 
 
+from models.payload_validators import ApiKeyStr  # noqa: E402
+
 # BYO-Key endpoints
 @router.post("/settings/api-key")
 async def save_user_api_key(
     provider: str = Form(...),
-    api_key: str = Form(...),
+    api_key: ApiKeyStr = Form(...),
     user: dict = Depends(get_current_user)
 ):
     """Save user's own API key for generation (BYO-Key model)"""
