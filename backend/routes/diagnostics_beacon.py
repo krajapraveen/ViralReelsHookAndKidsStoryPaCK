@@ -66,6 +66,13 @@ ALLOWED_METRICS = frozenset({
     "reaction_gif_broken_preview_total",
     "reaction_gif_false_success_prevented_total",
     "reaction_gif_download_url_missing_total",
+    # P0 2026-05-22 — Stuck-job / timeout bug-class elimination.
+    "reaction_gif_stage_timeout_total",
+    "reaction_gif_job_timeout_total",
+    "reaction_gif_stuck_job_repaired_total",
+    "reaction_gif_worker_silent_death_total",
+    "reaction_gif_poll_terminal_miss_total",
+    "reaction_gif_refund_on_timeout_total",
 })
 
 # Hard cap on payload size — prevents abusive clients from spamming.

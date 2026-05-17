@@ -217,11 +217,11 @@ def test_route_calls_verifier_before_appending_result(route_src: str) -> None:
     BEFORE the URL is appended to real_results. We pin this with a
     textual ordering check on the function body."""
     header = re.search(
-        r"^async def process_reaction_gif\s*\([\s\S]*?\)\s*(?:->[^:]+)?\s*:\s*\n",
+        r"^async def _process_reaction_gif_inner\s*\([\s\S]*?\)\s*(?:->[^:]+)?\s*:\s*\n",
         route_src,
         re.M,
     )
-    assert header, "process_reaction_gif not found"
+    assert header, "_process_reaction_gif_inner not found"
     body_start = header.end()
     next_def = re.search(
         r"^(?:async\s+)?def\s+\w+\s*\(",

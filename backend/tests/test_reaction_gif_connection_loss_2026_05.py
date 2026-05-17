@@ -193,14 +193,17 @@ def test_backend_route_calls_invariant_before_completed(
     """In the process_reaction_gif function body, the call to
     assert_completion_invariant must appear textually BEFORE any
     `"status": "COMPLETED"` write within the same function."""
-    # Locate the function header (which can span multiple lines) and
-    # bound the body by the next top-level `def`/`async def` or EOF.
+    # Locate the function header. After the 2026-05-22 stuck-job
+    # bug-class elimination, the worker body lives in
+    # `_process_reaction_gif_inner` and `process_reaction_gif` is a
+    # thin asyncio.wait_for wrapper. Match the inner function so we
+    # scan the body that actually performs work.
     header = re.search(
-        r"^async def process_reaction_gif\s*\([\s\S]*?\)\s*(?:->[^:]+)?\s*:\s*\n",
+        r"^async def _process_reaction_gif_inner\s*\([\s\S]*?\)\s*(?:->[^:]+)?\s*:\s*\n",
         route_src,
         re.M,
     )
-    assert header, "process_reaction_gif function not found"
+    assert header, "_process_reaction_gif_inner function not found"
     body_start = header.end()
     next_def = re.search(
         r"^(?:async\s+)?def\s+\w+\s*\(",

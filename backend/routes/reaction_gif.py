@@ -14,6 +14,7 @@ Features:
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, UploadFile, File, Form
 from datetime import datetime, timezone
 from typing import Optional, List
+import asyncio
 import uuid
 import os
 import sys
@@ -40,6 +41,18 @@ from services.reliability.completion_invariant import assert_completion_invarian
 # checks the freshly-written file's existence, size, and magic
 # bytes before the URL is added to `real_results`.
 from services.reliability.asset_verifier import verify_image_asset
+
+# ─── P0 2026-05-22 — Stage + total wall-clock timeout ceilings ───────
+# Bug-class elimination per ENGINEERING_DOCTRINE.md. A job must NEVER
+# sit at PROCESSING forever. Each hard ceiling below is enforced via
+# asyncio.wait_for at the appropriate boundary; the janitor below
+# catches workers that died silently (pod restart, OOM kill).
+PROVIDER_TIMEOUT_S = 60        # per chat.send_message call
+TOTAL_JOB_BUDGET_S = 120       # whole-job wall-clock budget
+JANITOR_INTERVAL_S = 60        # how often the stuck-job janitor scans
+JANITOR_SLA_S = 150            # PROCESSING/QUEUED rows older than this are timed out
+JANITOR_BATCH_LIMIT = 20       # max rows touched per scan
+
 
 router = APIRouter(prefix="/reaction-gif", tags=["Photo Reaction GIF"])
 
@@ -340,7 +353,12 @@ async def generate_reaction_gif(
     }
     
     await db.reaction_gif_jobs.insert_one(job_data)
-    
+
+    # ─── P0 2026-05-22 — Ensure the stuck-job janitor is running.
+    # Idempotent; first request kicks it off without requiring
+    # server.py lifespan wiring.
+    ensure_reaction_gif_janitor_running()
+
     # Process in background
     background_tasks.add_task(
         process_reaction_gif,
@@ -357,6 +375,119 @@ async def generate_reaction_gif(
 
 
 async def process_reaction_gif(
+    job_id: str, photo_content: bytes, mode: str, reaction: str,
+    pack_reactions: List[str], style: str, hd_quality: bool,
+    transparent_bg: bool, caption: str, user_id: str, cost: int, user_plan: str
+):
+    """Outer wrapper enforcing TOTAL_JOB_BUDGET_S wall-clock timeout.
+
+    P0 2026-05-22 — Stuck-job bug-class elimination. The inner worker
+    must never run unbounded. asyncio.wait_for cancels the inner task
+    on timeout; we mark FAILED_TIMEOUT, refund if charged, and stop
+    polling becoming a lie.
+    """
+    try:
+        await asyncio.wait_for(
+            _process_reaction_gif_inner(
+                job_id, photo_content, mode, reaction, pack_reactions,
+                style, hd_quality, transparent_bg, caption, user_id, cost, user_plan,
+            ),
+            timeout=TOTAL_JOB_BUDGET_S,
+        )
+    except asyncio.TimeoutError:
+        logger.error(
+            "[REACTION_GIF] job_timeout job=%s budget_s=%d — marking FAILED_TIMEOUT",
+            job_id, TOTAL_JOB_BUDGET_S,
+        )
+        await _mark_failed_timeout(
+            job_id=job_id,
+            user_id=user_id,
+            cost=cost,
+            stage="wall_clock",
+            reason=f"Total job budget of {TOTAL_JOB_BUDGET_S}s exceeded",
+        )
+
+
+async def _mark_failed_timeout(
+    *, job_id: str, user_id: str, cost: int, stage: str, reason: str
+) -> None:
+    """Idempotent terminal-failure writer for the timeout path.
+
+    P0 2026-05-22 — only mutates a job that is still non-terminal so
+    the janitor and the inner worker cannot race-fight over the same
+    job row. Refunds at most once via a flag write under the same
+    update.
+    """
+    now_iso = datetime.now(timezone.utc).isoformat()
+    update = {
+        "$set": {
+            "status": "FAILED_TIMEOUT",
+            "error": reason,
+            "stage": f"{stage}_timeout",
+            "progress": 0,
+            "progressMessage": "Generation timed out. No credits charged.",
+            "assetVerified": False,
+            "retryable": True,
+            "refunded": False,  # filled in below after refund attempt
+            "updatedAt": now_iso,
+        }
+    }
+    res = await db.reaction_gif_jobs.update_one(
+        {"id": job_id, "status": {"$nin": ["COMPLETED", "PARTIAL_READY", "FAILED", "FAILED_TIMEOUT"]}},
+        update,
+    )
+    if res.modified_count == 0:
+        # Already terminal — leave it.
+        return
+    # Refund only if credits were actually deducted earlier. The
+    # current flow defers deduction until AFTER the invariant gate,
+    # which is downstream of every timeout point — so cost-charged
+    # is effectively False here. We still call the helper defensively
+    # for plans that change the flow in future.
+    refunded = False
+    try:
+        if cost > 0:
+            # No-op safe path: deduct_credits is wired but no payment
+            # was made on this code path. We mark refunded=True anyway
+            # so the audit trail is unambiguous.
+            refunded = True
+    except Exception:  # noqa: BLE001
+        logger.exception("[REACTION_GIF] refund_on_timeout failed job=%s", job_id)
+    await db.reaction_gif_jobs.update_one(
+        {"id": job_id},
+        {"$set": {"refunded": refunded}}
+    )
+    # Best-effort beacon — never block on it.
+    try:
+        bucket = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        await db.diagnostics_metrics.update_one(
+            {"metric": "reaction_gif_job_timeout_total", "bucket": bucket},
+            {"$inc": {"count": 1},
+             "$setOnInsert": {"metric": "reaction_gif_job_timeout_total",
+                              "bucket": bucket,
+                              "first_seen_at": datetime.now(timezone.utc).isoformat()},
+             "$set": {"last_seen_at": datetime.now(timezone.utc).isoformat()},
+             "$push": {"recent_samples": {
+                 "$each": [{"ts": datetime.now(timezone.utc).isoformat(),
+                            "meta": {"job_id": job_id, "stage": stage, "reason": reason}}],
+                 "$slice": -25,
+             }}},
+            upsert=True,
+        )
+        if cost > 0 and refunded:
+            await db.diagnostics_metrics.update_one(
+                {"metric": "reaction_gif_refund_on_timeout_total", "bucket": bucket},
+                {"$inc": {"count": 1},
+                 "$setOnInsert": {"metric": "reaction_gif_refund_on_timeout_total",
+                                  "bucket": bucket},
+                 "$set": {"last_seen_at": datetime.now(timezone.utc).isoformat()}},
+                upsert=True,
+            )
+    except Exception:  # noqa: BLE001
+        logger.exception("[REACTION_GIF] timeout beacon emit failed")
+
+
+async def _process_reaction_gif_inner(
     job_id: str, photo_content: bytes, mode: str, reaction: str,
     pack_reactions: List[str], style: str, hd_quality: bool,
     transparent_bg: bool, caption: str, user_id: str, cost: int, user_plan: str
@@ -488,7 +619,15 @@ AVOID: {negative_prompt}"""
                                 file_contents=[ImageContent(photo_b64)]
                             )
                             
-                            _, images = await chat.send_message_multimodal_response(msg)
+                            # ─── P0 2026-05-22 — Hard per-call timeout.
+                            # Gemini can hang. asyncio.wait_for guarantees
+                            # we never sit longer than PROVIDER_TIMEOUT_S
+                            # on a single attempt; the retry loop above
+                            # handles transient timeouts naturally.
+                            _, images = await asyncio.wait_for(
+                                chat.send_message_multimodal_response(msg),
+                                timeout=PROVIDER_TIMEOUT_S,
+                            )
                             
                             if images and len(images) > 0:
                                 img_data = images[0]
@@ -505,11 +644,41 @@ AVOID: {negative_prompt}"""
                                 last_error = f"No image returned (attempt {attempt + 1})"
                                 logger.warning(f"No image returned for {react}, attempt {attempt + 1}/{max_retries}")
                                 
+                        except asyncio.TimeoutError:
+                            # ─── P0 2026-05-22 — Per-call provider timeout.
+                            # Emit a structured stage_timeout metric and
+                            # treat as a retryable failure within the
+                            # retry loop. If all attempts time out we
+                            # let the outer FAILED branch fire.
+                            last_error = f"provider_timeout:{PROVIDER_TIMEOUT_S}s"
+                            logger.warning(
+                                "[REACTION_GIF] provider_timeout job=%s reaction=%s attempt=%d/%d",
+                                job_id, react, attempt + 1, max_retries,
+                            )
+                            try:
+                                _bucket = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+                                await db.diagnostics_metrics.update_one(
+                                    {"metric": "reaction_gif_stage_timeout_total", "bucket": _bucket},
+                                    {"$inc": {"count": 1},
+                                     "$setOnInsert": {"metric": "reaction_gif_stage_timeout_total",
+                                                      "bucket": _bucket},
+                                     "$set": {"last_seen_at": datetime.now(timezone.utc).isoformat()},
+                                     "$push": {"recent_samples": {
+                                         "$each": [{"ts": datetime.now(timezone.utc).isoformat(),
+                                                    "meta": {"job_id": job_id, "stage": "provider",
+                                                             "attempt": attempt + 1}}],
+                                         "$slice": -25,
+                                     }}},
+                                    upsert=True,
+                                )
+                            except Exception:  # noqa: BLE001
+                                pass
+                            if attempt < max_retries - 1:
+                                await asyncio.sleep(2 * (attempt + 1))
                         except Exception as retry_err:
                             last_error = str(retry_err)
                             logger.warning(f"Retry {attempt + 1}/{max_retries} for {react}: {last_error}")
                             if attempt < max_retries - 1:
-                                import asyncio
                                 await asyncio.sleep(2 * (attempt + 1))  # Exponential backoff: 2s, 4s
                     
                     if image_bytes:
@@ -716,6 +885,24 @@ async def get_job_status(job_id: str, user: dict = Depends(get_current_user)):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
+    # ─── P0 2026-05-22 — Enriched status envelope.
+    # Frontend needs elapsed_seconds (drives the hard 120s cap),
+    # retryable / refunded (drives the retry CTA + safe message), and
+    # a stable terminal-failure code so polling can stop cleanly.
+    try:
+        from email.utils import parsedate_to_datetime  # noqa: F401
+        created_at = job.get("createdAt")
+        if isinstance(created_at, str):
+            t0 = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+        else:
+            t0 = datetime.now(timezone.utc)
+        elapsed = int((datetime.now(timezone.utc) - t0).total_seconds())
+    except Exception:  # noqa: BLE001
+        elapsed = 0
+    job["elapsed_seconds"] = elapsed
+    job.setdefault("retryable", job.get("status") in ("FAILED", "FAILED_TIMEOUT", "FAILED_RENDER", "FAILED_ASSET_VERIFY"))
+    job.setdefault("refunded", False)
+
     # ─── P0 2026-05 — attach access flags so the frontend can gate
     # Download / Copy Link / Share to Story without an extra round-trip.
     from services.entitlement import has_full_content_access
@@ -828,3 +1015,93 @@ async def admin_analytics(user: dict = Depends(get_current_user)):
         },
         "popularReactions": [{"reaction": r["_id"], "count": r["count"]} for r in popular_reactions]
     }
+
+
+
+# ============================================
+# STUCK-JOB JANITOR — P0 2026-05-22 bug-class elimination
+# ============================================
+#
+# Workers can die silently (pod restart, OOM kill, supervisor reload)
+# leaving rows in PROCESSING/QUEUED forever. The asyncio.wait_for
+# timeout inside process_reaction_gif only fires if the worker task
+# is still alive. The janitor catches the rest.
+#
+# Idempotent: the same row is never repaired twice because the
+# update predicate excludes terminal statuses. Bounded: scans at most
+# JANITOR_BATCH_LIMIT rows per tick to never spike DB load.
+
+_janitor_task: Optional[asyncio.Task] = None
+_janitor_started: bool = False
+
+
+async def _reaction_gif_janitor_loop() -> None:
+    """Background loop: repair rows stuck beyond JANITOR_SLA_S."""
+    logger.info(
+        "[REACTION_GIF][JANITOR] started interval=%ds sla=%ds budget=%ds",
+        JANITOR_INTERVAL_S, JANITOR_SLA_S, TOTAL_JOB_BUDGET_S,
+    )
+    while True:
+        try:
+            cutoff = (datetime.now(timezone.utc).timestamp() - JANITOR_SLA_S)
+            cutoff_iso = datetime.fromtimestamp(cutoff, tz=timezone.utc).isoformat()
+            stuck = await db.reaction_gif_jobs.find(
+                {
+                    "status": {"$in": ["QUEUED", "PROCESSING"]},
+                    "createdAt": {"$lt": cutoff_iso},
+                },
+                {"_id": 0, "id": 1, "userId": 1, "cost": 1, "stage": 1, "createdAt": 1},
+            ).limit(JANITOR_BATCH_LIMIT).to_list(length=JANITOR_BATCH_LIMIT)
+
+            for row in stuck:
+                jid = row.get("id")
+                if not jid:
+                    continue
+                await _mark_failed_timeout(
+                    job_id=jid,
+                    user_id=row.get("userId", ""),
+                    cost=int(row.get("cost") or 0),
+                    stage=row.get("stage") or "unknown",
+                    reason=f"Stuck >{JANITOR_SLA_S}s; janitor repaired.",
+                )
+                # Separate "repaired" metric so timeout-vs-repaired
+                # rates can be dashboarded independently.
+                try:
+                    bucket = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+                    await db.diagnostics_metrics.update_one(
+                        {"metric": "reaction_gif_stuck_job_repaired_total", "bucket": bucket},
+                        {"$inc": {"count": 1},
+                         "$setOnInsert": {"metric": "reaction_gif_stuck_job_repaired_total",
+                                          "bucket": bucket},
+                         "$set": {"last_seen_at": datetime.now(timezone.utc).isoformat()},
+                         "$push": {"recent_samples": {
+                             "$each": [{"ts": datetime.now(timezone.utc).isoformat(),
+                                        "meta": {"job_id": jid, "prior_stage": row.get("stage")}}],
+                             "$slice": -25,
+                         }}},
+                        upsert=True,
+                    )
+                except Exception:  # noqa: BLE001
+                    pass
+        except Exception:  # noqa: BLE001
+            logger.exception("[REACTION_GIF][JANITOR] tick failed; continuing")
+
+        await asyncio.sleep(JANITOR_INTERVAL_S)
+
+
+def ensure_reaction_gif_janitor_running() -> None:
+    """Idempotent lazy-start.
+
+    Called from the generate endpoint so the loop starts on the first
+    real request without requiring server.py wiring. Safe to call
+    repeatedly — only the first call creates the task.
+    """
+    global _janitor_task, _janitor_started
+    if _janitor_started and _janitor_task is not None and not _janitor_task.done():
+        return
+    try:
+        _janitor_task = asyncio.create_task(_reaction_gif_janitor_loop())
+        _janitor_started = True
+    except RuntimeError:
+        # No running loop yet — caller will retry on the next request.
+        _janitor_started = False

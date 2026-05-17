@@ -8,6 +8,38 @@ Evolve the platform from a standard AI content generator into a highly addictive
 
 ## What's Been Implemented
 
+### P0 PRODUCTION FIX — Reaction GIF stuck-job / no-output (timeouts + janitor + hard cap) — May 22, 2026
+**Status**: SHIPPED in preview. All audits green (**285 passed, 1 expected skip**). **Awaiting your redeploy + production verification.**
+
+**Production symptom**: Job parked at 90% "Creating 😂 reaction… Still working — this step is taking longer than usual." indefinitely. No output, no terminal failure, no recovery.
+
+**First observation**: The visible string "Creating 😂 reaction…" is from the **old backend** — the honest-progress backend fix emits "Generating frames 😂…" / "Encoding…" / "Verifying media…". Either the production backend bundle was not refreshed alongside the frontend, or the request was processed before the deploy completed. The frontend stall detector IS in production (the "Still working — this step…" copy is from my fix, with the `'this step'` fallback because backend didn't send the `stage` field). Independent of that, the durable fix below makes infinite parks impossible.
+
+**Bug-Class Elimination Report**:
+
+1. **Root cause** — Two layers of unbounded waits:
+   - *Backend:* `await chat.send_message_multimodal_response(msg)` had **no timeout**. Gemini can hang on the multimodal endpoint; nothing forced it to give up. Workers can die silently (pod restart, OOM kill); the job row sits in PROCESSING forever.
+   - *Frontend:* Polling continued indefinitely on any non-terminal status. No client-side hard cap. The bar therefore could remain at 90% forever.
+2. **Exact broken boundary** — `backend/routes/reaction_gif.py`: bare `await chat.send_message_multimodal_response(msg)` (provider boundary, no ceiling). `frontend/src/pages/PhotoReactionGIF.js`: `setInterval(pollJob, 2000)` with no hard cap (poll boundary).
+3. **Boundary class** — Async job (provider call + worker lifecycle) + Frontend (polling contract).
+4. **Why existing tests missed it** — No audit asserted ceilings: no `asyncio.wait_for` requirement on provider calls; no audit for "frontend has a hard cap"; no audit for janitor existence; no audit that `/job/:id` returns `elapsed_seconds`/`retryable`/`refunded`.
+5. **Regression test/scanner** — New `backend/tests/test_reaction_gif_stuck_job_2026_05.py` (22 pinning tests). Asserts: `asyncio` imported; `PROVIDER_TIMEOUT_S=60`, `TOTAL_JOB_BUDGET_S=120`, `JANITOR_INTERVAL_S=60`, `JANITOR_SLA_S=150`, `JANITOR_BATCH_LIMIT` constants present; bare provider call is gone; provider call wrapped in `asyncio.wait_for(...)`; outer `process_reaction_gif` wraps `_process_reaction_gif_inner` in `wait_for(TOTAL_JOB_BUDGET_S)`; `_mark_failed_timeout` is idempotent and emits beacons; janitor loop exists, auto-starts from the generate endpoint BEFORE `background_tasks.add_task`, funnels through `_mark_failed_timeout`, and is bounded by `JANITOR_BATCH_LIMIT`; `/job/:id` returns `elapsed_seconds`/`retryable`/`refunded`; frontend defines `FRONTEND_HARD_TIMEOUT_MS=130s` + `FRONTEND_SOFT_WARN_MS=90s`; pollJob recognizes `FAILED_TIMEOUT`/`FAILED_RENDER`/`FAILED_ASSET_VERIFY` as terminal; status-aware "timed out" copy; hard-cap forces final `/job/:id` check before surrendering; sessionStorage resume token cleared on local timeout; terminal-miss beacon fires.
+6. **Observability** — Six new diagnostics-beacon metrics allow-listed: `reaction_gif_stage_timeout_total`, `reaction_gif_job_timeout_total`, `reaction_gif_stuck_job_repaired_total`, `reaction_gif_worker_silent_death_total`, `reaction_gif_poll_terminal_miss_total`, `reaction_gif_refund_on_timeout_total`.
+7. **Similar-pattern sweep** — Photo-to-Comic and Story-to-Video already wrap their provider calls in `asyncio.wait_for` and have their own janitors (verified). Comic Storybook, YouStar, AI Studio do NOT have asset verifier / janitor / hard caps — backlog item, NOT widened in this PR.
+8. **Scope confirmation** — No unrelated work. Only added timeout ceilings, janitor, idempotent terminal writer, enriched status payload, frontend hard cap. No new features, no Phase 3c/4, no admin panel, no UI redesign. Pre-existing bare `except` on line 333 untouched.
+
+**Files changed**:
+- `backend/routes/reaction_gif.py` — `asyncio` import, ceiling constants, `_mark_failed_timeout`, `_process_reaction_gif_inner` rename, outer `wait_for` wrapper, per-call `wait_for` around `chat.send_message_multimodal_response`, `asyncio.TimeoutError` retry branch, janitor (`_reaction_gif_janitor_loop` + `ensure_reaction_gif_janitor_running`), enriched `/job/:id`.
+- `backend/routes/diagnostics_beacon.py` — six new metrics.
+- `frontend/src/pages/PhotoReactionGIF.js` — `FRONTEND_HARD_TIMEOUT_MS`, `FRONTEND_SOFT_WARN_MS`, `generatingStartedAtRef`, hard-cap effect with final `/job/:id` check, status-aware failure copy, new terminal statuses recognized, `reaction_gif_poll_terminal_miss_total` beacon, sessionStorage resume-token clear on timeout.
+- `frontend/src/utils/buildInfo.js` — build hash → `2026-05-22-reaction-gif-stuck-job-fix`.
+- `backend/tests/test_reaction_gif_stuck_job_2026_05.py` (**new**) — 22 pinning tests.
+- `Makefile` — suite registered.
+
+**Success-definition test**: The bug class — "Reaction GIF job parked indefinitely with no terminal failure" — is now **impossible to merge**. Three independent layers (per-call timeout, total wall-clock timeout, periodic janitor) ensure no job row stays in PROCESSING beyond 150s; one independent layer (frontend hard cap) ensures the UI cannot lie beyond 130s regardless of backend state.
+
+---
+
 ### P1 PRODUCTION FIX — Reaction GIF stuck-at-90% perception + real latency win — May 22, 2026
 **Status**: SHIPPED in preview. All audits green (**265 passed, 1 expected skip**). **Awaiting your redeploy + production verification.**
 

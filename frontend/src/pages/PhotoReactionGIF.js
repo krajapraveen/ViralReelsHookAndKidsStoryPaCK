@@ -133,6 +133,15 @@ export default function PhotoReactionGIF() {
   const PREVIEW_PROBE_MAX_ATTEMPTS = 5;
   const PREVIEW_PROBE_TIMEOUT_MS = 8000;
 
+  // ─── P0 2026-05-22 — Frontend hard wall-clock cap (no more 90% forever).
+  // The backend enforces TOTAL_JOB_BUDGET_S=120s via asyncio.wait_for
+  // and a janitor. The frontend has its own hard cap so a network
+  // partition between the user and the backend cannot park the bar at
+  // 90% indefinitely.
+  const FRONTEND_HARD_TIMEOUT_MS = 130000;   // 130s — backend budget + grace
+  const FRONTEND_SOFT_WARN_MS = 90000;       // 90s — switch to "still checking" copy
+  const generatingStartedAtRef = useRef(null);
+
   // ─── P1 2026-05-22 — Stall detector for generating phase.
   // The backend now emits honest stage transitions, but if a stage
   // genuinely takes longer than the "usually 15–30 seconds" promise,
@@ -193,6 +202,61 @@ export default function PhotoReactionGIF() {
     }, 1000);
     return () => clearInterval(id);
   }, [phase, job?.stage]);
+
+  // ─── P0 2026-05-22 — Hard wall-clock cap for the generating phase.
+  // After FRONTEND_HARD_TIMEOUT_MS we force a final poll and, if the
+  // backend has not transitioned to a terminal status, treat the run
+  // as FAILED_TIMEOUT locally so the UI never sits at 90% forever.
+  useEffect(() => {
+    if (phase !== 'generating') return undefined;
+    if (!generatingStartedAtRef.current) generatingStartedAtRef.current = Date.now();
+
+    const softId = setTimeout(() => {
+      // 90s warning: copy switch only — polling continues.
+      setStallHelperText(
+        "This is taking longer than expected. We're still checking on it…",
+      );
+    }, FRONTEND_SOFT_WARN_MS);
+
+    const hardId = setTimeout(async () => {
+      const jid = job?.id;
+      if (!jid) return;
+      try {
+        const finalRes = await api.get(`/api/reaction-gif/job/${jid}`);
+        const s = finalRes.data?.status;
+        if (s === 'COMPLETED' || s === 'PARTIAL_READY' || s === 'FAILED' ||
+            s === 'FAILED_TIMEOUT' || s === 'FAILED_RENDER' || s === 'FAILED_ASSET_VERIFY') {
+          // Terminal reached on the final check — let the normal poll
+          // handler do its thing on its next tick. Nothing else to do.
+          return;
+        }
+      } catch (_) { /* fall through */ }
+      // Still non-terminal after 130s → treat as timeout locally.
+      if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+      setLoading(false);
+      setPhase('upload');
+      try { sessionStorage.removeItem('reaction_gif_active_job_id'); } catch (_) { /* noop */ }
+      _emitBeacon('reaction_gif_poll_terminal_miss_total', {
+        elapsed_ms: Date.now() - (generatingStartedAtRef.current || Date.now()),
+      });
+      toastErrorSafe(
+        'Reaction generation timed out. No credits charged — please try again. We have logged a report.',
+        {
+          requestId: lastRequestIdRef.current,
+          code: 'REACTION_GIF_FRONTEND_TIMEOUT',
+          page: '/app/gif-maker',
+          id: 'reaction-gif-frontend-timeout',
+          duration: 10000,
+        }
+      );
+    }, FRONTEND_HARD_TIMEOUT_MS);
+
+    return () => {
+      clearTimeout(softId);
+      clearTimeout(hardId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, job?.id]);
 
   // P0 2026-05 — Block copy/save/print shortcuts while result is shown,
   // for non-premium users. Frontend deterrent only; the real protection
@@ -282,6 +346,8 @@ export default function PhotoReactionGIF() {
     setLoading(true);
     setPhase('generating');
     setJob(null);
+    // ─── P0 2026-05-22 — Mark generating start for the hard wall-clock cap.
+    generatingStartedAtRef.current = Date.now();
     // ─── P0 2026-05-22 — reset asset-readiness gate on new submission
     setPreviewReady(false);
     setPreviewProbing(false);
@@ -473,7 +539,12 @@ export default function PhotoReactionGIF() {
 
       const status = res.data.status;
       const terminalSuccess = (status === 'COMPLETED' || status === 'PARTIAL_READY');
-      const terminalFail = (status === 'FAILED');
+      const terminalFail = (
+        status === 'FAILED' ||
+        status === 'FAILED_TIMEOUT' ||
+        status === 'FAILED_RENDER' ||
+        status === 'FAILED_ASSET_VERIFY'
+      );
       if (terminalSuccess || terminalFail) {
         if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
         setLoading(false);
@@ -530,15 +601,22 @@ export default function PhotoReactionGIF() {
           } else {
             setPhase('upload');
             const err = res.data.error || 'Generation failed';
-            const friendly = err.includes('budget')
-              ? 'AI service temporarily unavailable. No credits deducted.'
-              : 'Generation failed. No credits deducted.';
+            let friendly;
+            if (status === 'FAILED_TIMEOUT') {
+              friendly = 'Reaction generation timed out. No credits charged — please try again.';
+            } else if (status === 'FAILED_ASSET_VERIFY') {
+              friendly = 'Reaction generation finished but the media file did not verify. No credits charged.';
+            } else if (err.includes('budget')) {
+              friendly = 'AI service temporarily unavailable. No credits deducted.';
+            } else {
+              friendly = 'Generation failed. No credits deducted.';
+            }
             toastErrorSafe(friendly, {
               requestId: lastRequestIdRef.current,
-              code: 'REACTION_GIF_FAILED',
+              code: status || 'REACTION_GIF_FAILED',
               page: '/app/gif-maker',
               id: 'reaction-gif-failed',
-              duration: 6000,
+              duration: 7000,
             });
             notifyGenerationFailed({
               feature: 'reaction_gif', featureName: 'Reaction GIF',
