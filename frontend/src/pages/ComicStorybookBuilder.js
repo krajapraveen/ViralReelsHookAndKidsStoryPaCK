@@ -461,6 +461,8 @@ export default function ComicStorybookBuilder() {
   // synchronously from localStorage so the wizard never blocks admin/QA
   // even if /api/credits/balance fails or is delayed.
   const [isUnlimitedUser, setIsUnlimitedUser] = useState(_detectUnlimitedFromLocalStorage);
+  // P0 2026-05-19 — Daily generation quota state (separate from credits).
+  const [quota, setQuota] = useState(null);
   
   // Wizard state
   const [step, setStep] = useState(1);
@@ -569,6 +571,7 @@ export default function ComicStorybookBuilder() {
   useEffect(() => {
     fetchCredits();
     fetchUserPlan();
+    fetchQuota();
     const restored = restoreProgress();
     if (restored) toast.info('Previous progress restored', { duration: 2000 });
     // Cross-tool auto-prefill
@@ -594,6 +597,18 @@ export default function ComicStorybookBuilder() {
     } catch (e) {
       console.error('Failed to fetch credits');
     }
+  };
+
+  // P0 2026-05-19 — Daily quota pre-flight so the UI shows remaining
+  // generations + reset time BEFORE the user clicks Generate. The
+  // founder spec calls this out explicitly: "Frontend must show quota
+  // status BEFORE user clicks" and "do not let user think credits are
+  // the blocker."
+  const fetchQuota = async () => {
+    try {
+      const res = await api.get('/api/comic-storybook-v2/quota');
+      setQuota(res.data);
+    } catch (_) { /* non-fatal — quota panel just won't render */ }
   };
 
   const fetchUserPlan = async () => {
@@ -922,6 +937,29 @@ export default function ComicStorybookBuilder() {
 
       // Structured envelope (400 / 422 / 429 / 500 / 503) — friendly map.
       if (detail?.code) {
+        // P0 2026-05-19 — DAILY_LIMIT_REACHED gets a quota-aware friendly
+        // message that includes the reset time so users understand it's
+        // a separate constraint from credits.
+        if (detail.code === 'DAILY_LIMIT_REACHED') {
+          let resetCopy = '';
+          if (detail.reset_at) {
+            try {
+              const d = new Date(detail.reset_at);
+              const hh = String(d.getHours()).padStart(2, '0');
+              const mm = String(d.getMinutes()).padStart(2, '0');
+              resetCopy = ` Resets at ${hh}:${mm} (local).`;
+            } catch (_) { /* keep empty */ }
+          }
+          const counts = (detail.current_count !== null && detail.max_allowed !== null)
+            ? ` (${detail.current_count}/${detail.max_allowed} today)` : '';
+          const msg = `Daily generation limit reached${counts}.${resetCopy} This is separate from your credits balance.`;
+          toast.error(rid ? `${msg}\nReference ID: ${rid}` : `${msg}\nReference ID: not-captured`);
+          setLoading(false);
+          clearOptimistic();
+          // Re-fetch quota so the panel updates immediately.
+          if (typeof fetchQuota === 'function') fetchQuota();
+          return;
+        }
         const codeMap = {
           BLOCKED_CONTENT: 'Please remove copyrighted or blocked references and try again.',
           SAFETY_BLOCKED: 'Your story idea was flagged by content safety. Please rephrase.',
@@ -1859,14 +1897,54 @@ export default function ComicStorybookBuilder() {
                 <Clock className="w-3 h-3" />
                 <span>Estimated generation time: {selectedPages <= 10 ? '2-4' : selectedPages <= 20 ? '4-7' : '6-10'} minutes</span>
               </div>
+              {/* P0 2026-05-19 — Daily generation quota line. Founder
+                  spec: "Frontend must show quota status BEFORE user
+                  clicks" and "Credits balance and daily quota are
+                  shown as separate constraints." */}
+              {quota && !quota.is_unlimited && (
+                <div
+                  className={`flex items-center justify-between gap-2 text-[11px] mb-3 px-2.5 py-1.5 rounded-md border ${
+                    quota.jobs_remaining <= 0
+                      ? 'bg-amber-900/30 border-amber-700/50 text-amber-300'
+                      : 'bg-slate-900/60 border-slate-700 text-slate-400'
+                  }`}
+                  data-testid="comic-daily-quota"
+                >
+                  <span>
+                    Daily generations:{' '}
+                    <span className="font-semibold text-white">
+                      {quota.jobs_today}/{quota.jobs_max}
+                    </span>
+                    {quota.jobs_remaining > 0 && (
+                      <span className="text-slate-500"> ({quota.jobs_remaining} left today)</span>
+                    )}
+                  </span>
+                  {quota.reset_at && (
+                    <span className="text-slate-500">
+                      resets {new Date(quota.reset_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
+                </div>
+              )}
+              {quota?.is_unlimited && (
+                <div
+                  className="flex items-center gap-1.5 text-[11px] text-emerald-400 mb-3 px-2.5 py-1.5 rounded-md border border-emerald-700/40 bg-emerald-900/20"
+                  data-testid="comic-daily-quota-unlimited"
+                >
+                  <Zap className="w-3 h-3" />
+                  <span>Unlimited daily generations</span>
+                </div>
+              )}
               <Button 
                 onClick={generateComicBook}
-                disabled={loading || (!isUnlimitedUser && credits !== null && credits < calculateCost())}
+                disabled={loading || (!isUnlimitedUser && credits !== null && credits < calculateCost()) || (quota && !quota.is_unlimited && quota.jobs_remaining <= 0)}
                 className="w-full py-5 text-base bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
                 data-testid="generate-btn"
               >
                 {loading ? (
                   <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Generating...</>
+                ) : (quota && !quota.is_unlimited && quota.jobs_remaining <= 0) ? (
+                  <><Lock className="w-5 h-5 mr-2" /> Daily limit reached</>
                 ) : (
                   <><Wand2 className="w-5 h-5 mr-2" /> Generate Full Comic Book</>
                 )}

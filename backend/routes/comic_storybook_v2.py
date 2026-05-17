@@ -480,12 +480,31 @@ async def generate_comic_book(
 
     try:
         # ── 2. Cost guardrails ────────────────────────────────────────
-        guardrail = await check_guardrails(user_id, user_plan, request.pageCount)
+        guardrail = await check_guardrails(
+            user_id, user_plan, request.pageCount, user=user,
+        )
         if not guardrail.allowed:
             await idem_svc.mark_failed(idempotency_key, guardrail.reason)
-            raise HTTPException(status_code=429, detail={
-                "code": "GUARDRAIL_BLOCKED", "message": guardrail.reason,
-                "request_id": rid, "retryable": True,
+            # P0 2026-05-19 — Founder spec: structured envelope with
+            # DAILY_LIMIT_REACHED code so the frontend can render the
+            # quota-aware copy + reset-at timestamp.
+            is_daily_limit = guardrail.limit_type in (
+                "per_user_daily_jobs", "per_user_daily_cost",
+            )
+            code = "DAILY_LIMIT_REACHED" if is_daily_limit else "GUARDRAIL_BLOCKED"
+            status_code = 429 if is_daily_limit else 429
+            from services.entitlement import is_unlimited_user as _is_unl
+            raise HTTPException(status_code=status_code, detail={
+                "code": code,
+                "message": guardrail.reason,
+                "request_id": rid,
+                "retryable": True,
+                "limit_type": guardrail.limit_type,
+                "current_count": guardrail.current_count,
+                "max_allowed": guardrail.max_allowed,
+                "reset_at": guardrail.reset_at,
+                "plan_type": guardrail.plan_type or user_plan,
+                "is_unlimited": _is_unl(user),
             })
 
         # ── 3. Admission controller ──────────────────────────────────
@@ -1365,6 +1384,23 @@ async def stage_asset_registration(job_id, uploaded_assets, user_id, title, genr
 
 
 # ── JOB STATUS + DOWNLOAD ENDPOINTS ──────────────────────────────────────
+
+@router.get("/quota")
+async def get_quota_status(
+    http_request: Request,
+    user: dict = Depends(get_current_user),
+):
+    """P0 2026-05-19 — pre-flight quota lookup for the frontend so the
+    Preview & Generate UI can render remaining-jobs + reset-at BEFORE
+    the user clicks Generate. Founder spec: "Frontend must show quota
+    status BEFORE user clicks"."""
+    from middleware.reliability import get_request_id
+    from services.cost_guardrails import get_user_quota_status
+    rid = get_request_id(http_request)
+    user_plan = user.get("plan", "free")
+    status = await get_user_quota_status(user["id"], user_plan, user=user)
+    return {**status, "request_id": rid}
+
 
 @router.get("/job/{job_id}")
 async def get_job_status(
