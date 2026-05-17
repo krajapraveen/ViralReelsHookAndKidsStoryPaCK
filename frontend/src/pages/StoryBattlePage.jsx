@@ -7,6 +7,7 @@ import {
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import { dropEventArg } from '../utils/eventTrapGuard';
 import { trackFunnel } from '../utils/funnelTracker';
 import { useActionGuide } from '../utils/ActionGuide';
 import ContinuationModal from '../components/ContinuationModal';
@@ -86,6 +87,7 @@ export default function StoryBattlePage() {
 
   // Enter battle with paywall check
   const handleEnterBattle = async (trigger = 'enter_battle') => {
+    trigger = dropEventArg(trigger, 'string', { handler: 'StoryBattlePage.handleEnterBattle' }) || 'enter_battle';
     // P0 — first-time guide for the Battle action.
     battleGuide.runWithGuide(async () => {
       try {

@@ -9,6 +9,7 @@ import { Button } from '../components/ui/button';
 import { SafeImage } from '../components/SafeImage';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import { dropEventArg } from '../utils/eventTrapGuard';
 import { trackFunnel } from '../utils/funnelTracker';
 import ContinuationModal from '../components/ContinuationModal';
 import BattlePulse from '../components/BattlePulse';
@@ -154,6 +155,7 @@ export default function StoryViewerPage() {
 
   // Check if user can enter battle (free limit) before opening continuation modal
   const handleEnterBattle = async (trigger = 'enter_battle') => {
+    trigger = dropEventArg(trigger, 'string', { handler: 'StoryViewerPage.handleEnterBattle' }) || 'enter_battle';
     try {
       const res = await api.get('/api/stories/battle-entry-status');
       if (res.data?.needs_payment) {

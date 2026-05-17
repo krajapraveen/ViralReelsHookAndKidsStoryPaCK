@@ -716,6 +716,11 @@ api_router.include_router(dashboard_init_router)
 from routes.drafts import router as drafts_router
 api_router.include_router(drafts_router)
 
+# P1 2026-05-19 — Reliability sweep diagnostics beacon (event-trap +
+# missing-request-id + label-fallback counters).
+from routes.diagnostics_beacon import router as diagnostics_beacon_router
+api_router.include_router(diagnostics_beacon_router)
+
 
 
 

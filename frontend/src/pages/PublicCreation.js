@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
+import { dropEventArg } from '../utils/eventTrapGuard';
 import { SafeImage } from '../components/SafeImage';
 import { AnimatedViewerCount } from '../components/AnimatedSocialProof';
 import { trackPageView, trackRemixClick, trackShareClick } from '../utils/growthAnalytics';
@@ -167,6 +168,7 @@ export default function PublicCreation() {
   };
 
   const handleContinue = (type = 'continue') => {
+    type = dropEventArg(type, 'string', { handler: 'PublicCreation.handleContinue' }) || 'continue';
     if (!creation) return;
     const tool = getToolRoute(creation);
     const basePrompt = creation.story_text || creation.prompt || '';

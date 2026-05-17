@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import { dropEventArg } from '../utils/eventTrapGuard';
 
 export default function SeriesTimeline() {
   const { seriesId } = useParams();
@@ -77,6 +78,7 @@ export default function SeriesTimeline() {
    * pass an existing draft episode and preserve its title in the studio.
    */
   const handleCreateNewEpisode = async (episode = null) => {
+    episode = dropEventArg(episode, 'object', { handler: 'SeriesTimeline.handleCreateNewEpisode' });
     try {
       const res = await api.post(`/api/universe/series/${seriesId}/continue`);
       if (res.data.success) {

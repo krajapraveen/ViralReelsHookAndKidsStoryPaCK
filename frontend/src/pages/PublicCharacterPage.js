@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import { dropEventArg } from '../utils/eventTrapGuard';
 import { SafeImage } from '../components/SafeImage';
 import { trackPageView, trackRemixClick, setOrigin } from '../utils/growthAnalytics';
 
@@ -102,6 +103,7 @@ export default function PublicCharacterPage() {
   };
 
   const handleContinue = (type = 'continue') => {
+    type = dropEventArg(type, 'string', { handler: 'PublicCharacterPage.handleContinue' }) || 'continue';
     if (!data?.remix_data) return;
     const char = data.character;
     const base = data.remix_data.prompt || '';

@@ -20,6 +20,34 @@
  */
 import api from '../utils/api';
 
+// P1 2026-05-19 — Beacon helper. Fire-and-forget metric emission so
+// the backend can prove the label-fallback shim is doing work in prod.
+let _labelFallbackQueue = [];
+let _labelFallbackScheduled = false;
+function _flushLabelFallbackBeacons() {
+  _labelFallbackScheduled = false;
+  if (_labelFallbackQueue.length === 0) return;
+  const batch = _labelFallbackQueue;
+  _labelFallbackQueue = [];
+  try {
+    api.post('/api/diagnostics/beacon', { events: batch }).catch(() => {});
+  } catch (_) { /* swallow */ }
+}
+function _emitLabelFallback(extractedFrom, key) {
+  try {
+    _labelFallbackQueue.push({
+      metric: 'p2c_label_fallback_total',
+      ts: Date.now(),
+      page: typeof window !== 'undefined' ? window.location.pathname : 'ssr',
+      meta: { extracted_from: extractedFrom, canonical_key: key },
+    });
+    if (!_labelFallbackScheduled) {
+      _labelFallbackScheduled = true;
+      setTimeout(_flushLabelFallbackBeacons, 1500);
+    }
+  } catch (_) { /* swallow */ }
+}
+
 // ────────────────────────────────────────────────────────────────────────
 // Hardcoded mirror — used ONLY when the backend catalog fetch fails.
 // MUST stay in lockstep with the `enabled: True` entries of
@@ -84,6 +112,7 @@ export function normalizeComicStyle(input) {
         if (STYLE_KEYS.has(t)) {
           // eslint-disable-next-line no-console
           console.info('[p2c/style-normalize] OBJECT_FALLBACK received=object', { extracted_from: f, key: t });
+          _emitLabelFallback(f, t);
           return t;
         }
         // Try label coercion (catches `{id: 'Cartoon'}` shaped objects).
@@ -91,6 +120,7 @@ export function normalizeComicStyle(input) {
         if (byLabel) {
           // eslint-disable-next-line no-console
           console.info('[p2c/style-normalize] OBJECT_FALLBACK received=object', { extracted_from: f, label: t, key: byLabel });
+          _emitLabelFallback(f, byLabel);
           return byLabel;
         }
       }
@@ -103,6 +133,7 @@ export function normalizeComicStyle(input) {
         if (byLabel) {
           // eslint-disable-next-line no-console
           console.info('[p2c/style-normalize] OBJECT_FALLBACK received=object', { extracted_from: f, label: v, key: byLabel });
+          _emitLabelFallback(f, byLabel);
           return byLabel;
         }
       }

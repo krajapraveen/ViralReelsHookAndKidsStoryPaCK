@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { toast } from 'sonner';
+import { BUILD_HASH } from './buildInfo';
 
 // USE RELATIVE URLs - This ALWAYS works regardless of deployment
 // The browser will automatically use the current domain
@@ -46,6 +47,9 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  // P1 2026-05-19 — surface running frontend build in every request so
+  // backend logs / metrics can correlate stale-bundle reports.
+  config.headers['X-Frontend-Build'] = BUILD_HASH;
   // Remove Content-Type for FormData to let browser set it with boundary
   if (config.data instanceof FormData) {
     delete config.headers['Content-Type'];
@@ -193,8 +197,33 @@ api.interceptors.response.use(
         SELF_HANDLED_URLS.some((u) => reqUrl.includes(u)) ||
         SELF_HANDLED_PAGES.some((p) => pagePath.startsWith(p));
       if (!isSelfHandled) {
-        const msg = error.response?.data?.detail || 'This feature is temporarily unavailable. Please try again shortly.';
-        toast.error(msg, { duration: 5000, id: 'service-unavailable' });
+        // P1 2026-05-19 — replace generic gateway toast with safe form
+        // that always carries a Reference ID. Detail message stays
+        // user-readable; structured detail.message is preferred over
+        // the legacy stringified detail.
+        const detail = error.response?.data?.detail;
+        const safeMsg = (typeof detail === 'object' && detail?.message) ||
+          (typeof detail === 'string' && detail) ||
+          'This feature is temporarily unavailable. Please try again shortly.';
+        const requestId = (typeof detail === 'object' && detail?.request_id) ||
+          error.response?.data?.request_id ||
+          error.response?.headers?.['x-request-id'] ||
+          null;
+        // Lazy import to avoid circular dep with toastSafe → api.
+        import('./toastSafe').then(({ toastErrorSafe }) => {
+          toastErrorSafe(safeMsg, {
+            requestId,
+            code: (typeof detail === 'object' && detail?.code) || 'GATEWAY_ERROR',
+            page: window.location?.pathname,
+            duration: 5000,
+            id: 'service-unavailable',
+          });
+        }).catch(() => {
+          // Fallback if dynamic import fails — still safe text.
+          toast.error('Service temporarily unavailable. Please try again.', {
+            duration: 5000, id: 'service-unavailable',
+          });
+        });
       }
     }
 

@@ -59,6 +59,7 @@ import {
   fetchComicStylesCatalog,
   comicStylesMirrorForMode,
 } from '../constants/comicStyles';
+import { dropEventArg } from '../utils/eventTrapGuard';
 
 // P0 2026-05-19 CASE B — bundle version. Single source of truth for
 // frontend forensics. When you fix a recurring P2C bug, bump this so
@@ -747,6 +748,7 @@ function PhotoToComicInner() {
   };
 
   const handleContinueStory = async (prompt = '') => {
+    prompt = dropEventArg(prompt, 'string', { handler: 'PhotoToComic.handleContinueStory' }) || '';
     if (!jobId) return;
     if (!isUnlimited && credits < 6) { toast.error('Need at least 6 credits'); navigate('/app/billing'); return; }
     setContinuing(true);

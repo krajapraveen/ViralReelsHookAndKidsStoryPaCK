@@ -2,6 +2,103 @@
 
 
 ─────────────────────────────────────────────────────────
+[2026-05-19] P1 FREEZE-SAFE RELIABILITY SWEEP — SHIPPED
+─────────────────────────────────────────────────────────
+Founder directive after the Photo-to-Comic event-trap hotfix:
+  "Do the P1 sweep. Do NOT unfreeze Phase 3c/4 yet."
+  Phase 3c, Phase 4, and canonical migration remain BLOCKED.
+
+UNSAFE PATTERN AUDIT — codebase-wide static scan
+  Found UNSAFE bare-handler wirings (handler-with-default-arg + bare
+  `onClick={handlerName}`): 1 (already fixed in 2026-05-19 hotfix).
+  Found risky-shape handlers (have default args, currently safe-wired
+  via arrows but defended-in-depth anyway): 7.
+
+NEW SHARED UTILITIES
+  • frontend/src/utils/eventTrapGuard.js
+      `dropEventArg(arg, expectType, meta)` — universal handler-arg
+      sanitizer. Strips React SyntheticEvents and non-matching types,
+      emits `frontend_event_trap_blocked_total` beacon.
+  • frontend/src/utils/toastSafe.js
+      `toastErrorSafe(message, { requestId, code, page })` —
+      scrubs internal jargon ("frontend rejected", "style=object",
+      "[object Object]", "validator", "stack trace", "TypeError:",
+      …) and ALWAYS surfaces a Reference ID. When no backend
+      request_id is available, mints a local refId and emits
+      `error_toast_without_request_id_total`.
+  • frontend/src/utils/buildInfo.js
+      `BUILD_HASH` + `BUILD_TIMESTAMP` constants, sourced from
+      `REACT_APP_BUILD_HASH` / `REACT_APP_GIT_SHA` env vars with
+      sensible fallback.
+  • api.js — every outbound request now stamps `X-Frontend-Build`
+      so backend logs can correlate stale-bundle reports.
+  • api.js — gateway/503 toast switched to `toastErrorSafe`,
+      preserves backend `request_id` end-to-end.
+
+DEFENSE-IN-DEPTH APPLIED (dropEventArg shim) — 7 handlers:
+  • pages/PhotoToComic.js       handleGenerate(overrideStyle = null)
+  • pages/PhotoToComic.js       handleContinueStory(prompt = '')
+  • pages/BedtimeStoryBuilder.js handleGenerate(remixType = null)
+  • pages/ComicStorybookBuilder.js handleDownload(type = 'pdf')
+  • pages/PublicCreation.js     handleContinue(type = 'continue')
+  • pages/PublicCharacterPage.js handleContinue(type = 'continue')
+  • pages/SeriesTimeline.js     handleCreateNewEpisode(episode = null)
+  • pages/StoryViewerPage.jsx   handleEnterBattle(trigger = '...')
+  • pages/StoryBattlePage.jsx   handleEnterBattle(trigger = '...')
+
+BACKEND METRICS (routes/diagnostics_beacon.py)
+  POST /api/diagnostics/beacon — accepts batched events, allow-listed:
+    • frontend_event_trap_blocked_total
+    • error_toast_without_request_id_total
+    • p2c_label_fallback_total
+  Caps: 50 events/batch, 256-char meta values, 10 meta keys/event.
+  GET  /api/diagnostics/metrics (admin-only) — bucketed daily totals.
+  Persisted in `diagnostics_metrics` (one doc per metric+bucket day,
+  with a ring of 25 recent samples for forensics).
+
+REGRESSION TESTS — all new + existing GREEN
+  • backend/tests/test_event_trap_audit_2026_05.py (8 tests)
+      - test_no_unsafe_bare_handler_wirings (codebase-wide static scan)
+      - test_primary_cta_buttons_are_not_bare_wired
+      - test_event_trap_audit_detects_simulated_regression
+      - test_event_trap_audit_self_finds_known_safe_patterns
+      - test_event_trap_guard_util_exists
+      - test_toast_safe_util_exists_and_strips_jargon
+      - test_build_info_util_exists
+      - test_api_client_sends_build_header
+  • backend/tests/test_diagnostics_beacon_2026_05.py (7 tests)
+      - accept/reject metric allow-list, payload caps, aggregation,
+        admin-only metrics endpoint
+  Full suite: 126 tests GREEN.
+
+BEFORE / AFTER — one blocked event-trap
+  BEFORE:
+    <Button onClick={handleGenerate} data-testid="generate-btn">
+    const handleGenerate = async (overrideStyle = null) => {
+      const rawSelected = overrideStyle || style;  // React SyntheticEvent
+                                                    // arrives here, is truthy,
+                                                    // poisons rawSelected.
+      const activeStyle = normalizeComicStyle(rawSelected);  // → null
+      // user sees: "frontend rejected style=object"
+    };
+  AFTER:
+    <Button onClick={() => handleGenerate()} data-testid="generate-btn">
+    const handleGenerate = async (overrideStyle = null) => {
+      const overrideIsString =
+        typeof overrideStyle === 'string' && overrideStyle.trim().length > 0;
+      const rawSelected = overrideIsString ? overrideStyle : style;
+      // dropEventArg guard available on all peer handlers too.
+    };
+
+WHAT THIS SWEEP DID NOT TOUCH (frozen):
+  ✗ Phase 3c (canonical state for remaining tools)
+  ✗ Phase 4 (pipeline worker transition)
+  ✗ Canonical-state migration scripts
+  ✗ New features / UI redesigns / Sora toggle / character memory work
+
+
+
+─────────────────────────────────────────────────────────
 [2026-05-19] P0 PHOTO-TO-COMIC EVENT-TRAP HOTFIX — SHIPPED
 ─────────────────────────────────────────────────────────
 Production trust-killing toast on Photo-to-Comic:

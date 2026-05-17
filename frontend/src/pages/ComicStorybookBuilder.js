@@ -14,6 +14,7 @@ import { Progress } from '../components/ui/progress';
 import { toast } from 'sonner';
 import api from '../utils/api';
 import { markFeatureUsed } from '../utils/feedbackSession';
+import { dropEventArg } from '../utils/eventTrapGuard';
 import RatingModal from '../components/RatingModal';
 import UpsellModal from '../components/UpsellModal';
 import { SafeImage } from '../components/SafeImage';
@@ -1000,6 +1001,9 @@ export default function ComicStorybookBuilder() {
 
   // Download handler
   const handleDownload = async (type = 'pdf') => {
+    // P1 2026-05-19 event-trap defense. Drop any React SyntheticEvent
+    // so `type` is always a valid download format.
+    type = dropEventArg(type, 'string', { handler: 'ComicStorybookBuilder.handleDownload' }) || 'pdf';
     if (!job?.id) return;
 
     // P0 2026-05-19 CASE B — entitlement parity between render & click.

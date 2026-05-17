@@ -9,6 +9,7 @@ import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import api from '../utils/api';
 import { markFeatureUsed } from '../utils/feedbackSession';
+import { dropEventArg } from '../utils/eventTrapGuard';
 import { useCredits } from '../contexts/CreditContext';
 import BedtimePaywallModal from '../components/BedtimePaywallModal';
 
@@ -288,6 +289,9 @@ export default function BedtimeStoryBuilder() {
   };
 
   const handleGenerate = async (remixType = null) => {
+    // P1 2026-05-19 event-trap defense. Drop any React SyntheticEvent
+    // that sneaks in via a future bare onClick={handleGenerate} wiring.
+    remixType = dropEventArg(remixType, 'string', { handler: 'BedtimeStoryBuilder.handleGenerate' });
     if (creditsLoaded && credits !== null && credits < 10) {
       toast.error('Need 10 credits. Buy more to continue.');
       return;
