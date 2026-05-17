@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import api from '../utils/api';
 import { markFeatureUsed } from '../utils/feedbackSession';
 import { dropEventArg } from '../utils/eventTrapGuard';
+import { coerceEnum } from '../utils/payloadCoercers';
 import RatingModal from '../components/RatingModal';
 import UpsellModal from '../components/UpsellModal';
 import { SafeImage } from '../components/SafeImage';
@@ -1004,6 +1005,13 @@ export default function ComicStorybookBuilder() {
     // P1 2026-05-19 event-trap defense. Drop any React SyntheticEvent
     // so `type` is always a valid download format.
     type = dropEventArg(type, 'string', { handler: 'ComicStorybookBuilder.handleDownload' }) || 'pdf';
+    // P1 2026-05-19 payload-boundary audit. Lock to a strict allow-list
+    // so the backend never receives an unexpected download variant.
+    type = coerceEnum(type, ['pdf', 'cover', 'zip'], {
+      fallback: 'pdf',
+      handler: 'ComicStorybookBuilder.handleDownload',
+      field: 'type',
+    });
     if (!job?.id) return;
 
     // P0 2026-05-19 CASE B — entitlement parity between render & click.

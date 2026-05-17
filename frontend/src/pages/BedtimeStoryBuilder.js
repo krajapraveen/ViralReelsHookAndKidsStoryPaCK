@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import api from '../utils/api';
 import { markFeatureUsed } from '../utils/feedbackSession';
 import { dropEventArg } from '../utils/eventTrapGuard';
+import { coerceEnum } from '../utils/payloadCoercers';
 import { useCredits } from '../contexts/CreditContext';
 import BedtimePaywallModal from '../components/BedtimePaywallModal';
 
@@ -57,6 +58,7 @@ const REMIX_VARIANTS = [
   { id: 'funny', label: 'Funny Version', icon: Laugh },
   { id: 'sleep', label: 'Extra Sleepy', icon: CloudMoon },
 ];
+const REMIX_VARIANT_IDS = REMIX_VARIANTS.map(v => v.id);
 
 const THEMES = [
   'Enchanted Forest', 'Ocean Adventure', 'Cloud Kingdom', 'Magic Garden',
@@ -292,6 +294,13 @@ export default function BedtimeStoryBuilder() {
     // P1 2026-05-19 event-trap defense. Drop any React SyntheticEvent
     // that sneaks in via a future bare onClick={handleGenerate} wiring.
     remixType = dropEventArg(remixType, 'string', { handler: 'BedtimeStoryBuilder.handleGenerate' });
+    // P1 2026-05-19 payload-boundary audit. Coerce to the canonical
+    // allow-list so a typo or stale URL can't reach the backend.
+    remixType = coerceEnum(remixType, REMIX_VARIANT_IDS, {
+      fallback: null,
+      handler: 'BedtimeStoryBuilder.handleGenerate',
+      field: 'remix_type',
+    });
     if (creditsLoaded && credits !== null && credits < 10) {
       toast.error('Need 10 credits. Buy more to continue.');
       return;

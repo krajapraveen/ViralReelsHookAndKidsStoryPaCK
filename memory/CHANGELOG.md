@@ -2,6 +2,91 @@
 
 
 ─────────────────────────────────────────────────────────
+[2026-05-19] P1 PAYLOAD-BOUNDARY AUDIT (Next layer) — SHIPPED
+─────────────────────────────────────────────────────────
+Founder mandate: "Catch handler/default-arg values that can leak into
+backend payloads without type validation." Freeze still in effect —
+no Phase 3c/4, no canonical migration, no admin diagnostics panel yet.
+
+RISKY PAYLOAD-BOUNDARY PATTERNS FOUND
+  Codebase-wide static scan of every JS/JSX file. For every function
+  scope with a default-arg parameter, the audit extracts every
+  `api.{post|put|patch|delete|get}(url, { … })` and
+  `formData.append('KEY', value)` write, restricts to TARGET_KEYS, and
+  classifies the value expression.
+  Active violations found in the live codebase: 0.
+  Active violations that the audit machinery PROVES it would catch
+    (verified via synthesized regression fixtures):
+      • `{ style_id: overrideId }`            (unguarded default param)
+      • `{ style_id: overrideStyle || style }` (fallback-of-unguarded)
+  Two real call sites were further hardened proactively even though
+  they were already event-trap-safe:
+      • BedtimeStoryBuilder `remix_type`  → now coerceEnum to
+        REMIX_VARIANT_IDS, fallback null.
+      • ComicStorybookBuilder `type`      → now coerceEnum to
+        ['pdf','cover','zip'], fallback 'pdf'.
+
+NEW GUARD UTILITIES (frontend/src/utils/payloadCoercers.js)
+  • coerceString(v, opts)         — string or fallback (null/default).
+  • coerceNumber(v, opts)         — finite number or fallback.
+  • coerceEnum(v, allowed, opts)  — value or fallback from an
+                                    allow-list (Array or Set).
+  • coerceSlug(v, opts)           — `[a-z0-9][a-z0-9_-]{1,127}/i`.
+  • coerceId(v, opts)             — `[A-Za-z0-9_-]{6,128}`.
+  • safeOr(primary, fallback)     — the safe form of `primary || x`.
+  All emit `frontend_event_trap_blocked_total` beacons on rejection so
+  the existing diagnostics counter sees the work.
+
+TARGET KEYS COVERED (audit scope)
+  style, style_id, mode, template, template_id,
+  voice, voice_id, character, character_id,
+  story_id, draft_id, asset_id,
+  plan, price_id, amount, credits, order_id,
+  remix_type, type, job_id
+
+EXACT FILES CHANGED
+  + frontend/src/utils/payloadCoercers.js
+  + backend/tests/test_payload_boundary_audit_2026_05.py
+  ~ frontend/src/pages/BedtimeStoryBuilder.js (REMIX_VARIANT_IDS +
+    coerceEnum on remix_type)
+  ~ frontend/src/pages/ComicStorybookBuilder.js (coerceEnum on type)
+
+REGRESSION TESTS — 6 new
+  • test_payload_boundary_audit
+      Static scan over every default-arg handler in the frontend.
+  • test_synthesized_regression_is_detected
+      `{ style_id: overrideId }` with unguarded default → audit flags.
+  • test_synthesized_guarded_pattern_is_accepted
+      `overrideId = dropEventArg(overrideId, …)` → audit accepts.
+  • test_synthesized_fallback_pattern_is_flagged
+      `overrideStyle || style` of an unguarded default → audit flags.
+  • test_coercer_utility_module_exists
+      All exports verified.
+  • test_target_keys_constant_coverage
+      Founder-spec keys are all in the audit's TARGET_KEYS set.
+
+FULL SUITE: 132 tests GREEN.
+
+PRODUCTION BEHAVIOR CHANGES
+  • BedtimeStoryBuilder: an invalid `remix_type` (e.g. tampered URL
+    or future bug) now silently coerces to `null` and the backend
+    treats it as a standard generate — no remix variant applied.
+    Previously a stray non-string would have been forwarded as-is.
+  • ComicStorybookBuilder: an invalid download `type` now coerces to
+    `'pdf'` instead of being forwarded as-is.
+  • No other observable behavior change for legitimate clicks.
+
+WHAT THIS SWEEP DID NOT TOUCH (still frozen):
+  ✗ Phase 3c
+  ✗ Phase 4
+  ✗ Canonical-state migration
+  ✗ New features / UI redesigns
+  ✗ Admin diagnostics panel (deferred — dashboard before payload
+    boundary is the wrong order, per founder).
+
+
+
+─────────────────────────────────────────────────────────
 [2026-05-19] P1 FREEZE-SAFE RELIABILITY SWEEP — SHIPPED
 ─────────────────────────────────────────────────────────
 Founder directive after the Photo-to-Comic event-trap hotfix:
