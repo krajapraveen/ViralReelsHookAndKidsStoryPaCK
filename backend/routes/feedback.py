@@ -12,6 +12,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared import db, logger, get_optional_user, log_exception
+from middleware.reliability import get_request_id
 from models.schemas import FeedbackSuggestion, ContactMessage, ChatMessage
 
 router = APIRouter(prefix="/feedback", tags=["Feedback"])
@@ -20,9 +21,10 @@ router = APIRouter(prefix="/feedback", tags=["Feedback"])
 @router.post("/suggestion")
 async def submit_suggestion(request: Request, data: FeedbackSuggestion):
     """Submit a suggestion or feature request"""
+    rid = get_request_id(request)
     try:
         user = await get_optional_user(request)
-        
+
         feedback = {
             "id": str(uuid.uuid4()),
             "type": "suggestion",
@@ -33,42 +35,80 @@ async def submit_suggestion(request: Request, data: FeedbackSuggestion):
             "userId": user["id"] if user else None,
             "createdAt": datetime.now(timezone.utc).isoformat()
         }
-        
+
         await db.feedback.insert_one(feedback)
-        
-        return {"success": True, "message": "Thank you for your feedback!"}
-        
+
+        return {"success": True, "message": "Thank you for your feedback!", "request_id": rid}
+
     except Exception as e:
-        logger.error(f"Feedback submission error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to submit feedback")
+        logger.error(f"[feedback/suggestion] failed request_id={rid} error={e}")
+        raise HTTPException(status_code=500, detail={
+            "code": "FEEDBACK_SAVE_FAILED",
+            "message": "Failed to submit feedback. Please try again.",
+            "request_id": rid,
+            "retryable": True,
+        })
 
 
+@router.post("")
 @router.post("/")
 async def submit_feedback_legacy(request: Request):
-    """Legacy feedback endpoint for backwards compatibility"""
+    """Legacy feedback endpoint for backwards compatibility.
+
+    P0 2026-05-19 — Registered at BOTH "" and "/" so callers hitting
+    `/api/feedback` (no trailing slash) don't get bounced through a
+    307 → `/api/feedback/` redirect. The proxy chain (Cloudflare →
+    ingress → uvicorn) stamps the redirect `Location` header with the
+    `http://` scheme, which the browser then refuses to follow under
+    CSP `upgrade-insecure-requests`. Net effect was a silent fetch
+    failure on `/reviews` → "Failed to submit feedback" toast with no
+    diagnostic. The double-decorator makes the redirect impossible.
+    """
+    rid = get_request_id(request)
     try:
         body = await request.json()
         user = await get_optional_user(request)
-        
+
+        # Minimal validation — the legacy endpoint accepts both `message`
+        # and `suggestion` for backwards compatibility, but at least one
+        # of them must be non-empty.
+        message = (body.get("message") or body.get("suggestion") or "").strip()
+        if not message:
+            raise HTTPException(status_code=400, detail={
+                "code": "FEEDBACK_EMPTY",
+                "message": "Please share your feedback message before submitting.",
+                "request_id": rid,
+                "retryable": False,
+            })
+
         feedback = {
             "id": str(uuid.uuid4()),
             "type": body.get("type", "general"),
             "rating": body.get("rating", 0),
             "category": body.get("category", "general"),
-            "message": body.get("message", body.get("suggestion", "")),
+            "name": body.get("name"),
+            "message": message,
             "email": body.get("email"),
             "userId": user["id"] if user else None,
             "metadata": body.get("metadata", {}),
+            "allowPublic": bool(body.get("allowPublic", False)),
             "createdAt": datetime.now(timezone.utc).isoformat()
         }
-        
+
         await db.feedback.insert_one(feedback)
-        
-        return {"success": True, "message": "Feedback received!"}
-        
+
+        return {"success": True, "message": "Feedback received!", "request_id": rid, "id": feedback["id"]}
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Legacy feedback error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to submit feedback")
+        logger.error(f"[feedback/legacy] failed request_id={rid} error={e}")
+        raise HTTPException(status_code=500, detail={
+            "code": "FEEDBACK_SAVE_FAILED",
+            "message": "Failed to submit feedback. Please try again.",
+            "request_id": rid,
+            "retryable": True,
+        })
 
 
 @router.get("/reviews")

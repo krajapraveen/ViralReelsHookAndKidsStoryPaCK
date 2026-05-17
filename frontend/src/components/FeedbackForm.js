@@ -6,7 +6,8 @@ import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { toast } from 'sonner';
-import { MessageSquare, Star, Send, Loader2 } from 'lucide-react';
+import { MessageSquare, Send, Loader2 } from 'lucide-react';
+import api from '../utils/api';
 
 export default function FeedbackForm({ isOpen, onClose }) {
   const [loading, setLoading] = useState(false);
@@ -21,7 +22,7 @@ export default function FeedbackForm({ isOpen, onClose }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!formData.name || !formData.email || !formData.message) {
       toast.error('Please fill in all required fields');
       return;
@@ -29,24 +30,56 @@ export default function FeedbackForm({ isOpen, onClose }) {
 
     setLoading(true);
     try {
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/feedback`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(formData)
-      });
-
-      if (response.ok) {
+      // P0 2026-05-19 — Hit the LEGACY feedback endpoint at the canonical
+      // trailing-slash URL.
+      //   Was: fetch(`${BACKEND_URL}/api/feedback`) — no slash
+      //   ↳ Backend returned 307 to `/api/feedback/`
+      //   ↳ Proxy stamped Location with `http://` (not `https://`)
+      //   ↳ Browser blocked HTTPS→HTTP redirect under CSP
+      //   ↳ Silent failure → dead "Failed to submit feedback" toast.
+      // The backend now also registers the route at both `""` and `"/"`
+      // so even if a future caller drops the slash they're protected,
+      // but we still hit the canonical path for clarity.
+      const res = await api.post('/api/feedback/', formData);
+      if (res.data?.success) {
         toast.success('Thank you for your feedback!');
         setFormData({ name: '', email: '', type: 'feedback', rating: '5', message: '', allowPublic: false });
         onClose();
       } else {
-        throw new Error('Failed to submit feedback');
+        const rid = res.data?.request_id;
+        toast.error(`Submission did not complete.${rid ? `\nReference ID: ${rid}` : ''}`);
       }
     } catch (error) {
-      toast.error('Failed to submit feedback. Please try again.');
+      // P0 2026-05-19 — Founder mandate: every feedback failure toast
+      // must surface a Reference ID so users can paste it into support.
+      const status = error?.response?.status || 0;
+      const data = error?.response?.data;
+      const detail = (data && typeof data.detail === 'object' && !Array.isArray(data.detail))
+        ? data.detail : null;
+      const rid =
+        detail?.request_id ||
+        data?.request_id ||
+        error?.response?.headers?.['x-request-id'] ||
+        error?.response?.headers?.['X-Request-Id'] ||
+        null;
+      const code = detail?.code || null;
+      const friendly = code === 'FEEDBACK_EMPTY'
+        ? 'Please share your feedback message before submitting.'
+        : (detail?.message || 'Failed to submit feedback. Please try again.');
+      const refLine = rid
+        ? `\nReference ID: ${rid}`
+        : (status === 0
+            ? '\nReference ID: not-captured (request never reached the server — check your connection)'
+            : `\nReference ID: not-captured (HTTP ${status})`);
+      toast.error(`${friendly}${refLine}`);
+      // Structured frontend log so ops can correlate with backend traces.
+      // eslint-disable-next-line no-console
+      console.error('[feedback-submit] failed', {
+        status,
+        code,
+        detail: detail?.message || (typeof data?.detail === 'string' ? data.detail : null),
+        request_id: rid,
+      });
     } finally {
       setLoading(false);
     }
