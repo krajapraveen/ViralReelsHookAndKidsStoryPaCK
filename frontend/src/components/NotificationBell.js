@@ -108,7 +108,7 @@ export default function NotificationBell() {
     <div className="relative" ref={ref} data-testid="notification-bell">
       <button
         onClick={() => { setOpen(!open); if (!open && unread > 0) markRead(); }}
-        className="relative p-2 text-slate-400 hover:text-white transition-colors rounded-full bg-black/40 backdrop-blur-xl border border-white/[0.06] hover:border-white/10"
+        className="relative flex-shrink-0 p-2 text-slate-400 hover:text-white transition-colors rounded-full bg-slate-950/95 backdrop-blur-xl border border-white/[0.08] hover:border-white/15 shadow-lg shadow-black/40"
         data-testid="notification-btn"
         aria-label="Notifications"
       >
