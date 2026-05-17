@@ -2,6 +2,96 @@
 
 
 ─────────────────────────────────────────────────────────
+[2026-05-19] P1 URL/PATH/QUERY BOUNDARY AUDIT — SHIPPED
+─────────────────────────────────────────────────────────
+Founder mandate: "Prevent unsafe handler/default-arg values from
+leaking into URL path segments, query strings, FormData keys,
+download/export URLs, and share/public URLs." Freeze intact —
+no Phase 3c/4, no canonical migration, no admin panel, no features.
+
+UNSAFE URL/PATH/QUERY PATTERNS FOUND
+  Codebase-wide static scan of every JS/JSX function scope with a
+  default-arg parameter, restricted to the 22 target keys (style,
+  style_id, mode, template/_id, voice/_id, character/_id, story_id,
+  draft_id, asset_id, plan, price_id, amount, credits, order_id,
+  remix_type, type, job_id, token, share_token).
+    Active violations in live code: 0.
+    Synthesized regressions the audit provably catches:
+      • `/api/x/${overrideId}`              (unguarded path segment)
+      • `new URLSearchParams({ style })`    (unguarded query shorthand)
+      • `overrideStyle || style` in URL     (fallback-of-unguarded)
+  The path-segment scanner ONLY flags substitutions where (a) the
+  enclosing function has default-arg params AND (b) either the
+  variable name maps to a TARGET_KEY (e.g. `storyId`→`story_id`,
+  `jobId`→`job_id`) or the URL position is `?key=${…}` with key in
+  the target list. Cosmetic params (`limit`, `niche`, `className`,
+  `dateRange`) are correctly NOT flagged.
+
+NEW SAFE BUILDERS (frontend/src/utils/safeUrl.js)
+  • `safePathId(value, fieldName)`
+      Validates against `^[A-Za-z0-9_-]{1,128}$`, then encodes.
+      Returns `null` on React events, objects, arrays, nulls,
+      empty strings, or pattern miss. NEVER returns
+      `encodeURIComponent([object Object])`.
+  • `safeQueryParam(value, fieldName)`
+      Accepts strings (trim, max 512 chars), finite numbers,
+      booleans. Refuses everything else.
+  • `safeUrlParams(obj, allowlist)`
+      Returns a `URLSearchParams`. Keys are STRICTLY restricted to
+      the supplied allowlist — a misspelling can't leak unintended
+      params downstream.
+  • `safeDownloadUrl(base, pathParts, query, queryAllowlist)`
+      Composes a download/export/share URL from validated parts.
+      Returns null if ANY segment is unsafe. The right primitive
+      for sharing public URLs.
+  • All builders emit `frontend_event_trap_blocked_total` beacons
+    on rejection so the existing diagnostics counter sees the work.
+
+PRINCIPLE LOCKED IN
+  `encodeURIComponent` is NOT validation. The builders validate
+  FIRST, then encode. Tests assert `encodeURIComponent(trimmed)`
+  appears AFTER pattern validation in safePathId.
+
+EXACT FILES CHANGED
+  + frontend/src/utils/safeUrl.js
+  + backend/tests/test_url_boundary_audit_2026_05.py
+
+REGRESSION TESTS — 8 new
+  • test_url_path_substitutions_audit
+      Live codebase scan; restricted to TARGET_KEYS via the
+      new `_classify_url_substitution` heuristic.
+  • test_urlsearchparams_object_audit
+      `new URLSearchParams({…})` literal-object form.
+  • test_formdata_and_urlsp_set_audit
+      `formData.append('story_id', maybeArg)` + `params.set(...)`.
+  • test_synthesized_path_regression_is_detected
+      `${overrideId}` with unguarded default → flagged.
+  • test_synthesized_query_regression_is_detected
+      `URLSearchParams({ style })` with unguarded default → flagged.
+  • test_synthesized_guarded_path_is_accepted
+      `overrideId = safePathId(...)` → accepted.
+  • test_safe_url_module_exists
+      All exports + encodeURIComponent-after-validation contract.
+  • test_target_keys_include_token_pair
+      The founder added `token` / `share_token` for this layer.
+
+BEHAVIOR CHANGES
+  None. This sweep adds new utilities and a regression scanner.
+  No call site changed today — all 22 active default-arg handlers
+  are already safe (verified by the live scan).
+
+FULL SUITE: 149 passed, 1 skipped. Lint clean.
+
+WHAT THIS SWEEP DID NOT TOUCH (still frozen):
+  ✗ Phase 3c / Phase 4 / canonical migration
+  ✗ Admin diagnostics panel
+  ✗ Raw-`str` payload-field tightening hit list (per founder direction:
+    next step is REPORT-ONLY first)
+  ✗ New features / UI redesign / Sora toggle / character memory
+
+
+
+─────────────────────────────────────────────────────────
 [2026-05-19] P1 BACKEND PAYLOAD ACCEPTANCE HARDENING — SHIPPED
 ─────────────────────────────────────────────────────────
 Founder mandate: "Make the same bug class impossible at the API
