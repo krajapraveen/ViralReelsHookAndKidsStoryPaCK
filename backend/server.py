@@ -1306,6 +1306,19 @@ async def startup():
     except Exception as e:
         logger.warning(f"Referral expiry loop startup warning: {e}")
 
+    # Phase 4a 2026-05-19 — Comic Storybook stuck-job janitor.
+    # Recovers jobs whose worker died mid-pipeline (OOM, supervisor
+    # restart, asyncio.CancelledError) so the user is never trapped
+    # behind a permanently-PROCESSING comic. Opt-in via env flag so
+    # rollback is one supervisor restart away.
+    if os.environ.get("COMIC_STORYBOOK_JANITOR_ENABLED", "1") == "1":
+        try:
+            from services.comic_storybook_janitor import run_janitor_forever
+            asyncio.create_task(run_janitor_forever(db))
+            logger.info("[ComicStorybookJanitor] scheduled")
+        except Exception as e:
+            logger.warning(f"Comic Storybook janitor startup warning: {e}")
+
     # Photo Trailer stuck-job janitor — reaps PROCESSING jobs older than 5 min,
     # marks them FAILED with STALE_PIPELINE, refunds credits idempotently.
     # Hardens against backend restart drops and orphaned pipelines.

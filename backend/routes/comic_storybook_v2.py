@@ -743,6 +743,18 @@ async def run_pipeline(job_id, genre, story_idea, title, author, page_count, add
                 "updatedAt": datetime.now(timezone.utc).isoformat(),
             }}
         )
+        # Phase 3c-minimal 2026-05-19 — canonical transition audit.
+        try:
+            from services.comic_storybook_janitor import record_transition
+            await record_transition(
+                db, job_id=job_id, user_id=user_id,
+                from_status="PROCESSING", to_status=final_status,
+                source="pipeline:completion",
+                extra={"success_ratio": round(success_ratio, 2),
+                       "failed_panels": len(failed_panel_pages)},
+            )
+        except Exception:
+            pass
         logger.info(f"[COMIC] Job {job_id[:8]} → {final_status} ({successful_panels}/{total_panels} panels)")
 
         # Queue background regeneration for failed panels
@@ -755,6 +767,17 @@ async def run_pipeline(job_id, genre, story_idea, title, author, page_count, add
             {"id": job_id},
             {"$set": {"status": "FAILED", "error": str(e)[:500], "progressMessage": f"Failed: {str(e)[:100]}"}}
         )
+        # Phase 3c-minimal 2026-05-19 — canonical transition audit.
+        try:
+            from services.comic_storybook_janitor import record_transition
+            await record_transition(
+                db, job_id=job_id, user_id=user_id,
+                from_status="PROCESSING", to_status="FAILED",
+                source="pipeline:exception",
+                reason=str(e)[:500],
+            )
+        except Exception:
+            pass
         try:
             from services.auto_refund import handle_generation_failure
             await handle_generation_failure(db, user_id, "comic_storybook", str(e))
@@ -1627,3 +1650,56 @@ async def admin_analytics(user: dict = Depends(get_current_user)):
     completed = await db.comic_storybook_v2_jobs.count_documents({"status": "COMPLETED"})
     failed = await db.comic_storybook_v2_jobs.count_documents({"status": "FAILED"})
     return {"totalJobs": total, "completed": completed, "failed": failed}
+
+
+@router.post("/admin/janitor/run")
+async def admin_run_janitor(
+    http_request: Request,
+    user: dict = Depends(get_current_user),
+):
+    """Phase 4a 2026-05-19 — manual janitor pass for admin/ops.
+
+    Triggers a single sweep of stuck-job recovery. Returns the summary
+    of what was found and recovered so ops can verify in real time.
+    """
+    from services.entitlement import is_unlimited_user
+    if not is_unlimited_user(user):
+        from middleware.reliability import get_request_id
+        rid = get_request_id(http_request)
+        raise HTTPException(status_code=403, detail={
+            "code": "ADMIN_ONLY",
+            "message": "Admin/unlimited users only.",
+            "request_id": rid,
+            "retryable": False,
+        })
+    from services.comic_storybook_janitor import recover_stuck_comic_jobs
+    summary = await recover_stuck_comic_jobs(db)
+    return summary
+
+
+@router.get("/admin/transitions/{job_id}")
+async def admin_job_transitions(
+    job_id: str,
+    http_request: Request,
+    user: dict = Depends(get_current_user),
+):
+    """Phase 3c-minimal 2026-05-19 — forensic transition log lookup.
+
+    Returns the full audit trail for a job — every status change with
+    source, request_id, and reason. The killer tool for diagnosing the
+    next split-brain.
+    """
+    from services.entitlement import is_unlimited_user
+    if not is_unlimited_user(user):
+        from middleware.reliability import get_request_id
+        rid = get_request_id(http_request)
+        raise HTTPException(status_code=403, detail={
+            "code": "ADMIN_ONLY",
+            "message": "Admin/unlimited users only.",
+            "request_id": rid,
+            "retryable": False,
+        })
+    rows = await db.comic_storybook_v2_transitions.find(
+        {"job_id": job_id}, {"_id": 0},
+    ).sort("ts", 1).to_list(200)
+    return {"job_id": job_id, "transitions": rows, "count": len(rows)}
