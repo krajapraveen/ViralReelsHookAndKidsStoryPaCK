@@ -33,8 +33,10 @@ def test_bundle_version_bumped_for_this_iteration():
     hotfix so production can confirm visually which iteration is
     live."""
     src = PHOTO_TO_COMIC_JS.read_text()
-    assert "const BUNDLE_VERSION = '2026-05-19-case-b-visible-marker'" in src, (
-        "BUNDLE_VERSION must be bumped to the visible-marker iteration"
+    # Pinned to the current iteration. Bump this string in lockstep with
+    # the BUNDLE_VERSION constant whenever a new P2C hotfix ships.
+    assert "const BUNDLE_VERSION = '2026-05-19-p2c-event-trap-fix'" in src, (
+        "BUNDLE_VERSION must be bumped to the event-trap-fix iteration"
     )
 
 

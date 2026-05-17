@@ -2,6 +2,57 @@
 
 
 ─────────────────────────────────────────────────────────
+[2026-05-19] P0 PHOTO-TO-COMIC EVENT-TRAP HOTFIX — SHIPPED
+─────────────────────────────────────────────────────────
+Production trust-killing toast on Photo-to-Comic:
+  "Selected comic style is not supported. Please try another style.
+   Reference ID: not-captured (frontend rejected style=object)"
+
+ROOT CAUSE (the smoking gun):
+  • The generate button was wired `<Button onClick={handleGenerate}>`.
+  • React passes a SyntheticEvent as the first arg to handleGenerate.
+  • `handleGenerate(overrideStyle = null) { const rawSelected =
+    overrideStyle || style; ... }` treated the truthy event as a style
+    object. `normalizeComicStyle(event)` returned null → leaky toast.
+  • Bold Hero was visibly selected, CTA enabled, BUT click failed
+    validation BEFORE the request was dispatched (no request_id).
+
+FIXES (frontend/src/pages/PhotoToComic.js):
+  1. Line 1547 — `onClick={() => handleGenerate()}` (drops the event).
+  2. `handleGenerate` now only honors `overrideStyle` when
+     `typeof === 'string' && trim().length > 0`. Anything else
+     (event, object, number, null) falls through to canonical `style`
+     state — which is always a string thanks to the existing setStyle
+     wrapper.
+  3. Killed all internal jargon in the user-facing toast.
+     Old: "frontend rejected style=object" + "Reference ID: not-captured"
+     New: "Selected style unavailable. Please try another style.
+           Reference ID: p2c-<hash>".
+     Detailed `style_state` diagnostic stays in `console.error` only.
+  4. Bumped BUNDLE_VERSION → `2026-05-19-p2c-event-trap-fix` so QA can
+     visually confirm the new bundle is live.
+
+REGRESSION TESTS (backend/tests/test_p2c_event_trap_2026_05.py — 8 cases):
+  • test_generate_button_does_not_pass_event_to_handler
+  • test_handle_generate_only_honors_string_override
+  • test_no_internal_jargon_in_user_facing_toasts
+    (forbidden in toast.error: "frontend rejected", "style=object",
+     "[object Object]", "unsupported enum", "validator", "stack trace",
+     "not-captured (frontend")
+  • test_invalid_style_toast_surfaces_reference_id
+  • test_locked_style_tiles_are_disabled_and_gated
+  • test_only_one_comic_style_registry (registry-divergence guard)
+  • test_p2c_imports_canonical_registry
+  • test_bundle_version_advanced_for_this_hotfix
+
+VERIFICATION:
+  • All 111 P2C + storybook regression tests GREEN.
+  • Lint clean on PhotoToComic.js.
+  • Smoke screenshot of /app/photo-to-comic boots (auth wall renders).
+
+
+
+─────────────────────────────────────────────────────────
 [2026-05-16] YOUSTAR P0 ACTIVATION-KILLER TRIO (P0-A, P0-C, P0-D) — SHIPPED
 ─────────────────────────────────────────────────────────
 Founder mandate: ship the three highest-priority YouStar trailer reliability

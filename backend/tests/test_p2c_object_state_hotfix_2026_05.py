@@ -33,6 +33,7 @@ and asserted as-is.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -199,10 +200,11 @@ def test_bundle_version_constant_is_present_and_logged():
     log on the generate path must include it."""
     src = PHOTO_TO_COMIC_JS.read_text()
     # The exact identifier can change between CASE B iterations — we
-    # only require that it remains a `case-b-*` identifier on this
-    # production stabilization track.
-    assert "const BUNDLE_VERSION = '2026-05-19-case-b-" in src, (
-        "BUNDLE_VERSION must be on the 2026-05-19-case-b-* track so "
+    # only require that it remains a `2026-05-19-*` identifier on this
+    # production stabilization track. (The 2026-05-19 event-trap hotfix
+    # dropped the `case-b-` infix.)
+    assert re.search(r"const BUNDLE_VERSION = '2026-05-19-[^']+'", src), (
+        "BUNDLE_VERSION must be on the 2026-05-19-* track so "
         "production logs can tell each iteration apart"
     )
     # And the diagnostic log on every Generate click must include it.

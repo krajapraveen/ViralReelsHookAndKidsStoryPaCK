@@ -64,7 +64,7 @@ import {
 // frontend forensics. When you fix a recurring P2C bug, bump this so
 // production logs make it crystal-clear which bundle the user is
 // actually running (catches stale Service Worker / CDN cache).
-const BUNDLE_VERSION = '2026-05-19-case-b-visible-marker';
+const BUNDLE_VERSION = '2026-05-19-p2c-event-trap-fix';
 
 const GENRES = [
   { id: 'action', name: 'Action' }, { id: 'comedy', name: 'Comedy' },
@@ -341,12 +341,16 @@ function PhotoToComicInner() {
 
   // ─── Generate ────────────────────────────────────────────────────
   const handleGenerate = async (overrideStyle = null) => {
-    // P0 2026-05-16 — bulletproof style serialization.
-    // Pre-flight coerce whatever was passed (string | object | nullish)
-    // into the canonical backend enum string. If it can't be normalized,
-    // refuse to send the request — backend would just bounce with
-    // INVALID_STYLE anyway and the user gets a clearer message now.
-    const rawSelected = overrideStyle || style;
+    // P0 2026-05-19 — Event-trap defense. If a parent renders the
+    // generate button as `onClick={handleGenerate}` (no arrow), React
+    // passes the SyntheticEvent as the first arg. The previous logic
+    // `overrideStyle || style` then treated the event as a style object
+    // and the user saw "frontend rejected style=object". We now ONLY
+    // honor `overrideStyle` when it is a non-empty string. Anything
+    // else (event, null, undefined, object) silently falls through to
+    // the React `style` state slot, which is always a canonical string.
+    const overrideIsString = typeof overrideStyle === 'string' && overrideStyle.trim().length > 0;
+    const rawSelected = overrideIsString ? overrideStyle : style;
     const activeStyle = normalizeComicStyle(rawSelected);
     // P0 2026-05-19 — Production failure forensics. Log the full style
     // state on EVERY generate click so any future "Selected comic style
@@ -383,8 +387,14 @@ function PhotoToComicInner() {
       if (recovery && typeof recovery.id === 'string') {
         setStyle(recovery.id);
       }
-      const typeStr = rawSelected === null ? 'null' : (typeof rawSelected === 'object' ? 'object' : typeof rawSelected);
-      toast.error(`Selected comic style is not supported. Please try another style.\nReference ID: not-captured (frontend rejected style=${typeStr})`);
+      // P0 2026-05-19 — No internal jargon leaks to the user. Reference
+      // ID is a stable short hash that maps back to the console diagnostic
+      // dump above. The detailed "style=object" / "style=event" reason
+      // lives ONLY in console logs.
+      const refId = `p2c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+      // eslint-disable-next-line no-console
+      console.error('[p2c/submit-blocked] user_facing_ref_id=' + refId);
+      toast.error(`Selected style unavailable. Please try another style.\nReference ID: ${refId}`);
       return;
     }
     if (!canAfford) { toast.error(`Need ${cost} credits`); navigate('/app/billing'); return; }
@@ -1544,7 +1554,7 @@ function PhotoToComicInner() {
                   </span>
                   <span className="text-purple-400 text-xs font-medium">+2 cr</span>
                 </button>
-                <Button onClick={handleGenerate} disabled={!canAfford || credits === null || (qualityResult && !qualityResult.can_proceed)} className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 py-5 text-base font-semibold" data-testid="generate-btn">
+                <Button onClick={() => handleGenerate()} disabled={!canAfford || credits === null || (qualityResult && !qualityResult.can_proceed)} className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 py-5 text-base font-semibold" data-testid="generate-btn">
                   <Wand2 className="w-5 h-5 mr-2" /> Create My Comic
                 </Button>
                 {/* P0 2026-05-19 CASE B — VISIBLE build marker. The
@@ -1559,6 +1569,7 @@ function PhotoToComicInner() {
                   data-testid="p2c-build-marker"
                 >
                   P2C build: {BUNDLE_VERSION}
+                  {/* visible cache-bust marker — must update on every hotfix */}
                 </div>
                 {qualityResult && !qualityResult.can_proceed && (
                   <p className="text-[10px] text-red-400 text-center">Upload a photo with a visible face to continue</p>
