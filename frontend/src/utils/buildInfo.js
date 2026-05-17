@@ -15,10 +15,10 @@ const env = (typeof process !== 'undefined' && process.env) ? process.env : {};
 export const BUILD_HASH =
   env.REACT_APP_BUILD_HASH ||
   env.REACT_APP_GIT_SHA ||
-  '2026-05-19-p2c-event-trap-fix';
+  '2026-05-22-reaction-gif-connection-loss-fix';
 
 export const BUILD_TIMESTAMP =
-  env.REACT_APP_BUILD_TIMESTAMP || '2026-05-19T00:00:00Z';
+  env.REACT_APP_BUILD_TIMESTAMP || '2026-05-22T00:00:00Z';
 
 export const BUILD_INFO = Object.freeze({
   hash: BUILD_HASH,
