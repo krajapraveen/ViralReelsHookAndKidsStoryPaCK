@@ -8,6 +8,21 @@ Evolve the platform from a standard AI content generator into a highly addictive
 
 ## What's Been Implemented
 
+### Engineering Doctrine — Bug-Class Elimination Mandate — May 22, 2026
+**Status**: ADOPTED. Pinned by CI. All audits green (216 passed, 1 expected skip).
+
+**Founder mandate**: Production bugs are no longer treated as isolated patches. Every fix is now a **bug-class elimination task**. One-off patches are forbidden except during a live P0 outage (with a mandatory 24h follow-up window).
+
+**Codification**:
+- `/app/memory/ENGINEERING_DOCTRINE.md` — appended *"The Bug-Class Elimination Mandate"* section with: 8 stability non-negotiables, the 8-section mandatory bug-report procedure, the success definition ("this entire class of bug is now impossible, or is automatically detected"), and the P0-outage exception clause.
+- `/app/memory/BUG_CLASS_ELIMINATION_TEMPLATE.md` — new canonical template; every production bug-fix PR copies + fills this in.
+- `backend/tests/test_bug_class_elimination_mandate_2026_05.py` — 12 pinning tests preventing silent weakening of the mandate, the 8 sections, the success-definition sentence, the 24h exception window, the boundary-class enumeration, the scope-confirmation checkboxes, and the template file.
+- `/app/Makefile` — new pinning suite registered in `BOUNDARY_AUDIT_SUITES` so `make audit-boundaries` enforces it on every PR.
+
+**Success definition (now policy)**: Not "this bug is fixed." Success = *"this entire class of bug is now impossible, or is automatically detected the next time it tries to recur."*
+
+---
+
 ### P0 PRODUCTION BUG — Comic Story Book "already generating" lock-trap — May 19, 2026
 **Status**: SHIPPED in preview. Live HTTP regression green. **Awaiting your redeploy + production verification.**
 

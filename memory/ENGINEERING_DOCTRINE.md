@@ -172,3 +172,101 @@ below.
 ### Changelog
 * **2026-05-19** — Initial doctrine. Adopted after the P0 Photo-to-Comic
   event-trap hotfix and the Batch A payment/auth tightening.
+* **2026-05-22** — Added the **Bug-Class Elimination Mandate** below.
+  Production bugs are no longer treated as isolated patches; every
+  fix must eliminate the entire class of failure or render it
+  automatically detectable.
+
+---
+
+## The Bug-Class Elimination Mandate
+
+**Adopted:** 2026-05-22
+**Authority:** Founder mandate.
+
+> Production bugs are not isolated bug fixes. Every production bug is
+> a **bug-class elimination task**. One-off patches are forbidden
+> except during a live P0 outage, and even then they are followed by
+> the full elimination workflow within 24 hours.
+
+### Success definition
+
+Success is **not** "this bug is fixed."
+Success is: **"this entire class of bug is now impossible, or is
+automatically detected the next time it tries to recur."**
+
+A change that closes one ticket without closing the class is a
+half-fix and is rejected at review.
+
+### Stability doctrine — the eight non-negotiables
+
+1. Validate every boundary.
+2. Canonicalize all critical state.
+3. Make async jobs idempotent.
+4. Never trust client payloads.
+5. Never expose internal errors.
+6. Every failure carries a `request_id`.
+7. Every recurring issue becomes a CI rule.
+8. No new feature work during an instability freeze.
+
+These are not aspirations. They are merge gates.
+
+### The mandatory 8-section bug report
+
+Every production bug, before being marked resolved, must produce a
+structured report addressing **all eight** of the following. A fix
+without this report is incomplete and does not ship.
+
+| # | Section | What it answers |
+|---|---|---|
+| 1 | **Root cause** | The single deepest "why" — not the symptom, not the proximate cause |
+| 2 | **Exact broken boundary** | Which boundary (frontend payload / backend request / URL / async job / cache / 3rd-party contract / DB invariant) let the bug through |
+| 3 | **Boundary class** | Frontend ▪ Backend ▪ Async job ▪ Payment ▪ Cache ▪ Third-party contract ▪ DB invariant — exactly one is primary |
+| 4 | **Why existing tests missed it** | Was it untested code, a gap in the audit registry, a too-narrow assertion, or a mocked-away dependency? |
+| 5 | **Regression test / scanner** | The new test, audit, or static scanner — registered in `make audit-boundaries` — that makes recurrence impossible to merge |
+| 6 | **Observability signal added** | The metric / structured log / `request_id` correlation / alert that surfaces the next occurrence within minutes, not days |
+| 7 | **Similar-pattern sweep** | Result of grepping / scanning for the same class elsewhere in the codebase — with a list of additional sites fixed in the same PR, or an explicit "scan ran, no other sites" |
+| 8 | **Scope confirmation** | Explicit statement that **no unrelated features, refactors, or "while I'm here" cleanups** were included in the PR |
+
+The canonical template lives at
+`/app/memory/BUG_CLASS_ELIMINATION_TEMPLATE.md`. Copy it, fill it
+in, attach it to the PR description. No PR without it.
+
+### How this interacts with the existing 10 rules
+
+The mandate is the **operational procedure** that gives teeth to
+Rule 6 (Boundary audits) and Rule 9 (CI enforcement). Specifically:
+
+* Section 5 (regression test/scanner) **must** be added to the
+  `BOUNDARY_AUDIT_SUITES` list in `/app/Makefile` if it is a static
+  or runtime audit. The next `make audit-boundaries` run executes it
+  with no human memory dependency.
+* Section 6 (observability) reinforces Rule 3 — no failure is
+  observable until its `request_id` survives the full failure chain.
+* Section 7 (similar-pattern sweep) enforces "fix the class, not the
+  instance." A single fixed callsite with five identical unfixed
+  siblings is a regression waiting to be filed as a new ticket.
+* Section 8 (scope) protects the freeze. Bug fixes during freeze do
+  not become Trojan horses for feature work.
+
+### The only exception
+
+A live P0 outage may ship a one-off patch **before** the report is
+written, to stop bleeding. The full 8-section report and its CI
+scanner must follow within 24 hours of the outage being mitigated.
+"We'll do it next sprint" is not an acceptable answer.
+
+### Enforcement
+
+This mandate is pinned by
+`backend/tests/test_bug_class_elimination_mandate_2026_05.py`,
+which is part of `make audit-boundaries`. The test fails any change
+that weakens or removes:
+
+* the mandate's 8 numbered sections,
+* the stability doctrine's 8 non-negotiables,
+* the success-definition sentence,
+* the canonical template file.
+
+Modifying any of the above requires an explicit founder greenlight
+and a dated changelog entry above.
