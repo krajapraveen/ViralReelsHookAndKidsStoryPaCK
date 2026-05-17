@@ -34,6 +34,12 @@ from services.watermark_service import add_diagonal_watermark, should_apply_wate
 # partial pack-generation runs from being silently marked COMPLETED
 # while the frontend dies on a transient poll error.
 from services.reliability.completion_invariant import assert_completion_invariant
+# ─── P0 2026-05-22 — Asset verification gate (bug-class elimination).
+# A Reaction GIF job must NOT reach COMPLETED with a URL pointing at
+# a file the browser will render as a broken image. The verifier
+# checks the freshly-written file's existence, size, and magic
+# bytes before the URL is added to `real_results`.
+from services.reliability.asset_verifier import verify_image_asset
 
 router = APIRouter(prefix="/reaction-gif", tags=["Photo Reaction GIF"])
 
@@ -465,12 +471,56 @@ AVOID: {negative_prompt}"""
                         os.makedirs(os.path.dirname(filepath), exist_ok=True)
                         with open(filepath, 'wb') as f:
                             f.write(image_bytes)
-                        
+
+                        # ─── P0 2026-05-22 — Asset verification gate.
+                        # Do NOT enqueue this URL into real_results unless
+                        # the file actually exists, is non-empty, and is
+                        # a renderable image. Otherwise the frontend
+                        # would show a broken-image preview with the
+                        # success UI exposed — the exact false-success
+                        # bug class this gate exists to prevent.
+                        verify = verify_image_asset(filepath)
+                        if not verify.ok:
+                            logger.error(
+                                "[REACTION_GIF] asset_verify_failed "
+                                "job=%s reaction=%s reason=%s size=%d filename=%s",
+                                job_id, react, verify.reason, verify.size, filename,
+                            )
+                            try:
+                                from datetime import datetime as _dt, timezone as _tz
+                                bucket = _dt.now(_tz.utc).strftime("%Y-%m-%d")
+                                await db.diagnostics_metrics.update_one(
+                                    {"metric": "reaction_gif_asset_verify_failed_total", "bucket": bucket},
+                                    {"$inc": {"count": 1},
+                                     "$setOnInsert": {"metric": "reaction_gif_asset_verify_failed_total",
+                                                      "bucket": bucket,
+                                                      "first_seen_at": _dt.now(_tz.utc).isoformat()},
+                                     "$set": {"last_seen_at": _dt.now(_tz.utc).isoformat()},
+                                     "$push": {"recent_samples": {
+                                         "$each": [{"ts": _dt.now(_tz.utc).isoformat(),
+                                                    "meta": {"job_id": job_id, "reaction": react,
+                                                             "reason": verify.reason, "size": verify.size}}],
+                                         "$slice": -25,
+                                     }}},
+                                    upsert=True,
+                                )
+                            except Exception:  # noqa: BLE001
+                                logger.exception("Failed to persist asset_verify_failed metric")
+                            generation_errors.append(
+                                f"asset_verify_failed:{verify.reason}"
+                            )
+                            # Skip this frame entirely; try the next reaction.
+                            continue
+
                         url = f"/api/generated/{filename}"
                         result_entry = {
                             "reaction": react,
                             "emoji": reaction_info["emoji"],
                             "url": url,
+                            "asset_verified": True,
+                            "asset_size": verify.size,
+                            "asset_format": verify.fmt,
+                            "asset_content_type": verify.content_type,
                             "generated": True
                         }
                         results.append(result_entry)
@@ -534,6 +584,12 @@ AVOID: {negative_prompt}"""
                     "expectedCount": expected_count,
                     "actualCount": actual_count,
                     "invariantRepaired": invariant.repaired,
+                    # ─── P0 2026-05-22 — Asset-verified flag.
+                    # Frontend gates the success UI behind this. A
+                    # COMPLETED status without a verified asset is
+                    # impossible by construction (real_results only
+                    # holds entries that passed verify_image_asset).
+                    "assetVerified": True,
                     "updatedAt": datetime.now(timezone.utc).isoformat()
                 }}
             )
@@ -554,6 +610,7 @@ AVOID: {negative_prompt}"""
                     "progressMessage": "Generation failed",
                     "expectedCount": expected_count,
                     "actualCount": actual_count,
+                    "assetVerified": False,
                     "updatedAt": datetime.now(timezone.utc).isoformat()
                 }}
             )

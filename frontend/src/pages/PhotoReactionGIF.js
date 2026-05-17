@@ -119,6 +119,20 @@ export default function PhotoReactionGIF() {
   const POLL_FAIL_TOLERANCE = 5;        // ~10s of transient failures absorbed silently
   const POLL_HARD_LIMIT = 90;           // ~3 minutes total before we give up
 
+  // ─── P0 2026-05-22 — Asset-readiness gate (false-success fix) ────
+  // The backend now marks `assetVerified=true` only when the file
+  // on disk passed a magic-byte / size check. In addition, the
+  // frontend MUST run its own in-browser image preload probe before
+  // exposing share / download / copy-link actions, because a CDN
+  // cache, network fault, or content-type mismatch can still make
+  // a backend-verified file fail to render here.
+  const [previewReady, setPreviewReady] = useState(false);
+  const [previewProbing, setPreviewProbing] = useState(false);
+  const [previewFailed, setPreviewFailed] = useState(false);
+  const previewProbeAttemptsRef = useRef(0);
+  const PREVIEW_PROBE_MAX_ATTEMPTS = 5;
+  const PREVIEW_PROBE_TIMEOUT_MS = 8000;
+
   // Modals
   const [showRating, setShowRating] = useState(false);
   const [showUpsell, setShowUpsell] = useState(false);
@@ -225,6 +239,11 @@ export default function PhotoReactionGIF() {
     setLoading(true);
     setPhase('generating');
     setJob(null);
+    // ─── P0 2026-05-22 — reset asset-readiness gate on new submission
+    setPreviewReady(false);
+    setPreviewProbing(false);
+    setPreviewFailed(false);
+    previewProbeAttemptsRef.current = 0;
 
     try {
       const formData = new FormData();
@@ -278,6 +297,104 @@ export default function PhotoReactionGIF() {
     } catch (_) { /* never break UX */ }
   }, []);
 
+  // ── P0 2026-05-22 — In-browser asset readiness probe ──
+  // The backend's `assetVerified` flag asserts the file on disk is a
+  // real image. The frontend STILL has to confirm the browser can
+  // actually fetch and decode it — a CDN cache miss, content-type
+  // mismatch, or temporary 5xx between job COMPLETION and first
+  // render will all produce the same broken-image bug we are
+  // eliminating. The probe retries with exponential backoff and only
+  // flips `previewReady=true` on a clean decode.
+  const runPreviewProbe = useCallback((rawUrl) => {
+    if (!rawUrl) {
+      setPreviewFailed(true);
+      _emitBeacon('reaction_gif_broken_preview_total', { reason: 'no_url' });
+      return;
+    }
+    _emitBeacon('reaction_gif_asset_verify_started_total', {});
+    setPreviewProbing(true);
+    setPreviewFailed(false);
+
+    const absolute = rawUrl.startsWith('http') ? rawUrl : `${API_URL}${rawUrl}`;
+
+    const attempt = () => {
+      previewProbeAttemptsRef.current += 1;
+      const att = previewProbeAttemptsRef.current;
+      // Cache-bust on retries so a stale CDN 404 doesn't lock us out.
+      const cacheBust = att === 1 ? '' : (absolute.includes('?') ? `&_p=${att}_${Date.now()}` : `?_p=${att}_${Date.now()}`);
+      const probeUrl = absolute + cacheBust;
+
+      const img = new window.Image();
+      let settled = false;
+
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        // eslint-disable-next-line no-use-before-define
+        onFail('timeout');
+      }, PREVIEW_PROBE_TIMEOUT_MS);
+
+      const onLoad = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        // naturalWidth/Height guard rules out 0x0 "loaded" decoder errors.
+        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+          setPreviewProbing(false);
+          setPreviewReady(true);
+          setPreviewFailed(false);
+        } else {
+          onFail('zero_dimensions');
+        }
+      };
+
+      const onFail = (reason) => {
+        if (att < PREVIEW_PROBE_MAX_ATTEMPTS) {
+          // Exponential backoff: 800ms, 1600ms, 3200ms, 6400ms.
+          const delay = 800 * Math.pow(2, att - 1);
+          setTimeout(attempt, delay);
+          return;
+        }
+        // Exhausted retries → record false-success-prevented and
+        // surface a safe message. Never expose share/download.
+        setPreviewProbing(false);
+        setPreviewReady(false);
+        setPreviewFailed(true);
+        _emitBeacon('reaction_gif_broken_preview_total', {
+          reason,
+          attempts: att,
+        });
+        _emitBeacon('reaction_gif_false_success_prevented_total', {
+          reason,
+          attempts: att,
+        });
+        toastErrorSafe(
+          'Your reaction was created, but the media file is still being finalized. We are retrying — please hold on.',
+          {
+            requestId: lastRequestIdRef.current,
+            code: 'REACTION_GIF_PREVIEW_NOT_READY',
+            page: '/app/gif-maker',
+            id: 'reaction-gif-preview-not-ready',
+            duration: 8000,
+          }
+        );
+      };
+
+      img.onload = onLoad;
+      img.onerror = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        onFail('image_error');
+      };
+      img.src = probeUrl;
+    };
+
+    attempt();
+  // POLL constants/refs are stable; _emitBeacon is the only external dep.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [_emitBeacon]);
+
   // ── Poll (P0 2026-05-22 — connection-loss resilient) ──
   // Bug-class elimination per /app/memory/ENGINEERING_DOCTRINE.md:
   //  • single transient poll failure is NOT terminal
@@ -323,6 +440,32 @@ export default function PhotoReactionGIF() {
         if (!completedRef.current.has(jobId)) {
           completedRef.current.add(jobId);
           if (terminalSuccess) {
+            // ─── P0 2026-05-22 — Asset-readiness gate (false-success fix).
+            // Do NOT trust the backend's COMPLETED status alone. The
+            // canonical contract is `assetVerified === true` from the
+            // backend AND an in-browser image preload probe must pass
+            // before we expose share / download / copy-link.
+            const backendVerified = res.data.assetVerified === true;
+            const previewUrl = res.data.resultUrl;
+            if (!backendVerified || !previewUrl) {
+              _emitBeacon('reaction_gif_download_url_missing_total', {
+                backend_verified: backendVerified,
+                has_url: Boolean(previewUrl),
+                status,
+              });
+              setPhase('upload');
+              toastErrorSafe(
+                'Your reaction was created, but the media file is still being finalized. Please try again in a moment.',
+                {
+                  requestId: lastRequestIdRef.current,
+                  code: 'REACTION_GIF_ASSET_MISSING',
+                  page: '/app/gif-maker',
+                  id: 'reaction-gif-asset-missing',
+                  duration: 7000,
+                }
+              );
+              return;
+            }
             setPhase('result');
             const msg = status === 'PARTIAL_READY'
               ? 'Part of your reaction pack is ready — others are still finishing.'
@@ -330,10 +473,16 @@ export default function PhotoReactionGIF() {
             toast.success(msg);
             notifyGenerationComplete({
               feature: 'reaction_gif', featureName: 'Reaction GIF',
-              jobId, downloadUrl: res.data.resultUrl,
+              jobId, downloadUrl: previewUrl,
               actionUrl: '/app/reaction-gif', showToast: false
             });
             refetchNotifications?.();
+            // Kick off the browser-side preload probe. Share / download
+            // remain hidden until the probe succeeds.
+            previewProbeAttemptsRef.current = 0;
+            setPreviewReady(false);
+            setPreviewFailed(false);
+            runPreviewProbe(previewUrl);
             setTimeout(() => setShowRating(true), 3000);
           } else {
             setPhase('upload');
@@ -845,8 +994,21 @@ export default function PhotoReactionGIF() {
   // RENDER: Result — Addictive Loop
   // ════════════════════════════════════════════
   const renderResult = () => {
-    if (!job || job.status !== 'COMPLETED') return null;
+    if (!job || (job.status !== 'COMPLETED' && job.status !== 'PARTIAL_READY')) return null;
     const resultUrl = resolveUrl(job.resultUrl);
+    // P0 2026-05-22 — Asset-readiness gate. Share / Download / Copy
+    // actions render ONLY when the in-browser preload probe has
+    // successfully decoded the asset. previewProbing means "in
+    // flight, please wait"; previewFailed means "we gave up after
+    // retries — show a safe retry CTA instead of dead UI".
+    const showActions = previewReady;
+    const showFinalizing = previewProbing && !previewReady && !previewFailed;
+    const showRetry = previewFailed && !previewReady;
+    const retryPreview = () => {
+      previewProbeAttemptsRef.current = 0;
+      setPreviewFailed(false);
+      runPreviewProbe(job.resultUrl);
+    };
 
     return (
       <div className="max-w-5xl mx-auto" data-testid="result-phase">
@@ -875,6 +1037,47 @@ export default function PhotoReactionGIF() {
                 onContextMenu={canAccessFull ? undefined : (e) => { e.preventDefault(); setPaywall({ open: true, reason: 'copy' }); }}
                 style={{ pointerEvents: canAccessFull ? 'auto' : 'none', WebkitUserDrag: 'none' }}
               />
+              {/* P0 2026-05-22 — Finalizing skeleton: covers the image
+                  while the in-browser preload probe is still running so
+                  users never see a broken-image flash. */}
+              {showFinalizing && (
+                <div
+                  className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/85 backdrop-blur-sm"
+                  data-testid="result-finalizing-overlay"
+                >
+                  <Loader2 className="w-8 h-8 text-pink-400 animate-spin mb-2" />
+                  <p className="text-sm text-slate-200 text-center px-6">
+                    Finalizing your reaction…
+                  </p>
+                  <p className="text-xs text-slate-400 text-center px-6 mt-1">
+                    Verifying the preview before we hand it to you.
+                  </p>
+                </div>
+              )}
+              {/* P0 2026-05-22 — Retry CTA: shown when the preload
+                  probe exhausted retries. NEVER expose share/download
+                  in this state. */}
+              {showRetry && (
+                <div
+                  className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/90 backdrop-blur-sm p-6"
+                  data-testid="result-preview-retry"
+                >
+                  <AlertTriangle className="w-8 h-8 text-amber-400 mb-3" />
+                  <p className="text-sm text-slate-100 text-center font-medium">
+                    Preview is still finalizing
+                  </p>
+                  <p className="text-xs text-slate-400 text-center mt-1 mb-4">
+                    Your reaction was created, but the media file is not ready yet.
+                  </p>
+                  <Button
+                    onClick={retryPreview}
+                    className="bg-pink-600 hover:bg-pink-500 text-white"
+                    data-testid="result-preview-retry-btn"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" /> Retry preview
+                  </Button>
+                </div>
+              )}
               {!canAccessFull && (
                 <div className="pointer-events-none absolute inset-0 flex items-end justify-end p-2">
                   <span className="text-[10px] uppercase tracking-wider text-white/70 bg-black/40 backdrop-blur px-2 py-0.5 rounded">
@@ -908,6 +1111,44 @@ export default function PhotoReactionGIF() {
 
           {/* RIGHT: Actions — Addictive Loop */}
           <div className="space-y-5">
+            {/* P0 2026-05-22 — Asset-readiness gate.
+                Share / Download / Copy NEVER render until the
+                in-browser preload probe succeeds. While probing or
+                after a probe failure, we show a safe placeholder so
+                the user never lands on dead actions tied to a broken
+                preview (the false-success bug class this gate
+                eliminates). */}
+            {!showActions && (
+              <div
+                className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 text-center"
+                data-testid="result-actions-gated"
+              >
+                {showRetry ? (
+                  <>
+                    <AlertTriangle className="w-6 h-6 text-amber-400 mx-auto mb-2" />
+                    <p className="text-sm text-slate-100 font-medium">
+                      Sharing unlocks once the preview loads.
+                    </p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Tap “Retry preview” on the image to try again.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <Loader2 className="w-6 h-6 text-pink-400 mx-auto animate-spin mb-2" />
+                    <p className="text-sm text-slate-200">
+                      Preparing share & download…
+                    </p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      We verify the preview before exposing actions.
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
+
+            {showActions && (
+            <>
             {/* Share-First Cluster (PRIMARY) */}
             <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5" data-testid="share-section">
               <p className="text-xs text-slate-400 mb-3 font-medium uppercase tracking-wider">Share your reaction</p>
@@ -962,6 +1203,9 @@ export default function PhotoReactionGIF() {
                 </Button>
               )}
             </div>
+            </>
+            )}
+            {/* End of asset-readiness gate (P0 2026-05-22) */}
 
             {/* ── ADDICTIVE LOOP ── */}
             <div className="bg-gradient-to-r from-pink-500/10 to-purple-500/10 border border-pink-500/20 rounded-2xl p-5" data-testid="loop-section">

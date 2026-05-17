@@ -57,6 +57,15 @@ ALLOWED_METRICS = frozenset({
     "reaction_gif_connection_lost_total",
     "reaction_gif_poll_recovered_total",
     "reaction_gif_completion_invariant_failed_total",
+    # P0 2026-05-22 — Reaction GIF false-success bug-class elimination.
+    # Backend emits asset_verify_failed; frontend emits broken_preview
+    # and false_success_prevented (when its image preload probe fails
+    # against a "COMPLETED" job).
+    "reaction_gif_asset_verify_started_total",
+    "reaction_gif_asset_verify_failed_total",
+    "reaction_gif_broken_preview_total",
+    "reaction_gif_false_success_prevented_total",
+    "reaction_gif_download_url_missing_total",
 })
 
 # Hard cap on payload size — prevents abusive clients from spamming.

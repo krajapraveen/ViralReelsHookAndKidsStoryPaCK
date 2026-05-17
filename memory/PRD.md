@@ -8,6 +8,35 @@ Evolve the platform from a standard AI content generator into a highly addictive
 
 ## What's Been Implemented
 
+### P0 PRODUCTION BUG — Reaction GIF false-success (broken-image with share/download exposed) — May 22, 2026
+**Status**: SHIPPED in preview. All audits green (**252 passed, 1 expected skip**). **Awaiting your redeploy + production verification.**
+
+**Production symptom** (screenshot): On `/app/gif-maker` the previous "Connection lost" toast is gone, but the job now reaches `COMPLETED` and the success UI exposes Share via Message / Share to Story / Copy Link / Download / "Try another reaction" — while the result preview is a broken-image icon. Classic false success.
+
+**Bug-Class Elimination Report** (per `/app/memory/BUG_CLASS_ELIMINATION_TEMPLATE.md`):
+
+1. **Root cause** — The completion invariant gated *count* (expected vs. actual generated frames) but did NOT gate *asset validity*. `process_reaction_gif` wrote whatever bytes came back from Gemini to disk and appended the URL to `real_results` based only on `if image_bytes:` truthiness — no file-exists / size / magic-byte check. Frontend then flipped `phase='result'` on `status==='COMPLETED'` without any image-load probe, exposing the share/download cluster before the image had decoded.
+2. **Exact broken boundary** — `backend/routes/reaction_gif.py` lines 449–477 (old): file write happened, URL appended unconditionally. `frontend/src/pages/PhotoReactionGIF.js` line 344 (old): success UI rendered on backend status alone with no preload probe.
+3. **Boundary class** — Async job (backend asset-write boundary) + Frontend (media-readiness gate). Compounded.
+4. **Why existing tests missed it** — The completion-invariant scanner only counted entries in `real_results`, not their disk validity. No frontend audit asserted that share/download must be gated behind an image-load probe.
+5. **Regression test / scanner** — New `backend/tests/test_reaction_gif_false_success_2026_05.py` (24 pinning tests). Backend tests pin: `verify_image_asset` rejects empty/below-min/missing/unknown-format files and accepts a real PNG; route imports and calls `verify_image_asset` BEFORE `real_results.append`; route persists `assetVerified=true`; route emits `reaction_gif_asset_verify_failed_total`. Frontend static tests pin: `previewReady`/`previewProbing`/`previewFailed` state present; `const showActions = previewReady` is the gate; share/download wrapped in `{showActions && (...)}`; `runPreviewProbe` exists with cache-buster on retry; backend `assetVerified === true` is required to enter result phase; broken-preview retry CTA exists.
+6. **Observability** — 5 new diagnostics-beacon metrics allow-listed: `reaction_gif_asset_verify_started_total`, `reaction_gif_asset_verify_failed_total`, `reaction_gif_broken_preview_total`, `reaction_gif_false_success_prevented_total`, `reaction_gif_download_url_missing_total`. All carry `request_id` via the shared `_emitBeacon` helper.
+7. **Similar-pattern sweep** — Photo-to-Comic already gates the success UI behind `validate-asset/{id}` + a browser-side image preload (verified resilient). Story-to-Video already uses `validate-asset/{jid}` with `ui_state` (`READY` / `PARTIAL_READY` / `FAILED`). Comic Storybook, YouStar, and AI Studio media exports do **not yet** wire an asset verifier — captured as a follow-up backlog item (NOT widened in this PR per Section 8 scope confirmation).
+8. **Scope confirmation** — No unrelated features, no Phase 3c/4, no admin panel, no UI redesign. Pre-existing `bare except` on line 314 untouched. The only files changed are listed below.
+
+**Files changed**:
+- `backend/services/reliability/asset_verifier.py` (**new**) — magic-byte + size + existence verifier with stable reason codes.
+- `backend/routes/reaction_gif.py` — imports verifier, gates `real_results` append behind `verify.ok`, persists `assetVerified` flag, emits `reaction_gif_asset_verify_failed_total`.
+- `backend/routes/diagnostics_beacon.py` — five new metrics allow-listed.
+- `frontend/src/pages/PhotoReactionGIF.js` — `runPreviewProbe` with exponential-backoff + cache-buster, `previewReady`/`previewProbing`/`previewFailed` state, `showActions = previewReady` gate around share/download cluster, finalizing skeleton overlay, retry CTA, `assetVerified` check before entering result phase.
+- `frontend/src/utils/buildInfo.js` — build hash → `2026-05-22-reaction-gif-false-success-fix`.
+- `backend/tests/test_reaction_gif_false_success_2026_05.py` (**new**) — 24 pinning tests.
+- `Makefile` — suite registered in `BOUNDARY_AUDIT_SUITES`.
+
+**Success-definition test**: The bug class — "media file is broken / missing / wrong format but the job is still marked COMPLETED and the share/download UI is exposed" — is now **impossible to merge**. The asset verifier rejects bad bytes at the write boundary; the frontend probe rejects bad URLs at the render boundary. Both layers must pass.
+
+---
+
 ### P0 PRODUCTION BUG — Reaction GIF "Connection lost during generation" trust-failure — May 22, 2026
 **Status**: SHIPPED in preview. All audits green (231 passed, 1 skipped). **Awaiting your redeploy + production verification.**
 
