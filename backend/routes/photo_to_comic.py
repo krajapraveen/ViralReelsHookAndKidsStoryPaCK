@@ -13,7 +13,7 @@ Features:
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks, Request
 from pydantic import BaseModel
 from datetime import datetime, timezone, timedelta
-from typing import Optional, List
+from typing import Optional, List, Literal
 import uuid
 import os
 import sys
@@ -765,7 +765,7 @@ async def generate_comic(
     background_tasks: BackgroundTasks,
     photo: UploadFile = File(None),
     storage_key: Optional[str] = Form(None),
-    mode: str = Form(...),  # 'avatar' or 'strip'
+    mode: Literal["avatar", "strip"] = Form(...),
     style: str = Form("cartoon_fun"),
     style_category: str = Form("fun"),
     genre: str = Form("action"),

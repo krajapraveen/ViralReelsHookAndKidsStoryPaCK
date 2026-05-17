@@ -18,7 +18,7 @@ import uuid
 import asyncio
 import logging
 from datetime import datetime, timezone, timedelta
-from typing import Optional
+from typing import Optional, Literal
 from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Depends, Query, Request as StarletteRequest
 
@@ -66,7 +66,17 @@ class CreateSeriesRequest(BaseModel):
     initial_prompt: str
     genre: str = "adventure"
     audience: str = "kids_5_8"
-    style: str = "cartoon_2d"
+    # P1 2026-05-19 — Literal lock-down on style so a tampered URL /
+    # stale frontend bundle can never push a non-canonical style into
+    # the series document. Keep the canonical IDs in sync with the
+    # backend SAFE_STYLES catalog in routes/photo_to_comic.py.
+    style: Literal[
+        "cartoon_2d", "anime", "watercolor", "cinematic", "comic",
+        "cartoon_fun", "kids_storybook", "bold_superhero", "soft_manga",
+        "cute_chibi", "retro_action", "noir_comic", "scifi_neon",
+        "cyberpunk_comic", "magical_fantasy", "dreamy_pastel",
+        "black_white_ink",
+    ] = "cartoon_2d"
     tool: str = "story_video"
 
 

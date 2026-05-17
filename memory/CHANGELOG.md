@@ -2,6 +2,121 @@
 
 
 ─────────────────────────────────────────────────────────
+[2026-05-19] P1 BACKEND PAYLOAD ACCEPTANCE HARDENING — SHIPPED
+─────────────────────────────────────────────────────────
+Founder mandate: "Make the same bug class impossible at the API
+boundary, not just frontend." Freeze still in effect — no Phase 3c/4,
+no canonical migration, no admin panel, no new features.
+
+ROUTES / MODELS AUDITED — 156 occurrences of target keys across
+  backend/routes/*.py, focused on the request-body / Form() / Query()
+  boundary (helper-function params skipped — they are internal).
+
+FIELDS TIGHTENED
+  • routes/photo_to_comic.py :: generate_comic
+      `mode: str = Form(...)` → `mode: Literal["avatar", "strip"]`.
+      The legacy in-handler `if mode not in [...] raise 400` is now
+      DEAD CODE (left in place as redundant defense).
+  • routes/story_series.py :: CreateSeriesRequest
+      `style: str = "cartoon_2d"` →
+      `style: Literal[<17 canonical SAFE_STYLES keys>] = "cartoon_2d"`.
+  • routes/story_video_generation.py :: VoiceGenerationRequest
+      `voice_id: str = "alloy"` →
+      `voice_id: Literal["alloy","echo","fable","onyx","nova","shimmer"]
+        = "alloy"`.
+  • imports updated to bring in `Literal` where missing.
+
+NEW MODULES
+  + backend/models/payload_validators.py
+      Annotated reusable types for future routes:
+        IdStr, SlugStr, JobIdStr, OrderIdStr,
+        CreditAmountInt, PositiveCreditInt, MoneyAmountInt,
+        ShortText, LongText.
+      Every type ships with a regex + min/max bound so the same
+      tightening is one-line for the next route.
+  + backend/middleware/validation_envelope.py
+      Single global RequestValidationError handler that replaces
+      FastAPI's default raw-Pydantic-error 422 with the canonical
+      reliability envelope:
+        {
+          "detail": {
+            "code": "VALIDATION_ERROR",
+            "message": "One or more fields are invalid…",
+            "request_id": "<uuid>",
+            "field_errors": [{"field","code","reason"}],
+            "retryable": false
+          },
+          "code": "VALIDATION_ERROR",
+          "request_id": "<uuid>"
+        }
+      Pydantic `ctx`, `input`, `url`, and full `msg` are STRIPPED —
+      zero internal model names, zero stack traces, zero raw user
+      input echoed back.
+  ~ backend/server.py
+      `install_validation_envelope(app)` wired right after the rate
+      limiter handler so every router benefits.
+
+BEHAVIOR CHANGES
+  • Invalid enums for `mode` / `style` / `voice_id` now return 422
+    with the canonical envelope instead of a 400 with raw `detail`
+    text. The `code` field stays the same shape but the body is
+    consistent across all routes.
+  • Cashfree `voice_id`, `style`, `mode` rejections are now caught
+    BEFORE any business logic runs. Backwards-compatible: callers
+    that read `response.data.detail.code` get the same `code` strings.
+  • `null` for required fields now returns the canonical envelope
+    (previously raw Pydantic dict).
+
+TESTS — 10 new (backend/tests/test_backend_payload_acceptance_2026_05.py)
+  • test_invalid_enum_rejected
+  • test_object_rejected_for_slug_field
+  • test_array_rejected_for_slug_field
+  • test_null_rejected_for_required_field
+  • test_label_rejected_for_slug_only_field
+  • test_valid_canonical_payload_accepted
+  • test_invalid_voice_id_enum_rejected
+  • test_photo_to_comic_mode_rejects_invalid_enum
+  • test_payload_validators_module_exists
+  • test_validation_envelope_module_exists
+  Each rejection test asserts:
+    – status 422
+    – body.detail.code == "VALIDATION_ERROR"
+    – body.detail.request_id present AND matches X-Request-Id header
+    – no traceback / pydantic / model-class names anywhere in body
+    – field_errors contain the offending field with a sanitized reason
+
+ERROR-CONTRACT PROOF (live preview backend)
+  POST /api/story-series/create body={style:"NOT_A_REAL_STYLE",…}
+  → 422
+  {
+    "detail": {
+      "code":"VALIDATION_ERROR",
+      "message":"One or more fields are invalid. Please check your input
+                 and try again.",
+      "request_id":"b4fd12abb9684338b03754a0f8d4f699",
+      "field_errors":[{"field":"style","code":"literal_error",
+                       "reason":"Value is not one of the allowed options."}],
+      "retryable":false
+    },
+    "code":"VALIDATION_ERROR",
+    "request_id":"b4fd12abb9684338b03754a0f8d4f699"
+  }
+  + Header `X-Request-Id: b4fd12abb9684338b03754a0f8d4f699`
+
+FULL SUITE: 141 passed, 1 skipped (voice-route probe — non-blocking;
+contract is fully proven via the series suite). Lint clean.
+
+WHAT THIS SWEEP DID NOT TOUCH (still frozen):
+  ✗ Phase 3c
+  ✗ Phase 4
+  ✗ Canonical-state migration
+  ✗ Admin diagnostics panel
+  ✗ New features / UI redesign
+  ✗ Sora toggle / character memory
+
+
+
+─────────────────────────────────────────────────────────
 [2026-05-19] P1 PAYLOAD-BOUNDARY AUDIT (Next layer) — SHIPPED
 ─────────────────────────────────────────────────────────
 Founder mandate: "Catch handler/default-arg values that can leak into

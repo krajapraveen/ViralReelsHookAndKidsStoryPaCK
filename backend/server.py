@@ -238,6 +238,13 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+# P1 2026-05-19 — Canonical validation-error envelope. Replaces FastAPI's
+# default 422 (which leaks raw Pydantic dicts) with a structured
+# `{code, message, request_id, field_errors}` envelope. No stack traces,
+# no internal model names.
+from middleware.validation_envelope import install_validation_envelope
+install_validation_envelope(app)
+
 # Add SlowAPI middleware - CRITICAL for rate limiting to work
 from slowapi.middleware import SlowAPIMiddleware
 app.add_middleware(SlowAPIMiddleware)

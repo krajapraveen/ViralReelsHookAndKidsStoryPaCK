@@ -14,7 +14,7 @@ import tempfile
 import shutil
 import logging
 from datetime import datetime, timezone
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks, Depends
 from pydantic import BaseModel
@@ -75,7 +75,7 @@ class ImageGenerationRequest(BaseModel):
 class VoiceGenerationRequest(BaseModel):
     project_id: str
     scene_numbers: Optional[List[int]] = None
-    voice_id: str = "alloy"  # OpenAI voice: alloy, echo, fable, onyx, nova, shimmer
+    voice_id: Literal["alloy", "echo", "fable", "onyx", "nova", "shimmer"] = "alloy"
     user_api_key: Optional[str] = None  # For BYO_USER_KEY mode
     idempotency_key: Optional[str] = None
     
