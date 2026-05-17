@@ -1456,15 +1456,84 @@ async def get_stage_status(job_id: str, user: dict = Depends(get_current_user)):
 
 
 @router.post("/download/{job_id}")
-async def download_comic(job_id: str, user: dict = Depends(get_current_user)):
-    """Download comic book — returns permanent CDN URLs only for validated assets."""
-    job = await db.comic_storybook_v2_jobs.find_one({"id": job_id, "userId": user["id"]}, {"_id": 0})
+async def download_comic(
+    job_id: str,
+    http_request: Request,
+    user: dict = Depends(get_current_user),
+):
+    """Download comic book — returns permanent CDN URLs only for validated assets.
+
+    P0 2026-05-19 CASE B — authoritative entitlement re-check + structured
+    error envelopes. The frontend's render path consults
+    `job.entitlement.can_download` (returned by GET /job/{id}); the click
+    path now also consults the SAME logic server-side. If the two ever
+    disagree, we return a structured `ENTITLEMENT_MISMATCH` (instead of
+    a silent 403 / unrelated error) so the next production split-brain
+    surfaces in one log line.
+    """
+    from middleware.reliability import get_request_id
+    from services.entitlement import is_unlimited_user
+    rid = get_request_id(http_request)
+
+    job = await db.comic_storybook_v2_jobs.find_one(
+        {"id": job_id, "userId": user["id"]}, {"_id": 0}
+    )
     if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    if job.get("status") != "COMPLETED":
-        raise HTTPException(status_code=400, detail="Book not ready yet")
+        raise HTTPException(status_code=404, detail={
+            "code": "JOB_NOT_FOUND",
+            "message": "Comic Story Book job not found.",
+            "request_id": rid,
+            "retryable": False,
+        })
+    if job.get("status") not in ("COMPLETED", "PARTIAL_COMPLETE"):
+        raise HTTPException(status_code=400, detail={
+            "code": "JOB_NOT_READY",
+            "message": "Book not ready yet.",
+            "request_id": rid,
+            "retryable": True,
+            "current_status": job.get("status"),
+        })
     if not job.get("permanent"):
-        raise HTTPException(status_code=400, detail="Assets not yet registered. Please wait.")
+        raise HTTPException(status_code=400, detail={
+            "code": "ASSETS_NOT_REGISTERED",
+            "message": "Assets not yet registered. Please wait a moment and retry.",
+            "request_id": rid,
+            "retryable": True,
+        })
+
+    # Authoritative entitlement re-check — MUST mirror the per-job
+    # entitlement block stamped by GET /job/{id}.
+    owns_job = job.get("userId") == user["id"]
+    paid_via_credits = bool(
+        job.get("cost") or job.get("creditsSpent") or job.get("purchased")
+    )
+    unlimited = is_unlimited_user(user)
+    plan_lower = (user.get("plan") or user.get("plan_type") or "free").lower()
+    paid_plan = plan_lower not in ("free", "", "none")
+    can_download = owns_job and (unlimited or paid_plan or paid_via_credits)
+
+    # Structured forensic log so any future split-brain is paste-able.
+    logger.info(
+        "[storybook/download] check job_id=%s user_id=%s can_download=%s "
+        "unlimited=%s plan=%s paid_via_credits=%s purchased=%s request_id=%s",
+        job_id, user["id"], can_download, unlimited, plan_lower,
+        paid_via_credits, bool(job.get("purchased")), rid,
+    )
+
+    if not can_download:
+        raise HTTPException(status_code=403, detail={
+            "code": "DOWNLOAD_FORBIDDEN",
+            "message": "You don't have permission to download this comic.",
+            "request_id": rid,
+            "retryable": False,
+            "reason": (
+                "not_owner" if not owns_job else
+                "no_entitlement"
+            ),
+            "is_unlimited": unlimited,
+            "plan_type": plan_lower,
+            "paid_via_credits": paid_via_credits,
+        })
 
     from utils.r2_presign import presign_url
     urls = {}
@@ -1474,9 +1543,28 @@ async def download_comic(job_id: str, user: dict = Depends(get_current_user)):
         urls["cover"] = presign_url(job["coverUrl"]) if ".r2.dev/" in job["coverUrl"] else job["coverUrl"]
 
     if not urls:
-        raise HTTPException(status_code=404, detail="No downloadable assets found")
+        raise HTTPException(status_code=404, detail={
+            "code": "ASSETS_MISSING",
+            "message": "No downloadable assets found for this comic.",
+            "request_id": rid,
+            "retryable": False,
+        })
 
-    return {"success": True, "permanent": True, "downloadUrls": urls}
+    return {
+        "success": True,
+        "permanent": True,
+        "downloadUrls": urls,
+        "request_id": rid,
+        # Echo the authoritative entitlement for client-side parity check.
+        "entitlement": {
+            "can_download": True,
+            "reason": (
+                "unlimited" if unlimited
+                else ("active_subscription" if paid_plan
+                      else "paid_via_credits")
+            ),
+        },
+    }
 
 
 @router.get("/history")

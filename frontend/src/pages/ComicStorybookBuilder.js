@@ -963,18 +963,52 @@ export default function ComicStorybookBuilder() {
   // Download handler
   const handleDownload = async (type = 'pdf') => {
     if (!job?.id) return;
-    
-    // Check if user is free and trying to download (unlimited/admin/QA bypass)
-    if (userPlan === 'free' && !job.purchased && !isUnlimitedUser) {
+
+    // P0 2026-05-19 CASE B — entitlement parity between render & click.
+    // Production trap: render checked `job.entitlement?.can_download`
+    // (NEW per-job structured block) but click checked the legacy
+    // `userPlan === 'free' && !job.purchased && !isUnlimitedUser`
+    // gate. Split-brain: a user could SEE "Download Comic Book"
+    // (green) but clicking it routed to upsell.
+    //
+    // The backend per-job `entitlement` block returned by GET /job/{id}
+    // is now the single source of truth for BOTH paths. We fall back
+    // to the legacy heuristic ONLY if the block is missing (very old
+    // job documents or pre-deploy cached state).
+    const canDownload = job.entitlement
+      ? job.entitlement.can_download === true
+      : (isUnlimitedUser || userPlan !== 'free' || !!job.purchased);
+
+    // Structured forensic log so the next production split-brain
+    // is paste-able in 1 line.
+    // eslint-disable-next-line no-console
+    console.info('[storybook/download] click', {
+      job_id: job.id,
+      can_download: canDownload,
+      render_entitlement: job.entitlement ? {
+        can_download: job.entitlement.can_download,
+        reason: job.entitlement.reason,
+        plan_type: job.entitlement.plan_type,
+        is_unlimited: job.entitlement.is_unlimited,
+      } : null,
+      legacy_signals: {
+        userPlan,
+        purchased: !!job.purchased,
+        isUnlimitedUser,
+      },
+      endpoint: `/api/comic-storybook-v2/download/${job.id}`,
+    });
+
+    if (!canDownload) {
       setShowUpsell(true);
       return;
     }
-    
+
     try {
       const res = await api.post(`/api/comic-storybook-v2/download/${job.id}`, { type });
       if (res.data.success && res.data.downloadUrls) {
         toast.success('Download started!');
-        
+
         const urls = res.data.downloadUrls;
         const url = type === 'pdf' ? urls.pdf : (urls.cover || urls.pdf);
         if (url) {
@@ -1000,11 +1034,46 @@ export default function ComicStorybookBuilder() {
         } else {
           toast.error('Download URL not available');
         }
-        
+
         fetchCredits();
       }
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Download failed');
+      // P0 2026-05-19 CASE B — surface the REAL backend reason.
+      // Never silently swallow into a generic upsell prompt.
+      const status = e?.response?.status || 0;
+      const data = e?.response?.data;
+      const detail = (data && typeof data.detail === 'object' && !Array.isArray(data.detail))
+        ? data.detail : null;
+      const rid =
+        detail?.request_id ||
+        data?.request_id ||
+        e?.response?.headers?.['x-request-id'] ||
+        e?.response?.headers?.['X-Request-Id'] ||
+        null;
+      const code = detail?.code || null;
+      const refLine = rid
+        ? `\nReference ID: ${rid}`
+        : (status === 0
+            ? '\nReference ID: not-captured (request never reached the server)'
+            : `\nReference ID: not-captured (HTTP ${status})`);
+
+      // eslint-disable-next-line no-console
+      console.error('[storybook/download] failed', {
+        job_id: job.id,
+        status,
+        code,
+        detail: detail?.message || (typeof data?.detail === 'string' ? data.detail : null),
+        request_id: rid,
+        render_can_download: job.entitlement?.can_download,
+        execution_can_download: code === 'DOWNLOAD_FORBIDDEN' ? false : null,
+      });
+
+      if (code === 'ENTITLEMENT_MISMATCH' || code === 'DOWNLOAD_FORBIDDEN') {
+        toast.error(`${detail.message || 'Download not permitted right now.'}${refLine}`);
+        return;
+      }
+      const fallback = (detail?.message) || (typeof data?.detail === 'string' ? data.detail : null) || `Download failed (HTTP ${status}).`;
+      toast.error(`${fallback}${refLine}`);
     }
   };
 
