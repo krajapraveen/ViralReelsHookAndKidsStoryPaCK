@@ -2,6 +2,76 @@
 
 
 ─────────────────────────────────────────────────────────
+[2026-05-19] ENGINEERING DOCTRINE ADOPTED + `make audit-boundaries`
+─────────────────────────────────────────────────────────
+Founder mandate: codify platform-wide engineering doctrine and
+enforce it via a single CI command. No human memory dependency.
+
+DOCTRINE — /app/memory/ENGINEERING_DOCTRINE.md
+  Single sentence (verbatim):
+    "Never allow unvalidated input, ambiguous state, or silent
+     failure to cross a system boundary."
+
+  Ten operational rules:
+    1. Every boundary validates  (frontend, backend, query, path,
+       webhooks, third-party responses, env vars, feature flags,
+       uploads — each with its required gate).
+    2. Every critical flow has canonical state  (no "probably
+       complete", no duplicate truth, no drift without reconciler).
+    3. Every failure is observable  (request_id everywhere,
+       structured envelopes, stage timings, retry/stuck/invalid-payload
+       counters, webhook lag, frontend/backend build correlation).
+    4. Every async action is idempotent  (safe retries, harmless
+       duplicate webhooks, partial-failure recovery, TTL'd locks).
+    5. Every user-facing error is sanitized  (no traceback, no enum
+       names, no class names, no framework internals).
+    6. Every new feature must pass boundary audits  (merge gate).
+    7. Freeze before expansion  (stabilize → instrument → only then
+       innovate).
+    8. Complexity is a liability  (fewer states / abstractions /
+       async hops / duplicated registries / hidden couplings).
+    9. CI enforces stability automatically  (`make audit-boundaries`).
+   10. Stability > velocity theater.
+
+CI GATE — /app/Makefile
+  `make audit-boundaries`  → runs the full boundary registry.
+  `make audit-boundaries-quick` → quiet pre-push variant.
+  `make audit-boundaries-report` → JUnit XML for CI artifacts.
+  `make pre-merge` → lint + audit-boundaries.
+  `make help` (default) → self-documenting target list.
+
+  Registry currently composes 12 suites; 185 tests, 1 skipped.
+  Adding a new audit is one line in BOUNDARY_AUDIT_SUITES.
+
+DOCTRINE PINNING — /app/backend/tests/test_doctrine_and_ci_gate_2026_05.py
+  8 tests that fail any PR which:
+    • removes or weakens the doctrine sentence
+    • drops one of the ten rule headings
+    • removes the make target
+    • drops `make audit-boundaries` from the doctrine
+    • leaves a canonical *_boundary_audit / *_event_trap_audit /
+      *_payment_auth_batch suite unregistered in the Makefile
+    • lists a non-existent path in the registry
+    • changes the Makefile default goal away from `help`
+    • lets doctrine-named suites drift out of the registry
+
+FILES ADDED
+  + /app/memory/ENGINEERING_DOCTRINE.md
+  + /app/Makefile
+  + /app/backend/tests/test_doctrine_and_ci_gate_2026_05.py
+
+FILES MODIFIED — none (this is policy + tooling only).
+
+PRODUCTION BEHAVIOR CHANGES — none.
+
+VERIFICATION
+  `make audit-boundaries` → 185 passed, 1 skipped in 67s.
+  `make help` lists every target with its docstring.
+  Doctrine pinning suite: 8/8 green.
+
+
+
+─────────────────────────────────────────────────────────
 [2026-05-19] BATCH A — PAYMENT & AUTH BOUNDARY HARDENING — SHIPPED
 ─────────────────────────────────────────────────────────
 Founder mandate: tighten the P0 money/auth boundary. Freeze intact.
