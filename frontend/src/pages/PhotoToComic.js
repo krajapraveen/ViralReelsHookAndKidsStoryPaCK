@@ -64,7 +64,7 @@ import {
 // frontend forensics. When you fix a recurring P2C bug, bump this so
 // production logs make it crystal-clear which bundle the user is
 // actually running (catches stale Service Worker / CDN cache).
-const BUNDLE_VERSION = '2026-05-19-case-b-object-state-hardening';
+const BUNDLE_VERSION = '2026-05-19-case-b-visible-marker';
 
 const GENRES = [
   { id: 'action', name: 'Action' }, { id: 'comedy', name: 'Comedy' },
@@ -1547,6 +1547,19 @@ function PhotoToComicInner() {
                 <Button onClick={handleGenerate} disabled={!canAfford || credits === null || (qualityResult && !qualityResult.can_proceed)} className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 py-5 text-base font-semibold" data-testid="generate-btn">
                   <Wand2 className="w-5 h-5 mr-2" /> Create My Comic
                 </Button>
+                {/* P0 2026-05-19 CASE B — VISIBLE build marker. The
+                    previous CASE B failure was almost certainly a
+                    stale Service Worker / CDN cache serving an older
+                    bundle on production. This visible marker gives
+                    incognito production a single-glance answer to
+                    "which bundle is actually loaded?". Remove after
+                    production passes the verification gates. */}
+                <div
+                  className="text-[9px] text-slate-600 text-center font-mono"
+                  data-testid="p2c-build-marker"
+                >
+                  P2C build: {BUNDLE_VERSION}
+                </div>
                 {qualityResult && !qualityResult.can_proceed && (
                   <p className="text-[10px] text-red-400 text-center">Upload a photo with a visible face to continue</p>
                 )}

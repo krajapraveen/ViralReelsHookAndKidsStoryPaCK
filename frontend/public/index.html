@@ -4,6 +4,16 @@
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <meta name="theme-color" content="#6366f1" />
+
+        <!-- P0 2026-05-19 CASE B — aggressive cache bust for the app shell.
+             Production hotfixes were not landing because legacy Service
+             Workers / CDN intermediaries served stale index.html. These
+             meta directives instruct EVERY layer between origin and
+             browser to skip caching the document itself (not the
+             hashed asset bundles — those are immutable by webpack). -->
+        <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+        <meta http-equiv="Pragma" content="no-cache" />
+        <meta http-equiv="Expires" content="0" />
         
         <!-- Preconnect to API for fast proxy image delivery -->
         <link rel="dns-prefetch" href="%REACT_APP_BACKEND_URL%" />

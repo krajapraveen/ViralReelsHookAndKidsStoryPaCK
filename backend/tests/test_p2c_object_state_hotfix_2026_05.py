@@ -198,9 +198,12 @@ def test_bundle_version_constant_is_present_and_logged():
     apart from a stale Service Worker / CDN cache. Every diagnostic
     log on the generate path must include it."""
     src = PHOTO_TO_COMIC_JS.read_text()
+    # The exact identifier can change between CASE B iterations — we
+    # only require that it remains a `case-b-*` identifier on this
+    # production stabilization track.
     assert "const BUNDLE_VERSION = '2026-05-19-case-b-" in src, (
-        "BUNDLE_VERSION must be bumped to a case-b identifier so "
-        "production logs can tell the new bundle from the old"
+        "BUNDLE_VERSION must be on the 2026-05-19-case-b-* track so "
+        "production logs can tell each iteration apart"
     )
     # And the diagnostic log on every Generate click must include it.
     handler = src.split("const handleGenerate = async", 1)[1].split(
