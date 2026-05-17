@@ -15,6 +15,7 @@ BOUNDARY_AUDIT_SUITES := \
 	backend/tests/test_url_boundary_audit_2026_05.py \
 	backend/tests/test_backend_payload_acceptance_2026_05.py \
 	backend/tests/test_payment_auth_batch_a_2026_05.py \
+	backend/tests/test_completion_invariant_audit_2026_05.py \
 	backend/tests/test_diagnostics_beacon_2026_05.py \
 	backend/tests/test_doctrine_and_ci_gate_2026_05.py \
 	backend/tests/test_p2c_event_trap_2026_05.py \

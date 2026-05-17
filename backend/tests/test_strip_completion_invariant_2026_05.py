@@ -83,34 +83,42 @@ def test_generation_loop_iterates_full_panel_count(backend_src: str) -> None:
 
 
 def test_completion_invariant_block_exists(backend_src: str) -> None:
-    assert "COMPLETION INVARIANT (NON-NEGOTIABLE)" in backend_src, (
-        "Missing the COMPLETION INVARIANT block — without it a partial "
-        "generation can still mark COMPLETED and show 'all panels "
-        "generated and verified'."
+    """The strip path must route through the canonical
+    `assert_completion_invariant` helper. Replaces the prior inline
+    block (which the helper now subsumes)."""
+    assert "assert_completion_invariant" in backend_src, (
+        "Missing call to assert_completion_invariant — without the "
+        "canonical gate a partial generation could mark COMPLETED."
+    )
+    assert "pipeline=\"photo_to_comic.strip\"" in backend_src, (
+        "Strip path must identify itself when calling the gate so the "
+        "metric `recent_samples` ring shows which pipeline tripped it."
     )
 
 
 def test_completion_invariant_downgrades_status(backend_src: str) -> None:
-    """The invariant code must contain the exact gate: if
-    `job_status in (COMPLETED, READY_WITH_WARNINGS)` and
-    `actual_ready_count != panel_count`, status is downgraded to
-    PARTIAL_READY and the failure counter is incremented."""
+    """The strip path must pass `actual_ready_count` and `panel_count`
+    into the helper. The helper itself owns the downgrade behavior;
+    we just pin the call shape so the wiring can't drift."""
     block = re.search(
-        r"COMPLETION INVARIANT[\s\S]*?job_status\s*=\s*\"PARTIAL_READY\"",
+        r"actual_ready_count\s*=\s*len\(\[p for p in panels if p\.get\(\"status\"\) == \"READY\"\]\)"
+        r"[\s\S]{0,500}?"
+        r"assert_completion_invariant\([\s\S]*?\)",
         backend_src,
     )
-    assert block, "Completion invariant must downgrade status to PARTIAL_READY"
-    body = block.group(0)
-    assert re.search(
-        r"actual_ready_count\s*!=\s*panel_count",
-        body,
-    ), "Invariant must compare actual ready count to panel_count"
-    assert 'job_status in ("COMPLETED", "READY_WITH_WARNINGS")' in body, (
-        "Invariant must guard both COMPLETED and READY_WITH_WARNINGS"
+    assert block, (
+        "Strip path must compute `actual_ready_count` and pass it "
+        "(along with `panel_count`) into `assert_completion_invariant`."
     )
-    assert "p2c_completion_invariant_failed_total" in body, (
-        "Invariant must emit `p2c_completion_invariant_failed_total` "
-        "counter so ops can see drift in production."
+    body = block.group(0)
+    assert "expected_count=panel_count" in body, (
+        "Helper call must supply `expected_count=panel_count`."
+    )
+    assert "actual_count=actual_ready_count" in body, (
+        "Helper call must supply `actual_count=actual_ready_count`."
+    )
+    assert "effective_status" in backend_src, (
+        "Caller must consume `invariant_result.effective_status`."
     )
 
 

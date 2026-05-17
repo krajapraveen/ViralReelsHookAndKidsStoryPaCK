@@ -2,6 +2,136 @@
 
 
 ─────────────────────────────────────────────────────────
+[2026-05-19] GENERIC COMPLETION-INVARIANT SCANNER — SHIPPED
+─────────────────────────────────────────────────────────
+Founder mandate: "No future async/multi-output pipeline should ever
+reach COMPLETED unless declared output count matches actual verified
+output count." Freeze intact.
+
+CANONICAL HELPER — backend/services/reliability/completion_invariant.py
+  Public API:
+    assert_completion_invariant(
+        expected_count, actual_count, declared_status,
+        request_id, job_id, pipeline, db,
+        repair_status="PARTIAL_READY",
+        terminal_success_states=DEFAULT_TERMINAL_SUCCESS,
+    ) -> InvariantResult
+
+  Contract:
+    • Returns `InvariantResult(effective_status, decision, repaired,
+      expected, actual, pipeline, request_id, job_id)`.
+    • NEVER raises — invariant failure is a domain event, not a 500.
+    • When the declared status claims terminal success but counts
+      disagree, downgrades to `PARTIAL_READY` (configurable) with
+      decision `ACCEPT_PARTIAL_INVARIANT_REPAIRED`.
+    • Recognized terminal-success statuses: COMPLETED, READY,
+      SUCCESS, READY_WITH_WARNINGS (override per call).
+    • Non-success terminal statuses (FAILED, CANCELLED, etc.) pass
+      through untouched.
+
+  Metrics emitted on invariant failure (daily-bucketed):
+    • completion_invariant_failed_total
+    • false_complete_prevented_total
+    • partial_output_repaired_total  (only when actual_count > 0)
+
+  Registry:
+    REGISTERED_PIPELINES = ("routes/photo_to_comic.py",)
+    The static audit only enforces files in this tuple — opt-in so
+    we never false-flag pipelines that haven't been migrated yet.
+
+STRIP PATH MIGRATED TO HELPER
+  routes/photo_to_comic.py — the inline downgrade block we shipped
+  in the P0 hotfix is replaced by a single call to
+  `assert_completion_invariant(..., pipeline="photo_to_comic.strip")`.
+  Behavior is identical; the wiring is now uniform and auditable.
+
+STATIC AUDIT SCANNER — backend/tests/test_completion_invariant_audit_2026_05.py
+  For every file in REGISTERED_PIPELINES:
+    1. File must import / reference `assert_completion_invariant`.
+    2. Every function that persists a terminal-success status (via
+       direct assignment `status = "COMPLETED"` OR
+       `update_one(..., {"$set": {"status": "COMPLETED"}})`) MUST
+       either:
+        (a) call `assert_completion_invariant(...)` in the same
+            function body, OR
+        (b) carry an explicit `# invariant: not_applicable` comment
+            inside the function body (for single-output flows like
+            avatar mode).
+  The scanner uses a precise WRITE-only regex (`$set` + direct
+  assignment to `status` / `job_status` / `new_status` / `final_status`)
+  so read-side comparisons (`if status == "COMPLETED"`) and
+  filter clauses (`count_documents({"status":"COMPLETED"})`) are
+  correctly ignored.
+
+OPT-OUT MARKERS APPLIED (single-output flows)
+  • routes/photo_to_comic.py :: process_comic_avatar
+      Two persistence sites — primary success path and the
+      guaranteed-output fallback. Both annotated with
+      `# invariant: not_applicable` (single image, count gate N/A).
+
+REGRESSION TESTS — 10 (backend/tests/test_completion_invariant_audit_2026_05.py)
+  Live coverage:
+    • test_registered_pipelines_exist
+    • test_registered_pipeline_imports_invariant   [photo_to_comic.py]
+    • test_registered_pipeline_functions_gate_terminal_success
+                                                   [photo_to_comic.py]
+  Helper contract:
+    • test_invariant_helper_exposes_public_api
+    • test_invariant_helper_emits_required_metrics
+    • test_invariant_helper_never_raises_on_invariant_failure
+    • test_invariant_helper_accepts_full_count
+    • test_invariant_helper_lets_failed_status_through
+  Synthesized regressions:
+    • test_synthesized_unregistered_pipeline_is_flagged
+    • test_synthesized_opt_out_marker_is_respected
+
+EXISTING P0 STRIP TESTS UPDATED
+  backend/tests/test_strip_completion_invariant_2026_05.py
+  The pin tests now assert the canonical helper call signature
+  (`expected_count=panel_count`, `actual_count=actual_ready_count`,
+  `pipeline="photo_to_comic.strip"`) rather than the prior inline
+  block, so the migration to the helper is locked in.
+
+CI GATE
+  Makefile :: BOUNDARY_AUDIT_SUITES now includes the new audit.
+  `make audit-boundaries` → 204 passed, 1 skipped (62s). Lint clean.
+
+WHAT THIS DELIVERS
+  The platform now ENFORCES at PR-merge time:
+    1. No registered pipeline can persist a terminal-success status
+       without going through the canonical gate.
+    2. The gate provably downgrades partial-output claims.
+    3. Single-output flows must declare themselves intentional
+       (explicit `# invariant: not_applicable`) — drift is auto-detected.
+    4. Each gate firing emits ops-visible metrics so production-side
+       false-completion attempts surface immediately.
+
+BACKLOG (FUTURE OPT-IN PIPELINES)
+  Pipelines to migrate into REGISTERED_PIPELINES as they ship new
+  changes:
+    • routes/comic_storybook_v2.py
+       (already has per-scene completion invariant; migrate the
+        wiring to the canonical helper for uniformity.)
+    • routes/story_video_generation.py
+       (multi-scene pipeline; FAILED is set per-scene today,
+        helper call would explicitly gate the COMPLETED transition.)
+    • services/youstar_pipeline/* (segment generation)
+    • services/comic_pipeline/* (panel batch)
+    • Audio segment / export packaging flows.
+  Each migration is opt-in via a one-line REGISTERED_PIPELINES
+  addition. No batch sweep — each pipeline gets a focused PR with
+  its own regression test.
+
+FREEZE INTACT
+  ✗ No Phase 3c
+  ✗ No Phase 4
+  ✗ No canonical migration
+  ✗ No admin panel
+  ✗ No feature expansion
+
+
+
+─────────────────────────────────────────────────────────
 [2026-05-19] P0 COMIC STRIP COMPLETION-INVARIANT — SHIPPED
 ─────────────────────────────────────────────────────────
 Production user report: 3-panel Comic Strip generation surfaced

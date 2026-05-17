@@ -1306,6 +1306,8 @@ AVOID: {char_context['negative_prompt'] if char_context else negative_prompt}"""
             logger.warning(f"Failed to register asset: {asset_err}")
 
         # Update job with permanent CDN URLs (no expiry)
+        # invariant: not_applicable — comic avatar is a single-output flow
+        # (one resultUrl), so the multi-panel completion gate does not apply.
         await db.photo_to_comic_jobs.update_one(
             {"id": job_id},
             {"$set": {
@@ -1368,6 +1370,8 @@ AVOID: {char_context['negative_prompt'] if char_context else negative_prompt}"""
                 await db.photo_to_comic_jobs.update_one(
                     {"id": job_id},
                     {"$set": {
+                        # invariant: not_applicable — guaranteed-output fallback
+                        # for single-image avatar mode; multi-panel gate N/A.
                         "status": "COMPLETED",
                         "progress": 100,
                         "progressMessage": "We created a stylized version of your comic!",
@@ -1859,31 +1863,27 @@ Format as JSON array:
 
         # ══════════════════════════════════════════════════════════════════
         # P0 2026-05-19 — COMPLETION INVARIANT (NON-NEGOTIABLE).
-        # COMPLETED must mean every requested panel exists with status=READY.
-        # Without this guard the user saw "Your Comic is Ready / All panels
-        # generated and verified" with only 2 of 3 panels rendered.
-        # If the invariant fails, we downgrade to PARTIAL_READY and emit
-        # `p2c_completion_invariant_failed_total` so ops can see drift.
+        # Canonical gate via services.reliability.completion_invariant.
         # ══════════════════════════════════════════════════════════════════
+        from services.reliability.completion_invariant import assert_completion_invariant
         actual_ready_count = len([p for p in panels if p.get("status") == "READY"])
-        if job_status in ("COMPLETED", "READY_WITH_WARNINGS") and actual_ready_count != panel_count:
+        invariant_result = await assert_completion_invariant(
+            expected_count=panel_count,
+            actual_count=actual_ready_count,
+            declared_status=job_status,
+            request_id=current_request_id if 'current_request_id' in dir() else None,
+            job_id=job_id,
+            pipeline="photo_to_comic.strip",
+            db=db,
+        )
+        job_status = invariant_result.effective_status
+        job_decision = invariant_result.decision
+        if invariant_result.repaired:
             logger.error(
                 f"[STRIP_INVARIANT] completion_invariant_failed job_id={job_id} "
-                f"declared_status={job_status} ready={actual_ready_count} "
+                f"declared_status=COMPLETED ready={actual_ready_count} "
                 f"expected={panel_count}"
             )
-            try:
-                await db.diagnostics_metrics.update_one(
-                    {"metric": "p2c_completion_invariant_failed_total",
-                     "bucket": datetime.now(timezone.utc).strftime("%Y-%m-%d")},
-                    {"$inc": {"count": 1},
-                     "$setOnInsert": {"metric": "p2c_completion_invariant_failed_total"}},
-                    upsert=True,
-                )
-            except Exception:
-                pass
-            job_status = "PARTIAL_READY"
-            job_decision = "ACCEPT_PARTIAL_INVARIANT_REPAIRED"
 
         # Store final decision
         await db.photo_to_comic_jobs.update_one(
