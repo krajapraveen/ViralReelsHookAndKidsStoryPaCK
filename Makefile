@@ -49,6 +49,10 @@ audit-boundaries-report:  ## JUnit XML report — for CI artifact upload.
 	@$(PYTEST) $(BOUNDARY_AUDIT_SUITES) -q --tb=short \
 		--junitxml=/app/test_reports/audit_boundaries.xml
 
+.PHONY: audit-boundaries-coverage
+audit-boundaries-coverage:  ## Print registered pipelines + migration backlog.
+	@cd /app && python3 backend/scripts/audit_boundaries_coverage.py
+
 
 # ─── Lint ────────────────────────────────────────────────────────────
 
