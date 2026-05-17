@@ -320,11 +320,32 @@ function PhotoToComicInner() {
     // into the canonical backend enum string. If it can't be normalized,
     // refuse to send the request — backend would just bounce with
     // INVALID_STYLE anyway and the user gets a clearer message now.
-    const activeStyle = normalizeComicStyle(overrideStyle || style);
+    const rawSelected = overrideStyle || style;
+    const activeStyle = normalizeComicStyle(rawSelected);
+    // P0 2026-05-19 — Production failure forensics. Log the full style
+    // state on EVERY generate click so any future "Selected comic style
+    // is not supported" toast has a paste-able diagnostic in the
+    // browser console. Format keeps the field names stable for grep.
+    // eslint-disable-next-line no-console
+    console.info('[p2c/handleGenerate] style_state=', {
+      raw: rawSelected,
+      raw_type: typeof rawSelected,
+      normalized: activeStyle,
+      mode,
+      available_keys: availableStyles.map(s => s.id),
+      bundle_version: '2026-05-19-catalog-r2',
+    });
     if (!photoFile) { toast.error('Upload a photo first'); return; }
     if (!activeStyle) {
-      toast.error('Selected comic style is not supported. Please try another style.');
-      console.error('[p2c/create] invalid style input', { override: overrideStyle, current: style });
+      // eslint-disable-next-line no-console
+      console.error('[p2c/handleGenerate] FRONTEND_INVALID_STYLE — refusing to submit', {
+        raw: rawSelected,
+        raw_type: typeof rawSelected,
+        normalized: activeStyle,
+        mode,
+        available_keys: availableStyles.map(s => s.id),
+      });
+      toast.error(`Selected comic style is not supported. Please try another style.\nReference ID: not-captured (frontend rejected style=${typeof rawSelected === 'string' ? rawSelected.slice(0, 40) : typeof rawSelected})`);
       return;
     }
     if (!canAfford) { toast.error(`Need ${cost} credits`); navigate('/app/billing'); return; }

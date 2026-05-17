@@ -483,7 +483,11 @@ def _normalize_style_input(raw):
     which JS default-stringifies to the literal "[object Object]".
 
     Accept (in order of preference):
-      • clean string  → returned trimmed
+      • clean canonical key      → returned trimmed
+      • known UI label           → coerced to canonical key (P0 2026-05-19
+        production safety net — catches stale browser bundles / Service
+        Worker caches that still send the human label like "Cartoon"
+        instead of "cartoon_fun"; logs the rescue for ops visibility)
       • JSON object dumped into the form field (e.g. `{"id":"manga"}`) →
         extract id/apiValue/key/value/style
       • the literal "[object Object]" — explicitly logged + rejected as a
@@ -508,6 +512,7 @@ def _normalize_style_input(raw):
             "frontend passed a non-string style. Rejecting cleanly."
         )
         return s  # falls through to SAFE_STYLES check → INVALID_STYLE
+
     # JSON-encoded object (defensive — opens the door to future JSON body)
     if s.startswith("{") and s.endswith("}"):
         try:
@@ -525,6 +530,36 @@ def _normalize_style_input(raw):
         except Exception:
             # Fall through — SAFE_STYLES check will reject it cleanly.
             pass
+
+    # Fast path: already a canonical key.
+    if s in SAFE_STYLES:
+        return s
+
+    # P0 2026-05-19 production safety net — label → canonical key.
+    # The screenshot showed "Cartoon" tile selected with checkmark on
+    # production, yet INVALID_STYLE fired. The most likely root cause
+    # is a stale browser bundle (or Service Worker cache) shipping an
+    # older PhotoToComic.js that submitted the human label instead of
+    # the canonical key. We now accept the label transparently, log
+    # the rescue with the request's structured log, and proceed. This
+    # respects the founder canonical-key rule (the wire format is still
+    # the key after this coercion) while making the system bullet-proof
+    # against drift between frontend bundles and the backend catalog.
+    lower = s.lower()
+    for key, meta in SAFE_STYLES.items():
+        candidate_labels = {
+            (meta.get("label") or "").lower(),
+            (meta.get("name") or "").lower(),
+        }
+        candidate_labels.discard("")
+        if lower in candidate_labels:
+            logger.info(
+                "[p2c/style-normalize] LABEL_FALLBACK received=%r → key=%s "
+                "(stale frontend bundle / SW cache suspected)",
+                s, key,
+            )
+            return key
+
     return s
 
 
