@@ -203,4 +203,5 @@ async def assert_completion_invariant(
 # terminal-success status persistence.
 REGISTERED_PIPELINES: Tuple[str, ...] = (
     "routes/photo_to_comic.py",
+    "routes/reaction_gif.py",
 )

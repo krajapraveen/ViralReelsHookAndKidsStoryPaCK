@@ -50,6 +50,13 @@ ALLOWED_METRICS = frozenset({
     "frontend_event_trap_blocked_total",
     "error_toast_without_request_id_total",
     "p2c_label_fallback_total",
+    # P0 2026-05-22 — Reaction GIF connection-loss bug-class elimination.
+    # Frontend emits these so we can observe (and alert on) transient
+    # polling failures, structural recoveries, and invariant-repaired
+    # completions in production.
+    "reaction_gif_connection_lost_total",
+    "reaction_gif_poll_recovered_total",
+    "reaction_gif_completion_invariant_failed_total",
 })
 
 # Hard cap on payload size — prevents abusive clients from spamming.

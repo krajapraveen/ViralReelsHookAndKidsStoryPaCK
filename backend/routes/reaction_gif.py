@@ -27,6 +27,13 @@ from shared import (
     LLM_AVAILABLE, EMERGENT_LLM_KEY
 )
 from services.watermark_service import add_diagonal_watermark, should_apply_watermark, get_watermark_config
+# ─── P0 2026-05-22 — Bug-class elimination: Reaction GIF completion gate.
+# Per ENGINEERING_DOCTRINE.md (Bug-Class Elimination Mandate), every
+# pipeline that mutates a job to a terminal-success status must route
+# the decision through the canonical invariant helper. This prevents
+# partial pack-generation runs from being silently marked COMPLETED
+# while the frontend dies on a transient poll error.
+from services.reliability.completion_invariant import assert_completion_invariant
 
 router = APIRouter(prefix="/reaction-gif", tags=["Photo Reaction GIF"])
 
@@ -480,21 +487,53 @@ AVOID: {negative_prompt}"""
             generation_errors.append("LLM service not available")
         
         # Determine final status based on real results
-        if len(real_results) > 0:
-            # At least some images were generated successfully — deduct credits (skip for first-free)
-            if cost > 0:
+        # ─── P0 2026-05-22 — Bug-class elimination (Reaction GIF).
+        # Route the terminal-success decision through the canonical
+        # completion invariant so a partial pack run can NEVER be
+        # silently marked COMPLETED. expected_count is the number of
+        # reactions the user asked for; actual_count is how many were
+        # actually rendered to disk. If they disagree we downgrade to
+        # PARTIAL_READY and DO NOT charge the user.
+        expected_count = max(len(reactions_to_generate), 1)
+        actual_count = len(real_results)
+        declared = "COMPLETED" if actual_count > 0 else "FAILED"
+        invariant = await assert_completion_invariant(
+            expected_count=expected_count,
+            actual_count=actual_count,
+            declared_status=declared,
+            request_id=job_id,  # propagated correlation id; full middleware wiring TBD
+            job_id=job_id,
+            pipeline="routes/reaction_gif.process_reaction_gif",
+            db=db,
+        )
+        effective_status = invariant.effective_status
+
+        if actual_count > 0 and effective_status in ("COMPLETED", "READY_WITH_WARNINGS", "PARTIAL_READY"):
+            # At least some images were generated. Charge ONLY when the
+            # invariant accepts the run at full completion; PARTIAL_READY
+            # users keep their credits intact (no double-billing for
+            # a half-rendered pack).
+            charge_now = (effective_status == "COMPLETED" and not invariant.repaired)
+            if charge_now and cost > 0:
                 await deduct_credits(user_id, cost, f"Reaction GIF: {job_id[:8]}")
-            
+
             result_url = real_results[0]["url"]
-            
+            progress_msg = (
+                "Complete!" if effective_status == "COMPLETED"
+                else "Some reactions are still finishing. Partial results available."
+            )
+
             await db.reaction_gif_jobs.update_one(
                 {"id": job_id},
                 {"$set": {
-                    "status": "COMPLETED",
-                    "progress": 100,
-                    "progressMessage": "Complete!",
+                    "status": effective_status,
+                    "progress": 100 if effective_status == "COMPLETED" else 80,
+                    "progressMessage": progress_msg,
                     "resultUrl": result_url,
                     "results": real_results,
+                    "expectedCount": expected_count,
+                    "actualCount": actual_count,
+                    "invariantRepaired": invariant.repaired,
                     "updatedAt": datetime.now(timezone.utc).isoformat()
                 }}
             )
@@ -504,7 +543,7 @@ AVOID: {negative_prompt}"""
             # Detect budget exceeded for user-friendly message
             if any("budget" in e.lower() for e in generation_errors):
                 error_summary = "AI service budget exceeded. Please contact support or try again later."
-            
+
             logger.error(f"Reaction GIF job {job_id} FAILED: {error_summary}")
             await db.reaction_gif_jobs.update_one(
                 {"id": job_id},
@@ -513,6 +552,8 @@ AVOID: {negative_prompt}"""
                     "error": error_summary,
                     "progress": 0,
                     "progressMessage": "Generation failed",
+                    "expectedCount": expected_count,
+                    "actualCount": actual_count,
                     "updatedAt": datetime.now(timezone.utc).isoformat()
                 }}
             )

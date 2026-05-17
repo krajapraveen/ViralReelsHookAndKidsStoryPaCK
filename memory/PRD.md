@@ -8,6 +8,34 @@ Evolve the platform from a standard AI content generator into a highly addictive
 
 ## What's Been Implemented
 
+### P0 PRODUCTION BUG — Reaction GIF "Connection lost during generation" trust-failure — May 22, 2026
+**Status**: SHIPPED in preview. All audits green (231 passed, 1 skipped). **Awaiting your redeploy + production verification.**
+
+**Production symptom** (screenshot): On `/app/gif-maker`, after uploading a photo and clicking "Make My Reaction," a brittle red toast appeared: *"Connection lost during generation. Try again."* No `request_id`, no failed stage, no recovery path, CTA in dead state.
+
+**Bug-Class Elimination Report** (per `/app/memory/BUG_CLASS_ELIMINATION_TEMPLATE.md`):
+
+1. **Root cause** — The frontend `pollJob` `catch` block in `PhotoReactionGIF.js` treated a **single** transient `api.get(/job/:id)` failure (a 2-second-window network blip, gateway 502, tab-sleep) as a *terminal* failure. The backend job was still running fine.
+2. **Exact broken boundary** — `/app/frontend/src/pages/PhotoReactionGIF.js` line 281 (old). The polling loop's error handler was unguarded, dispatched a terminal-style toast without `request_id`, did NOT clear the `setInterval` (zombie polling), did NOT reset `loading` cleanly, and switched `phase` back to `upload`, destroying generation context while the backend kept rendering.
+3. **Boundary class** — Frontend (poll-loop error handling).
+4. **Why existing tests missed it** — No audit existed for poll-loop fail-tolerance or for the "terminal toast on single transient" anti-pattern. The completion-invariant scanner only covered backend writes.
+5. **Regression test / scanner** — `backend/tests/test_reaction_gif_connection_loss_2026_05.py` (14 pinning tests), registered in `make audit-boundaries`. Asserts: no bare "Connection lost during generation" toast; `consecutiveFailRef` + `POLL_FAIL_TOLERANCE` + `POLL_HARD_LIMIT` present; recovery beacon emitted; sessionStorage resume-token persisted; `online`/`focus` re-poll hooks present; backend imports + correctly orders `assert_completion_invariant` before any `"status": "COMPLETED"` write; route in `REGISTERED_PIPELINES`; beacon allow-lists the new metrics.
+6. **Observability signal added** — Three new diagnostics-beacon metrics: `reaction_gif_connection_lost_total`, `reaction_gif_poll_recovered_total`, `reaction_gif_completion_invariant_failed_total`. `request_id` propagated from `X-Request-Id` header on every successful poll, surfaced in the lost-state toast via `toastErrorSafe`.
+7. **Similar-pattern sweep** — Grep across all creator pages: `PhotoToComic.js`, `ComicStorybookBuilder.js`, `StoryVideoPipeline.js` already use silent-retry polling. The brittle pattern was **isolated to PhotoReactionGIF.js**. No additional sites needed fixing.
+8. **Scope confirmation** — No unrelated feature work, no UI redesign, no incidental refactors, no Phase 3c/4 migration. Pre-existing bare `except` on `reaction_gif.py:314` (unrelated to this bug) was deliberately left alone.
+
+**Files changed**:
+- `frontend/src/pages/PhotoReactionGIF.js` — fail-tolerant `pollJob`, `online`/`focus` re-poll hooks, sessionStorage job-resume, `toastErrorSafe` wiring, beacon emits, PARTIAL_READY handling.
+- `backend/routes/reaction_gif.py` — `assert_completion_invariant` gates `COMPLETED` write; partial runs downgraded to `PARTIAL_READY`; credit deduction skipped on partial.
+- `backend/services/reliability/completion_invariant.py` — `routes/reaction_gif.py` added to `REGISTERED_PIPELINES`.
+- `backend/routes/diagnostics_beacon.py` — three new metric names allow-listed.
+- `backend/tests/test_reaction_gif_connection_loss_2026_05.py` — new pinning suite.
+- `Makefile` — new suite registered in `BOUNDARY_AUDIT_SUITES`.
+
+**Success-definition test**: The exact bug class — "single transient poll failure declared as terminal lost state with no request_id and dead CTA" — is now **impossible to merge**. Any future regression fails CI inside `make audit-boundaries`.
+
+---
+
 ### Engineering Doctrine — Bug-Class Elimination Mandate — May 22, 2026
 **Status**: ADOPTED. Pinned by CI. All audits green (216 passed, 1 expected skip).
 

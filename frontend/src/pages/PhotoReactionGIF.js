@@ -10,6 +10,7 @@ import {
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import { toastErrorSafe, extractRequestId } from '../utils/toastSafe';
 import RatingModal from '../components/RatingModal';
 import UpsellModal from '../components/UpsellModal';
 import BedtimePaywallModal from '../components/BedtimePaywallModal';
@@ -107,6 +108,16 @@ export default function PhotoReactionGIF() {
   const [job, setJob] = useState(null);
   const pollingRef = useRef(null);
   const completedRef = useRef(new Set());
+  // ─── P0 2026-05-22 — Connection-loss resilience refs ─────────────
+  // Bug-class elimination (see ENGINEERING_DOCTRINE.md → Bug-Class
+  // Elimination Mandate). A single transient poll failure must NOT
+  // declare the entire generation lost; the backend job keeps running
+  // and the user must be able to recover on reconnect.
+  const consecutiveFailRef = useRef(0);
+  const lostToastShownRef = useRef(false);
+  const lastRequestIdRef = useRef(null);
+  const POLL_FAIL_TOLERANCE = 5;        // ~10s of transient failures absorbed silently
+  const POLL_HARD_LIMIT = 90;           // ~3 minutes total before we give up
 
   // Modals
   const [showRating, setShowRating] = useState(false);
@@ -234,6 +245,16 @@ export default function PhotoReactionGIF() {
       setSelectedReaction(reaction);
       setSelectedStyle(style);
 
+      // Reset connection-loss resilience state for the new job.
+      consecutiveFailRef.current = 0;
+      lostToastShownRef.current = false;
+      lastRequestIdRef.current =
+        res.headers?.['x-request-id'] || res.headers?.['X-Request-Id'] || null;
+      try { toast.dismiss('reaction-gif-connection-lost'); } catch (_) { /* noop */ }
+      try {
+        sessionStorage.setItem('reaction_gif_active_job_id', res.data.jobId);
+      } catch (_) { /* noop */ }
+
       if (pollingRef.current) clearInterval(pollingRef.current);
       pollingRef.current = setInterval(() => pollJob(res.data.jobId), 2000);
     } catch (e) {
@@ -243,22 +264,70 @@ export default function PhotoReactionGIF() {
     }
   };
 
-  // ── Poll ──
+  // ── Beacon helper (best-effort, never throws) ──
+  const _emitBeacon = useCallback((metric, meta = {}) => {
+    try {
+      api.post('/api/diagnostics/beacon', {
+        events: [{
+          metric,
+          ts: Date.now(),
+          page: '/app/gif-maker',
+          meta: { request_id: lastRequestIdRef.current, ...meta },
+        }],
+      }).catch(() => {});
+    } catch (_) { /* never break UX */ }
+  }, []);
+
+  // ── Poll (P0 2026-05-22 — connection-loss resilient) ──
+  // Bug-class elimination per /app/memory/ENGINEERING_DOCTRINE.md:
+  //  • single transient poll failure is NOT terminal
+  //  • backend job continues regardless of polling hiccups
+  //  • after threshold the user gets a structured, request_id-carrying
+  //    toast and polling keeps trying — never dead UX
+  //  • recovery dismisses the lost-state toast automatically
   const pollJob = useCallback(async (jobId) => {
     try {
       const res = await api.get(`/api/reaction-gif/job/${jobId}`);
+      // Successful poll — track request_id from middleware for support.
+      lastRequestIdRef.current =
+        res.headers?.['x-request-id'] ||
+        res.headers?.['X-Request-Id'] ||
+        lastRequestIdRef.current;
+
+      // ─── Recovery branch: we were in a lost state and the network
+      // came back. Dismiss the warning and emit a recovered metric.
+      if (consecutiveFailRef.current >= POLL_FAIL_TOLERANCE && lostToastShownRef.current) {
+        try { toast.dismiss('reaction-gif-connection-lost'); } catch (_) { /* noop */ }
+        toast.success('Reconnected — picking up where we left off.', {
+          id: 'reaction-gif-reconnected',
+          duration: 3000,
+        });
+        _emitBeacon('reaction_gif_poll_recovered_total', {
+          consecutive_fail: consecutiveFailRef.current,
+        });
+      }
+      consecutiveFailRef.current = 0;
+      lostToastShownRef.current = false;
+
       setJob(res.data);
 
-      if (res.data.status === 'COMPLETED' || res.data.status === 'FAILED') {
+      const status = res.data.status;
+      const terminalSuccess = (status === 'COMPLETED' || status === 'PARTIAL_READY');
+      const terminalFail = (status === 'FAILED');
+      if (terminalSuccess || terminalFail) {
         if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
         setLoading(false);
+        try { sessionStorage.removeItem('reaction_gif_active_job_id'); } catch (_) { /* noop */ }
         fetchInit();
 
         if (!completedRef.current.has(jobId)) {
           completedRef.current.add(jobId);
-          if (res.data.status === 'COMPLETED') {
+          if (terminalSuccess) {
             setPhase('result');
-            toast.success('Your reaction is ready!');
+            const msg = status === 'PARTIAL_READY'
+              ? 'Part of your reaction pack is ready — others are still finishing.'
+              : 'Your reaction is ready!';
+            toast.success(msg);
             notifyGenerationComplete({
               feature: 'reaction_gif', featureName: 'Reaction GIF',
               jobId, downloadUrl: res.data.resultUrl,
@@ -269,7 +338,16 @@ export default function PhotoReactionGIF() {
           } else {
             setPhase('upload');
             const err = res.data.error || 'Generation failed';
-            toast.error(err.includes('budget') ? 'AI service temporarily unavailable. No credits deducted.' : 'Generation failed. No credits deducted.');
+            const friendly = err.includes('budget')
+              ? 'AI service temporarily unavailable. No credits deducted.'
+              : 'Generation failed. No credits deducted.';
+            toastErrorSafe(friendly, {
+              requestId: lastRequestIdRef.current,
+              code: 'REACTION_GIF_FAILED',
+              page: '/app/gif-maker',
+              id: 'reaction-gif-failed',
+              duration: 6000,
+            });
             notifyGenerationFailed({
               feature: 'reaction_gif', featureName: 'Reaction GIF',
               jobId, error: err, showToast: false
@@ -277,11 +355,75 @@ export default function PhotoReactionGIF() {
           }
         }
       }
-    } catch {
-      toast.error('Connection lost during generation. Try again.');
-      setPhase('upload');
+    } catch (err) {
+      // Transient poll failure. The backend job is still running. We
+      // ABSORB up to POLL_FAIL_TOLERANCE failures silently, then surface
+      // a structured, request_id-carrying status — and keep polling so
+      // the UI auto-recovers on reconnect. Never dead state, never
+      // zombie interval.
+      consecutiveFailRef.current += 1;
+      const requestId = extractRequestId(err) || lastRequestIdRef.current;
+      if (requestId) lastRequestIdRef.current = requestId;
+
+      if (consecutiveFailRef.current === POLL_FAIL_TOLERANCE && !lostToastShownRef.current) {
+        lostToastShownRef.current = true;
+        toastErrorSafe(
+          'Reaction generation was interrupted on your network. We are still checking the job status — your work is safe.',
+          {
+            requestId,
+            code: 'REACTION_GIF_POLL_LOST',
+            page: '/app/gif-maker',
+            id: 'reaction-gif-connection-lost',
+            duration: 8000,
+          }
+        );
+        _emitBeacon('reaction_gif_connection_lost_total', {
+          consecutive_fail: consecutiveFailRef.current,
+          err_status: err?.response?.status || 0,
+        });
+      }
+
+      // Hard ceiling. Backend may genuinely be unreachable for several
+      // minutes; stop the interval but PRESERVE the job_id in session
+      // storage so a refresh / online event can resume.
+      if (consecutiveFailRef.current >= POLL_HARD_LIMIT) {
+        if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+        setLoading(false);
+        setPhase('upload');
+        toastErrorSafe(
+          'We could not reach the generation service. When you are back online, click Make My Reaction again and we will resume the same job.',
+          {
+            requestId: lastRequestIdRef.current,
+            code: 'REACTION_GIF_POLL_GAVE_UP',
+            page: '/app/gif-maker',
+            id: 'reaction-gif-gave-up',
+            duration: 10000,
+          }
+        );
+      }
+      // Otherwise: do nothing. The setInterval will fire again in 2s.
     }
-  }, [notifyGenerationComplete, notifyGenerationFailed, refetchNotifications]);
+  }, [notifyGenerationComplete, notifyGenerationFailed, refetchNotifications, _emitBeacon]);
+
+  // ── Network recovery hooks ──
+  // On `online` / window focus, fire an immediate extra poll so the UI
+  // recovers instantly instead of waiting up to 2s for the interval.
+  useEffect(() => {
+    const forcePoll = () => {
+      const jid = job?.id || (() => {
+        try { return sessionStorage.getItem('reaction_gif_active_job_id'); } catch (_) { return null; }
+      })();
+      if (jid && pollingRef.current) {
+        pollJob(jid);
+      }
+    };
+    window.addEventListener('online', forcePoll);
+    window.addEventListener('focus', forcePoll);
+    return () => {
+      window.removeEventListener('online', forcePoll);
+      window.removeEventListener('focus', forcePoll);
+    };
+  }, [job?.id, pollJob]);
 
   // ── Quick generate another reaction ──
   const tryAnotherReaction = (reactionId) => {
