@@ -1518,6 +1518,49 @@ Format as JSON array:
                             {"scene": "Challenge appears", "dialogue": "Hmm, what now?"},
                             {"scene": "Resolution", "dialogue": "We did it!"}
                         ][:panel_count]
+
+                # ══════════════════════════════════════════════════════════════
+                # P0 2026-05-19 — STORY-PLAN INVARIANT (mandatory pre-flight).
+                # The LLM occasionally returns fewer scenes than the user
+                # requested. The generation loop below iterated only
+                # `min(panel_count, len(story_scenes))` times, which silently
+                # truncated the comic to 2 panels for a 3-panel strip request.
+                # Pad to `panel_count` here so the loop ALWAYS iterates the
+                # full plan and downstream invariants can rely on it.
+                # ══════════════════════════════════════════════════════════════
+                planned_scene_count = len(story_scenes)
+                if planned_scene_count < panel_count:
+                    logger.warning(
+                        f"[STRIP_PLAN] story_scenes_short job_id={job_id} "
+                        f"got={planned_scene_count} expected={panel_count} — padding"
+                    )
+                    fillers = [
+                        {"scene": "The story continues with our hero pressing forward.", "dialogue": None},
+                        {"scene": "A new moment unfolds in the journey.", "dialogue": None},
+                        {"scene": "The adventure reaches its next beat.", "dialogue": None},
+                        {"scene": "Our hero takes a breath and looks ahead.", "dialogue": None},
+                    ]
+                    while len(story_scenes) < panel_count:
+                        story_scenes.append(fillers[(len(story_scenes) - 1) % len(fillers)])
+                    # Emit observability counter for ops dashboards.
+                    try:
+                        await db.diagnostics_metrics.update_one(
+                            {"metric": "p2c_story_plan_padded_total",
+                             "bucket": datetime.now(timezone.utc).strftime("%Y-%m-%d")},
+                            {"$inc": {"count": 1},
+                             "$setOnInsert": {"metric": "p2c_story_plan_padded_total"}},
+                            upsert=True,
+                        )
+                    except Exception:
+                        pass
+
+                await db.photo_to_comic_jobs.update_one(
+                    {"id": job_id},
+                    {"$set": {
+                        "planned_scene_count": planned_scene_count,
+                        "expected_panel_count": panel_count,
+                    }}
+                )
                 
                 # User-provided dialogue override
                 if dialogue and include_dialogue:
@@ -1572,9 +1615,12 @@ Format as JSON array:
                 from services.comic_pipeline.continuity_pack import ContinuityPack
                 continuity_pack = ContinuityPack()
 
-                # Sequential generation for continuity (each panel feeds the next)
+                # Sequential generation for continuity (each panel feeds the next).
+                # P0 2026-05-19 — we ALWAYS iterate `panel_count` times; story
+                # plan is guaranteed by the pre-flight padder above to be of
+                # length >= panel_count.
                 panels = []
-                for i in range(min(panel_count, len(story_scenes))):
+                for i in range(panel_count):
                     # Get curated continuity context (NOT all previous — the RIGHT previous)
                     gen_context = continuity_pack.get_generation_context(i)
 
@@ -1810,6 +1856,34 @@ Format as JSON array:
             else:
                 job_status = "FAILED"
                 job_decision = "REJECT"
+
+        # ══════════════════════════════════════════════════════════════════
+        # P0 2026-05-19 — COMPLETION INVARIANT (NON-NEGOTIABLE).
+        # COMPLETED must mean every requested panel exists with status=READY.
+        # Without this guard the user saw "Your Comic is Ready / All panels
+        # generated and verified" with only 2 of 3 panels rendered.
+        # If the invariant fails, we downgrade to PARTIAL_READY and emit
+        # `p2c_completion_invariant_failed_total` so ops can see drift.
+        # ══════════════════════════════════════════════════════════════════
+        actual_ready_count = len([p for p in panels if p.get("status") == "READY"])
+        if job_status in ("COMPLETED", "READY_WITH_WARNINGS") and actual_ready_count != panel_count:
+            logger.error(
+                f"[STRIP_INVARIANT] completion_invariant_failed job_id={job_id} "
+                f"declared_status={job_status} ready={actual_ready_count} "
+                f"expected={panel_count}"
+            )
+            try:
+                await db.diagnostics_metrics.update_one(
+                    {"metric": "p2c_completion_invariant_failed_total",
+                     "bucket": datetime.now(timezone.utc).strftime("%Y-%m-%d")},
+                    {"$inc": {"count": 1},
+                     "$setOnInsert": {"metric": "p2c_completion_invariant_failed_total"}},
+                    upsert=True,
+                )
+            except Exception:
+                pass
+            job_status = "PARTIAL_READY"
+            job_decision = "ACCEPT_PARTIAL_INVARIANT_REPAIRED"
 
         # Store final decision
         await db.photo_to_comic_jobs.update_one(

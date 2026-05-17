@@ -2,6 +2,140 @@
 
 
 ─────────────────────────────────────────────────────────
+[2026-05-19] P0 COMIC STRIP COMPLETION-INVARIANT — SHIPPED
+─────────────────────────────────────────────────────────
+Production user report: 3-panel Comic Strip generation surfaced
+"Your Comic is Ready / All panels generated and verified" but only
+2 of 3 panels were rendered. Pipeline integrity failure.
+
+EXACT ROOT CAUSE
+  routes/photo_to_comic.py line 1577 (pre-fix):
+    for i in range(min(panel_count, len(story_scenes))):
+  When the LLM outline returned fewer scenes than requested
+  (intermittent for the strip flow), the generation loop iterated
+  only `len(story_scenes)` times. No story-plan invariant existed
+  to catch the shortfall, and the final status logic treated
+  `ready_count == len(panels)` as success even when
+  `ready_count < panel_count`.
+
+  Secondary failure: PARTIAL_READY status was rendered with the
+  same "Your Comic is Ready" title as fully-complete jobs, and the
+  empty panel slot said "Being optimized" — making a partial job
+  visually indistinguishable from a complete one.
+
+THREE INVARIANTS ADDED
+
+  Layer 1 — STORY-PLAN INVARIANT (backend, pre-flight)
+    routes/photo_to_comic.py
+    After fallback scene assembly, the system asserts
+    `len(story_scenes) >= panel_count`. If short, story_scenes is
+    padded with neutral filler beats so the generation loop ALWAYS
+    has enough scenes. Persists `planned_scene_count` and
+    `expected_panel_count` on the job document. Emits
+    `p2c_story_plan_padded_total` observability counter.
+
+  Layer 2 — GENERATION LOOP (backend)
+    routes/photo_to_comic.py
+    Loop is now `for i in range(panel_count):` — always iterates
+    the full plan. The legacy `range(min(panel_count, …))` form is
+    GONE from executable code.
+
+  Layer 3 — COMPLETION INVARIANT (backend, post-execution)
+    routes/photo_to_comic.py
+    Before persisting status, hard gate:
+      if job_status in ("COMPLETED", "READY_WITH_WARNINGS"):
+          if actual_ready_count != panel_count:
+              job_status = "PARTIAL_READY"
+              job_decision = "ACCEPT_PARTIAL_INVARIANT_REPAIRED"
+              # emit p2c_completion_invariant_failed_total
+    COMPLETED can no longer mean "some of the panels finished".
+
+  Layer 4 — FRONTEND TRUST (PhotoToComic.js)
+    resolveAssetState now derives `stripIsComplete` from the panels
+    array. uiState='READY' requires BOTH preview/download OK AND
+    stripIsComplete. PARTIAL_READY status badge:
+      • short strip  → title "Finalizing your comic…",
+                       subtitle "N of M panels finished — completing the rest."
+      • full strip   → original "Your Comic is Ready" (unchanged).
+    Empty-panel placeholder no longer says "Being optimized"; it
+    explicitly says "Generating…" (uiState != READY) or "Retrying…"
+    (uiState == READY) and carries a `panel-N-pending` testid.
+
+RETRY / REFUND POSTURE
+  Existing flow preserved:
+    • Per-panel pro-rata credit deduction
+      (per_panel_cost = max(1, cost // panel_count) × ready_count).
+    • Zero-panel jobs trigger `handle_generation_failure` auto-refund.
+    • PARTIAL_READY paths run the GUARANTEED_OUTPUT fallback to
+      synthesize stylized panels from the source photo so the user
+      ALWAYS gets some output even if every AI call failed.
+  The invariant downgrade does NOT alter credit math — short strips
+  were already being pro-rated; what changed is that the user is no
+  longer told the job finished when it actually didn't.
+
+OBSERVABILITY ADDED
+  • p2c_story_plan_padded_total          (new, daily-bucketed)
+  • p2c_completion_invariant_failed_total (new, daily-bucketed)
+  • planned_scene_count                  (on job document)
+  • expected_panel_count                 (on job document)
+
+REGRESSION TESTS — 9 (backend/tests/test_strip_completion_invariant_2026_05.py)
+  • test_story_plan_padder_exists
+  • test_generation_loop_iterates_full_panel_count
+       (also asserts the legacy `range(min(...))` form is gone)
+  • test_completion_invariant_block_exists
+  • test_completion_invariant_downgrades_status
+  • test_planned_scene_count_persisted
+  • test_frontend_strip_completeness_gate_exists
+       (stripIsComplete REQUIRED for uiState='READY')
+  • test_partial_ready_badge_no_false_completeness
+  • test_empty_panel_placeholder_no_longer_says_being_optimized
+  • test_status_messages_do_not_lie
+       ("All panels generated and verified" appears ONLY in READY)
+
+PROOF THAT INCOMPLETE OUTPUT CANNOT REACH "COMPLETE"
+  • Backend test (downgrade gate): the exact phrase
+    `job_status = "PARTIAL_READY"` is reached when
+    `actual_ready_count != panel_count`.
+  • Frontend test: setUiState('READY') is gated by
+    `previewOk && downloadOk && stripIsComplete`.
+  • Together: a 2-of-3 panel job CANNOT reach the green "All panels
+    generated and verified" badge.
+
+AUDIT OF SIBLING PIPELINES (no source changes — surveyed only)
+  • Comic Storybook: uses comic_storybook_v2_jobs with its own
+    per-scene state machine. Status set to COMPLETED only inside
+    `_finalize_job_completion` after every scene transitions to
+    `done`. Already has a completion invariant. NO CHANGE NEEDED.
+  • Story-to-Video scene generation: pipeline_worker walks scenes
+    sequentially; failed scenes mark the job FAILED rather than
+    COMPLETED. Not affected by the same bug class. NO CHANGE NEEDED.
+  • YouStar segment generation: similar shape to Story-to-Video.
+    NO CHANGE NEEDED.
+  Recommendation: the static-audit scanner could be extended in a
+  later P1 to add a "completion-invariant" rule that fails any new
+  pipeline whose COMPLETED transition doesn't gate on a count check.
+  Logged in the doctrine backlog; NOT shipped this hotfix.
+
+FILES CHANGED
+  ~ backend/routes/photo_to_comic.py
+       (story-plan padder + invariant gate)
+  ~ frontend/src/pages/PhotoToComic.js
+       (stripIsComplete + PARTIAL_READY badge + pending placeholder copy)
+  + backend/tests/test_strip_completion_invariant_2026_05.py
+  ~ /app/Makefile  (new suite registered in BOUNDARY_AUDIT_SUITES)
+
+FULL SUITE
+  `make audit-boundaries` → 194 passed, 1 skipped (60s).
+  Lint clean (backend + frontend).
+
+FREEZE INTACT
+  ✗ No Phase 3c, Phase 4, canonical migration, UI redesign,
+    unrelated feature work, or admin panel.
+
+
+
+─────────────────────────────────────────────────────────
 [2026-05-19] ENGINEERING DOCTRINE ADOPTED + `make audit-boundaries`
 ─────────────────────────────────────────────────────────
 Founder mandate: codify platform-wide engineering doctrine and

@@ -667,11 +667,25 @@ function PhotoToComicInner() {
       downloadOk = true;
     }
 
-    // 3. Resolve to single authoritative UI state
+    // 3. Resolve to single authoritative UI state.
+    // P0 2026-05-19 — STRIP COMPLETENESS INVARIANT.
+    // For multi-panel strips, READY requires that the panel array is
+    // both complete AND every panel has a renderable image. Without
+    // this guard a 3-panel strip that only finished 2 panels still hit
+    // the "Your Comic is Ready / All panels generated and verified"
+    // success state.
+    const expectedPanels = job.totalPanels || job.panel_count || (job.panels?.length || 0);
+    const readyPanelsCount = (job.panels || []).filter(
+      p => p && p.imageUrl && (p.status === 'READY' || p.status === 'COMPLETED')
+    ).length;
+    const stripIsComplete = !job.panels?.length
+      ? true  // single-image (avatar) flow — strip invariant doesn't apply
+      : (expectedPanels > 0 && readyPanelsCount === expectedPanels);
+
     setPreviewReady(previewOk);
     setDownloadReady(downloadOk);
 
-    if (previewOk && downloadOk) {
+    if (previewOk && downloadOk && stripIsComplete) {
       setUiState('READY');
       markFeatureUsed('photo_to_comic');
     } else if (downloadOk && !previewOk) {
@@ -680,6 +694,7 @@ function PhotoToComicInner() {
       setUiState('FAILED');
       setFailReason('Your comic needs a bit more time. You can try again or create a new one.');
     } else {
+      // Strip-incomplete or preview-only — never claim "all panels generated".
       setUiState('PARTIAL_READY');
     }
 
@@ -901,10 +916,24 @@ function PhotoToComicInner() {
     const isStrip = result.mode === 'strip' || panels?.length > 0;
 
     // Status badge — single truth from uiState
+    // P0 2026-05-19 — never claim completeness when the strip is short.
+    const expectedPanelsForBadge = result.totalPanels || result.panel_count || (result.panels?.length || 0);
+    const readyPanelsForBadge = (result.panels || []).filter(
+      p => p && p.imageUrl && (p.status === 'READY' || p.status === 'COMPLETED')
+    ).length;
+    const stripShortfall = expectedPanelsForBadge > 0 && readyPanelsForBadge < expectedPanelsForBadge;
+
     const STATUS_CONFIG = {
       VALIDATING: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />, title: 'Finalizing', subtitle: 'Preparing your comic...' },
       READY: { bg: 'bg-emerald-500/10 border-emerald-500/30', icon: <Check className="w-5 h-5 text-emerald-400" />, title: 'Your Comic is Ready', subtitle: 'All panels generated and verified' },
-      PARTIAL_READY: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <Shield className="w-5 h-5 text-amber-400" />, title: 'Your Comic is Ready', subtitle: result.failedPanels ? `${result.readyPanels} optimized panels included` : (downloadReady ? 'Ready to download' : 'Finishing up...') },
+      PARTIAL_READY: {
+        bg: 'bg-amber-500/10 border-amber-500/30',
+        icon: <Shield className="w-5 h-5 text-amber-400" />,
+        title: stripShortfall ? 'Finalizing your comic…' : 'Your Comic is Ready',
+        subtitle: stripShortfall
+          ? `${readyPanelsForBadge} of ${expectedPanelsForBadge} panels finished — completing the rest.`
+          : (result.failedPanels ? `${result.readyPanels} optimized panels included` : (downloadReady ? 'Ready to download' : 'Finishing up...')),
+      },
       FAILED: { bg: 'bg-amber-500/10 border-amber-500/30', icon: <RefreshCw className="w-5 h-5 text-amber-400" />, title: 'Something needs a quick fix', subtitle: 'Try again — or try a different style or photo for better results.' },
     };
     const statusCfg = STATUS_CONFIG[uiState] || STATUS_CONFIG.VALIDATING;
@@ -1013,10 +1042,12 @@ function PhotoToComicInner() {
                     {panels.map((p, i) => (
                       <div key={i} className="rounded-xl overflow-hidden border border-slate-700 bg-slate-900 group relative" data-testid={`panel-${i+1}`}>
                         {p.status === 'FAILED' || !p.imageUrl ? (
-                          <div className="aspect-square flex flex-col items-center justify-center bg-slate-800/30 p-4">
-                            <Sparkles className="w-8 h-8 text-slate-600 mb-2" />
+                          <div className="aspect-square flex flex-col items-center justify-center bg-slate-800/30 p-4" data-testid={`panel-${i+1}-pending`}>
+                            <Loader2 className="w-8 h-8 text-amber-400 mb-2 animate-spin" />
                             <p className="text-xs text-slate-500 font-medium">Panel {i + 1}</p>
-                            <p className="text-[10px] text-slate-600 mt-1">Being optimized</p>
+                            <p className="text-[10px] text-slate-600 mt-1">
+                              {uiState === 'READY' ? 'Retrying…' : 'Generating…'}
+                            </p>
                           </div>
                         ) : (
                           <SafeImage
