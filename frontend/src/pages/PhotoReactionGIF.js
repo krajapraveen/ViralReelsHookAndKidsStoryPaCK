@@ -133,6 +133,17 @@ export default function PhotoReactionGIF() {
   const PREVIEW_PROBE_MAX_ATTEMPTS = 5;
   const PREVIEW_PROBE_TIMEOUT_MS = 8000;
 
+  // ─── P1 2026-05-22 — Stall detector for generating phase.
+  // The backend now emits honest stage transitions, but if a stage
+  // genuinely takes longer than the "usually 15–30 seconds" promise,
+  // we surface a non-alarming "still working" message instead of
+  // lying. `lastProgressAtRef` is updated whenever job.progress
+  // changes; the ticker recomputes `stallHelperText` every second.
+  const lastProgressRef = useRef(0);
+  const lastProgressAtRef = useRef(Date.now());
+  const [stallHelperText, setStallHelperText] = useState('Usually takes 15–30 seconds');
+  const STALL_HELPER_THRESHOLD_MS = 20000;
+
   // Modals
   const [showRating, setShowRating] = useState(false);
   const [showUpsell, setShowUpsell] = useState(false);
@@ -150,6 +161,38 @@ export default function PhotoReactionGIF() {
     fetchInit();
     return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
   }, []);
+
+  // ─── P1 2026-05-22 — Track progress changes for the stall detector.
+  useEffect(() => {
+    const cur = job?.progress ?? 0;
+    if (cur !== lastProgressRef.current) {
+      lastProgressRef.current = cur;
+      lastProgressAtRef.current = Date.now();
+      setStallHelperText('Usually takes 15–30 seconds');
+    }
+  }, [job?.progress, job?.stage]);
+
+  // Ticker: while generating, re-evaluate stall every second so the
+  // helper text can flip to "Still working — taking longer than usual"
+  // without waiting for the next poll.
+  useEffect(() => {
+    if (phase !== 'generating') return undefined;
+    const id = setInterval(() => {
+      const since = Date.now() - lastProgressAtRef.current;
+      if (since > STALL_HELPER_THRESHOLD_MS) {
+        const stage = job?.stage || '';
+        const stageLabel = ({
+          generate: 'AI generation',
+          encode: 'image encoding',
+          verify: 'media verification',
+          prepare: 'preparation',
+          validate: 'photo check',
+        })[stage] || 'this step';
+        setStallHelperText(`Still working — ${stageLabel} is taking longer than usual.`);
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [phase, job?.stage]);
 
   // P0 2026-05 — Block copy/save/print shortcuts while result is shown,
   // for non-premium users. Frontend deterrent only; the real protection
@@ -895,14 +938,14 @@ export default function PhotoReactionGIF() {
   // RENDER: Generating
   // ════════════════════════════════════════════
   const renderGenerating = () => {
-    const msgs = [
-      "Analyzing your face...",
-      "Applying AI magic...",
-      `Creating ${REACTIONS.find(r => r.id === selectedReaction)?.emoji} reaction...`,
-      "Adding style effects...",
-      "Almost there...",
-    ];
-    const msgIndex = Math.min(Math.floor((job?.progress || 0) / 25), msgs.length - 1);
+    // ─── P1 2026-05-22 — Honest progress (no more stuck-at-90%).
+    // Render the backend's canonical `progressMessage` directly. The
+    // synthetic local strings keyed off `progress/25` are gone —
+    // they were the reason 90% always read "Adding style effects…"
+    // for the entire LLM call.
+    const backendMsg = job?.progressMessage || job?.stage || 'Starting…';
+    const pct = Math.max(0, Math.min(100, job?.progress || 0));
+    const helper = stallHelperText;
 
     return (
       <div className="max-w-lg mx-auto text-center py-16" data-testid="generating-phase">
@@ -915,22 +958,22 @@ export default function PhotoReactionGIF() {
           </div>
         </div>
 
-        <h3 className="text-xl font-bold text-white mb-2">
-          {msgs[msgIndex]}
+        <h3 className="text-xl font-bold text-white mb-2" data-testid="generating-progress-message">
+          {backendMsg}
         </h3>
         <p className="text-sm text-slate-400 mb-6">
-          {job?.progress || 0}% complete
+          {pct}% complete
         </p>
 
         {/* Progress bar */}
         <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden mb-4">
           <div
             className="h-full bg-gradient-to-r from-pink-500 to-purple-500 rounded-full transition-all duration-500"
-            style={{ width: `${job?.progress || 5}%` }}
+            style={{ width: `${pct || 5}%` }}
           />
         </div>
 
-        <p className="text-xs text-slate-600">Usually takes 15-30 seconds</p>
+        <p className="text-xs text-slate-600" data-testid="generating-helper-text">{helper}</p>
 
         {/* P0 2026-05 — Waiting suggestions: keep users engaged while
             their reaction generates. Polling continues in the background. */}

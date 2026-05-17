@@ -8,6 +8,39 @@ Evolve the platform from a standard AI content generator into a highly addictive
 
 ## What's Been Implemented
 
+### P1 PRODUCTION FIX — Reaction GIF stuck-at-90% perception + real latency win — May 22, 2026
+**Status**: SHIPPED in preview. All audits green (**265 passed, 1 expected skip**). **Awaiting your redeploy + production verification.**
+
+**Production symptom**: `/app/gif-maker` parked at "Adding style effects… 90% complete" for the entire LLM call, creating a stuck-job perception even when the job eventually completed. UI promised "Usually takes 15–30 seconds" but the bar stayed at 90% well past that.
+
+**Bug-Class Elimination Report**:
+
+1. **Root cause** — Two compounding lies:
+   - *Backend* — single-mode progress formula `10 + int(((i + 1) / total_reactions) * 80)` jumped directly to 90% on the first iteration, then sat there for the entire Gemini call (~15-25s) plus watermark + disk write + verify.
+   - *Frontend* — ignored `job.progressMessage` entirely; rendered synthetic strings keyed off `Math.floor(progress / 25)`, so 90% **always** displayed "Adding style effects…" regardless of what the backend actually reported.
+2. **Exact broken boundary** — `backend/routes/reaction_gif.py` progress write (single-mode 10→90 jump). `frontend/src/pages/PhotoReactionGIF.js` `renderGenerating` synthetic `msgs[]` array.
+3. **Boundary class** — Async job (backend progress contract) + Frontend (rendering contract). Both layers had to lie in sync.
+4. **Why existing tests missed it** — No audit covered progress *honesty*. The completion invariant only gated terminal status; the false-success suite only gated terminal preview. Nothing covered the "stuck for 80% of the wait" middle.
+5. **Regression test/scanner** — New `backend/tests/test_reaction_gif_honest_progress_2026_05.py` (15 pinning tests). Registered in `make audit-boundaries`. Asserts: backend `_stage` helper exists; emits all 6 canonical stages (validate / prepare / generate / encode / verify / ready); old 10→90 formula gone; downscale path + `DOWNSCALE_TARGET=1024` present; `totalDurationMs` + `stages` ring persisted. Frontend: renders `job.progressMessage` directly; synthetic msgs[] array gone; `Math.floor((job?.progress || 0) / 25)` selector gone; `stallHelperText` + `lastProgressAtRef` + `STALL_HELPER_THRESHOLD_MS` present; "Still working" + en-dash "15–30 seconds" copy correct; testid `generating-progress-message` + `generating-helper-text` for browser tests. Existing P0 gates (asset-readiness, completion invariant) remain pinned.
+6. **Observability** — Backend now persists `stages` ring buffer with timestamps and `totalDurationMs` on the terminal update. Ops can dashboard p50/p90/p99 per stage. Existing beacon metrics carry over.
+7. **Similar-pattern sweep** — Photo-to-Comic, Comic Storybook, Story-to-Video already render backend `progressMessage` directly (verified). No other surface had the synthetic-msgs-by-progress-quartile anti-pattern.
+8. **Scope confirmation** — No unrelated work. The `bare except` on line 314 untouched. No phase 3c/4, no admin panel, no badge, no UI redesign.
+
+**Speed improvement (real, not faked)**:
+- **Source downscale**: any uploaded image with longest side > 1024px is downscaled to 1024px LANCZOS-JPEG before the LLM call. Phone-camera uploads (3-4k px) shrink to ~1024px = significantly smaller payload + faster Gemini latency (provider-dependent, typically 2-6s saved on large inputs). Quality preserved at JPEG quality 88. If PIL fails, falls through with raw bytes (safety > speed).
+- **Honest staging** unblocks the user's mental model — even when the LLM stage genuinely takes 20s, the user sees "Generating frames 😂…" at 30% moving to "Encoding 😂 reaction…" at 75% as soon as bytes return, instead of frozen 90%.
+
+**Files changed**:
+- `backend/routes/reaction_gif.py` — `_stage()` helper, 6 canonical stages, source downscale (1024px LANCZOS), `stage_log` ring, `totalDurationMs` on terminal update.
+- `frontend/src/pages/PhotoReactionGIF.js` — `renderGenerating` reads backend `progressMessage`; stall detector (`lastProgressAtRef`, `stallHelperText`, ticker effect, 20s threshold); en-dash "15–30 seconds" copy; testids on progress message + helper text.
+- `frontend/src/utils/buildInfo.js` — build hash → `2026-05-22-reaction-gif-honest-progress`.
+- `backend/tests/test_reaction_gif_honest_progress_2026_05.py` (**new**) — 15 pinning tests.
+- `Makefile` — suite registered.
+
+**Success-definition test**: The bug class — "progress parks at one number for the bulk of the wait while UI fabricates a static label" — is now **impossible to merge**. The progress bar must move because the stage transitions are part of the wire contract; the rendered label must come from that contract.
+
+---
+
 ### P0 PRODUCTION BUG — Reaction GIF false-success (broken-image with share/download exposed) — May 22, 2026
 **Status**: SHIPPED in preview. All audits green (**252 passed, 1 expected skip**). **Awaiting your redeploy + production verification.**
 

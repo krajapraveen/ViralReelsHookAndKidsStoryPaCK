@@ -21,6 +21,7 @@ BOUNDARY_AUDIT_SUITES := \
 	backend/tests/test_bug_class_elimination_mandate_2026_05.py \
 	backend/tests/test_reaction_gif_connection_loss_2026_05.py \
 	backend/tests/test_reaction_gif_false_success_2026_05.py \
+	backend/tests/test_reaction_gif_honest_progress_2026_05.py \
 	backend/tests/test_p2c_event_trap_2026_05.py \
 	backend/tests/test_p2c_style_validation_safety_net_2026_05.py \
 	backend/tests/test_p2c_object_state_hotfix_2026_05.py \

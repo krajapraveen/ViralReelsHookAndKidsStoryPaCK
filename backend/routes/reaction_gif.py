@@ -361,40 +361,100 @@ async def process_reaction_gif(
     pack_reactions: List[str], style: str, hd_quality: bool,
     transparent_bg: bool, caption: str, user_id: str, cost: int, user_plan: str
 ):
-    """Background task to generate reaction GIF"""
-    try:
+    """Background task to generate reaction GIF."""
+    # ─── P1 2026-05-22 — Honest stage progress (no fake 90% park).
+    # Each stage writes its own progressMessage + bumps progress
+    # monotonically so the frontend bar actually moves. Stage
+    # timestamps are persisted to `stages` for ops visibility.
+    import time as _time
+    stage_log: list[dict] = []
+
+    async def _stage(progress: int, message: str, stage: str) -> None:
+        ts = datetime.now(timezone.utc).isoformat()
+        stage_log.append({"stage": stage, "progress": progress, "ts": ts, "message": message})
         await db.reaction_gif_jobs.update_one(
             {"id": job_id},
-            {"$set": {"status": "PROCESSING", "progress": 10, "progressMessage": "Processing photo..."}}
+            {"$set": {
+                "status": "PROCESSING",
+                "progress": progress,
+                "progressMessage": message,
+                "stage": stage,
+                "stages": stage_log[-12:],  # keep a small ring
+                "updatedAt": ts,
+            }}
         )
-        
+
+    try:
+        t0 = _time.monotonic()
+        await _stage(5, "Validating photo…", "validate")
+
+        # ─── P1 2026-05-22 — Source image downscale (real speed win).
+        # Phone uploads are often 3000–4000 px wide; Gemini latency
+        # scales with input size. Downscale to 1024px longest side
+        # before the LLM call. Bytes-in, bytes-out — no extra disk
+        # round-trip. If PIL fails, we fall through with the raw
+        # bytes (safety > speed).
+        try:
+            from PIL import Image as _PILImage
+            import io as _io
+            img = _PILImage.open(_io.BytesIO(photo_content))
+            w, h = img.size
+            longest = max(w, h)
+            DOWNSCALE_TARGET = 1024
+            if longest > DOWNSCALE_TARGET:
+                ratio = DOWNSCALE_TARGET / float(longest)
+                new_size = (int(w * ratio), int(h * ratio))
+                img = img.convert("RGB") if img.mode in ("RGBA", "P", "LA") else img
+                buf = _io.BytesIO()
+                img.resize(new_size, _PILImage.Resampling.LANCZOS).save(
+                    buf, format="JPEG", quality=88, optimize=True
+                )
+                photo_content = buf.getvalue()
+                logger.info(
+                    "[REACTION_GIF] downscaled source job=%s from=%dx%d to=%dx%d "
+                    "bytes_out=%d", job_id, w, h, new_size[0], new_size[1], len(photo_content),
+                )
+        except Exception:  # noqa: BLE001
+            logger.exception("[REACTION_GIF] source downscale failed — using raw bytes")
+
+        await _stage(15, "Preparing your reaction…", "prepare")
+
         results = []
         real_results = []  # Track only successfully generated images
         style_info = GIF_STYLES.get(style, GIF_STYLES["cartoon_motion"])
         negative_prompt = get_negative_prompt()
-        
+
         # Determine reactions to generate
         reactions_to_generate = [reaction] if mode == "single" else pack_reactions
         total_reactions = len(reactions_to_generate)
         generation_errors = []
-        
+
         if LLM_AVAILABLE and EMERGENT_LLM_KEY:
             from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
-            
+
             photo_b64 = base64.b64encode(photo_content).decode('utf-8')
-            
+
             for i, react in enumerate(reactions_to_generate):
                 reaction_info = REACTION_TYPES.get(react, REACTION_TYPES["happy"])
-                
-                progress = 10 + int(((i + 1) / total_reactions) * 80)
-                await db.reaction_gif_jobs.update_one(
-                    {"id": job_id},
-                    {"$set": {
-                        "progress": progress,
-                        "progressMessage": f"Creating {reaction_info['emoji']} reaction..."
-                    }}
+
+                # ─── Honest stage progress for the LLM call itself.
+                # We deliberately move BEFORE the call (so the bar moves
+                # as soon as we leave "preparing") and AGAIN after the
+                # call returns (so the user sees the encode/verify
+                # phase begin). For multi-reaction packs the per-item
+                # progress is interpolated within the 30→75 band.
+                if total_reactions == 1:
+                    pre_pct, post_pct = 30, 75
+                else:
+                    span = 45  # 30..75
+                    pre_pct = 30 + int((i / total_reactions) * span)
+                    post_pct = 30 + int(((i + 1) / total_reactions) * span)
+                await _stage(
+                    pre_pct,
+                    f"Generating frames {reaction_info['emoji']}…",
+                    "generate",
                 )
-                
+
                 try:
                     image_bytes = None
                     max_retries = 3
@@ -453,6 +513,15 @@ AVOID: {negative_prompt}"""
                                 await asyncio.sleep(2 * (attempt + 1))  # Exponential backoff: 2s, 4s
                     
                     if image_bytes:
+                        # ─── P1 2026-05-22 — Post-LLM honest stage.
+                        # Bar moves to "encoding" the moment the LLM
+                        # returns, so the user never sees a long 30%
+                        # hang during watermark + disk write + verify.
+                        await _stage(
+                            post_pct,
+                            f"Encoding {reaction_info['emoji']} reaction…",
+                            "encode",
+                        )
                         # Apply watermark for free users
                         if should_apply_watermark({"plan": user_plan}):
                             config = get_watermark_config("GIF")
@@ -471,6 +540,9 @@ AVOID: {negative_prompt}"""
                         os.makedirs(os.path.dirname(filepath), exist_ok=True)
                         with open(filepath, 'wb') as f:
                             f.write(image_bytes)
+
+                        # ─── P1 2026-05-22 — Verifying-media stage.
+                        await _stage(90, "Verifying media…", "verify")
 
                         # ─── P0 2026-05-22 — Asset verification gate.
                         # Do NOT enqueue this URL into real_results unless
@@ -569,9 +641,16 @@ AVOID: {negative_prompt}"""
 
             result_url = real_results[0]["url"]
             progress_msg = (
-                "Complete!" if effective_status == "COMPLETED"
+                "Ready!" if effective_status == "COMPLETED"
                 else "Some reactions are still finishing. Partial results available."
             )
+            total_ms = int((_time.monotonic() - t0) * 1000)
+            stage_log.append({
+                "stage": "ready",
+                "progress": 100 if effective_status == "COMPLETED" else 80,
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "message": progress_msg,
+            })
 
             await db.reaction_gif_jobs.update_one(
                 {"id": job_id},
@@ -579,6 +658,9 @@ AVOID: {negative_prompt}"""
                     "status": effective_status,
                     "progress": 100 if effective_status == "COMPLETED" else 80,
                     "progressMessage": progress_msg,
+                    "stage": "ready",
+                    "stages": stage_log[-12:],
+                    "totalDurationMs": total_ms,
                     "resultUrl": result_url,
                     "results": real_results,
                     "expectedCount": expected_count,
