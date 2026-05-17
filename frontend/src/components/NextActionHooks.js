@@ -32,10 +32,15 @@ const HOOK_CONFIGS = {
     title: "Your comic is alive. Keep going.",
     subtitle: 'Add chapters, change styles, or go multi-format.',
     hooks: [
-      { id: 'next-chapter', label: 'Add Next Chapter', desc: 'Continue the adventure', icon: Play, color: 'from-blue-500 to-indigo-500', target: 'comic-storybook', modifier: 'Continue this comic story with a new exciting chapter' },
-      { id: 'remix-style', label: 'Change Art Style', desc: 'Same story, new look', icon: Palette, color: 'from-pink-500 to-rose-500', target: 'comic-storybook', modifier: 'Recreate this comic in a completely different art style' },
-      { id: 'to-video', label: 'Convert to Video', desc: 'Animate your comic', icon: Film, color: 'from-emerald-500 to-teal-500', target: 'story-video-studio', modifier: 'Turn this comic storybook into an animated story video' },
-      { id: 'to-bedtime', label: 'Make Bedtime Story', desc: 'Narrated version', icon: Mic, color: 'from-amber-500 to-orange-500', target: 'bedtime-story-builder', modifier: 'Convert this comic into a narrated bedtime story' },
+      { id: 'next-chapter', label: 'Add Next Chapter', desc: 'Continue the adventure', icon: Play, color: 'from-blue-500 to-indigo-500', target: 'comic-storybook', modifier: 'Continue this comic story with a new exciting chapter', testid: 'storybook-add-next-chapter' },
+      { id: 'remix-style', label: 'Change Art Style', desc: 'Same story, new look', icon: Palette, color: 'from-pink-500 to-rose-500', target: 'comic-storybook', modifier: 'Recreate this comic in a completely different art style', testid: 'storybook-change-art-style' },
+      { id: 'to-video', label: 'Convert to Video', desc: 'Animate your comic', icon: Film, color: 'from-emerald-500 to-teal-500', target: 'story-video-studio', modifier: 'Turn this comic storybook into an animated story video', testid: 'storybook-convert-video' },
+      // P0 2026-05-19 — Bedtime Story Builder destination does NOT
+      // consume remix_data yet. Per founder spec: "If feature is not
+      // implemented, do NOT show it as active. Disable it or show
+      // 'Coming soon'." Card is rendered disabled with a Coming Soon
+      // badge until the destination is wired.
+      { id: 'to-bedtime', label: 'Make Bedtime Story', desc: 'Narrated version', icon: Mic, color: 'from-amber-500 to-orange-500', target: 'bedtime-story-builder', modifier: 'Convert this comic into a narrated bedtime story', testid: 'storybook-bedtime-story', comingSoon: true },
     ],
   },
   'bedtime-story-builder': {
@@ -100,25 +105,43 @@ export default function NextActionHooks({ toolType, prompt = '', settings = {}, 
   if (!config) return null;
 
   const handleHook = (hook) => {
+    // P0 2026-05-19 — Coming-soon cards must NEVER navigate. Render
+    // them disabled instead. This is the founder-mandate fix for "dead
+    // buttons / fake product promises".
+    if (hook.comingSoon) {
+      toast.info(`${hook.label} — Coming soon`);
+      return;
+    }
     const route = TOOL_ROUTES[hook.target] || `/app/${hook.target}`;
     const finalPrompt = hook.modifier ? `${prompt}. ${hook.modifier}` : prompt;
 
-    // Store remix context for the target tool
+    // Store remix context for the target tool.
+    // P0 2026-05-19 — Carry `source_job_id` so the destination can
+    // fetch source comic context (page URLs, title, story text, etc.)
+    // when needed.
     const stateData = {
       prompt: finalPrompt,
       timestamp: Date.now(),
       source_tool: toolType,
+      source_job_id: generationId,
       remixFrom: {
         tool: toolType,
         prompt,
         settings,
         title,
         parentId: generationId,
+        source_job_id: generationId,
       },
     };
     localStorage.setItem('remix_data', JSON.stringify(stateData));
 
     navigate(route, { state: stateData });
+    // Same-tool remix (e.g. Add Next Chapter on comic-storybook) needs
+    // an explicit scroll-to-top so the user lands on Step 1, not
+    // mid-page where they were.
+    if (hook.target === toolType) {
+      setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 50);
+    }
     toast.success(`Creating: ${hook.label}...`);
   };
 
@@ -139,18 +162,33 @@ export default function NextActionHooks({ toolType, prompt = '', settings = {}, 
           <button
             key={hook.id}
             onClick={() => handleHook(hook)}
-            className="group relative rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] p-4 text-left transition-all duration-200 hover:scale-[1.02] hover:border-white/[0.12]"
-            data-testid={`hook-${hook.id}`}
+            disabled={hook.comingSoon === true}
+            className={`group relative rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 text-left transition-all duration-200 ${
+              hook.comingSoon
+                ? 'opacity-50 cursor-not-allowed'
+                : 'hover:bg-white/[0.05] hover:scale-[1.02] hover:border-white/[0.12]'
+            }`}
+            data-testid={hook.testid || `hook-${hook.id}`}
+            aria-disabled={hook.comingSoon === true}
           >
             {/* Gradient accent bar */}
-            <div className={`absolute top-0 left-0 right-0 h-[2px] rounded-t-xl bg-gradient-to-r ${hook.color} opacity-40 group-hover:opacity-100 transition-opacity`} />
+            <div className={`absolute top-0 left-0 right-0 h-[2px] rounded-t-xl bg-gradient-to-r ${hook.color} opacity-40 ${hook.comingSoon ? '' : 'group-hover:opacity-100'} transition-opacity`} />
 
             <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${hook.color} flex items-center justify-center mb-3 shadow-lg`}>
               <hook.icon className="w-4 h-4 text-white" />
             </div>
             <p className="text-sm font-semibold text-white group-hover:text-white/90 mb-0.5">{hook.label}</p>
             <p className="text-[11px] text-slate-500 group-hover:text-slate-400">{hook.desc}</p>
-            <ArrowRight className="absolute top-4 right-4 w-4 h-4 text-white/0 group-hover:text-white/40 transition-all" />
+            {hook.comingSoon ? (
+              <span
+                className="absolute top-3 right-3 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-300"
+                data-testid={`${hook.testid || hook.id}-coming-soon`}
+              >
+                Coming soon
+              </span>
+            ) : (
+              <ArrowRight className="absolute top-4 right-4 w-4 h-4 text-white/0 group-hover:text-white/40 transition-all" />
+            )}
           </button>
         ))}
       </div>
