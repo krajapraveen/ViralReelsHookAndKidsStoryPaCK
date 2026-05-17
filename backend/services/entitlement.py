@@ -152,20 +152,26 @@ def entitlement_snapshot(user: Optional[dict]) -> dict:
 def resolve_entitlements(user: dict) -> dict:
     """
     Compute user entitlements from subscription state.
-    
+
     Business rules:
     - Free users: preview only, watermark required, no download
-    - Active paid subscribers: preview + download
+    - Active paid subscribers (starter / creator / pro / studio / premium): preview + download
     - Active paid + top-ups: preview + download, extra credits
-    - Top-up alone WITHOUT active subscription does NOT unlock download
+    - Top-up alone WITHOUT active subscription does NOT unlock generic Story Engine download
+      (per-job credit-paid deliverables like Comic Story Book have their OWN ownership
+       gate; this resolver covers the generic Story Engine media entitlement)
+    - Unlimited users (admin / owner / dev / qa / test / is_unlimited flag): full access
     """
-    plan_type = user.get("plan_type", "free")
+    plan_type = user.get("plan_type") or user.get("plan") or "free"
     sub_status = user.get("subscription_status", "inactive")
     expires_at = user.get("subscription_expires_at")
-    role = (user.get("role") or "").upper()
 
-    # Admin override — full access
-    if role in ("ADMIN", "SUPERADMIN"):
+    # P0 2026-05-19 — Unlimited bypass (admin / owner / dev / qa / test /
+    # is_unlimited flag). Previously this resolver only honored role ==
+    # ADMIN / SUPERADMIN and disagreed with `is_unlimited_user()` —
+    # producing the production "Upgrade to Download" trap for admin/QA
+    # users on their own completed deliverables.
+    if is_unlimited_user(user):
         return {
             "can_preview": True,
             "can_download": True,
@@ -177,9 +183,14 @@ def resolve_entitlements(user: dict) -> dict:
             "subscription_active": True,
         }
 
+    # P0 2026-05-19 — Eligible paid plans now aligned with the canonical
+    # `_PREMIUM_PLANS` set so creator / studio users (who DO pay
+    # recurring) aren't blocked from downloading their own assets.
+    eligible_plans = _PREMIUM_PLANS  # {"creator", "pro", "studio", "starter", "premium"}
+
     # Check if subscription is currently active
     subscription_active = False
-    if sub_status == "active" and plan_type in ("starter", "pro", "premium"):
+    if sub_status == "active" and plan_type in eligible_plans:
         # Check expiry
         if expires_at:
             try:
@@ -199,7 +210,7 @@ def resolve_entitlements(user: dict) -> dict:
         subscription_active = True
 
     # Compute entitlements
-    can_download = subscription_active and plan_type in ("starter", "pro", "premium")
+    can_download = subscription_active and plan_type in eligible_plans
 
     return {
         "can_preview": True,

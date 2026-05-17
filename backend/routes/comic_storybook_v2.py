@@ -954,44 +954,81 @@ async def stage_image_generation(job_id, panel_prompts, genre, title, user_plan,
     if LLM_AVAILABLE and EMERGENT_LLM_KEY:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
 
-        for i, panel in enumerate(panel_prompts):
+        # P0 2026-05-19 — PARALLELIZE per-page image generation with
+        # bounded concurrency. Previously the loop ran strictly serial,
+        # making a 30-page comic ~15-25s × 30 = 7.5-12.5 minutes JUST
+        # in this stage (matching the production 9m 19s report).
+        #
+        # Concurrency cap by tier:
+        #   free/anonymous : 3 (gentle on API quota)
+        #   starter/creator: 4
+        #   pro/studio/premium/unlimited: 6
+        # Each page is independent — no cross-page dependency exists in
+        # this pipeline. The per-page retry budget is preserved.
+        plan_lower = (user_plan or "free").lower()
+        if plan_lower in ("pro", "studio", "premium", "unlimited"):
+            max_concurrent = 6
+        elif plan_lower in ("starter", "creator"):
+            max_concurrent = 4
+        else:
+            max_concurrent = 3
+
+        # Progress accounting needs to be thread-safe vs concurrent tasks.
+        completed_count = {"n": 0}
+        completed_lock = asyncio.Lock()
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        async def _generate_one_panel(panel: dict):
             page_num = panel["page_number"]
-            detail_msg = f"page {page_num}/{page_count}"
-            await update_stage(job_id, stage, "running", detail=detail_msg)
+            async with semaphore:
+                success = False
+                img_bytes = None
+                for attempt in range(max_retries):
+                    try:
+                        chat = LlmChat(
+                            api_key=EMERGENT_LLM_KEY,
+                            session_id=f"comic-img-{job_id}-p{page_num}-a{attempt}",
+                            system_message="Comic book illustrator. Create original art only."
+                        )
+                        chat.with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
 
-            success = False
-            for attempt in range(max_retries):  # Tier-aware retry count
-                try:
-                    chat = LlmChat(
-                        api_key=EMERGENT_LLM_KEY,
-                        session_id=f"comic-img-{job_id}-p{page_num}-a{attempt}",
-                        system_message="Comic book illustrator. Create original art only."
-                    )
-                    chat.with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
+                        _, images = await chat.send_message_multimodal_response(UserMessage(text=panel["prompt"]))
 
-                    _, images = await chat.send_message_multimodal_response(UserMessage(text=panel["prompt"]))
+                        if images and len(images) > 0:
+                            raw = base64.b64decode(images[0]['data'])
 
-                    if images and len(images) > 0:
-                        img_bytes = base64.b64decode(images[0]['data'])
+                            # Watermark for free users
+                            if should_apply_watermark({"plan": user_plan}):
+                                config = get_watermark_config("STORYBOOK")
+                                raw = add_diagonal_watermark(raw, text=config["text"], opacity=config["opacity"], font_size=config["font_size"], spacing=config["spacing"])
 
-                        # Watermark for free users
-                        if should_apply_watermark({"plan": user_plan}):
-                            config = get_watermark_config("STORYBOOK")
-                            img_bytes = add_diagonal_watermark(img_bytes, text=config["text"], opacity=config["opacity"], font_size=config["font_size"], spacing=config["spacing"])
+                            img_bytes = raw
+                            success = True
+                            logger.info(f"[COMIC] Page {page_num} generated (attempt {attempt+1})")
+                            break
 
-                        results[page_num] = img_bytes
-                        success = True
-                        logger.info(f"[COMIC] Page {page_num} generated (attempt {attempt+1})")
-                        break
+                    except Exception as e:
+                        logger.warning(f"[COMIC] Page {page_num} attempt {attempt+1} failed: {e}")
+                        await asyncio.sleep(1)
 
-                except Exception as e:
-                    logger.warning(f"[COMIC] Page {page_num} attempt {attempt+1} failed: {e}")
-                    await asyncio.sleep(1)
+                # Update completed counter + stage detail under lock so the
+                # progress message is monotonically increasing even with
+                # parallel tasks.
+                async with completed_lock:
+                    completed_count["n"] += 1
+                    detail_msg = f"page {completed_count['n']}/{page_count}"
+                # Outside the lock — DB write doesn't need atomicity here.
+                await update_stage(job_id, stage, "running", detail=detail_msg)
+                return page_num, img_bytes if success else None
 
-            if not success:
+        gathered = await asyncio.gather(
+            *(_generate_one_panel(panel) for panel in panel_prompts),
+            return_exceptions=False,
+        )
+        for page_num, val in gathered:
+            results[page_num] = val
+            if val is None:
                 failed_pages.append(page_num)
-                # Generate a text-based placeholder
-                results[page_num] = None
     else:
         for panel in panel_prompts:
             results[panel["page_number"]] = None
@@ -1186,15 +1223,38 @@ async def stage_storage_upload(job_id, export_data, user_id):
             pass
 
     # Upload individual page images
-    for i, page_bytes in enumerate(export_data.get("page_images", [])):
-        if page_bytes:
-            try:
-                from services.cloudflare_r2_storage import upload_image_bytes
-                ok, url = await upload_image_bytes(page_bytes, f"page_{job_id[:8]}_{i+1}.png", project)
-                if ok and url:
-                    uploaded["page_urls"].append({"page": i + 1, "url": url})
-            except Exception:
-                pass
+    # P0 2026-05-19 — PARALLELIZE page-image R2 uploads. Was a strictly
+    # serial for-loop; for a 30-page comic with ~500ms-2s per upload
+    # this added 15-60s to the pipeline. Pages are independent; cap
+    # concurrency to keep R2 happy.
+    page_bytes_list = export_data.get("page_images", [])
+    if page_bytes_list:
+        page_sem = asyncio.Semaphore(6)
+        from services.cloudflare_r2_storage import upload_image_bytes
+
+        async def _upload_one_page(idx: int, page_bytes):
+            if not page_bytes:
+                return None
+            async with page_sem:
+                try:
+                    ok, url = await upload_image_bytes(
+                        page_bytes, f"page_{job_id[:8]}_{idx+1}.png", project
+                    )
+                    if ok and url:
+                        return {"page": idx + 1, "url": url}
+                except Exception:
+                    pass
+                return None
+
+        upload_results = await asyncio.gather(
+            *(_upload_one_page(i, pb) for i, pb in enumerate(page_bytes_list)),
+            return_exceptions=False,
+        )
+        for r in upload_results:
+            if r:
+                uploaded["page_urls"].append(r)
+        # Stable page order even though uploads completed out of order.
+        uploaded["page_urls"].sort(key=lambda x: x["page"])
 
     # Validate uploads: at minimum PDF must be uploaded
     if not uploaded["pdf_url"]:
@@ -1307,11 +1367,22 @@ async def stage_asset_registration(job_id, uploaded_assets, user_id, title, genr
 # ── JOB STATUS + DOWNLOAD ENDPOINTS ──────────────────────────────────────
 
 @router.get("/job/{job_id}")
-async def get_job_status(job_id: str, user: dict = Depends(get_current_user)):
-    """Get job status with stage progress and presigned URLs."""
+async def get_job_status(
+    job_id: str,
+    http_request: Request,
+    user: dict = Depends(get_current_user),
+):
+    """Get job status with stage progress, presigned URLs, and per-job entitlement block."""
+    from middleware.reliability import get_request_id
+    rid = get_request_id(http_request)
     job = await db.comic_storybook_v2_jobs.find_one({"id": job_id, "userId": user["id"]}, {"_id": 0})
     if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+        raise HTTPException(status_code=404, detail={
+            "code": "JOB_NOT_FOUND",
+            "message": "Comic Story Book job not found.",
+            "request_id": rid,
+            "retryable": False,
+        })
 
     # Presign CDN URLs for completed jobs
     if job.get("status") == "COMPLETED":
@@ -1330,6 +1401,45 @@ async def get_job_status(job_id: str, user: dict = Depends(get_current_user)):
     # Get stage details
     stages = await db.job_stage_runs.find({"job_id": job_id}, {"_id": 0}).to_list(20)
     job["stages"] = stages
+
+    # P0 2026-05-19 — Per-job entitlement block. Comic Story Book is a
+    # CREDIT-PAID, per-job deliverable: the user spent credits at submit
+    # time (see deduct_credits after final assembly), so a COMPLETED job
+    # they own IS a paid asset. Withholding the download after debiting
+    # credits is bait-and-switch. The global media entitlement gate
+    # (which assumes a streaming-subscription model) is the WRONG gate
+    # for this asset class — the frontend must consult THIS block.
+    from services.entitlement import is_unlimited_user
+    is_completed = job.get("status") in ("COMPLETED", "PARTIAL_COMPLETE")
+    owns_job = job.get("userId") == user["id"]
+    paid_via_credits = bool(job.get("cost") or job.get("creditsSpent") or job.get("purchased"))
+    unlimited = is_unlimited_user(user)
+    plan_lower = (user.get("plan") or user.get("plan_type") or "free").lower()
+    paid_plan = plan_lower not in ("free", "", "none")
+
+    can_download = is_completed and owns_job and (
+        unlimited or paid_plan or paid_via_credits
+    )
+    if can_download:
+        reason = "unlimited" if unlimited else ("active_subscription" if paid_plan else "paid_via_credits")
+    elif not is_completed:
+        reason = "not_completed"
+    elif not owns_job:
+        reason = "not_owner"
+    else:
+        reason = "no_entitlement"
+
+    job["entitlement"] = {
+        "can_download": can_download,
+        "upgrade_required": not can_download and is_completed and owns_job,
+        "reason": reason,
+        "subscription_status": user.get("subscription_status", "inactive"),
+        "plan_type": plan_lower,
+        "credits_available": int(user.get("credits", 0) or 0),
+        "required_credits": int(job.get("cost", 0) or 0),
+        "is_unlimited": unlimited,
+        "request_id": rid,
+    }
 
     return job
 

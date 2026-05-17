@@ -5,7 +5,7 @@ import {
   Check, CheckCircle, AlertTriangle, Shield, Sparkles, Crown, Eye,
   Palette, FileText, Star, Zap, Heart, Ghost, Rocket, Search, Smile,
   Globe, Users, BookMarked, Image, Package, Printer, FileArchive,
-  Lightbulb, Save, RotateCcw, Layers, Clock,
+  Lightbulb, Save, RotateCcw, Layers, Clock, Lock,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -834,6 +834,21 @@ export default function ComicStorybookBuilder() {
     setJob(null);
     setGenerationStartTime(Date.now());
 
+    // P0 2026-05-19 — Optimistic progress UI BEFORE the POST returns.
+    // Previously the right column kept rendering the "Preview" section
+    // until /generate responded with a jobId. On slow admission paths
+    // (multiple DB checks before insert) the user saw a brief blank
+    // / static page before the "Generation Progress" UI swapped in.
+    // We now flip the `job` state immediately to a starting placeholder
+    // so the progress card renders within a frame of the click.
+    setJob({
+      id: 'pending',  // sentinel — real jobId replaces this when POST returns
+      status: 'QUEUED',
+      progress: 0,
+      progressMessage: 'Starting your comic book…',
+      _optimistic: true,
+    });
+
     try {
       const res = await api.post('/api/comic-storybook-v2/generate', {
         genre: selectedGenre,
@@ -867,6 +882,9 @@ export default function ComicStorybookBuilder() {
     } catch (e) {
       // P0 2026-05-19 — Honest error surface with mandatory Reference ID.
       // No more "Your comic is already generating" dead toast.
+      // Clear the optimistic-progress placeholder so the user isn't
+      // left staring at a fake progress screen after a real failure.
+      const clearOptimistic = () => setJob((curr) => (curr?._optimistic ? null : curr));
       const status = e?.response?.status || 0;
       const data = e?.response?.data;
       const detail = (data && typeof data.detail === 'object' && !Array.isArray(data.detail))
@@ -898,6 +916,7 @@ export default function ComicStorybookBuilder() {
         const friendly = detail?.message || 'A previous attempt is still being released. Please try again in ~30 seconds.';
         toast.error(rid ? `${friendly}\nReference ID: ${rid}` : `${friendly}\nReference ID: not-captured (please retry; if persistent, contact support)`);
         setLoading(false);
+        clearOptimistic();
         return;
       }
 
@@ -915,6 +934,7 @@ export default function ComicStorybookBuilder() {
         const friendly = codeMap[detail.code] || detail.message || 'Generation failed';
         toast.error(rid ? `${friendly}\nReference ID: ${rid}` : `${friendly}\nReference ID: not-captured`);
         setLoading(false);
+        clearOptimistic();
         return;
       }
 
@@ -922,6 +942,7 @@ export default function ComicStorybookBuilder() {
       if (status === 0) {
         toast.error('Network error — check your connection and try again.\nReference ID: not-captured (request never reached the server)');
         setLoading(false);
+        clearOptimistic();
         return;
       }
 
@@ -929,6 +950,7 @@ export default function ComicStorybookBuilder() {
       const fallback = (typeof data?.detail === 'string' ? data.detail : null) || `Generation failed (HTTP ${status}). Please try again.`;
       toast.error(rid ? `${fallback}\nReference ID: ${rid}` : `${fallback}\nReference ID: not-captured (HTTP ${status})`);
       setLoading(false);
+      clearOptimistic();
     } finally {
       // Always release the synchronous re-entrancy guard — both on
       // success (the polling loop now owns the lifecycle) and on every
@@ -1884,15 +1906,35 @@ export default function ComicStorybookBuilder() {
                         </div>
                       </div>
                     )}
-                    {/* PDF Download */}
+                    {/* PDF Download — P0 2026-05-19.
+                        Replaced the generic <DownloadWithExpiry> wrapper
+                        with the per-job entitlement-aware button. Comic
+                        Story Book is a CREDIT-PAID, per-job deliverable
+                        (credits were debited at generation submit), so
+                        a COMPLETED job the user owns IS a paid asset.
+                        The generic media entitlement gate (streaming-
+                        subscription model) was the wrong gate and
+                        produced the production "Upgrade to Download"
+                        trap shown in the screenshot. The button now
+                        consults `job.entitlement.can_download` returned
+                        from /job/{id} or falls back to the per-job
+                        ownership signals already on the job. */}
                     {job.pdfUrl && (
-                      <DownloadWithExpiry
-                        downloadUrl={job.pdfUrl}
-                        filename={`comic_storybook_${job.id.slice(0, 8)}.pdf`}
-                        fileType="application/pdf"
-                        isPremium={userPlan !== 'free'}
-                        contentType="STORYBOOK"
-                      />
+                      <Button
+                        onClick={() => handleDownload('pdf')}
+                        className={`w-full ${
+                          (job.entitlement?.can_download ?? (isUnlimitedUser || userPlan !== 'free' || job.purchased))
+                            ? 'bg-emerald-600 hover:bg-emerald-700'
+                            : 'bg-amber-600 hover:bg-amber-700'
+                        }`}
+                        data-testid="comic-pdf-download-btn"
+                      >
+                        {(job.entitlement?.can_download ?? (isUnlimitedUser || userPlan !== 'free' || job.purchased)) ? (
+                          <><Download className="w-4 h-4 mr-2" /> Download Comic Book</>
+                        ) : (
+                          <><Lock className="w-4 h-4 mr-2" /> Upgrade to Download</>
+                        )}
+                      </Button>
                     )}
 
                     {/* Cover Image Download */}
