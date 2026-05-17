@@ -60,6 +60,12 @@ import {
   comicStylesMirrorForMode,
 } from '../constants/comicStyles';
 
+// P0 2026-05-19 CASE B — bundle version. Single source of truth for
+// frontend forensics. When you fix a recurring P2C bug, bump this so
+// production logs make it crystal-clear which bundle the user is
+// actually running (catches stale Service Worker / CDN cache).
+const BUNDLE_VERSION = '2026-05-19-case-b-object-state-hardening';
+
 const GENRES = [
   { id: 'action', name: 'Action' }, { id: 'comedy', name: 'Comedy' },
   { id: 'romance', name: 'Romance' }, { id: 'adventure', name: 'Adventure' },
@@ -111,7 +117,27 @@ function PhotoToComicInner() {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [mode, setMode] = useState('avatar');
-  const [style, setStyle] = useState('cartoon_fun');
+  const [style, _setStyleRaw] = useState('cartoon_fun');
+  // P0 2026-05-19 CASE B — defensive setStyle wrapper. ANY future call
+  // site that accidentally passes an object/null/number gets coerced
+  // here before it can poison the state slot. Production was hitting
+  // the trap because somewhere in the production bundle (likely a
+  // legacy tile click handler) `setStyle(tileObject)` was firing.
+  const setStyle = useCallback((value) => {
+    if (typeof value === 'string') {
+      _setStyleRaw(value);
+      return;
+    }
+    const coerced = normalizeComicStyle(value);
+    if (coerced) {
+      // eslint-disable-next-line no-console
+      console.warn('[p2c/setStyle] coerced non-string write', { raw_type: typeof value, coerced });
+      _setStyleRaw(coerced);
+    } else {
+      // eslint-disable-next-line no-console
+      console.error('[p2c/setStyle] rejected non-string write', { raw_type: typeof value, raw_value: value });
+    }
+  }, []);
 
   // P0 2026-05-18 — Mode-aware catalog. Initial render uses the synchronous
   // hardcoded mirror for the active mode so the grid never shows empty
@@ -333,19 +359,32 @@ function PhotoToComicInner() {
       normalized: activeStyle,
       mode,
       available_keys: availableStyles.map(s => s.id),
-      bundle_version: '2026-05-19-catalog-r2',
+      bundle_version: BUNDLE_VERSION,
     });
     if (!photoFile) { toast.error('Upload a photo first'); return; }
-    if (!activeStyle) {
+    // P0 2026-05-19 CASE B — pre-submit invariant. The state slot MUST
+    // resolve to a non-empty canonical key string before we even attempt
+    // the POST. If it doesn't, log the full diagnostic and recover by
+    // re-selecting the first available style for the current mode
+    // (instead of stranding the user).
+    if (!activeStyle || typeof activeStyle !== 'string') {
       // eslint-disable-next-line no-console
-      console.error('[p2c/handleGenerate] FRONTEND_INVALID_STYLE — refusing to submit', {
-        raw: rawSelected,
+      console.error('[p2c/submit-blocked] invalid_style_state', {
         raw_type: typeof rawSelected,
-        normalized: activeStyle,
+        raw_value: rawSelected,
+        selectedStyleId: style,
         mode,
         available_keys: availableStyles.map(s => s.id),
+        bundle_version: BUNDLE_VERSION,
       });
-      toast.error(`Selected comic style is not supported. Please try another style.\nReference ID: not-captured (frontend rejected style=${typeof rawSelected === 'string' ? rawSelected.slice(0, 40) : typeof rawSelected})`);
+      // Auto-recover: pick the first FREE style for this mode so the
+      // next click works without a page reload.
+      const recovery = availableStyles.find(s => s.tier === 'free' && !isLocked(s.tier)) || availableStyles[0];
+      if (recovery && typeof recovery.id === 'string') {
+        setStyle(recovery.id);
+      }
+      const typeStr = rawSelected === null ? 'null' : (typeof rawSelected === 'object' ? 'object' : typeof rawSelected);
+      toast.error(`Selected comic style is not supported. Please try another style.\nReference ID: not-captured (frontend rejected style=${typeStr})`);
       return;
     }
     if (!canAfford) { toast.error(`Need ${cost} credits`); navigate('/app/billing'); return; }

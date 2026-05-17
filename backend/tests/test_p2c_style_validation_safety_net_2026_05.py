@@ -193,8 +193,11 @@ def test_frontend_invalid_style_toast_embeds_rejection_context():
         "Frontend INVALID_STYLE early-return toast must include the "
         "rejected style value so support can triage stale-bundle cases"
     )
-    assert "FRONTEND_INVALID_STYLE" in handler, (
-        "Frontend console.error key must be greppable"
+    # CASE B 2026-05-19: forensic console log key (renamed from
+    # FRONTEND_INVALID_STYLE to the more descriptive submit-blocked
+    # key when we added the auto-recovery branch).
+    assert "[p2c/submit-blocked] invalid_style_state" in handler, (
+        "Frontend submit-blocked log must be greppable"
     )
 
 

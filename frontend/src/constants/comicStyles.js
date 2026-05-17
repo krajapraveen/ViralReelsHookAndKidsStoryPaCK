@@ -67,8 +67,49 @@ export function normalizeComicStyle(input) {
     const byLabel = STYLE_KEY_BY_LABEL.get(t.toLowerCase());
     return byLabel || null;
   }
-  if (typeof input === 'object' && typeof input.key === 'string') {
-    return STYLE_KEYS.has(input.key) ? input.key : null;
+  // P0 2026-05-19 — CASE B production hotfix. The previous object branch
+  // ONLY looked at `input.key`. Production was holding tile objects
+  // shaped `{ id, name, color, tier }` (no `key` field), which silently
+  // rejected and produced the toast "frontend rejected style=object".
+  // We now extract from the canonical id field-name set (key / id /
+  // value / slug / apiValue / style) AND retry the case-insensitive
+  // label map against `name` / `label` so even legacy tile objects
+  // coerce cleanly.
+  if (typeof input === 'object') {
+    const idCandidates = ['key', 'id', 'value', 'slug', 'apiValue', 'style'];
+    for (const f of idCandidates) {
+      const v = input[f];
+      if (typeof v === 'string' && v.trim()) {
+        const t = v.trim();
+        if (STYLE_KEYS.has(t)) {
+          // eslint-disable-next-line no-console
+          console.info('[p2c/style-normalize] OBJECT_FALLBACK received=object', { extracted_from: f, key: t });
+          return t;
+        }
+        // Try label coercion (catches `{id: 'Cartoon'}` shaped objects).
+        const byLabel = STYLE_KEY_BY_LABEL.get(t.toLowerCase());
+        if (byLabel) {
+          // eslint-disable-next-line no-console
+          console.info('[p2c/style-normalize] OBJECT_FALLBACK received=object', { extracted_from: f, label: t, key: byLabel });
+          return byLabel;
+        }
+      }
+    }
+    // Last-ditch: try `name` / `label` against the label map.
+    for (const f of ['name', 'label']) {
+      const v = input[f];
+      if (typeof v === 'string') {
+        const byLabel = STYLE_KEY_BY_LABEL.get(v.trim().toLowerCase());
+        if (byLabel) {
+          // eslint-disable-next-line no-console
+          console.info('[p2c/style-normalize] OBJECT_FALLBACK received=object', { extracted_from: f, label: v, key: byLabel });
+          return byLabel;
+        }
+      }
+    }
+    // eslint-disable-next-line no-console
+    console.warn('[p2c/style-normalize] OBJECT_REJECTED no id/label match', { keys: Object.keys(input).slice(0, 10) });
+    return null;
   }
   return null;
 }
