@@ -250,6 +250,23 @@ function App() {
     setLoading(false);
     // P0 activation sentinel — global error & UX failure detector
     try { initActivationSentinel(); } catch (_) { /* never block app boot */ }
+    // P0 2026-05-22 Phase A — Attribution capture on first page load.
+    // Captures gclid/gbraid/wbraid/fbclid/utm_* from the URL, persists
+    // for 90 days, and best-effort POSTs to the backend so the
+    // cashfree webhook can stamp the order at payment time. Wrapped
+    // in try/catch — attribution must NEVER block app boot.
+    try {
+      // Lazy imports so missing modules cannot break the bundle.
+      // eslint-disable-next-line global-require
+      const { captureAttribution, syncAttributionToBackend } = require('./utils/attribution');
+      // eslint-disable-next-line global-require
+      const { configureGoogleAdsTag } = require('./utils/googleAdsConversions');
+      // eslint-disable-next-line global-require
+      const api = require('./utils/api').default;
+      captureAttribution();
+      syncAttributionToBackend(api);
+      configureGoogleAdsTag();
+    } catch (_) { /* never block app boot */ }
   }, []);
 
   if (loading) {

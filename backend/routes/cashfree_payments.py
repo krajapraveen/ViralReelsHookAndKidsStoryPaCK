@@ -617,6 +617,19 @@ async def cashfree_webhook(request: Request):
                         final_status = "CREDIT_APPLIED"
                     
                     # Update order
+                    # ─── P0 2026-05-22 Phase A — Conversion truth.
+                    # Stamp `webhook_confirmed=True` so the frontend
+                    # conversion-status endpoint can gate the gtag
+                    # purchase fire on real webhook truth (not the
+                    # legacy frontend-optimistic path). Also copy the
+                    # paid-click attribution from the user's most
+                    # recent capture so the conversion has full
+                    # source_platform context.
+                    try:
+                        from routes.attribution import get_attribution_for_user
+                        attr = await get_attribution_for_user(order["userId"])
+                    except Exception:  # noqa: BLE001
+                        attr = {}
                     await db.orders.update_one(
                         {"order_id": order_id},
                         {
@@ -624,7 +637,21 @@ async def cashfree_webhook(request: Request):
                                 "status": final_status,
                                 "paidAt": now_iso,
                                 "entitlementApplied": True,
-                            }
+                                "webhook_confirmed": True,
+                                "webhook_confirmed_at": now_iso,
+                                "source_platform": attr.get("source_platform") or order.get("source_platform") or "direct",
+                                "attribution_snapshot": {
+                                    k: attr.get(k) for k in (
+                                        "gclid", "gbraid", "wbraid", "fbclid",
+                                        "utm_source", "utm_medium", "utm_campaign",
+                                        "utm_content", "utm_term",
+                                    ) if attr.get(k)
+                                },
+                            },
+                            # Defensive: ensure conversion_fired exists
+                            # so the predicate in conversion-acknowledged
+                            # matches cleanly.
+                            "$setOnInsert": {"conversion_fired": False},
                         }
                     )
                     

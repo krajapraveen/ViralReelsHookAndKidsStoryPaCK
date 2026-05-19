@@ -251,12 +251,20 @@ export default function Signup({ setAuth }) {
       // Track signup in Google Analytics
       analytics.trackSignup('email');
       analytics.setUserId(response.data.user?.id);
-      
+
       // Track funnel step - Signup complete
       analytics.trackFunnelStep('signup_complete', { method: 'email' });
       const userId = response.data.user?.id;
       localStorage.setItem('user_id', userId || '');
       trackSignupCompleted({ source_page: '/signup', meta: { method: 'email' } });
+      // ─── P0 2026-05-22 Phase A — Google Ads signup conversion.
+      // Server-confirmed (the API just returned a token), deduped by
+      // user_id via localStorage so refresh/retry cannot double-fire.
+      try {
+        // eslint-disable-next-line global-require
+        const { fireSignupConversion } = require('../utils/googleAdsConversions');
+        if (userId) fireSignupConversion(userId);
+      } catch (_) { /* never block signup */ }
       // Link anonymous session events to this new user
       if (userId) linkSessionToUser(userId);
 
@@ -351,6 +359,12 @@ export default function Signup({ setAuth }) {
         linkSessionToUser(user.id);
         trackSignupCompleted(user.id, 'google');
         trackConversion('signup_google');
+        // ─── P0 2026-05-22 Phase A — Google Ads signup conversion (google path).
+        try {
+          // eslint-disable-next-line global-require
+          const { fireSignupConversion } = require('../utils/googleAdsConversions');
+          if (user.id) fireSignupConversion(user.id);
+        } catch (_) { /* never block signup */ }
       }
       setAuth(true);
       const firstName = user?.name?.split(' ')[0] || 'there';

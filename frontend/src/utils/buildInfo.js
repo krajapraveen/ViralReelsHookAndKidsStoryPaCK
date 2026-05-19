@@ -15,7 +15,7 @@ const env = (typeof process !== 'undefined' && process.env) ? process.env : {};
 export const BUILD_HASH =
   env.REACT_APP_BUILD_HASH ||
   env.REACT_APP_GIT_SHA ||
-  '2026-05-22-reaction-gif-stuck-job-fix';
+  '2026-05-22-google-ads-conversion-truth';
 
 export const BUILD_TIMESTAMP =
   env.REACT_APP_BUILD_TIMESTAMP || '2026-05-22T00:00:00Z';

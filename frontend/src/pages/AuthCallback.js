@@ -50,6 +50,12 @@ export default function AuthCallback({ setAuth }) {
         analytics.trackSignup('google');
         if (user?.id) {
           analytics.setUserId(user.id);
+          // ─── P0 2026-05-22 Phase A — Google Ads signup conversion (oauth callback path).
+          try {
+            // eslint-disable-next-line global-require
+            const { fireSignupConversion } = require('../utils/googleAdsConversions');
+            fireSignupConversion(user.id);
+          } catch (_) { /* never block oauth redirect */ }
         }
 
         if (setAuth) {

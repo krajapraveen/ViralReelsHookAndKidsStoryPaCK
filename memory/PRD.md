@@ -8,6 +8,76 @@ Evolve the platform from a standard AI content generator into a highly addictive
 
 ## What's Been Implemented
 
+### P0 PHASE A — Google Ads Conversion Truth Wiring — May 22, 2026
+**Status**: SHIPPED in preview. All audits green (**307 passed, 1 expected skip**). All three new endpoints live + smoke-verified. **Awaiting your 4 env vars + redeploy.**
+
+**The BEFORE→AFTER table** (founder mandate):
+
+| Event | BEFORE | AFTER |
+|---|---|---|
+| **Google Ads tag (`AW-XXXXX`)** | ❌ Missing entirely (only GA4 `G-X4Y9E4QSF8` loaded) | ✅ `configureGoogleAdsTag()` boots on `App.js` mount; env-driven; no-op when unset |
+| **`send_to` parameter** | ❌ Never used | ✅ Every conversion fires `gtag('event', 'conversion', {send_to, transaction_id, value, currency})` |
+| **`gclid` / `gbraid` / `wbraid` / `fbclid` capture** | ❌ Never captured, never persisted, never reached backend | ✅ `captureAttribution()` parses URL on every page load, persists 90 days in localStorage, idempotently merges (never clobbers stronger signal with weaker), POSTs to `/api/attribution/capture` at most 1×/day per `anonymous_id` |
+| **`signup_completed`** | ⚠️ GA4 `sign_up` only — invisible to Google Ads | ✅ `fireSignupConversion(userId)` wired in `Signup.js` (email + google paths) and `AuthCallback.js`, fires AFTER server-confirmed signup, deduped by `userId`+label in localStorage |
+| **`first_project_created`** | ❌ Event did not exist anywhere | ✅ Server-authoritative atomic compare-and-set on `users.first_project_completed_at` via `mark_first_project_if_needed`. `GET /api/users/me/activation` returns `{fire_now: true}` exactly once. Wired into `notifyGenerationComplete` (universal chokepoint — every modality participates automatically). Verified idempotent against the test user (1st call: `fire_now=true`, 2nd call: `fire_now=false`). |
+| **`payment_success`** | ❌ Frontend-optimistic (`analytics.trackPurchase` fired immediately after `/api/cashfree/verify` returned). Tab close / redirect = lost conversion. | ✅ Webhook-confirmed handshake: Cashfree webhook sets `webhook_confirmed=true` + stamps `source_platform` + `attribution_snapshot` on the order. Frontend polls `GET /api/cashfree/conversion-status` (max 45s budget) until webhook confirms, then fires `firePurchaseConversion(orderId, value, currency)` and POSTs `/api/cashfree/conversion-acknowledged` (compound predicate: `webhook_confirmed=true AND conversion_fired ≠ true`). Survives refresh, multi-tab, redirect replay, webhook replay. |
+| **Cross-domain Cashfree attribution** | ❌ `gclid` not captured → lost on redirect → conversion has no click ID | ✅ `gclid`/`gbraid`/`wbraid`/`fbclid`/`utm_*` captured on first landing, persisted 90 days, server-stamped onto every order at webhook time via `attribution_snapshot` |
+| **`source_platform` field** | ❌ Absent | ✅ Classified server-side (`google_ads`/`meta_ads`/`referral`/`direct`) on `attribution_sessions` and copied onto every `orders` row at webhook time |
+
+**Conversion IDs / firing points (canonical)**:
+- Frontend env vars (paste your Google Ads values into `frontend/.env`):
+  - `REACT_APP_GOOGLE_ADS_CONVERSION_ID=AW-XXXXXXXXX`
+  - `REACT_APP_GOOGLE_ADS_LABEL_SIGNUP=AW-XXXXXXXXX/aaa_bbb`
+  - `REACT_APP_GOOGLE_ADS_LABEL_FIRST_PROJECT=AW-XXXXXXXXX/ccc_ddd`
+  - `REACT_APP_GOOGLE_ADS_LABEL_PURCHASE=AW-XXXXXXXXX/eee_fff`
+- Firing points:
+  - `Signup.js:259` (email signup, after server token response)
+  - `Signup.js:362` (Google direct, after `user` extracted from response)
+  - `AuthCallback.js:53` (Google OAuth callback, inside `if (user?.id)`)
+  - `NotificationContext.js:notifyGenerationComplete` (universal — every generator)
+  - `Billing.js:204` (purchase, webhook-confirmed handshake loop)
+
+**Known blind spots remaining (transparent disclosure)**:
+1. **Server-side Conversion API not implemented** — purchase still depends on the frontend tab being open after the Cashfree redirect for ~45s. If user closes the tab during the handshake poll, conversion is missed. The webhook still credits the order (no money lost) but Google Ads attribution drops. Punted to Phase C per scope rules; would require Google Ads OAuth + dev token.
+2. **GA4 ↔ Google Ads account link** — Phase A wires the *tag-level* conversion fire (which is what Google Ads scores against). Linking GA4 audiences to Google Ads (for retargeting) is a Google Ads UI action — your task, not code.
+3. **First-project metric is not retroactive** — Existing users with completed generations BUT no `first_project_completed_at` will flip on their next `notifyGenerationComplete` call. Test user already confirmed this works on first activation request.
+
+**Files changed**:
+- `backend/routes/attribution.py` (**new**) — `POST /api/attribution/capture`, idempotent merge, `_classify_source_platform`, `get_attribution_for_user` helper.
+- `backend/routes/conversions.py` (**new**) — `GET /api/users/me/activation`, `GET /api/cashfree/conversion-status`, `POST /api/cashfree/conversion-acknowledged`.
+- `backend/services/activation_truth.py` (**new**) — `GENERATION_COLLECTIONS`, `mark_first_project_if_needed` (atomic CAS), `get_activation_state`.
+- `backend/server.py` — imports + mounts both routers.
+- `backend/routes/cashfree_payments.py` — webhook stamps `webhook_confirmed`, `source_platform`, `attribution_snapshot`, initial `conversion_fired=False`.
+- `frontend/src/utils/attribution.js` (**new**) — URL parser, 90-day localStorage, anonymous-id, idempotent backend POST.
+- `frontend/src/utils/googleAdsConversions.js` (**new**) — `fireConversion` + 3 typed wrappers + boot `configureGoogleAdsTag`, env-driven, localStorage dedupe.
+- `frontend/src/App.js` — boots `captureAttribution()` + `syncAttributionToBackend()` + `configureGoogleAdsTag()`.
+- `frontend/src/contexts/NotificationContext.js` — `notifyGenerationComplete` now polls activation and fires first-project on transition.
+- `frontend/src/pages/Signup.js` — fires signup conversion (email + google direct).
+- `frontend/src/pages/AuthCallback.js` — fires signup conversion (oauth callback).
+- `frontend/src/pages/Billing.js` — legacy optimistic `analytics.trackPurchase` removed; webhook-confirmed handshake loop installed.
+- `frontend/src/utils/buildInfo.js` — build hash → `2026-05-22-google-ads-conversion-truth`.
+- `backend/tests/test_google_ads_conversion_audit_2026_05.py` (**new**) — 22 pinning tests across 4 axes (routes, idempotency, activation, frontend wiring). Registered in `make audit-boundaries`.
+
+**Live smoke evidence** (preview backend):
+
+```
+POST /api/attribution/capture { gclid:"test_gclid_xyz", utm_source:"google" }
+→ 200 { "ok": true, "source_platform": "google_ads", "request_id": "c319..." }
+
+GET /api/users/me/activation (auth: test user, 1st call)
+→ 200 { "user_id": "ea3b...", "first_project_completed_at": "2026-05-19T09:00:18Z", "fire_now": true }
+
+GET /api/users/me/activation (auth: test user, 2nd call)
+→ 200 { "user_id": "ea3b...", "first_project_completed_at": "2026-05-19T09:00:18Z", "fire_now": false }
+   ↑ atomic CAS proven idempotent
+
+GET /api/cashfree/conversion-status?order_id=nonexistent  → 404 (correct)
+```
+
+**Success-definition test**: The bug class — "Google Ads cannot see conversions because no AW-tag is firing with `send_to`, and what does fire is frontend-optimistic" — is now **impossible** as long as the env vars are populated. Phase A wiring is inert without the AW-IDs but fully wired the moment you paste them in. No code change needed to activate.
+
+---
+
 ### P0 PRODUCTION FIX — Reaction GIF stuck-job / no-output (timeouts + janitor + hard cap) — May 22, 2026
 **Status**: SHIPPED in preview. All audits green (**285 passed, 1 expected skip**). **Awaiting your redeploy + production verification.**
 

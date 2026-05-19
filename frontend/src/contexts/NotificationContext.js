@@ -232,6 +232,27 @@ export function NotificationProvider({ children }) {
 
   // Notify generation complete
   const notifyGenerationComplete = useCallback((data) => {
+    // ─── P0 2026-05-22 Phase A — First-project activation truth.
+    // Server-authoritative: poll /api/users/me/activation. If fire_now
+    // is true (single transition, idempotent across tabs/refreshes),
+    // fire the Google Ads first_project conversion exactly once.
+    //
+    // This is the universal chokepoint: every generator that calls
+    // notifyGenerationComplete (Reaction GIF, Photo-to-Comic, Story
+    // Video, YouStar, AI Studio, …) automatically participates.
+    // Wrapped in try/catch — activation truth must NEVER break the
+    // user's success UI.
+    (async () => {
+      try {
+        // eslint-disable-next-line global-require
+        const { fireFirstProjectConversion } = require('../utils/googleAdsConversions');
+        const res = await api.get('/api/users/me/activation');
+        if (res?.data?.fire_now === true) {
+          fireFirstProjectConversion(res.data.user_id || data?.userId || 'anonymous');
+        }
+      } catch (_) { /* never block success UI */ }
+    })();
+
     return addNotification({
       type: NOTIFICATION_TYPES.GENERATION_COMPLETE,
       title: `${data.featureName || 'Content'} Ready!`,

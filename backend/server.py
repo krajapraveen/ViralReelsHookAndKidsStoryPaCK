@@ -132,6 +132,11 @@ from routes.asset_access import router as asset_access_router
 from routes.system_health_api import router as system_health_router
 from routes.analytics_dashboard import router as conversion_analytics_router
 
+# P0 2026-05-22 Phase A — Google Ads conversion truth.
+# Attribution capture + activation + cashfree conversion-handshake.
+from routes.attribution import router as attribution_router
+from routes.conversions import router as conversions_router
+
 # NEW FEATURE: Instagram Bio Generator
 from routes.instagram_bio_generator import router as instagram_bio_generator_router
 
@@ -523,6 +528,10 @@ api_router.include_router(streaks_router)
 api_router.include_router(asset_access_router)
 api_router.include_router(system_health_router)
 api_router.include_router(conversion_analytics_router)
+
+# P0 2026-05-22 Phase A — Google Ads conversion truth.
+api_router.include_router(attribution_router)
+api_router.include_router(conversions_router)
 
 # Daily Report Service
 api_router.include_router(daily_report_router)

@@ -202,7 +202,41 @@ export default function Billing() {
             try {
               const verifyRes = await api.post('/api/cashfree/verify', { order_id: response.data.orderId });
               if (verifyRes.data.success) {
-                analytics.trackPurchase(response.data.orderId, item, 'INR');
+                // ─── P0 2026-05-22 Phase A — Webhook-confirmed purchase conversion.
+                // The legacy fire-from-frontend-on-verify call is GONE.
+                // We now poll /api/cashfree/conversion-status until the
+                // Cashfree webhook has set webhook_confirmed=true, then
+                // fire the Google Ads purchase conversion ONCE and
+                // immediately POST conversion-acknowledged to persist
+                // the fact. Idempotent across refresh, multi-tab,
+                // redirect replay, and webhook replay.
+                (async () => {
+                  // eslint-disable-next-line global-require
+                  const { firePurchaseConversion } = require('../utils/googleAdsConversions');
+                  const orderId = response.data.orderId;
+                  const POLL_INTERVAL_MS = 1500;
+                  const MAX_ATTEMPTS = 30; // ~45s wall-clock budget
+                  for (let i = 0; i < MAX_ATTEMPTS; i++) {
+                    try {
+                      const sr = await api.get(`/api/cashfree/conversion-status?order_id=${encodeURIComponent(orderId)}`);
+                      if (sr?.data?.webhook_confirmed && !sr.data.conversion_fired) {
+                        const fired = firePurchaseConversion(
+                          orderId,
+                          sr.data.value,
+                          sr.data.currency || 'INR',
+                        );
+                        if (fired) {
+                          try {
+                            await api.post('/api/cashfree/conversion-acknowledged', { order_id: orderId });
+                          } catch (_) { /* dedupe still works on next poll */ }
+                        }
+                        break;
+                      }
+                      if (sr?.data?.conversion_fired) break; // already done
+                    } catch (_) { /* try again next tick */ }
+                    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+                  }
+                })();
                 analytics.trackFunnelStep('purchase_complete', { 
                   order_id: response.data.orderId, 
                   product_name: productName,
