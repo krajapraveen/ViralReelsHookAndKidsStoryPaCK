@@ -26,6 +26,58 @@ from security import log_security_event, limiter
 from fastapi import Request
 from utils.retry_mechanism import with_retry, categorize_error
 from services.rewrite_engine import safe_rewrite
+from services.reliability.render_validator import (
+    validate_render, RenderValidationError,
+)
+
+
+# =============================================================================
+# P0 2026-05-23 — Silent-render bug-class elimination (genstudio video flows).
+#
+# Doctrine: /app/memory/ENGINEERING_DOCTRINE.md (Bug-Class Elimination
+# Mandate). Sora-2 occasionally returns an MP4 with no audio stream or a
+# truncated audio track; without a gate, the job is marked "completed" and
+# the user downloads a silent video. That is a trust-destroying defect.
+#
+# Contract:
+#   1. After save_video() but BEFORE the "completed" status write, every
+#      genstudio video producer calls validate_render() against the local
+#      file. Failure raises RenderValidationError (subclass of Exception)
+#      which the surrounding retry loop catches and retries.
+#   2. When all retries exhaust on a RenderValidationError, the job is
+#      marked status="failed" AND credits are refunded via
+#      _refund_genstudio_video_credits() — silent renders must NEVER cost
+#      the user money.
+# =============================================================================
+
+async def _refund_genstudio_video_credits(
+    job_id: str, user_id: str, cost: int, reason: str
+) -> None:
+    """Refund credits for a failed genstudio video job. Idempotent: the
+    refund flag on the job prevents double-credits if this is called twice.
+    NEVER raises — refund failure is logged but cannot block the failed
+    job status update."""
+    try:
+        job = await db.genstudio_jobs.find_one(
+            {"id": job_id}, {"refundedCredits": 1, "_id": 0}
+        )
+        if job and job.get("refundedCredits"):
+            logger.info(f"[GENSTUDIO_REFUND] Job {job_id} already refunded, skipping")
+            return
+        from shared import add_credits
+        await add_credits(user_id, cost, f"Refund: genstudio video render — {reason}",
+                          tx_type="REFUND", order_id=job_id)
+        await db.genstudio_jobs.update_one(
+            {"id": job_id},
+            {"$set": {
+                "refundedCredits": cost,
+                "refundReason": reason[:200],
+                "refundedAt": datetime.now(timezone.utc).isoformat(),
+            }},
+        )
+        logger.info(f"[GENSTUDIO_REFUND] Refunded {cost} credits to {user_id} for {job_id}: {reason}")
+    except Exception as exc:  # noqa: BLE001
+        logger.error(f"[GENSTUDIO_REFUND] Refund failed for {job_id}: {exc}")
 
 genstudio_router = APIRouter(prefix="/genstudio", tags=["GenStudio"])
 
@@ -444,6 +496,20 @@ async def process_text_to_video(job_id: str, data: dict, user_id: str):
         }}
     )
     
+    # P0 2026-05-23 — Auto-refund defective renders. The user paid
+    # upfront for a video; if every attempt produced a defective
+    # artifact (silent / failed validation / generation error), the
+    # credits MUST be returned. Silent renders are routed via the
+    # RENDER_INVALID category so analytics can isolate them.
+    refund_reason = (
+        f"RENDER_INVALID:{getattr(last_error, 'reason', 'unknown')}"
+        if isinstance(last_error, RenderValidationError)
+        else f"GENERATION_FAILED:{categorize_error(last_error) if last_error else 'unknown'}"
+    )
+    await _refund_genstudio_video_credits(
+        job_id, user_id, GENSTUDIO_COSTS["text_to_video"], refund_reason,
+    )
+    
     # Notify admin about repeated failures
     try:
         from routes.push_notifications import notify_generation_failure
@@ -558,6 +624,10 @@ async def _generate_image_to_video_internal(job_id: str, image_path: str, data: 
     
     video_gen.save_video(video_bytes, filepath)
     
+    # P0 2026-05-23 — Silent-render gate. Image-to-video output must
+    # contain an audio stream (Sora 2 emits AAC by default).
+    await validate_render(filepath)
+    
     return [f"/api/genstudio/download/{job_id}/{filename}"]
 
 
@@ -627,6 +697,16 @@ async def process_image_to_video(job_id: str, image_path: str, data: dict, user_
             "totalAttempts": max_retries + 1,
             "errorCategory": categorize_error(last_error) if last_error else "unknown"
         }}
+    )
+    
+    # P0 2026-05-23 — Auto-refund defective renders (silent + generic).
+    refund_reason = (
+        f"RENDER_INVALID:{getattr(last_error, 'reason', 'unknown')}"
+        if isinstance(last_error, RenderValidationError)
+        else f"GENERATION_FAILED:{categorize_error(last_error) if last_error else 'unknown'}"
+    )
+    await _refund_genstudio_video_credits(
+        job_id, user_id, GENSTUDIO_COSTS["image_to_video"], refund_reason,
     )
     
     try:
@@ -766,6 +846,10 @@ async def _generate_video_remix_internal(job_id: str, video_path: str, data: dic
     
     video_gen.save_video(video_bytes, filepath)
     
+    # P0 2026-05-23 — Silent-render gate. Remix output must contain a
+    # synced audio stream.
+    await validate_render(filepath)
+    
     return [f"/api/genstudio/download/{job_id}/{filename}"]
 
 
@@ -835,6 +919,16 @@ async def process_video_remix(job_id: str, video_path: str, data: dict, user_id:
             "totalAttempts": max_retries + 1,
             "errorCategory": categorize_error(last_error) if last_error else "unknown"
         }}
+    )
+    
+    # P0 2026-05-23 — Auto-refund defective renders (silent + generic).
+    refund_reason = (
+        f"RENDER_INVALID:{getattr(last_error, 'reason', 'unknown')}"
+        if isinstance(last_error, RenderValidationError)
+        else f"GENERATION_FAILED:{categorize_error(last_error) if last_error else 'unknown'}"
+    )
+    await _refund_genstudio_video_credits(
+        job_id, user_id, GENSTUDIO_COSTS["video_remix"], refund_reason,
     )
     
     try:

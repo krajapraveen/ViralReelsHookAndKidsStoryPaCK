@@ -31,7 +31,8 @@ BOUNDARY_AUDIT_SUITES := \
 	backend/tests/test_p2c_object_state_hotfix_2026_05.py \
 	backend/tests/test_p2c_cache_bust_2026_05.py \
 	backend/tests/test_strip_completion_invariant_2026_05.py \
-	backend/tests/test_storybook_next_action_hooks_2026_05.py
+	backend/tests/test_storybook_next_action_hooks_2026_05.py \
+	backend/tests/test_silent_render_prevention_2026_05.py
 
 PYTEST := python -m pytest
 

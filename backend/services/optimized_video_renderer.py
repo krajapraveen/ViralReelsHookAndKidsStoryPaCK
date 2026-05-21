@@ -223,6 +223,33 @@ class OptimizedVideoRenderer:
             progress.log_stage("upload_to_r2", upload_duration)
             
             # =================================================================
+            # P0 2026-05-23 — Silent-render bug-class elimination.
+            # Gate COMPLETED on ffprobe-verified video+audio integrity.
+            # Doctrine: /app/memory/ENGINEERING_DOCTRINE.md (Bug-Class
+            # Elimination Mandate). A render reaching COMPLETED with no
+            # audio stream is a trust-destroying defect. The canonical
+            # validator is services.reliability.render_validator. We
+            # validate the *local* artifact (output_path) BEFORE it is
+            # mapped to an output_url — even if R2 succeeded, a silent
+            # video must dispatch to FAILED + refund, never COMPLETED.
+            # =================================================================
+            from services.reliability.render_validator import (
+                validate_render, RenderValidationError,
+            )
+            try:
+                await validate_render(output_path)
+            except RenderValidationError as e:
+                logger.error(
+                    f"[VIDEO_RENDER] [{job_id}] RENDER_INVALID reason={e.reason}: {e}"
+                )
+                await self._handle_render_failure(
+                    job_id, user_id,
+                    f"FAILED_RENDER_VALIDATION:{e.reason}: {e}",
+                    progress,
+                )
+                return False, "", progress.timing
+
+            # =================================================================
             # COMPLETE
             # =================================================================
             total_duration = (time.time() - progress.started_at) * 1000

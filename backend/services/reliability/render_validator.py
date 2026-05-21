@@ -178,3 +178,26 @@ async def validate_render(path: str, expected_duration: float = 0.0) -> dict:
         "audio_duration": a_dur,
         "mode": "ffprobe",
     }
+
+
+# ────────────────────────────────────────────────────────────────────────
+# Render-pipeline registry (P0 2026-05-23 silent-render bug-class fix).
+#
+# Every backend module that produces a final .mp4 AND transitions a job
+# to a terminal "completed"/"COMPLETED" state MUST be listed here AND
+# call `validate_render` against the local artifact before that
+# transition. The static audit at
+# /app/backend/tests/test_silent_render_prevention_2026_05.py reads
+# this tuple and enforces the contract via grep.
+#
+# Adding a new video producer? One-line addition here PLUS a call site
+# is the entire bug-class-elimination contract. CI will fail until
+# both are present.
+# ────────────────────────────────────────────────────────────────────────
+REGISTERED_RENDER_PIPELINES: tuple[str, ...] = (
+    "routes/photo_trailer.py",
+    "routes/story_video_generation.py",
+    "routes/story_video_fast.py",
+    "routes/genstudio.py",
+    "services/optimized_video_renderer.py",
+)

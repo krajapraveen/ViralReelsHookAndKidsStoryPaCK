@@ -8,6 +8,27 @@ Evolve the platform from a standard AI content generator into a highly addictive
 
 ## What's Been Implemented
 
+### P0 TRUST — Silent-render bug-class elimination — May 23, 2026
+**Status**: SHIPPED in preview, **boundary audit gate green (344 passing)**. Awaiting redeploy.
+
+**Production trust-bug**: Generated MP4s were reaching `COMPLETED` / `completed` with NO audio stream. Users downloaded videos that played silently — a trust-destroying defect ("AI videos from this site are broken").
+
+**Class identified**: Multiple video pipelines transitioned to terminal success without probing the final artifact for an audible AAC track. The canonical `services.reliability.render_validator.validate_render` (file present + h264 video + AAC audio + audio_duration ≥ video_duration − 0.5) was used by 3 pipelines but bypassed by 2 more.
+
+**Bug-class elimination (per `ENGINEERING_DOCTRINE.md` Mandate)**:
+- Formalized registry: `render_validator.REGISTERED_RENDER_PIPELINES` enumerates every video-producing module. Adding a new producer is a one-line addition.
+- Static audit: every registered pipeline must reference `validate_render` AND no `.mp4`-producer outside the registry may mark COMPLETED (`test_silent_render_prevention_2026_05.py`).
+- Wired gates: `OptimizedVideoRenderer.render_video` and all 3 `genstudio.py` video flows (text_to_video, image_to_video, video_remix) now call `validate_render` BEFORE the COMPLETED transition.
+- Auto-refund: silent-render failures (and any all-retries-exhausted final state) route through `_refund_genstudio_video_credits` (idempotent — `refundedCredits` guard prevents double-credits). `OptimizedVideoRenderer` routes through existing `_handle_render_failure` which already refunds via `credits_service`.
+- Regression suite: 10 tests pinned (registry, unit failures + ok-path, refund site presence + idempotency, validator-before-completion ordering, dispatch-on-error) — registered in `make audit-boundaries`.
+
+**Files**:
+- `backend/services/reliability/render_validator.py` (registry added)
+- `backend/services/optimized_video_renderer.py` (validate_render → _handle_render_failure)
+- `backend/routes/genstudio.py` (validate_render in 3 internal flows + refund helper)
+- `backend/tests/test_silent_render_prevention_2026_05.py` (10 tests, all green)
+- `Makefile` (audit-boundaries registry updated)
+
 ### P0 MOBILE UNBLOCK — Async story generation contract — May 21, 2026
 **Status**: SHIPPED in preview, **end-to-end smoke green**. Mobile contract published & pinned by CI. **Awaiting redeploy to production.**
 
