@@ -73,6 +73,8 @@ ALLOWED_METRICS = frozenset({
     "reaction_gif_worker_silent_death_total",
     "reaction_gif_poll_terminal_miss_total",
     "reaction_gif_refund_on_timeout_total",
+    # P0 2026-05-21 — My Space false-success Preview CTA bug-class elimination.
+    "my_space_preview_clicked_without_url_total",
 })
 
 # Hard cap on payload size — prevents abusive clients from spamming.

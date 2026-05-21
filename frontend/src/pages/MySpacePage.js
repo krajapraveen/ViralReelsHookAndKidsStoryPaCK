@@ -7,6 +7,7 @@ import {
   Coins, Sparkles, Palette, BookOpen, Zap, Users, Flame, Layers
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { toastErrorSafe } from '../utils/toastSafe';
 import api from '../utils/api';
 import { trackEvent } from '../utils/analytics';
 import { trackFunnel } from '../utils/funnelTracker';
@@ -586,7 +587,57 @@ function StoryProjectCard({ job, highlighted, justCompleted, isPulsing, onShare,
   const fuzzyTime = statusKey === 'PROCESSING' ? getFuzzyTimeLabel(job, timeEstimates) : null;
   const creditsUsed = job.credits_charged || 0;
 
-  const handleWatch = () => { if (job.output_url) window.open(job.output_url, '_blank'); };
+  const handleWatch = () => {
+    // ─── P0 2026-05-21 — Bug-class elimination: false-success Preview CTA.
+    // The Preview button used to silently no-op when `output_url` was
+    // missing on a COMPLETED job. That made the entire success UI a
+    // lie — "Your video is ready" + an enabled Preview that does
+    // nothing. Trust-destroying.
+    //
+    // The button is now visually gated (disabled={!hasPlayableVideo})
+    // below, but we ALSO defensively handle the case where this
+    // function is invoked without a URL (e.g. via accessibility
+    // tooling that ignores the disabled attribute, or via a race
+    // where output_url is cleared after first render). Never let
+    // a click vanish without feedback.
+    if (job.output_url) {
+      window.open(job.output_url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    const requestId = window.lastRequestId || job.job_id || 'n/a';
+    toastErrorSafe(
+      'Preview unavailable — render asset is not yet attached to this project. Please refresh in a moment.',
+      {
+        requestId,
+        code: 'MY_SPACE_PREVIEW_NOT_READY',
+        page: '/app/my-space',
+        id: `my-space-preview-not-ready-${job.job_id}`,
+        duration: 7000,
+      }
+    );
+    // Best-effort observability emit so we can see in production
+    // how often a COMPLETED job lands without a playable URL.
+    try {
+      api.post('/api/diagnostics/beacon', {
+        events: [{
+          metric: 'my_space_preview_clicked_without_url_total',
+          ts: Date.now(),
+          page: '/app/my-space',
+          meta: {
+            job_id: job.job_id,
+            status: job.status,
+            request_id: requestId,
+            has_thumbnail: Boolean(job.thumbnail_url),
+          },
+        }],
+      }).catch(() => {});
+    } catch (_) { /* never break UX */ }
+  };
+  // ─── P0 2026-05-21 — Canonical "is this actually playable?" predicate.
+  // Used to gate the Preview / Watch CTAs visually. A job is playable
+  // iff it has a non-empty output_url. This is the single source of
+  // truth — NEVER trust `status === 'COMPLETED'` alone.
+  const hasPlayableVideo = Boolean(job.output_url);
 
   const handleVariation = (variant) => {
     // P0 2026-05-16 — bounded fix for the four broken post-gen action cards.
@@ -843,13 +894,32 @@ function StoryProjectCard({ job, highlighted, justCompleted, isPulsing, onShare,
             {/* COMPLETED / PARTIAL */}
             {(statusKey === 'COMPLETED' || statusKey === 'PARTIAL') && (
               <>
-                <button data-testid={`preview-btn-${job.job_id}`} onClick={handleWatch} className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-500/20 text-emerald-300 text-xs font-bold hover:bg-emerald-500/30 transition-colors">
-                  <Play className="w-4 h-4" /> Preview
-                </button>
-                <button data-testid={`download-btn-${job.job_id}`} onClick={(e) => { e.stopPropagation(); triggerDownload(job); }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.06] text-zinc-300 text-xs hover:bg-white/10 transition-colors">
+                {/* ─── P0 2026-05-21 — Preview CTA is gated on
+                    hasPlayableVideo (Boolean(job.output_url)), NOT on
+                    status === COMPLETED. A completed job without a
+                    URL renders the button in a non-actionable
+                    "Finalizing…" state instead of a lying enabled
+                    Preview. */}
+                {hasPlayableVideo ? (
+                  <button data-testid={`preview-btn-${job.job_id}`} onClick={handleWatch} className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-500/20 text-emerald-300 text-xs font-bold hover:bg-emerald-500/30 transition-colors">
+                    <Play className="w-4 h-4" /> Preview
+                  </button>
+                ) : (
+                  <button
+                    data-testid={`preview-btn-finalizing-${job.job_id}`}
+                    onClick={handleWatch}
+                    disabled
+                    aria-disabled="true"
+                    title="Preview will appear once the render asset is attached"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-400/60 text-xs font-bold cursor-not-allowed opacity-70"
+                  >
+                    <Play className="w-4 h-4" /> Finalizing…
+                  </button>
+                )}
+                <button data-testid={`download-btn-${job.job_id}`} onClick={(e) => { e.stopPropagation(); triggerDownload(job); }} disabled={!hasPlayableVideo} aria-disabled={!hasPlayableVideo} title={hasPlayableVideo ? undefined : 'Download will be available once the render is attached'} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors ${hasPlayableVideo ? 'bg-white/[0.06] text-zinc-300 hover:bg-white/10' : 'bg-white/[0.03] text-zinc-500 cursor-not-allowed opacity-60'}`}>
                   <Download className="w-3.5 h-3.5" /> Download
                 </button>
-                <button data-testid={`share-btn-${job.job_id}`} onClick={(e) => { e.stopPropagation(); onShare(job); }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.06] text-zinc-300 text-xs hover:bg-white/10 transition-colors">
+                <button data-testid={`share-btn-${job.job_id}`} onClick={(e) => { e.stopPropagation(); onShare(job); }} disabled={!hasPlayableVideo} aria-disabled={!hasPlayableVideo} title={hasPlayableVideo ? undefined : 'Share will be available once the render is attached'} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors ${hasPlayableVideo ? 'bg-white/[0.06] text-zinc-300 hover:bg-white/10' : 'bg-white/[0.03] text-zinc-500 cursor-not-allowed opacity-60'}`}>
                   <Share2 className="w-3.5 h-3.5" /> Share
                 </button>
                 {/* Improve Consistency CTA — only for eligible story_engine jobs, not legacy */}

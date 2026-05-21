@@ -25,6 +25,7 @@ BOUNDARY_AUDIT_SUITES := \
 	backend/tests/test_reaction_gif_stuck_job_2026_05.py \
 	backend/tests/test_google_ads_conversion_audit_2026_05.py \
 	backend/tests/test_story_async_contract_2026_05.py \
+	backend/tests/test_my_space_preview_cta_2026_05.py \
 	backend/tests/test_p2c_event_trap_2026_05.py \
 	backend/tests/test_p2c_style_validation_safety_net_2026_05.py \
 	backend/tests/test_p2c_object_state_hotfix_2026_05.py \
