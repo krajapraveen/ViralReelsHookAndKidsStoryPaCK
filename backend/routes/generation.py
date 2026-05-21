@@ -781,3 +781,328 @@ async def demo_reel(data: GenerateReelRequest):
     except Exception as e:
         logger.error(f"Demo reel generation error: {e}")
         raise HTTPException(status_code=500, detail="Generation failed. Please try again.")
+
+
+
+# ============================================
+# ASYNC STORY GENERATION — P0 2026-05-21 mobile bug-class elimination
+# ============================================
+#
+# Production incident: mobile clients hitting POST /api/generate/story
+# were exceeding Cloudflare's 30s upstream timeout (cf-ray 9ff471b0...,
+# observed 30.14s 504s). Synchronous LLM endpoints are an architectural
+# anti-pattern at the public-edge boundary.
+#
+# Resolution (mobile contract): two new endpoints that follow the
+# canonical job pattern (status row + background task + poll). Web
+# clients continue to use the sync /api/generate/story untouched.
+#
+# Doctrine refs (ENGINEERING_DOCTRINE.md):
+#   • Rule 4 — async jobs are idempotent (job_id + status state machine)
+#   • Rule 6 — every failure is observable (request_id propagation)
+#   • Bug-Class Elimination Mandate — published contract pinned by audit
+#
+# Endpoint table (PUBLISHED MOBILE CONTRACT):
+#
+#   POST /api/generate/story/async
+#     → 200 { job_id, status:"PENDING", request_id, poll_url, poll_interval_ms }
+#     → 400 on content moderation
+#     → 402 on insufficient credits
+#
+#   GET  /api/generate/story/async/{job_id}
+#     → 200 { job_id, status, progress, elapsed_seconds, request_id,
+#             result?, error?, credits_used?, remaining_credits? }
+#     → 404 when job_id is not owned by the user
+#
+# Terminal statuses: COMPLETED, FAILED. Credits are deducted ONLY on
+# COMPLETED (never optimistically) — same invariant as every other
+# async pipeline in this codebase.
+# ============================================
+
+STORY_ASYNC_BUDGET_S = 110  # < CF Enterprise 120s ceiling; gives mobile slack
+
+
+async def _story_async_worker(
+    job_id: str,
+    payload: dict,
+    user_id: str,
+    user_plan: str,
+) -> None:
+    """Background worker for the async story endpoint.
+
+    Mirrors the sync flow in `/api/generate/story` exactly:
+      1. Inline LLM generation (no images, fast).
+      2. Worker fallback if inline fails.
+      3. Credit deduction ONLY on successful generation.
+      4. Persist the generation row in db.generations (same as sync).
+      5. Background image generation (re-uses same helper).
+
+    NEVER raises — every failure path writes a terminal FAILED status
+    on the job row so the poll endpoint can report cleanly.
+    """
+    import asyncio as _asyncio
+    from services.reliability.completion_invariant import assert_completion_invariant
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    try:
+        await db.story_async_jobs.update_one(
+            {"id": job_id},
+            {"$set": {
+                "status": "PROCESSING",
+                "progress": 15,
+                "progressMessage": "Generating your story…",
+                "updatedAt": now_iso,
+            }}
+        )
+
+        # ── Step 1: inline generation
+        result = None
+        generation_error = None
+        try:
+            result = await _asyncio.wait_for(
+                generate_story_content_inline(payload, generate_images=False, user_plan=user_plan),
+                timeout=STORY_ASYNC_BUDGET_S,
+            )
+        except _asyncio.TimeoutError:
+            generation_error = f"inline_timeout:{STORY_ASYNC_BUDGET_S}s"
+            logger.warning("[STORY_ASYNC] inline timeout job=%s", job_id)
+        except Exception as inline_error:  # noqa: BLE001
+            generation_error = str(inline_error)
+            logger.warning("[STORY_ASYNC] inline failed job=%s err=%s", job_id, generation_error)
+
+        # ── Step 2: worker fallback (mirrors sync path)
+        if result is None and WORKER_URL:
+            try:
+                async with httpx.AsyncClient(timeout=90.0) as client_http:
+                    response = await client_http.post(
+                        f"{WORKER_URL}/generate/story",
+                        json=payload,
+                    )
+                    if response.status_code == 200:
+                        result = response.json()
+            except Exception as worker_error:  # noqa: BLE001
+                logger.warning("[STORY_ASYNC] worker fallback failed job=%s err=%s", job_id, worker_error)
+
+        if result is None:
+            await db.story_async_jobs.update_one(
+                {"id": job_id},
+                {"$set": {
+                    "status": "FAILED",
+                    "progress": 0,
+                    "error": "AI service unavailable. Please try again. No credits charged.",
+                    "errorReason": generation_error or "unknown",
+                    "updatedAt": datetime.now(timezone.utc).isoformat(),
+                }}
+            )
+            return
+
+        # ── Step 3: completion invariant before charge
+        # A story has `sceneCount` scenes; the generator returns
+        # `scenes` array. We require >=1 to call this a success.
+        scenes = result.get("scenes") or []
+        expected_count = max(int(payload.get("sceneCount") or 1), 1)
+        actual_count = len(scenes)
+        declared = "COMPLETED" if actual_count >= 1 else "FAILED"
+        invariant = await assert_completion_invariant(
+            expected_count=expected_count,
+            actual_count=actual_count,
+            declared_status=declared,
+            request_id=job_id,
+            job_id=job_id,
+            pipeline="routes/generation.story_async_worker",
+            db=db,
+        )
+        if invariant.effective_status == "FAILED":
+            await db.story_async_jobs.update_one(
+                {"id": job_id},
+                {"$set": {
+                    "status": "FAILED",
+                    "progress": 0,
+                    "error": "Story generation did not return any scenes. No credits charged.",
+                    "updatedAt": datetime.now(timezone.utc).isoformat(),
+                }}
+            )
+            return
+
+        # ── Step 4: charge credits ONLY on a real, non-repaired completion
+        charge_now = (invariant.effective_status == "COMPLETED" and not invariant.repaired)
+        new_balance = None
+        if charge_now:
+            new_balance = await deduct_credits(
+                user_id,
+                STORY_COST,
+                f"Story generation (async): {payload.get('genre','')} - {(payload.get('theme') or '')[:30]}",
+            )
+
+        # ── Step 5: persist generation row (same shape as sync flow)
+        generation_id = str(uuid.uuid4())
+        await db.generations.insert_one({
+            "id": generation_id,
+            "userId": user_id,
+            "type": "STORY",
+            "status": "COMPLETED",
+            "inputJson": payload,
+            "outputJson": result,
+            "creditsUsed": STORY_COST if charge_now else 0,
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "completedAt": datetime.now(timezone.utc).isoformat(),
+            "source": "story_async",
+            "async_job_id": job_id,
+        })
+
+        # Background image generation (non-blocking; same helper as sync)
+        if LLM_AVAILABLE and EMERGENT_LLM_KEY and scenes:
+            _asyncio.create_task(generate_story_images_background(
+                result=result,
+                generation_id=generation_id,
+                user_plan=user_plan,
+            ))
+
+        await db.story_async_jobs.update_one(
+            {"id": job_id},
+            {"$set": {
+                "status": invariant.effective_status,  # COMPLETED or PARTIAL_READY
+                "progress": 100,
+                "progressMessage": "Ready",
+                "result": result,
+                "generationId": generation_id,
+                "creditsUsed": STORY_COST if charge_now else 0,
+                "remainingCredits": new_balance,
+                "expectedCount": expected_count,
+                "actualCount": actual_count,
+                "invariantRepaired": invariant.repaired,
+                "updatedAt": datetime.now(timezone.utc).isoformat(),
+            }}
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception("[STORY_ASYNC] worker crashed job=%s", job_id)
+        try:
+            await db.story_async_jobs.update_one(
+                {"id": job_id, "status": {"$nin": ["COMPLETED", "FAILED"]}},
+                {"$set": {
+                    "status": "FAILED",
+                    "progress": 0,
+                    "error": "Internal generation error. No credits charged.",
+                    "updatedAt": datetime.now(timezone.utc).isoformat(),
+                }}
+            )
+        except Exception:  # noqa: BLE001
+            logger.exception("[STORY_ASYNC] failed to record terminal failure job=%s", job_id)
+
+
+@router.post("/story/async")
+async def generate_story_async(
+    request: Request,
+    data: GenerateStoryRequest,
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(get_current_user),
+):
+    """Async story generation entry point — returns immediately with
+    a job_id. Bypasses Cloudflare's 30s upstream timeout for mobile.
+
+    Doctrine: same input validation as the sync endpoint; same credit
+    checks; same content moderation. The ONLY difference is that the
+    LLM call runs in a BackgroundTask while the HTTP response returns
+    in < 1s with a job_id the client polls.
+    """
+    # 1. Content safety pipeline — same as sync
+    from services.rewrite_engine import check_and_rewrite
+    safety = await check_and_rewrite(
+        user.get("id", ""), "story_generation", data,
+        ["theme", "genre", "customGenre"],
+    )
+    if safety.blocked:
+        raise HTTPException(status_code=400, detail=safety.block_reason)
+
+    # 2. ML moderation
+    content_to_check = f"{data.theme} {data.genre} {data.customGenre or ''}"
+    moderation_result = threat_intel.moderate_content(content_to_check, user.get("id"))
+    if not moderation_result["allowed"]:
+        violations = moderation_result.get("violations", [])
+        violation_msg = violations[0].get("message") if violations else "Content policy violation"
+        log_security_event("STORY_CONTENT_BLOCKED", {
+            "user_id": user.get("id"),
+            "violations": violations,
+            "theme": data.theme[:50],
+        }, "WARNING")
+        raise HTTPException(status_code=400, detail=f"Content blocked: {violation_msg}")
+
+    # 3. Credit check (does NOT deduct here — only worker on COMPLETED)
+    await check_credits(user, STORY_COST, "story generation")
+
+    # 4. Create job row
+    job_id = str(uuid.uuid4())
+    request_id = getattr(request.state, "request_id", None) or job_id
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await db.story_async_jobs.insert_one({
+        "id": job_id,
+        "userId": user["id"],
+        "status": "PENDING",
+        "progress": 5,
+        "progressMessage": "Queued",
+        "inputJson": data.model_dump(),
+        "createdAt": now_iso,
+        "updatedAt": now_iso,
+        "requestId": request_id,
+    })
+
+    # 5. Hand off to background task
+    background_tasks.add_task(
+        _story_async_worker,
+        job_id,
+        data.model_dump(),
+        user["id"],
+        user.get("plan", "free"),
+    )
+
+    # 6. Return canonical envelope IMMEDIATELY
+    return {
+        "job_id": job_id,
+        "status": "PENDING",
+        "request_id": request_id,
+        "poll_url": f"/api/generate/story/async/{job_id}",
+        "poll_interval_ms": 2000,
+    }
+
+
+@router.get("/story/async/{job_id}")
+async def get_story_async_status(
+    job_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """Poll the async story job. Returns the canonical status envelope
+    documented in the published mobile contract."""
+    job = await db.story_async_jobs.find_one(
+        {"id": job_id, "userId": user["id"]},
+        {"_id": 0},
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    # elapsed_seconds — driven from createdAt for client-side timeout UX
+    elapsed = 0
+    try:
+        created_at = job.get("createdAt")
+        if isinstance(created_at, str):
+            t0 = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+            elapsed = int((datetime.now(timezone.utc) - t0).total_seconds())
+    except Exception:  # noqa: BLE001
+        pass
+
+    envelope = {
+        "job_id": job_id,
+        "status": job.get("status", "PENDING"),
+        "progress": job.get("progress", 0),
+        "elapsed_seconds": elapsed,
+        "request_id": job.get("requestId"),
+    }
+    status = envelope["status"]
+    if status in ("COMPLETED", "PARTIAL_READY"):
+        envelope["result"] = job.get("result")
+        envelope["credits_used"] = job.get("creditsUsed", 0)
+        envelope["remaining_credits"] = job.get("remainingCredits")
+        envelope["generation_id"] = job.get("generationId")
+    if status == "FAILED":
+        envelope["error"] = job.get("error") or "Generation failed."
+
+    return envelope

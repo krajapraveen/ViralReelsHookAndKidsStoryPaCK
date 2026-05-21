@@ -204,4 +204,5 @@ async def assert_completion_invariant(
 REGISTERED_PIPELINES: Tuple[str, ...] = (
     "routes/photo_to_comic.py",
     "routes/reaction_gif.py",
+    "routes/generation.py",
 )

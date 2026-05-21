@@ -8,6 +8,48 @@ Evolve the platform from a standard AI content generator into a highly addictive
 
 ## What's Been Implemented
 
+### P0 MOBILE UNBLOCK — Async story generation contract — May 21, 2026
+**Status**: SHIPPED in preview, **end-to-end smoke green**. Mobile contract published & pinned by CI. **Awaiting redeploy to production.**
+
+**Mobile incident**: `POST /api/generate/story` exceeded Cloudflare's 30s upstream timeout (observed 30.14s 504, cf-ray 9ff471b0...). Story generation legitimately takes 30-50s for typical scene counts; the sync endpoint at the public edge is an architectural anti-pattern.
+
+**Decision**: Option (b) — async job pattern. Option (a) was rejected because the CF upstream timeout ceiling is a plan-tier setting outside the repository (Pro caps at ~100s; longer models would just hit the new ceiling next).
+
+**Protective scope**: Built on a NEW path (`/api/generate/story/async`). The existing sync `POST /api/generate/story` is untouched — web clients (`Story.js`, test fixtures) continue working without changes.
+
+**Published mobile contract**:
+- `POST /api/generate/story/async` → `{job_id, status:"PENDING", request_id, poll_url, poll_interval_ms}` in ~7s (well under CF 30s cap).
+- `GET /api/generate/story/async/{job_id}` → `{job_id, status, progress, elapsed_seconds, request_id, result?, error?, credits_used?, remaining_credits?, generation_id?}` — terminal statuses are `COMPLETED` / `PARTIAL_READY` / `FAILED`.
+
+**Smoke evidence** (preview backend, real test user):
+```
+POST /api/generate/story/async (sceneCount=4)
+  → 200 in 6.875s
+  → {job_id: d03d3d2e..., status: PENDING, request_id: 4e65621b...}
+
+GET /api/generate/story/async/d03d3d2e... (after 2s)
+  → COMPLETED, elapsed=44s, scenes_returned=4, credits_used=1,
+    remaining_credits=1345, generation_id=af8d365e...
+```
+
+**Doctrine compliance**:
+- Credits deducted ONLY on `invariant.effective_status == "COMPLETED" AND not invariant.repaired` (no optimistic charge).
+- Inline LLM call wrapped in `asyncio.wait_for(STORY_ASYNC_BUDGET_S=110s)` per stuck-job doctrine.
+- Worker outer `try/except` logs crash AND writes terminal FAILED so no row sticks in PROCESSING.
+- `routes/generation.py` registered in `REGISTERED_PIPELINES` so the completion-invariant scanner enforces the gate on every future change.
+- `request_id` propagates from POST handler → job row → poll response → mobile client.
+
+**Files changed**:
+- `backend/routes/generation.py` — appended `_story_async_worker`, `POST /story/async`, `GET /story/async/{job_id}`, `STORY_ASYNC_BUDGET_S` constant. Existing sync code untouched.
+- `backend/services/reliability/completion_invariant.py` — added `routes/generation.py` to `REGISTERED_PIPELINES`.
+- `backend/tests/test_story_async_contract_2026_05.py` (**new**) — 18 pinning tests for the published contract.
+- `Makefile` — suite registered in `BOUNDARY_AUDIT_SUITES`.
+
+**Test results**:
+- `make audit-boundaries`: **325 passed, 0 failed, 1 expected skip** in 52.64s.
+
+---
+
 ### P0 PHASE A — Google Ads Conversion Truth Wiring — May 22, 2026
 **Status**: SHIPPED in preview. All audits green (**307 passed, 1 expected skip**). All three new endpoints live + smoke-verified. **Awaiting your 4 env vars + redeploy.**
 
