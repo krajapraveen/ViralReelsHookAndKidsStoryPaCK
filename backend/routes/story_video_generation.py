@@ -1874,7 +1874,82 @@ async def render_video_task(
                     storage_type = "r2_cloud"
                     logger.info(f"Final video uploaded to R2: {public_url}")
             log_timing("upload_to_r2", upload_start)
-            
+
+            # ─── P0 2026-05-21 — Render integrity gate (bug-class elimination).
+            # Production trust-bug: jobs were reaching COMPLETED with a
+            # final MP4 that had no audio stream — playable but silent.
+            # The canonical validator gates COMPLETED on the artifact
+            # actually being playable WITH audible audio. On failure we
+            # mark FAILED_RENDER_VALIDATION, refund the user, and emit a
+            # structured beacon.
+            from services.reliability.render_validator import validate_render, RenderValidationError
+            try:
+                _val_summary = await validate_render(output_path)
+                logger.info(f"[VIDEO_RENDER] validate_render OK job={job_id} summary={_val_summary}")
+            except RenderValidationError as _val_err:
+                logger.error(
+                    f"[VIDEO_RENDER] validate_render REJECTED job={job_id} "
+                    f"reason={_val_err.reason} detail={_val_err}"
+                )
+                # Refund credits if any were deducted for this job (best-effort).
+                try:
+                    job_row = await db.render_jobs.find_one({"job_id": job_id}, {"_id": 0, "credits_spent": 1, "user_id": 1})
+                    credits_to_refund = int((job_row or {}).get("credits_spent") or 0)
+                    refund_user = (job_row or {}).get("user_id") or user_id
+                    if credits_to_refund > 0 and refund_user:
+                        from services.credits_service import get_credits_service
+                        svc = get_credits_service(db)
+                        await svc.add_credits(
+                            refund_user, credits_to_refund,
+                            reason=f"Refund: render integrity check failed ({_val_err.reason})",
+                        )
+                        logger.info(f"[VIDEO_RENDER] refunded {credits_to_refund} credits to {refund_user[:8]}")
+                except Exception:  # noqa: BLE001
+                    logger.exception("[VIDEO_RENDER] refund on validation failure errored")
+                # Best-effort observability beacon.
+                try:
+                    bucket = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+                    await db.diagnostics_metrics.update_one(
+                        {"metric": "story_video_render_validation_failed_total", "bucket": bucket},
+                        {"$inc": {"count": 1},
+                         "$setOnInsert": {"metric": "story_video_render_validation_failed_total",
+                                          "bucket": bucket,
+                                          "first_seen_at": datetime.now(timezone.utc).isoformat()},
+                         "$set": {"last_seen_at": datetime.now(timezone.utc).isoformat()},
+                         "$push": {"recent_samples": {
+                             "$each": [{"ts": datetime.now(timezone.utc).isoformat(),
+                                        "meta": {"job_id": job_id, "reason": _val_err.reason}}],
+                             "$slice": -25,
+                         }}},
+                        upsert=True,
+                    )
+                except Exception:  # noqa: BLE001
+                    logger.exception("[VIDEO_RENDER] validation beacon emit failed")
+                # Mark FAILED_RENDER_VALIDATION with safe user-facing copy.
+                await db.render_jobs.update_one(
+                    {"job_id": job_id},
+                    {"$set": {
+                        "status": "FAILED_RENDER_VALIDATION",
+                        "progress": 0,
+                        "output_url": None,
+                        "error": "Video render failed integrity check (audio/video stream missing). Credits restored.",
+                        "errorReason": _val_err.reason,
+                        "completed_at": datetime.now(timezone.utc),
+                    }}
+                )
+                # Also reflect on the project so the UI does not see a stale
+                # "video_rendered" state.
+                try:
+                    await db.story_projects.update_one(
+                        {"project_id": project_id},
+                        {"$set": {"status": "video_render_failed",
+                                  "final_video_url": None,
+                                  "updated_at": datetime.now(timezone.utc)}}
+                    )
+                except Exception:  # noqa: BLE001
+                    logger.exception("[VIDEO_RENDER] project status downgrade failed")
+                return  # do NOT fall through to the COMPLETED write
+
             # Log total render time
             total_render_time = time.time() - timings["task_started"]
             logger.info(f"⏱️ VIDEO_TIMING [TOTAL_RENDER]: {total_render_time*1000:.2f}ms")

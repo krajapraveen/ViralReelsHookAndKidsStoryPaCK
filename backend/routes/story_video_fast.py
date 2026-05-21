@@ -597,6 +597,62 @@ async def process_fast_video_optimized(job_id: str):
         file_size_mb = os.path.getsize(final_path) / (1024 * 1024)
         logger.info(f"[PIPELINE] Stage 3 complete: Video assembled in {timing['video_assembly_s']}s ({file_size_mb:.1f}MB)")
         
+        # ─── P0 2026-05-21 — Render integrity gate before COMPLETED.
+        # Same bug class as the false-success Preview: a silent or
+        # malformed MP4 must NEVER reach COMPLETED. Validate the local
+        # render BEFORE the upload result is treated as ground truth.
+        from services.reliability.render_validator import validate_render, RenderValidationError
+        try:
+            _val_summary = await validate_render(final_path)
+            logger.info(f"[PIPELINE] validate_render OK job={job_id} summary={_val_summary}")
+        except RenderValidationError as _val_err:
+            logger.error(
+                f"[PIPELINE] validate_render REJECTED job={job_id} reason={_val_err.reason} detail={_val_err}"
+            )
+            # Refund credits (best-effort) and mark FAILED_RENDER_VALIDATION.
+            try:
+                user_id_refund = job.get("user_id")
+                credit_cost = int(job.get("credits_charged") or 0)
+                if user_id_refund and credit_cost > 0:
+                    from services.credits_service import get_credits_service
+                    svc = get_credits_service(db)
+                    await svc.add_credits(
+                        user_id_refund, credit_cost,
+                        reason=f"Refund: render integrity check failed ({_val_err.reason})",
+                    )
+            except Exception:  # noqa: BLE001
+                logger.exception("[PIPELINE] refund on validation failure errored")
+            # Observability beacon.
+            try:
+                bucket = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+                await db.diagnostics_metrics.update_one(
+                    {"metric": "story_video_render_validation_failed_total", "bucket": bucket},
+                    {"$inc": {"count": 1},
+                     "$setOnInsert": {"metric": "story_video_render_validation_failed_total",
+                                      "bucket": bucket,
+                                      "first_seen_at": datetime.now(timezone.utc).isoformat()},
+                     "$set": {"last_seen_at": datetime.now(timezone.utc).isoformat()},
+                     "$push": {"recent_samples": {
+                         "$each": [{"ts": datetime.now(timezone.utc).isoformat(),
+                                    "meta": {"job_id": job_id, "reason": _val_err.reason,
+                                             "pipeline": "story_video_fast"}}],
+                         "$slice": -25,
+                     }}},
+                    upsert=True,
+                )
+            except Exception:  # noqa: BLE001
+                logger.exception("[PIPELINE] validation beacon emit failed")
+            await update_job(job_id, {
+                "status": "FAILED_RENDER_VALIDATION",
+                "progress": 0,
+                "output_url": None,
+                "error": "Video render failed integrity check (audio/video stream missing). Credits restored.",
+                "errorReason": _val_err.reason,
+                "completed_at": datetime.now(timezone.utc),
+                "timing": timing,
+            })
+            return  # never fall through to COMPLETED
+
         # ─── STAGE 4: UPLOAD TO R2 (ASYNC) ──────────────────────────────────
         await update_job(job_id, {"progress": 90, "current_step": "Uploading to cloud storage..."})
         

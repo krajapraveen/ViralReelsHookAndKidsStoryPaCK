@@ -1318,109 +1318,29 @@ async def _render_trailer(job: dict, scenes_data: List[dict], tmp: str) -> str:
 
 
 class RenderValidationError(Exception):
-    """Raised when the final MP4 fails ffprobe sanity checks."""
+    """Legacy local alias — preserved for backward-compat. New code
+    should import directly from services.reliability.render_validator.
+    The shared helper is the source of truth (P0 2026-05-21)."""
 
 
 async def _validate_render(path: str, expected_duration: float = 0.0) -> None:
-    """ffprobe the final MP4. Refuses to mark COMPLETED if:
-      • no video stream OR no audio stream
-      • audio duration < video_duration - 0.5s
-      • video codec ≠ h264 OR audio codec ≠ aac
-    P0-D 2026-05-16 — prevents the 'video ready but no audio' production
-    bug from making it past the pipeline silently.
+    """Backward-compat wrapper around the shared validator.
+
+    The canonical implementation now lives in
+    services.reliability.render_validator.validate_render so every
+    video pipeline shares one render-integrity gate. This wrapper
+    translates the shared error type back into the local one to keep
+    photo_trailer's existing `except RenderValidationError` paths
+    working without churn.
     """
-    if not os.path.exists(path):
-        raise RenderValidationError(f"render output missing: {path}")
-    # Locate ffprobe robustly. The base image's /usr/local/bin/ffprobe is
-    # actually a stub that doesn't accept -print_format, so we MUST resolve
-    # through PATH and verify the binary supports JSON output.
-    import shutil as _shutil
-    cand = []
-    for env_path in (os.environ.get("FFPROBE_BIN"),):
-        if env_path and os.path.exists(env_path):
-            cand.append(env_path)
-    which_path = _shutil.which("ffprobe")
-    if which_path:
-        cand.append(which_path)
-    cand += ["/usr/local/bin/ffprobe", "/usr/bin/ffprobe"]
-    # Try each; first one that supports -print_format wins.
-    ffprobe = None
-    last_err = None
-    for c in cand:
-        if not c or not os.path.exists(c):
-            continue
-        try:
-            test = await asyncio.create_subprocess_exec(
-                c, "-v", "error", "-print_format", "json", "-show_format", path,
-                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-            )
-            _, t_stderr = await test.communicate()
-            if test.returncode == 0:
-                ffprobe = c
-                break
-            last_err = t_stderr.decode(errors="replace")[:120]
-        except Exception as _e:
-            last_err = str(_e)
-    if not ffprobe:
-        # If no real ffprobe is available, fall back to ffmpeg -i parsing.
-        # We tolerate this gracefully rather than failing the whole job.
-        log.warning(f"[validate_render] ffprobe unavailable ({last_err}); using ffmpeg -i fallback")
-        ffmpeg_bin = "/usr/local/bin/ffmpeg" if os.path.exists("/usr/local/bin/ffmpeg") else "ffmpeg"
-        proc = await asyncio.create_subprocess_exec(
-            ffmpeg_bin, "-i", path, "-hide_banner",
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-        )
-        _, err = await proc.communicate()
-        err_txt = err.decode(errors="replace")
-        has_video = "Video:" in err_txt
-        has_audio = "Audio:" in err_txt
-        if not has_video:
-            raise RenderValidationError("no video stream in final MP4 (ffmpeg fallback)")
-        if not has_audio:
-            raise RenderValidationError("no audio stream in final MP4 (ffmpeg fallback)")
-        log.info("[validate_render] OK (ffmpeg fallback): video+audio streams present")
-        return
-    proc = await asyncio.create_subprocess_exec(
-        ffprobe, "-v", "error", "-print_format", "json",
-        "-show_streams", "-show_format", path,
-        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    from services.reliability.render_validator import (
+        validate_render as _shared_validate,
+        RenderValidationError as _SharedRenderValidationError,
     )
-    stdout, stderr = await proc.communicate()
-    if proc.returncode != 0:
-        raise RenderValidationError(f"ffprobe rc={proc.returncode}: {stderr.decode(errors='replace')[:200]}")
     try:
-        info = json.loads(stdout.decode())
-    except Exception as e:
-        raise RenderValidationError(f"ffprobe non-JSON: {e}")
-
-    streams = info.get("streams", []) or []
-    v = next((s for s in streams if s.get("codec_type") == "video"), None)
-    a = next((s for s in streams if s.get("codec_type") == "audio"), None)
-    if not v:
-        raise RenderValidationError("no video stream in final MP4")
-    if not a:
-        raise RenderValidationError("no audio stream in final MP4")
-    if v.get("codec_name") != "h264":
-        raise RenderValidationError(f"video codec={v.get('codec_name')} (expected h264)")
-    if a.get("codec_name") not in ("aac", "mp4a"):
-        raise RenderValidationError(f"audio codec={a.get('codec_name')} (expected aac)")
-
-    def _dur(s):
-        try:
-            return float(s.get("duration") or s.get("tags", {}).get("DURATION", 0) or 0)
-        except Exception:
-            return 0.0
-
-    v_dur = _dur(v) or float(info.get("format", {}).get("duration", 0) or 0)
-    a_dur = _dur(a) or float(info.get("format", {}).get("duration", 0) or 0)
-    if a_dur < (v_dur - 0.5):
-        raise RenderValidationError(
-            f"audio shorter than video (audio={a_dur:.2f}s, video={v_dur:.2f}s)"
-        )
-    log.info(
-        f"[validate_render] OK video={v_dur:.2f}s audio={a_dur:.2f}s "
-        f"v_codec={v.get('codec_name')} a_codec={a.get('codec_name')}"
-    )
+        await _shared_validate(path, expected_duration)
+    except _SharedRenderValidationError as e:
+        raise RenderValidationError(str(e)) from e
 
 
 # ─── 9:16 vertical auto-cut ──────────────────────────────────────────────────
