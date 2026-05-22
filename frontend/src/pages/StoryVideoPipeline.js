@@ -1159,6 +1159,30 @@ function StoryVideoPipelineInner() {
       }
 
       const res = await api.post('/api/story-engine/create', payload);
+      // P0 2026-05-24 — Navigation contract: NEVER navigate to MySpace
+      // without a verified job_id. A successful response with no id is
+      // a backend bug, but the frontend must refuse to silently dump
+      // the user onto an empty MySpace ("user paid/acted and the
+      // product pretends nothing happened"). Structured log so live
+      // forensics can see what we received.
+      try {
+        // eslint-disable-next-line no-console
+        console.info('[generate_video] response', {
+          status: res?.status,
+          success: res?.data?.success,
+          has_job_id: !!res?.data?.job_id,
+          is_guest: !!res?.data?.is_guest,
+          reuse_mode: res?.data?.reuse_mode,
+        });
+      } catch (_) { /* never block UX */ }
+      if (res.data.success && !res.data.job_id) {
+        setFormError(
+          'Your video was created but the server did not return a tracking id. ' +
+          'Please refresh My Space to see it. If it does not appear, contact support.'
+        );
+        toast.error('Could not track your new video — refresh My Space to find it.');
+        return; // do NOT navigate
+      }
       if (res.data.success) {
         setJobId(res.data.job_id);
         setPhase('processing');

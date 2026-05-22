@@ -1195,6 +1195,146 @@ function CompletionPromptModal({ job, onClose, onDownload, onShareWhatsApp, onCr
     return 'ARCHIVED';
   }
 
+// ═══ LocatingProjectCard ═════════════════════════════════════════════════════
+// P0 2026-05-24 invariant: when the user lands on MySpace with
+// ?projectId=<id> (i.e. they JUST clicked Generate Video), we must never
+// render the "No projects yet" empty state. This card polls the
+// canonical /api/story-engine/status/<id> endpoint as a fallback when
+// /user-jobs returned empty (race, user_id-shape mismatch, or auth
+// hiccup), and presents a clear, honest state to the user.
+//
+// States:
+//   • LOCATING    — initial probe in flight (or retry after transient error)
+//   • PROCESSING  — probe found the job; show progress + canonical "what's
+//                   happening" copy; keep polling until COMPLETED.
+//   • NOT_FOUND   — three 404s in a row → escalate to recovery card with a
+//                   path back to studio AND a refresh button.
+function LocatingProjectCard({ projectId, onRefresh }) {
+  const navigate = useNavigate();
+  const [state, setState] = useState('LOCATING');
+  const [job, setJob] = useState(null);
+  const [missingCount, setMissingCount] = useState(0);
+  const cancelledRef = useRef(false);
+
+  useEffect(() => {
+    cancelledRef.current = false;
+    let timer = null;
+
+    const probe = async () => {
+      try {
+        const res = await api.get(`/api/story-engine/status/${projectId}`);
+        if (cancelledRef.current) return;
+        const data = res?.data || {};
+        setJob({
+          job_id: projectId,
+          title: data.title || 'Your new video',
+          status: (data.status || 'PROCESSING').toString().toUpperCase(),
+          progress: typeof data.progress === 'number' ? data.progress : 0,
+          current_stage: data.current_stage || data.current_step || 'Preparing scenes',
+        });
+        setMissingCount(0);
+        if ((data.status || '').toUpperCase() === 'COMPLETED') {
+          setState('PROCESSING'); // briefly; the parent fetchJobs will pick it up
+          onRefresh && onRefresh();
+        } else {
+          setState('PROCESSING');
+          timer = setTimeout(probe, 4000);
+        }
+      } catch (err) {
+        if (cancelledRef.current) return;
+        const status = err?.response?.status;
+        if (status === 404) {
+          setMissingCount(c => {
+            const next = c + 1;
+            if (next >= 3) {
+              setState('NOT_FOUND');
+              return next;
+            }
+            timer = setTimeout(probe, 2500);
+            return next;
+          });
+        } else if (status === 403) {
+          // Ownership mismatch — the job exists but the current session
+          // cannot see it. Surface a recovery path instead of pretending
+          // the action never happened.
+          setState('NOT_FOUND');
+        } else {
+          // Transient (5xx / network) — keep trying with backoff.
+          timer = setTimeout(probe, 3000);
+        }
+      }
+    };
+
+    probe();
+    return () => {
+      cancelledRef.current = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [projectId, onRefresh]);
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 py-6 space-y-6" data-testid="myspace-locating">
+      <div className="rounded-2xl border border-indigo-500/30 bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/50 p-6 space-y-4">
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-xl bg-indigo-500/15 flex items-center justify-center shrink-0">
+            {state === 'NOT_FOUND'
+              ? <AlertTriangle className="w-6 h-6 text-amber-400" data-testid="locating-error-icon" />
+              : <Loader2 className="w-6 h-6 text-indigo-300 animate-spin" data-testid="locating-spinner" />
+            }
+          </div>
+          <div className="flex-1">
+            {state === 'NOT_FOUND' ? (
+              <>
+                <h3 className="text-base font-bold text-white" data-testid="locating-title">
+                  We couldn't locate that project
+                </h3>
+                <p className="text-sm text-slate-400 mt-1">
+                  Your video may still be saving. Try refreshing, or go back to the studio.
+                  No credits were spent if the job was never recorded.
+                </p>
+              </>
+            ) : (
+              <>
+                <h3 className="text-base font-bold text-white" data-testid="locating-title">
+                  {job?.title ? `Locating "${job.title}"…` : 'Locating your video…'}
+                </h3>
+                <p className="text-sm text-slate-400 mt-1">
+                  {job?.current_stage || 'Connecting to your new project. This usually takes a moment.'}
+                </p>
+                {typeof job?.progress === 'number' && job.progress > 0 && (
+                  <div className="mt-3 h-1.5 w-full bg-white/[0.06] rounded-full overflow-hidden" data-testid="locating-progress-bar">
+                    <div
+                      className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all duration-700"
+                      style={{ width: `${Math.min(100, Math.max(2, job.progress))}%` }}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => onRefresh && onRefresh()}
+            className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white text-sm flex items-center gap-2 transition-colors"
+            data-testid="locating-refresh-btn"
+          >
+            <RefreshCw className="w-4 h-4" /> Refresh
+          </button>
+          <button
+            onClick={() => navigate('/app/story-video-studio')}
+            className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm flex items-center gap-2 transition-colors"
+            data-testid="locating-studio-btn"
+          >
+            <ArrowRight className="w-4 h-4" /> Back to studio
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function MySpacePage() {
   const navigate = useNavigate();
@@ -1580,6 +1720,27 @@ export default function MySpacePage() {
 
   // ─── Skeleton Loading ───
   if (loading) return <SkeletonLoading highlightId={highlightId} />;
+
+  // ═══ P0 2026-05-24 — Empty-state trust invariant ═══
+  // When the URL carries ?projectId=<id> the user JUST clicked
+  // Generate Video and was navigated here. Showing "No projects yet"
+  // + "Create your first video" in that moment lies to the user —
+  // they did exactly that action seconds ago. Causes covered:
+  //   (a) /user-jobs query race with the just-written job document
+  //   (b) user_id shape mismatch between create and read (Google
+  //       OAuth vs JWT body — different shape on `current_user`)
+  //   (c) auth cookie temporarily missing on the read call
+  // The contract: when projectId is present and the list is empty,
+  // render a "Locating your video..." card that polls
+  // /api/story-engine/status/<id> directly (status uses get_optional_user
+  // + ownership check by user_id). If status returns 200 → render
+  // an in-progress card synthesized from the status payload. If it
+  // 404s after a few attempts → render a clear recovery card with
+  // a path back to the studio. The blank empty state is reserved
+  // ONLY for users who arrived without a ?projectId param.
+  if (jobs.length === 0 && highlightId) {
+    return <LocatingProjectCard projectId={highlightId} onRefresh={fetchJobs} />;
+  }
 
   if (jobs.length === 0) {
     return (
