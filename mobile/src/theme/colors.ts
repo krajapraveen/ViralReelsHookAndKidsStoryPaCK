@@ -1,0 +1,15 @@
+export const colors = {
+  void: '#070711',
+  midnight: '#10101f',
+  panel: '#17172a',
+  border: '#2d2b45',
+  text: '#f8fafc',
+  muted: '#a5b4fc',
+  subtle: '#94a3b8',
+  nebula: '#7c3aed',
+  aurora: '#22d3ee',
+  ember: '#fb7185',
+  gold: '#facc15',
+  danger: '#f43f5e',
+  success: '#34d399',
+};

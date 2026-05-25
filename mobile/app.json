@@ -1,0 +1,73 @@
+{
+  "expo": {
+    "name": "Visionary Suite",
+    "slug": "visionary-suite-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "visionarysuite",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.visionarysuite.mobile",
+      "associatedDomains": [
+        "applinks:visionary-suite.com",
+        "applinks:www.visionary-suite.com"
+      ]
+    },
+    "android": {
+      "package": "com.visionarysuite.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#070711",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "visionary-suite.com"
+            },
+            {
+              "scheme": "https",
+              "host": "www.visionary-suite.com"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-web-browser",
+      "expo-sharing",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#7c3aed"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "TODO-configure-in-expo"
+      }
+    }
+  }
+}

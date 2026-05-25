@@ -1,0 +1,85 @@
+export type ApiEnvelope<T> = {
+  data?: T;
+  detail?: string | ApiErrorDetail;
+  request_id?: string;
+};
+
+export type ApiErrorDetail = {
+  code?: string;
+  message?: string;
+  request_id?: string;
+  retryable?: boolean;
+  http_status?: number;
+};
+
+export type User = {
+  id?: string;
+  _id?: string;
+  email: string;
+  name?: string;
+  full_name?: string;
+  username?: string;
+  plan?: string;
+  role?: string;
+  credits?: number;
+  email_verified?: boolean;
+};
+
+export type AuthResponse = {
+  access_token?: string;
+  token?: string;
+  user?: User;
+};
+
+export type CreditBalance = {
+  balance?: number;
+  credits?: number;
+  available?: number;
+  plan?: string;
+};
+
+export type JobStatus = 'PENDING' | 'QUEUED' | 'RUNNING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | string;
+
+export type GenerationJob = {
+  id?: string;
+  _id?: string;
+  job_id?: string;
+  status?: JobStatus;
+  title?: string;
+  prompt?: string;
+  type?: string;
+  created_at?: string;
+  updated_at?: string;
+  video_url?: string;
+  output_url?: string;
+  download_url?: string;
+  share_url?: string;
+  thumbnail_url?: string;
+  result?: Record<string, unknown>;
+  error?: string;
+  detail?: string;
+};
+
+export type PricingProduct = {
+  id?: string;
+  productId?: string;
+  name?: string;
+  price?: number;
+  currency?: string;
+  credits?: number;
+  description?: string;
+  interval?: string;
+};
+
+export type ToolKey =
+  | 'story-video'
+  | 'story-series'
+  | 'photo-trailer'
+  | 'character-memory'
+  | 'reel-generator'
+  | 'photo-to-comic'
+  | 'comic-storybook'
+  | 'bedtime-stories'
+  | 'reaction-gif'
+  | 'brand-story'
+  | 'daily-viral-ideas';
