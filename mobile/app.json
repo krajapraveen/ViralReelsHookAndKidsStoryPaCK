@@ -65,6 +65,8 @@
       "typedRoutes": true
     },
     "extra": {
+      "apiBaseUrl": "https://www.visionary-suite.com",
+      "appEnv": "production",
       "eas": {
         "projectId": "TODO-configure-in-expo"
       }

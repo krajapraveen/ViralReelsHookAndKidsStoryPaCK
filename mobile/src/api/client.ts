@@ -2,12 +2,9 @@ import axios, { AxiosError } from 'axios';
 import Constants from 'expo-constants';
 
 import { tokenStore } from './tokenStore';
+import { env } from '@/config/env';
 
-const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '');
-
-export const API_BASE_URL = trimTrailingSlash(
-  process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8001',
-);
+export const API_BASE_URL = env.apiBaseUrl;
 
 export type NormalizedApiError = {
   message: string;

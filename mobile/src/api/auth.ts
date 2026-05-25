@@ -23,8 +23,8 @@ export const authApi = {
     const response = await api.get<User>('/api/auth/me');
     return response.data;
   },
-  async verifyEmail(email: string, code: string) {
-    const response = await api.post('/api/auth/verify-email', { email, code });
+  async verifyEmail(token: string) {
+    const response = await api.post('/api/auth/verify-email', { token });
     return response.data;
   },
   async resendVerification() {
@@ -35,8 +35,8 @@ export const authApi = {
     const response = await api.post('/api/auth/forgot-password', { email });
     return response.data;
   },
-  async resetPassword(token: string, password: string) {
-    const response = await api.post('/api/auth/reset-password', { token, password });
+  async resetPassword(token: string, newPassword: string) {
+    const response = await api.post('/api/auth/reset-password', { token, newPassword });
     return response.data;
   },
   async updateProfile(data: Partial<User>) {

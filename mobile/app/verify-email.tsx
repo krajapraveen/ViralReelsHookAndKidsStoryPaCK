@@ -10,21 +10,19 @@ import { Screen } from '@/components/Screen';
 import { TextField } from '@/components/TextField';
 
 export default function VerifyEmailScreen() {
-  const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
+  const [token, setToken] = useState('');
   const mutation = useMutation({
-    mutationFn: () => authApi.verifyEmail(email.trim(), code.trim()),
+    mutationFn: () => authApi.verifyEmail(token.trim()),
     onSuccess: () => router.replace('/home'),
   });
 
   const error = mutation.error ? normalizeApiError(mutation.error).message : null;
 
   return (
-    <Screen title="Verify email" subtitle="Enter the verification code sent by Visionary Suite.">
-      <TextField label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
-      <TextField label="Verification code" value={code} onChangeText={setCode} autoCapitalize="characters" />
+    <Screen title="Verify email" subtitle="Enter or paste the email verification token sent by Visionary Suite.">
+      <TextField label="Verification token" value={token} onChangeText={setToken} autoCapitalize="none" />
       {error ? <Text className="mb-4 text-rose-300">{error}</Text> : null}
-      <Button title="Verify" loading={mutation.isPending} disabled={!email || !code} onPress={() => mutation.mutate()} />
+      <Button title="Verify" loading={mutation.isPending} disabled={!token} onPress={() => mutation.mutate()} />
     </Screen>
   );
 }
