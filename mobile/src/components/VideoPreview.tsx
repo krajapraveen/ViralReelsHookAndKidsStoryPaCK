@@ -28,14 +28,11 @@ export function VideoPreview({ jobId, uri, thumbnailUri, onRetry }: VideoPreview
     try {
       const currentStatus = await videoRef.current.getStatusAsync();
       if ('isLoaded' in currentStatus && currentStatus.isLoaded) {
-        await videoRef.current.setStatusAsync({
-          positionMillis: 0,
-          shouldPlay: true,
-        });
+        await videoRef.current.setPositionAsync(0);
       } else {
-        await videoRef.current.playAsync();
+        await videoRef.current.loadAsync({ uri }, { shouldPlay: false }, false);
       }
-      const status = await videoRef.current.getStatusAsync();
+      const status = await videoRef.current.playAsync();
       if ('isLoaded' in status && status.isLoaded) {
         // Expo may report isPlaying on the next status tick; keep spinner until then.
         if (!status.isPlaying) {

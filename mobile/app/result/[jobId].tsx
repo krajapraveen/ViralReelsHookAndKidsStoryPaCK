@@ -89,7 +89,7 @@ export default function ResultScreen() {
 
   const share = useMutation({
     mutationFn: async () => {
-      const url = shareUrl || preparedShareUrl || '';
+      const url = await ensureShareUrl('copy');
       console.info('[share.copy.clicked]', { jobId, share_url: url });
       if (url) {
         await Clipboard.setStringAsync(url);
@@ -119,22 +119,44 @@ export default function ResultScreen() {
   const title = job.data?.title || 'My Visionary Suite video';
   const hasValidVideoUrl = Boolean(videoUrl && /^https?:\/\//.test(videoUrl));
   const status = getStatus(job.data, hasValidVideoUrl);
-  const canShare = Boolean(shareUrl);
+  const canPrepareShare = status.completed || hasValidVideoUrl;
   const canDownload = status.completed && Boolean(videoUrl);
   const quote = waitingQuotes[Math.abs(jobId.length + status.progress) % waitingQuotes.length];
 
+  async function ensureShareUrl(source: string) {
+    const existing = shareUrl || preparedShareUrl;
+    if (existing) return existing;
+    if (!canPrepareShare) return '';
+    try {
+      console.info('[share.prepare.request]', { jobId, source });
+      const created = await generationApi.createShareLink(jobId);
+      const nextShareUrl = created?.share_url || created?.url || '';
+      if (nextShareUrl) {
+        setPreparedShareUrl(nextShareUrl);
+        console.info('[share.prepare.success]', { jobId, source, share_url: nextShareUrl });
+      }
+      return nextShareUrl;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setStatusMessage('Share link is still being prepared.');
+      console.warn('[share.prepare.failed]', { jobId, source, error: message });
+      return '';
+    }
+  }
+
   const openSocialShare = async (platform: 'whatsapp' | 'x' | 'facebook') => {
-    if (!shareUrl) return;
+    const nextShareUrl = await ensureShareUrl(platform);
+    if (!nextShareUrl) return;
     const encodedTitle = encodeURIComponent(title);
-    const encodedText = encodeURIComponent(`${title} ${shareUrl}`);
-    const encodedUrl = encodeURIComponent(shareUrl);
+    const encodedText = encodeURIComponent(`${title} ${nextShareUrl}`);
+    const encodedUrl = encodeURIComponent(nextShareUrl);
     const targets = {
       whatsapp: `https://wa.me/?text=${encodedText}`,
       x: `https://twitter.com/intent/tweet?text=${encodedTitle}&url=${encodedUrl}`,
       facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
     };
     const target = targets[platform];
-    console.info('[share.social.clicked]', { platform, share_url: shareUrl, target_url: target });
+    console.info('[share.social.clicked]', { platform, share_url: nextShareUrl, target_url: target });
     try {
       const canOpen = await Linking.canOpenURL(target);
       if (!canOpen) {
@@ -144,11 +166,11 @@ export default function ResultScreen() {
     } catch (err) {
       console.warn('[share.social.open_failed]', {
         platform,
-        share_url: shareUrl,
+        share_url: nextShareUrl,
         target_url: target,
         error: err instanceof Error ? err.message : String(err),
       });
-      await Share.share({ message: `${title} ${shareUrl}`, url: shareUrl, title });
+      await Share.share({ message: `${title} ${nextShareUrl}`, url: nextShareUrl, title });
     }
   };
 
@@ -241,14 +263,14 @@ export default function ResultScreen() {
             </View>
           ) : null}
           <View className="mt-5 gap-3">
-            {!canShare ? (
+            {!shareUrl ? (
               <Text className="text-center text-sm text-amber-100">Share link is being prepared...</Text>
             ) : null}
-            <Button title="Copy/share link" variant="secondary" disabled={!canShare} loading={share.isPending} onPress={() => share.mutate()} />
+            <Button title="Copy/share link" variant="secondary" disabled={!canPrepareShare} loading={share.isPending} onPress={() => share.mutate()} />
             <View className="flex-row gap-2">
-              <View className="flex-1"><Button title="WhatsApp" variant="secondary" disabled={!canShare} onPress={() => openSocialShare('whatsapp')} /></View>
-              <View className="flex-1"><Button title="X" variant="secondary" disabled={!canShare} onPress={() => openSocialShare('x')} /></View>
-              <View className="flex-1"><Button title="Facebook" variant="secondary" disabled={!canShare} onPress={() => openSocialShare('facebook')} /></View>
+              <View className="flex-1"><Button title="WhatsApp" variant="secondary" disabled={!canPrepareShare} onPress={() => openSocialShare('whatsapp')} /></View>
+              <View className="flex-1"><Button title="X" variant="secondary" disabled={!canPrepareShare} onPress={() => openSocialShare('x')} /></View>
+              <View className="flex-1"><Button title="Facebook" variant="secondary" disabled={!canPrepareShare} onPress={() => openSocialShare('facebook')} /></View>
             </View>
             <Button title="Download/share MP4" variant="secondary" disabled={!canDownload} loading={download.isPending} onPress={() => download.mutate()} />
             <Text className="text-center text-xs text-slate-400">
