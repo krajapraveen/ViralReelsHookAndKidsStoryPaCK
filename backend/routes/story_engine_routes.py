@@ -1038,7 +1038,7 @@ async def get_status(job_id: str, req: Request, current_user: dict = Depends(get
     output_url = _absolute_media_url(req, _make_presigned_url(job.get("output_url")))
     thumbnail_url = _absolute_media_url(req, _make_presigned_url(job.get("thumbnail_url")))
     preview_url = _absolute_media_url(req, _make_presigned_url(job.get("preview_url")))
-    playback_url = preview_url or output_url
+    playback_url = output_url
     playback_validation = await _validate_playback_url(playback_url) if state in {"READY", "PARTIAL_READY"} else {
         "ready": False,
         "reason": "not_terminal",

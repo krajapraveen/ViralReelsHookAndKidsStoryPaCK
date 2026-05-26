@@ -26,15 +26,24 @@ export function VideoPreview({ jobId, uri, thumbnailUri, onRetry }: VideoPreview
     setLoading(true);
     console.info('[video.playback.play_requested]', { uri });
     try {
+      const currentStatus = await videoRef.current.getStatusAsync();
+      if ('isLoaded' in currentStatus && currentStatus.isLoaded && currentStatus.didJustFinish) {
+        await videoRef.current.setPositionAsync(0);
+      }
       const status = await videoRef.current.playAsync();
-      if ('isLoaded' in status && status.isLoaded && status.isPlaying) {
+      if ('isLoaded' in status && status.isLoaded) {
+        // Expo may report isPlaying on the next status tick; keep spinner until then.
+        if (!status.isPlaying) {
+          console.info('[video.playback.play_pending]', { uri, status });
+          return;
+        }
         setPlaybackState('playing');
         setLoading(false);
         console.info('[video.playback.play_started]', { uri });
       } else {
         setPlaybackState('ready_to_play');
         setLoading(false);
-        setError('Playback did not start. Tap retry to try again.');
+        setError('Video is not loaded yet. Tap retry to try again.');
         console.warn('[video.playback.play_not_started]', { uri, status });
       }
     } catch (err) {
@@ -74,7 +83,7 @@ export function VideoPreview({ jobId, uri, thumbnailUri, onRetry }: VideoPreview
   return (
     <Pressable onPress={startPlayback} className="overflow-hidden rounded-3xl border border-white/10 bg-black">
       {loading || error ? (
-        <Pressable onPress={error ? onRetry || startPlayback : undefined} className="absolute inset-0 z-20 items-center justify-center bg-black/80 px-5">
+        <Pressable onPress={error ? startPlayback : undefined} className="absolute inset-0 z-20 items-center justify-center bg-black/80 px-5">
           {loading ? <ActivityIndicator color="#22d3ee" /> : null}
           <Text className="mt-3 text-center text-slate-200">
             {error || (playbackState === 'starting' ? 'Starting video...' : 'Loading playable video...')}

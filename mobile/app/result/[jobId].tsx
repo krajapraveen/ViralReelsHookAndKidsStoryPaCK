@@ -14,7 +14,7 @@ import { VideoPreview } from '@/components/VideoPreview';
 import type { ToolKey } from '@/types/api';
 
 function pickVideoUrl(job: any) {
-  return job?.playback_url || job?.video_url || job?.output_url || job?.download_url || job?.preview_url || job?.result?.video_url || job?.result?.output_url;
+  return job?.playback_url || job?.video_url || job?.output_url || job?.download_url || job?.result?.video_url || job?.result?.output_url;
 }
 
 function pickShareUrl(job: any) {

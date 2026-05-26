@@ -70,6 +70,20 @@ async def get_duration_seconds(video_path: str) -> Optional[float]:
         return None
 
 
+async def has_audio_stream(video_path: str) -> bool:
+    """Return True when the input has at least one audio stream."""
+    if not video_path or not os.path.exists(video_path):
+        return False
+    cmd = f'ffprobe -v error -select_streams a:0 -show_entries stream=codec_type -of csv=p=0 "{video_path}"'
+    proc = await asyncio.create_subprocess_shell(
+        cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await proc.communicate()
+    return proc.returncode == 0 and "audio" in stdout.decode().strip().lower()
+
+
 async def conform_duration(video_path: str, output_path: str, target_seconds: int, tolerance: float = 2.0) -> Dict:
     """Trim or pad a rendered MP4 to the requested duration and verify with ffprobe."""
     actual = await get_duration_seconds(video_path)
@@ -78,29 +92,42 @@ async def conform_duration(video_path: str, output_path: str, target_seconds: in
     if abs(actual - target_seconds) <= tolerance:
         return {"ok": True, "path": video_path, "actual_duration_seconds": actual, "repaired": False}
 
+    has_audio = await has_audio_stream(video_path)
+
     if actual > target_seconds:
-        cmd = (
-            f'ffmpeg -y -i "{video_path}" -t {target_seconds} '
-            f'-c:v libx264 -pix_fmt yuv420p -c:a aac -movflags +faststart "{output_path}"'
-        )
+        if has_audio:
+            cmd = (
+                f'ffmpeg -y -i "{video_path}" -t {target_seconds} '
+                f'-map 0:v:0 -map 0:a:0 -c:v libx264 -pix_fmt yuv420p -c:a aac -b:a 192k '
+                f'-movflags +faststart -shortest "{output_path}"'
+            )
+        else:
+            cmd = (
+                f'ffmpeg -y -i "{video_path}" -f lavfi -t {target_seconds} '
+                f'-i "anullsrc=channel_layout=stereo:sample_rate=44100" '
+                f'-t {target_seconds} -map 0:v:0 -map 1:a:0 '
+                f'-c:v libx264 -pix_fmt yuv420p -c:a aac -b:a 192k -shortest -movflags +faststart "{output_path}"'
+            )
     else:
         pad = max(0.1, target_seconds - actual)
-        cmd = (
-            f'ffmpeg -y -i "{video_path}" '
-            f'-vf "tpad=stop_mode=clone:stop_duration={pad:.2f}" '
-            f'-af "apad=pad_dur={pad:.2f}" -t {target_seconds} '
-            f'-c:v libx264 -pix_fmt yuv420p -c:a aac -movflags +faststart "{output_path}"'
-        )
+        if has_audio:
+            cmd = (
+                f'ffmpeg -y -i "{video_path}" '
+                f'-vf "tpad=stop_mode=clone:stop_duration={pad:.2f}" '
+                f'-af "apad=pad_dur={pad:.2f}" -t {target_seconds} '
+                f'-map 0:v:0 -map 0:a:0 -c:v libx264 -pix_fmt yuv420p -c:a aac -b:a 192k '
+                f'-movflags +faststart "{output_path}"'
+            )
+        else:
+            cmd = (
+                f'ffmpeg -y -i "{video_path}" -f lavfi -t {target_seconds} '
+                f'-i "anullsrc=channel_layout=stereo:sample_rate=44100" '
+                f'-vf "tpad=stop_mode=clone:stop_duration={pad:.2f}" '
+                f'-t {target_seconds} -map 0:v:0 -map 1:a:0 '
+                f'-c:v libx264 -pix_fmt yuv420p -c:a aac -b:a 192k -shortest -movflags +faststart "{output_path}"'
+            )
 
     ok = await _run_ffmpeg(cmd, timeout=180)
-    if not ok and actual < target_seconds:
-        # Some generated clips have no audio stream; retry video-only padding.
-        cmd = (
-            f'ffmpeg -y -i "{video_path}" '
-            f'-vf "tpad=stop_mode=clone:stop_duration={max(0.1, target_seconds - actual):.2f}" '
-            f'-t {target_seconds} -c:v libx264 -pix_fmt yuv420p -an -movflags +faststart "{output_path}"'
-        )
-        ok = await _run_ffmpeg(cmd, timeout=180)
     if not ok:
         return {"ok": False, "actual_duration_seconds": actual, "error": "duration_repair_failed"}
 
@@ -111,7 +138,13 @@ async def conform_duration(video_path: str, output_path: str, target_seconds: in
             "actual_duration_seconds": repaired_duration,
             "error": "duration_validation_failed",
         }
-    return {"ok": True, "path": output_path, "actual_duration_seconds": repaired_duration, "repaired": True}
+    if not await has_audio_stream(output_path):
+        return {
+            "ok": False,
+            "actual_duration_seconds": repaired_duration,
+            "error": "aac_audio_missing",
+        }
+    return {"ok": True, "path": output_path, "actual_duration_seconds": repaired_duration, "repaired": True, "has_aac_audio": True}
 
 
 async def _run_ffmpeg_resilient(cmd: str, output_path: str, timeout: int = 300) -> bool:
