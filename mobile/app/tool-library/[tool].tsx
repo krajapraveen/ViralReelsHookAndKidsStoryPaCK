@@ -9,16 +9,23 @@ import { findTool } from '@/constants/features';
 import type { ToolKey } from '@/types/api';
 
 export default function ToolLibraryScreen() {
-  const params = useLocalSearchParams<{ tool: ToolKey }>();
+  const params = useLocalSearchParams<{ tool: ToolKey; q?: string; audience?: string; style?: string }>();
   const tool = findTool(params.tool);
   const items = useQuery({
-    queryKey: ['tool-library', params.tool],
-    queryFn: () => generationApi.listToolItems(params.tool),
+    queryKey: ['tool-library', params.tool, params.q, params.audience, params.style],
+    queryFn: () => generationApi.listToolItems(params.tool, {
+      q: params.q,
+      audience: params.audience,
+      style: params.style,
+    }),
     enabled: Boolean(tool),
   });
 
   return (
-    <Screen title={tool?.shortTitle || 'Tool library'} subtitle="Feature-specific results from the existing API.">
+    <Screen
+      title={tool?.shortTitle || 'Tool library'}
+      subtitle={params.q ? 'Related media matched by prompt keywords, audience, and style.' : 'Feature-specific results from the existing API.'}
+    >
       {items.isLoading ? (
         <StateView title="Loading" loading />
       ) : items.isError ? (

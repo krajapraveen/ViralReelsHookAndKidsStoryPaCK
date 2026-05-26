@@ -45,6 +45,12 @@ export type GenerationJob = {
   _id?: string;
   job_id?: string;
   status?: JobStatus;
+  state?: string;
+  progress?: number;
+  progress_percent?: number;
+  current_stage?: string;
+  current_step?: string;
+  queue_position?: number;
   title?: string;
   prompt?: string;
   type?: string;
@@ -55,9 +61,21 @@ export type GenerationJob = {
   download_url?: string;
   share_url?: string;
   thumbnail_url?: string;
+  preview_url?: string;
   result?: Record<string, unknown>;
   error?: string;
+  error_message?: string;
+  error_code?: string;
   detail?: string;
+  render_queue?: {
+    name?: string;
+    position?: number | null;
+    workers?: number;
+    concurrency?: number;
+    timeout_seconds?: number;
+    max_retries?: number;
+    dedicated?: boolean;
+  };
 };
 
 export type PricingProduct = {

@@ -44,8 +44,15 @@ export const STORY_VIDEO_STYLE_OPTIONS: StoryVideoOption[] = [
   { label: 'Kids Storybook', value: 'kids_storybook' },
 ];
 
+export const STORY_VIDEO_DURATION_OPTIONS: StoryVideoOption[] = [
+  { label: '30 seconds', value: '30' },
+  { label: '45 seconds', value: '45' },
+  { label: '60 seconds', value: '60' },
+];
+
 const audienceValues = new Set(STORY_VIDEO_AUDIENCE_OPTIONS.map((option) => option.value));
 const styleValues = new Set(STORY_VIDEO_STYLE_OPTIONS.map((option) => option.value));
+const durationValues = new Set(STORY_VIDEO_DURATION_OPTIONS.map((option) => option.value));
 
 const durationToQuality = (durationSeconds: number) => {
   if (durationSeconds <= 30) return 'fast';
@@ -60,6 +67,7 @@ export type StoryVideoApiPayload = {
   age_group: string;
   voice_preset: string;
   quality_mode: string;
+  duration_seconds: number;
 };
 
 export type FieldErrors = Record<string, string>;
@@ -83,7 +91,7 @@ const storyVideoFormSchema = z.object({
     .max(10000, 'Prompt must be under 10,000 characters.'),
   audience: z.string().refine((value) => audienceValues.has(value), 'Choose a supported audience category.'),
   style: z.string().refine((value) => styleValues.has(value), 'Choose a supported style preset.'),
-  duration: z.string().trim().min(1, 'Choose a duration.'),
+  duration: z.string().refine((value) => durationValues.has(value), 'Choose 30, 45, or 60 seconds.'),
 });
 
 export function fieldErrorsFromZod(error: z.ZodError): FieldErrors {
@@ -101,12 +109,11 @@ export function normalizeStoryVideoPayload(form: ToolSubmitPayload): StoryVideoA
   }
 
   const data = parsed.data;
-  const durationMatch = data.duration.match(/\d+/);
-  const durationSeconds = durationMatch ? Number(durationMatch[0]) : Number.NaN;
+  const durationSeconds = Number(data.duration);
   const fields: FieldErrors = {};
 
   if (!Number.isFinite(durationSeconds) || durationSeconds < 15 || durationSeconds > 180) {
-    fields.duration = 'Duration must be a number of seconds between 15 and 180.';
+    fields.duration = 'Choose 30, 45, or 60 seconds.';
   }
   if (Object.keys(fields).length) {
     throw new ContractValidationError(fields);
@@ -119,5 +126,6 @@ export function normalizeStoryVideoPayload(form: ToolSubmitPayload): StoryVideoA
     age_group: data.audience,
     voice_preset: 'narrator_warm',
     quality_mode: durationToQuality(durationSeconds),
+    duration_seconds: durationSeconds,
   };
 }

@@ -3,6 +3,7 @@ Worker Queue System - Separate Queues for Different Job Types
 Implements priority lanes with dedicated workers for optimal performance
 """
 import asyncio
+import os
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional, List, Callable
 import logging
@@ -24,6 +25,7 @@ class QueueType(Enum):
     TEXT = "text"           # Fast text-only jobs (reels, scripts)
     IMAGE = "image"         # Image generation jobs
     VIDEO = "video"         # Video generation jobs (slowest)
+    VIDEO_RENDER = "video_render"  # Dedicated story-to-video render lane
     AUDIO = "audio"         # Audio/voiceover generation
     EXPORT = "export"       # Packaging/export/download prep
     WEBHOOK = "webhook"     # Payment/webhook/bookkeeping
@@ -56,6 +58,16 @@ QUEUE_CONFIG = {
         "job_types": ["TEXT_TO_VIDEO", "IMAGE_TO_VIDEO", "VIDEO_REMIX", "STORY_VIDEO"],
         "retry_limit": 2,
         "retry_delays": [30, 120],
+    },
+    QueueType.VIDEO_RENDER: {
+        "max_concurrent": int(os.environ.get("VIDEO_RENDER_CONCURRENCY", "2")),
+        "timeout_seconds": int(os.environ.get("VIDEO_RENDER_TIMEOUT_SECONDS", "900")),
+        "priority": JobPriority.NORMAL,
+        "job_types": ["STORY_VIDEO_RENDER", "VIDEO_RENDER"],
+        "retry_limit": int(os.environ.get("VIDEO_RENDER_MAX_RETRIES", "2")),
+        "retry_delays": [30, 120],
+        "worker_count": int(os.environ.get("VIDEO_RENDER_WORKERS", "2")),
+        "queue_name": os.environ.get("VIDEO_RENDER_QUEUE", "video_render"),
     },
     QueueType.AUDIO: {
         "max_concurrent": 3,

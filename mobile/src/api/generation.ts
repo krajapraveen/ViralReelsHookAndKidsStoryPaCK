@@ -48,23 +48,43 @@ export const generationApi = {
 
     return response.data;
   },
-  async getToolJob(toolKey: ToolKey, jobId: string) {
+  async getToolJob(toolKey: ToolKey, jobId: string): Promise<GenerationJob> {
     const tool = findTool(toolKey);
     if (!tool?.api.status) {
       throw new Error('This tool does not expose a documented job status endpoint yet.');
     }
-    const response = await api.get<GenerationJob>(withJobId(tool.api.status, jobId));
-    return response.data;
+    const response = await api.get<GenerationJob | { success?: boolean; job?: GenerationJob }>(withJobId(tool.api.status, jobId));
+    const body = response.data;
+    return ('job' in body && body.job ? body.job : body) as GenerationJob;
   },
-  async listToolItems(toolKey: ToolKey) {
+  async listToolItems(toolKey: ToolKey, filters: { q?: string; audience?: string; style?: string } = {}) {
     const tool = findTool(toolKey);
     if (!tool?.api.list) return [];
     const response = await api.get<GenerationJob[] | { items?: GenerationJob[]; jobs?: GenerationJob[]; data?: GenerationJob[] }>(
       tool.api.list,
     );
     const body = response.data;
-    if (Array.isArray(body)) return body;
-    return body.items || body.jobs || body.data || [];
+    const items = Array.isArray(body) ? body : body.items || body.jobs || body.data || [];
+    const tokens = [
+      filters.q,
+      filters.audience,
+      filters.style,
+    ]
+      .filter(Boolean)
+      .flatMap((value) => String(value).toLowerCase().split(/[^a-z0-9_]+/))
+      .filter((token) => token.length >= 3);
+    if (!tokens.length) return items;
+    return items.filter((item) => {
+      const haystack = [
+        item.title,
+        item.prompt,
+        item.type,
+        item.status,
+        item.state,
+        item.result ? JSON.stringify(item.result) : '',
+      ].join(' ').toLowerCase();
+      return tokens.some((token) => haystack.includes(token));
+    });
   },
   async listLibrary() {
     const response = await api.get<{ jobs?: GenerationJob[]; items?: GenerationJob[]; data?: GenerationJob[] } | GenerationJob[]>(

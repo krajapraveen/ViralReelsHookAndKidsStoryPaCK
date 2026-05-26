@@ -382,6 +382,7 @@ def _legacy_status_response(job: dict) -> dict:
             "age_group": job.get("age_group"),
             "voice_preset": job.get("voice_preset"),
             "story_text": job.get("story_text", ""),
+            "duration_seconds": job.get("duration_seconds"),
             "created_at": job.get("created_at"),
             "completed_at": job.get("completed_at"),
             "fallback": fallback_data,
@@ -614,6 +615,7 @@ class CreateEngineRequest(BaseModel):
     voice_preset: str = Field(default="narrator_warm")
     parent_video_id: Optional[str] = Field(default=None)
     quality_mode: str = Field(default="balanced")  # fast, balanced, high_quality
+    duration_seconds: Optional[int] = Field(default=None, ge=30, le=60)
     series_id: Optional[str] = Field(default=None)  # Story Series context
     episode_number: Optional[int] = Field(default=None)  # Episode number within the series
     challenge_id: Optional[str] = Field(default=None)  # Daily Challenge participation
@@ -779,6 +781,22 @@ async def create_engine_job(
         "voice_preset": request.voice_preset,
         "quality_mode": request.quality_mode,
         "quality_config": quality_config,
+        "duration_seconds": request.duration_seconds,
+        "story_consistency": {
+            "character_bible_required": True,
+            "lock_main_character_description": True,
+            "lock_visual_style": True,
+            "reuse_reference_prompts": True,
+            "scene_prompt_identity_tokens": True,
+            "style_tokens": [style_id, request.animation_style],
+        },
+        "render_worker": {
+            "queue": os.environ.get("VIDEO_RENDER_QUEUE", "video_render"),
+            "workers": int(os.environ.get("VIDEO_RENDER_WORKERS", "2")),
+            "concurrency": int(os.environ.get("VIDEO_RENDER_CONCURRENCY", "2")),
+            "timeout_seconds": int(os.environ.get("VIDEO_RENDER_TIMEOUT_SECONDS", "900")),
+            "max_retries": int(os.environ.get("VIDEO_RENDER_MAX_RETRIES", "2")),
+        },
     }
     # Link to series if this is a series-driven creation
     if request.series_id:
@@ -885,6 +903,19 @@ async def create_engine_job(
     return response
 
 
+async def _get_render_queue_position(job: dict) -> Optional[int]:
+    """Return the dedicated video-render queue position for queued/rendering jobs."""
+    state = job.get("state")
+    if state not in {"QUEUED", "ASSEMBLING_VIDEO", "VALIDATING"}:
+        return None
+    created_at = job.get("created_at", "")
+    ahead = await db.story_engine_jobs.count_documents({
+        "state": {"$in": ["QUEUED", "ASSEMBLING_VIDEO", "VALIDATING"]},
+        "created_at": {"$lt": created_at},
+    })
+    return ahead + 1
+
+
 @router.get("/status/{job_id}")
 async def get_status(job_id: str, current_user: dict = Depends(get_optional_user)):
     """Poll job progress. Returns frontend-compatible response shape.
@@ -984,6 +1015,16 @@ async def get_status(job_id: str, current_user: dict = Depends(get_optional_user
             "age_group": job.get("age_group", "kids_5_8"),
             "voice_preset": job.get("voice_preset", "narrator_warm"),
             "story_text": job.get("story_text", ""),
+            "duration_seconds": job.get("duration_seconds"),
+            "render_queue": {
+                "name": os.environ.get("VIDEO_RENDER_QUEUE", "video_render"),
+                "position": await _get_render_queue_position(job),
+                "workers": int(os.environ.get("VIDEO_RENDER_WORKERS", "2")),
+                "concurrency": int(os.environ.get("VIDEO_RENDER_CONCURRENCY", "2")),
+                "timeout_seconds": int(os.environ.get("VIDEO_RENDER_TIMEOUT_SECONDS", "900")),
+                "max_retries": int(os.environ.get("VIDEO_RENDER_MAX_RETRIES", "2")),
+                "dedicated": True,
+            },
             "created_at": job.get("created_at"),
             "completed_at": job.get("completed_at"),
             "fallback": None,

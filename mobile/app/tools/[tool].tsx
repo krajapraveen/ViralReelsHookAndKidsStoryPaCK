@@ -13,6 +13,7 @@ import { TextField } from '@/components/TextField';
 import { findTool } from '@/constants/features';
 import {
   STORY_VIDEO_AUDIENCE_OPTIONS,
+  STORY_VIDEO_DURATION_OPTIONS,
   STORY_VIDEO_STYLE_OPTIONS,
   type FieldErrors,
 } from '@/contracts/storyVideo';
@@ -20,7 +21,7 @@ import type { ToolKey } from '@/types/api';
 
 const fieldLabels: Record<keyof ToolSubmitPayload, string> = {
   title: 'Title',
-  prompt: 'Prompt',
+  prompt: 'Prompt / Story',
   audience: 'Audience',
   style: 'Style',
   duration: 'Duration',
@@ -45,7 +46,7 @@ export default function ToolScreen() {
   const params = useLocalSearchParams<{ tool: string }>();
   const tool = useMemo(() => findTool(params.tool), [params.tool]);
   const [form, setForm] = useState<ToolSubmitPayload>({
-    duration: '30 seconds',
+    duration: '30',
     audience: 'kids_6_10',
     style: 'cartoon',
   });
@@ -130,6 +131,15 @@ export default function ToolScreen() {
             error={fieldErrors[field]}
             onChange={(value) => updateField(field, value)}
           />
+        ) : tool.key === 'story-video' && field === 'duration' ? (
+          <SelectField
+            key={field}
+            label={fieldLabels[field]}
+            value={form[field]}
+            options={STORY_VIDEO_DURATION_OPTIONS}
+            error={fieldErrors[field]}
+            onChange={(value) => updateField(field, value)}
+          />
         ) : (
           <TextField
             key={field}
@@ -159,7 +169,17 @@ export default function ToolScreen() {
         <Button
           title="View related library"
           variant="secondary"
-          onPress={() => router.push({ pathname: '/tool-library/[tool]', params: { tool: tool.key as ToolKey } })}
+          onPress={() =>
+            router.push({
+              pathname: '/tool-library/[tool]',
+              params: {
+                tool: tool.key as ToolKey,
+                q: form.prompt || '',
+                audience: form.audience || '',
+                style: form.style || '',
+              },
+            })
+          }
         />
       </View>
     </Screen>
