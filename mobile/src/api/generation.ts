@@ -1,6 +1,7 @@
 import { api, withJobId } from './client';
 import type { GenerationJob, ToolKey } from '@/types/api';
 import { findTool } from '@/constants/features';
+import { normalizeStoryVideoPayload } from '@/contracts/storyVideo';
 
 export type ToolSubmitPayload = {
   title?: string;
@@ -21,10 +22,28 @@ export const generationApi = {
       throw new Error('No existing API endpoint is documented for this mobile flow yet.');
     }
 
-    const response = await api.post<GenerationJob>(tool.api.create, {
-      ...payload,
-      mobile_client: true,
-      source: 'visionary-suite-mobile',
+    const requestPayload =
+      toolKey === 'story-video'
+        ? normalizeStoryVideoPayload(payload)
+        : {
+            ...payload,
+            mobile_client: true,
+            source: 'visionary-suite-mobile',
+          };
+
+    console.info('[mobile.generate.request]', {
+      tool: toolKey,
+      endpoint: tool.api.create,
+      payload: requestPayload,
+    });
+
+    const response = await api.post<GenerationJob>(tool.api.create, requestPayload);
+
+    console.info('[mobile.generate.response]', {
+      tool: toolKey,
+      endpoint: tool.api.create,
+      status: response.status,
+      job_id: response.data?.job_id || response.data?.id || response.data?._id,
     });
 
     return response.data;

@@ -12,6 +12,7 @@ export type NormalizedApiError = {
   requestId?: string;
   status?: number;
   retryable?: boolean;
+  fields?: Record<string, string>;
 };
 
 export const api = axios.create({
@@ -34,15 +35,44 @@ api.interceptors.request.use(async (config) => {
 
 export function normalizeApiError(error: unknown): NormalizedApiError {
   if (!axios.isAxiosError(error)) {
-    return { message: error instanceof Error ? error.message : 'Something went wrong.' };
+    const fields = typeof error === 'object' && error && 'fields' in error
+      ? (error as { fields?: Record<string, string> }).fields
+      : undefined;
+    return {
+      message: error instanceof Error ? error.message : 'Something went wrong.',
+      fields,
+    };
   }
 
   const axiosError = error as AxiosError<any>;
   const detail = axiosError.response?.data?.detail;
+  const responseFields = axiosError.response?.data?.fields;
   const requestId =
     axiosError.response?.headers?.['x-request-id'] ||
     axiosError.response?.data?.request_id ||
     (typeof detail === 'object' ? detail?.request_id : undefined);
+
+  if (Array.isArray(detail)) {
+    const fields = detail.reduce<Record<string, string>>((acc, item) => {
+      const loc = Array.isArray(item?.loc) ? item.loc : [];
+      const field = String(loc[loc.length - 1] || 'form');
+      acc[field] = item?.msg || 'Invalid value.';
+      return acc;
+    }, {});
+    console.warn('[api.validation_failed]', {
+      status: axiosError.response?.status,
+      url: axiosError.config?.url,
+      fields,
+      requestId,
+    });
+    return {
+      message: 'Please fix the highlighted fields.',
+      code: 'validation_failed',
+      requestId,
+      status: axiosError.response?.status,
+      fields,
+    };
+  }
 
   if (typeof detail === 'object' && detail) {
     return {
@@ -51,6 +81,7 @@ export function normalizeApiError(error: unknown): NormalizedApiError {
       requestId,
       status: axiosError.response?.status,
       retryable: detail.retryable,
+      fields: responseFields || detail.fields,
     };
   }
 
@@ -63,6 +94,7 @@ export function normalizeApiError(error: unknown): NormalizedApiError {
     code: axiosError.response?.data?.code,
     requestId,
     status: axiosError.response?.status,
+    fields: responseFields,
   };
 }
 

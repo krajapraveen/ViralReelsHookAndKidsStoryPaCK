@@ -10,6 +10,7 @@ import { Screen } from '@/components/Screen';
 import { StateView } from '@/components/StateView';
 import { TextField } from '@/components/TextField';
 import { findTool } from '@/constants/features';
+import type { FieldErrors } from '@/contracts/storyVideo';
 import type { ToolKey } from '@/types/api';
 
 const fieldLabels: Record<keyof ToolSubmitPayload, string> = {
@@ -22,19 +23,51 @@ const fieldLabels: Record<keyof ToolSubmitPayload, string> = {
   characters: 'Characters',
 };
 
+const backendToFormField: Record<string, keyof ToolSubmitPayload> = {
+  story_text: 'prompt',
+  animation_style: 'style',
+  age_group: 'audience',
+  quality_mode: 'duration',
+};
+
+const toFormFieldErrors = (fields: FieldErrors): FieldErrors =>
+  Object.entries(fields).reduce<FieldErrors>((acc, [field, message]) => {
+    acc[backendToFormField[field] || field] = message;
+    return acc;
+  }, {});
+
 export default function ToolScreen() {
   const params = useLocalSearchParams<{ tool: string }>();
   const tool = useMemo(() => findTool(params.tool), [params.tool]);
   const [form, setForm] = useState<ToolSubmitPayload>({
     duration: '30 seconds',
+    audience: '5-8',
+    style: 'Cartoon',
   });
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const mutation = useMutation({
-    mutationFn: () => generationApi.submitTool(tool!.key, form),
+    mutationFn: () => {
+      setFieldErrors({});
+      return generationApi.submitTool(tool!.key, form);
+    },
     onSuccess: (job) => {
       const jobId = job.job_id || job.id || job._id;
       if (jobId) {
         router.push({ pathname: '/result/[jobId]', params: { jobId, tool: tool!.key } });
+      }
+    },
+    onError: (err) => {
+      const normalized = normalizeApiError(err);
+      const nextFields = normalized.fields ? toFormFieldErrors(normalized.fields) : {};
+      setFieldErrors(nextFields);
+      if (normalized.fields) {
+        console.warn('[mobile.generate.validation_failed]', {
+          tool: tool?.key,
+          fields: nextFields,
+          status: normalized.status,
+          requestId: normalized.requestId,
+        });
       }
     },
   });
@@ -47,7 +80,10 @@ export default function ToolScreen() {
     );
   }
 
-  const error = mutation.error ? normalizeApiError(mutation.error).message : null;
+  const normalizedError = mutation.error ? normalizeApiError(mutation.error) : null;
+  const error = normalizedError && !normalizedError.fields ? normalizedError.message : null;
+  const hasRequiredFields = tool.fields.every((field) => (form[field] || '').trim().length > 0);
+  const hasFieldErrors = Object.keys(fieldErrors).length > 0;
 
   return (
     <Screen title={tool.title} subtitle={tool.description}>
@@ -66,8 +102,17 @@ export default function ToolScreen() {
           key={field}
           label={fieldLabels[field]}
           value={form[field] || ''}
-          onChangeText={(value) => setForm((current) => ({ ...current, [field]: value }))}
+          onChangeText={(value) => {
+            setForm((current) => ({ ...current, [field]: value }));
+            setFieldErrors((current) => {
+              if (!current[field]) return current;
+              const next = { ...current };
+              delete next[field];
+              return next;
+            });
+          }}
           multiline={field === 'prompt' || field === 'characters'}
+          error={fieldErrors[field]}
         />
       ))}
 
@@ -80,7 +125,7 @@ export default function ToolScreen() {
       {error ? <Text className="mb-4 text-rose-300">{error}</Text> : null}
       <Button
         title={tool.uploadRequired ? 'API mapped - upload TODO' : 'Generate'}
-        disabled={tool.uploadRequired || mutation.isPending || !form.prompt}
+        disabled={tool.uploadRequired || mutation.isPending || !hasRequiredFields || hasFieldErrors}
         loading={mutation.isPending}
         onPress={() => mutation.mutate()}
       />
