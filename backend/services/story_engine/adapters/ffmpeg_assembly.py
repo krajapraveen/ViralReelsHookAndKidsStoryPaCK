@@ -84,14 +84,28 @@ async def has_audio_stream(video_path: str) -> bool:
     return proc.returncode == 0 and "audio" in stdout.decode().strip().lower()
 
 
-async def conform_duration(video_path: str, output_path: str, target_seconds: int, tolerance: float = 2.0) -> Dict:
-    """Trim or pad a rendered MP4 to the requested duration and verify with ffprobe."""
+async def get_audio_duration_seconds(video_path: str) -> Optional[float]:
+    """Return first audio stream duration, or None if missing/invalid."""
+    if not video_path or not os.path.exists(video_path):
+        return None
+    cmd = f'ffprobe -v error -select_streams a:0 -show_entries stream=duration -of csv=p=0 "{video_path}"'
+    proc = await asyncio.create_subprocess_shell(
+        cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await proc.communicate()
+    try:
+        return float(stdout.decode().strip())
+    except (TypeError, ValueError):
+        return None
+
+
+async def conform_duration(video_path: str, output_path: str, target_seconds: int, tolerance: float = 1.0) -> Dict:
+    """Trim/pad MP4 to requested duration and guarantee mobile-compatible H.264 + full-length AAC."""
     actual = await get_duration_seconds(video_path)
     if actual is None:
         return {"ok": False, "actual_duration_seconds": None, "error": "ffprobe_duration_failed"}
-    if abs(actual - target_seconds) <= tolerance:
-        return {"ok": True, "path": video_path, "actual_duration_seconds": actual, "repaired": False}
-
     has_audio = await has_audio_stream(video_path)
 
     if actual > target_seconds:
@@ -138,13 +152,28 @@ async def conform_duration(video_path: str, output_path: str, target_seconds: in
             "actual_duration_seconds": repaired_duration,
             "error": "duration_validation_failed",
         }
-    if not await has_audio_stream(output_path):
+    audio_duration = await get_audio_duration_seconds(output_path)
+    if not await has_audio_stream(output_path) or audio_duration is None:
         return {
             "ok": False,
             "actual_duration_seconds": repaired_duration,
             "error": "aac_audio_missing",
         }
-    return {"ok": True, "path": output_path, "actual_duration_seconds": repaired_duration, "repaired": True, "has_aac_audio": True}
+    if abs(audio_duration - target_seconds) > tolerance:
+        return {
+            "ok": False,
+            "actual_duration_seconds": repaired_duration,
+            "actual_audio_duration_seconds": audio_duration,
+            "error": "audio_duration_validation_failed",
+        }
+    return {
+        "ok": True,
+        "path": output_path,
+        "actual_duration_seconds": repaired_duration,
+        "actual_audio_duration_seconds": audio_duration,
+        "repaired": True,
+        "has_aac_audio": True,
+    }
 
 
 async def _run_ffmpeg_resilient(cmd: str, output_path: str, timeout: int = 300) -> bool:

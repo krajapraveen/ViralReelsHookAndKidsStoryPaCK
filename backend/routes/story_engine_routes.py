@@ -1117,6 +1117,7 @@ async def get_status(job_id: str, req: Request, current_user: dict = Depends(get
             "duration_seconds": job.get("duration_seconds"),
             "requested_duration_seconds": job.get("duration_seconds"),
             "actual_duration_seconds": job.get("actual_duration_seconds"),
+            "actual_audio_duration_seconds": (job.get("duration_validation") or {}).get("actual_audio_duration_seconds"),
             "duration_validation": job.get("duration_validation"),
             "render_queue": {
                 "name": os.environ.get("VIDEO_RENDER_QUEUE", "video_render"),

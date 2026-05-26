@@ -27,10 +27,15 @@ export function VideoPreview({ jobId, uri, thumbnailUri, onRetry }: VideoPreview
     console.info('[video.playback.play_requested]', { uri });
     try {
       const currentStatus = await videoRef.current.getStatusAsync();
-      if ('isLoaded' in currentStatus && currentStatus.isLoaded && currentStatus.didJustFinish) {
-        await videoRef.current.setPositionAsync(0);
+      if ('isLoaded' in currentStatus && currentStatus.isLoaded) {
+        await videoRef.current.setStatusAsync({
+          positionMillis: 0,
+          shouldPlay: true,
+        });
+      } else {
+        await videoRef.current.playAsync();
       }
-      const status = await videoRef.current.playAsync();
+      const status = await videoRef.current.getStatusAsync();
       if ('isLoaded' in status && status.isLoaded) {
         // Expo may report isPlaying on the next status tick; keep spinner until then.
         if (!status.isPlaying) {
@@ -83,7 +88,7 @@ export function VideoPreview({ jobId, uri, thumbnailUri, onRetry }: VideoPreview
   return (
     <Pressable onPress={startPlayback} className="overflow-hidden rounded-3xl border border-white/10 bg-black">
       {loading || error ? (
-        <Pressable onPress={error ? startPlayback : undefined} className="absolute inset-0 z-20 items-center justify-center bg-black/80 px-5">
+        <Pressable onPress={startPlayback} className="absolute inset-0 z-20 items-center justify-center bg-black/80 px-5">
           {loading ? <ActivityIndicator color="#22d3ee" /> : null}
           <Text className="mt-3 text-center text-slate-200">
             {error || (playbackState === 'starting' ? 'Starting video...' : 'Loading playable video...')}

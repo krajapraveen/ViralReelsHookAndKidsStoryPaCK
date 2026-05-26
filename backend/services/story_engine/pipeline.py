@@ -985,6 +985,13 @@ async def _stage_scene_motion(job: dict) -> Dict:
     if not plans:
         return {"status": "failed", "error": "Failed to generate scene motion plans", "error_code": ErrorCode.MODEL_INVALID_RESPONSE.value}
 
+    requested_duration = int(job.get("duration_seconds") or 0)
+    if requested_duration in (30, 45, 60) and plans:
+        per_scene = max(2.0, requested_duration / len(plans))
+        for plan in plans:
+            plan["clip_duration_seconds"] = round(per_scene, 2)
+            plan["target_total_duration_seconds"] = requested_duration
+
     await db.story_engine_jobs.update_one(
         {"job_id": job["job_id"]},
         {"$set": {"scene_motion_plans": plans}},
@@ -1213,7 +1220,7 @@ async def _stage_assembly(job: dict) -> Dict:
             final_path,
             conformed_path,
             requested_duration,
-            tolerance=2.0,
+            tolerance=1.0,
         )
         duration_validation["requested_duration_seconds"] = requested_duration
         if not duration_validation.get("ok"):
@@ -1259,7 +1266,7 @@ async def _stage_assembly(job: dict) -> Dict:
             final_path,
             final_conformed_path,
             requested_duration,
-            tolerance=2.0,
+            tolerance=1.0,
         )
         duration_validation["requested_duration_seconds"] = requested_duration
         if not duration_validation.get("ok"):

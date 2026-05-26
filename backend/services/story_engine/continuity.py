@@ -54,8 +54,13 @@ def validate_pipeline_outputs(job: dict) -> ValidationResult:
         actual = job.get("actual_duration_seconds")
         if actual is None:
             result.fail("actual_duration_seconds is missing — ffprobe validation did not run")
-        elif abs(float(actual) - int(requested)) > 2:
+        elif abs(float(actual) - int(requested)) > 1:
             result.fail(f"actual_duration_seconds {actual:.2f}s does not match requested {requested}s")
+        audio_actual = (job.get("duration_validation") or {}).get("actual_audio_duration_seconds")
+        if audio_actual is None:
+            result.fail("actual_audio_duration_seconds is missing — AAC audio validation did not run")
+        elif abs(float(audio_actual) - int(requested)) > 1:
+            result.fail(f"actual_audio_duration_seconds {audio_actual:.2f}s does not match requested {requested}s")
 
     # 4. All scene clips must exist
     scene_plans = job.get("scene_motion_plans", [])

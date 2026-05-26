@@ -3,7 +3,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Linking, Pressable, Text, View } from 'react-native';
+import { Linking, Pressable, Share, Text, View } from 'react-native';
 import { useState } from 'react';
 
 import { generationApi } from '@/api/generation';
@@ -93,9 +93,7 @@ export default function ResultScreen() {
       if (url) {
         await Clipboard.setStringAsync(url);
         setStatusMessage('Link copied');
-        if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(url);
-        }
+        await Share.share({ message: `${title} ${url}`, url, title });
       }
       return url;
     },
@@ -137,9 +135,7 @@ export default function ResultScreen() {
     try {
       await Linking.openURL(targets[platform]);
     } catch {
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(shareUrl);
-      }
+      await Share.share({ message: `${title} ${shareUrl}`, url: shareUrl, title });
     }
   };
 
@@ -174,6 +170,7 @@ export default function ResultScreen() {
               <Text className="mt-2 text-sm text-slate-300">
                 Requested: {job.data.requested_duration_seconds || job.data.duration_seconds}s
                 {job.data.actual_duration_seconds ? ` · Actual: ${Math.round(job.data.actual_duration_seconds)}s` : ''}
+                {job.data.actual_audio_duration_seconds ? ` · Audio: ${Math.round(job.data.actual_audio_duration_seconds)}s` : ''}
               </Text>
             ) : null}
             {job.data?.error || job.data?.error_message || job.data?.detail ? (

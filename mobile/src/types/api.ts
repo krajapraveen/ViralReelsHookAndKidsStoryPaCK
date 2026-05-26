@@ -53,11 +53,13 @@ export type GenerationJob = {
   queue_position?: number;
   requested_duration_seconds?: number;
   actual_duration_seconds?: number;
+  actual_audio_duration_seconds?: number;
   duration_seconds?: number;
   duration_validation?: {
     ok?: boolean;
     requested_duration_seconds?: number;
     actual_duration_seconds?: number;
+    actual_audio_duration_seconds?: number;
     repaired?: boolean;
     error?: string;
   };
