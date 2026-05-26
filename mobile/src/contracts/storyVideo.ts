@@ -19,54 +19,39 @@ export const STORY_VIDEO_API_CONTRACT = {
   failureStates: ['moderation_failed', 'render_failed', 'timeout', 'insufficient_credits'],
 } as const;
 
-const audienceAliases: Record<string, string> = {
-  toddler: 'toddler',
-  '2-4': 'toddler',
-  'kids 2-4': 'toddler',
-  'kids_2_4': 'toddler',
-  '5-8': 'kids_5_8',
-  '6-10': 'kids_5_8',
-  'kids 5-8': 'kids_5_8',
-  'kids_5_8': 'kids_5_8',
-  '9-12': 'kids_9_12',
-  'kids 9-12': 'kids_9_12',
-  'kids_9_12': 'kids_9_12',
-  teen: 'teen',
-  teens: 'teen',
-  '13+': 'teen',
-  all: 'all_ages',
-  'all ages': 'all_ages',
-  all_ages: 'all_ages',
+export type StoryVideoOption = {
+  label: string;
+  value: string;
 };
 
-const styleAliases: Record<string, string> = {
-  cartoon: 'cartoon_2d',
-  '2d cartoon': 'cartoon_2d',
-  cartoon_2d: 'cartoon_2d',
-  anime: 'anime_style',
-  anime_style: 'anime_style',
-  '3d': '3d_pixar',
-  '3d animation': '3d_pixar',
-  pixar: '3d_pixar',
-  '3d_pixar': '3d_pixar',
-  watercolor: 'watercolor',
-  comic: 'comic_book',
-  'comic book': 'comic_book',
-  comic_book: 'comic_book',
-  claymation: 'claymation',
-};
+export const STORY_VIDEO_AUDIENCE_OPTIONS: StoryVideoOption[] = [
+  { label: '3-5 years', value: 'preschool_3_5' },
+  { label: '6-10 years', value: 'kids_6_10' },
+  { label: '11-14 years', value: 'tweens_11_14' },
+  { label: 'Teens', value: 'teens' },
+  { label: 'Family', value: 'family' },
+  { label: 'General', value: 'general' },
+];
+
+export const STORY_VIDEO_STYLE_OPTIONS: StoryVideoOption[] = [
+  { label: 'Cartoon', value: 'cartoon' },
+  { label: 'Cinematic', value: 'cinematic' },
+  { label: 'Anime', value: 'anime' },
+  { label: '3D Animation', value: '3d_animation' },
+  { label: 'Realistic', value: 'realistic' },
+  { label: 'Comic Book', value: 'comic_book' },
+  { label: 'Watercolor', value: 'watercolor' },
+  { label: 'Kids Storybook', value: 'kids_storybook' },
+];
+
+const audienceValues = new Set(STORY_VIDEO_AUDIENCE_OPTIONS.map((option) => option.value));
+const styleValues = new Set(STORY_VIDEO_STYLE_OPTIONS.map((option) => option.value));
 
 const durationToQuality = (durationSeconds: number) => {
   if (durationSeconds <= 30) return 'fast';
   if (durationSeconds <= 60) return 'balanced';
   return 'high_quality';
 };
-
-const normalizeToken = (value?: string) =>
-  String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, ' ');
 
 export type StoryVideoApiPayload = {
   title: string;
@@ -96,8 +81,8 @@ const storyVideoFormSchema = z.object({
     .trim()
     .min(50, 'Prompt must be at least 50 characters for Story Video generation.')
     .max(10000, 'Prompt must be under 10,000 characters.'),
-  audience: z.string().trim().min(1, 'Choose an audience category.'),
-  style: z.string().trim().min(1, 'Choose a style preset.'),
+  audience: z.string().refine((value) => audienceValues.has(value), 'Choose a supported audience category.'),
+  style: z.string().refine((value) => styleValues.has(value), 'Choose a supported style preset.'),
   duration: z.string().trim().min(1, 'Choose a duration.'),
 });
 
@@ -116,18 +101,10 @@ export function normalizeStoryVideoPayload(form: ToolSubmitPayload): StoryVideoA
   }
 
   const data = parsed.data;
-  const audience = audienceAliases[normalizeToken(data.audience)];
-  const style = styleAliases[normalizeToken(data.style)];
   const durationMatch = data.duration.match(/\d+/);
   const durationSeconds = durationMatch ? Number(durationMatch[0]) : Number.NaN;
   const fields: FieldErrors = {};
 
-  if (!audience) {
-    fields.audience = 'Unsupported audience. Use: 2-4, 5-8, 9-12, 13+, or all ages.';
-  }
-  if (!style) {
-    fields.style = 'Unsupported style. Use: Cartoon, Anime, 3D Animation, Watercolor, Comic Book, or Claymation.';
-  }
   if (!Number.isFinite(durationSeconds) || durationSeconds < 15 || durationSeconds > 180) {
     fields.duration = 'Duration must be a number of seconds between 15 and 180.';
   }
@@ -138,8 +115,8 @@ export function normalizeStoryVideoPayload(form: ToolSubmitPayload): StoryVideoA
   return {
     title: data.title.trim(),
     story_text: data.prompt.trim(),
-    animation_style: style,
-    age_group: audience,
+    animation_style: data.style,
+    age_group: data.audience,
     voice_preset: 'narrator_warm',
     quality_mode: durationToQuality(durationSeconds),
   };

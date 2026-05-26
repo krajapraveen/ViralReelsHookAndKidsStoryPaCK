@@ -40,6 +40,12 @@ router = APIRouter(prefix="/story-engine", tags=["Story Engine"])
 # ═══════════════════════════════════════════════════════════════
 
 ANIMATION_STYLES = {
+    "cartoon": {"name": "Cartoon", "style_prompt": "2D cartoon animation style, vibrant colors, smooth lines, family-friendly"},
+    "cinematic": {"name": "Cinematic", "style_prompt": "cinematic animation style, dramatic lighting, polished camera movement, family-friendly"},
+    "anime": {"name": "Anime", "style_prompt": "anime art style, expressive characters, detailed backgrounds, Studio Ghibli inspired but original"},
+    "3d_animation": {"name": "3D Animation", "style_prompt": "3D rendered animation, smooth textures, warm lighting, Pixar-quality but original"},
+    "realistic": {"name": "Realistic", "style_prompt": "realistic cinematic illustration style, natural lighting, detailed environments, family-friendly"},
+    "kids_storybook": {"name": "Kids Storybook", "style_prompt": "children's storybook illustration style, soft shapes, warm colors, whimsical and safe"},
     "cartoon_2d": {"name": "2D Cartoon", "style_prompt": "2D cartoon animation style, vibrant colors, smooth lines, family-friendly"},
     "anime_style": {"name": "Anime", "style_prompt": "anime art style, expressive characters, detailed backgrounds, Studio Ghibli inspired but original"},
     "3d_pixar": {"name": "3D Animation", "style_prompt": "3D rendered animation, smooth textures, warm lighting, Pixar-quality but original"},
@@ -49,6 +55,12 @@ ANIMATION_STYLES = {
 }
 
 AGE_GROUPS = {
+    "preschool_3_5": {"name": "3-5 years", "max_scenes": 5},
+    "kids_6_10": {"name": "6-10 years", "max_scenes": 7},
+    "tweens_11_14": {"name": "11-14 years", "max_scenes": 8},
+    "teens": {"name": "Teens", "max_scenes": 10},
+    "family": {"name": "Family", "max_scenes": 8},
+    "general": {"name": "General", "max_scenes": 8},
     "toddler": {"name": "Toddlers (2-4)", "max_scenes": 4},
     "kids_5_8": {"name": "Kids (5-8)", "max_scenes": 6},
     "kids_9_12": {"name": "Tweens (9-12)", "max_scenes": 8},
@@ -673,6 +685,22 @@ async def create_engine_job(
             raise HTTPException(status_code=401, detail="Not authenticated")
         await _check_rate_limit(user_id)
 
+    validation_fields = {}
+    if request.animation_style not in ANIMATION_STYLES:
+        validation_fields["animation_style"] = "Unsupported style preset."
+    if request.age_group not in AGE_GROUPS:
+        validation_fields["age_group"] = "Unsupported audience category."
+    if request.quality_mode not in QUALITY_MODES:
+        validation_fields["quality_mode"] = "Unsupported generation mode."
+    if validation_fields:
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": "validation_failed",
+                "fields": validation_fields,
+            },
+        )
+
     # ── First Video Free: skip credits if user has never completed a video ──
     is_first_video_free = False
     if not is_guest and current_user:
@@ -682,8 +710,7 @@ async def create_engine_job(
             is_first_video_free = True
             logger.info(f"[FIRST-FREE] User {user_id} qualifies for first video free")
 
-    # Map animation_style to style_id
-    style_id = request.animation_style if request.animation_style in ANIMATION_STYLES else "cartoon_2d"
+    style_id = request.animation_style
 
     # Full safety pipeline — sanitize story and title
     from services.rewrite_engine import process_safety_check

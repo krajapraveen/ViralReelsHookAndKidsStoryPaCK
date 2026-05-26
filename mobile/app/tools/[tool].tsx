@@ -7,10 +7,15 @@ import { generationApi, type ToolSubmitPayload } from '@/api/generation';
 import { normalizeApiError } from '@/api/client';
 import { Button } from '@/components/Button';
 import { Screen } from '@/components/Screen';
+import { SelectField } from '@/components/SelectField';
 import { StateView } from '@/components/StateView';
 import { TextField } from '@/components/TextField';
 import { findTool } from '@/constants/features';
-import type { FieldErrors } from '@/contracts/storyVideo';
+import {
+  STORY_VIDEO_AUDIENCE_OPTIONS,
+  STORY_VIDEO_STYLE_OPTIONS,
+  type FieldErrors,
+} from '@/contracts/storyVideo';
 import type { ToolKey } from '@/types/api';
 
 const fieldLabels: Record<keyof ToolSubmitPayload, string> = {
@@ -41,8 +46,8 @@ export default function ToolScreen() {
   const tool = useMemo(() => findTool(params.tool), [params.tool]);
   const [form, setForm] = useState<ToolSubmitPayload>({
     duration: '30 seconds',
-    audience: '5-8',
-    style: 'Cartoon',
+    audience: 'kids_6_10',
+    style: 'cartoon',
   });
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
@@ -84,6 +89,15 @@ export default function ToolScreen() {
   const error = normalizedError && !normalizedError.fields ? normalizedError.message : null;
   const hasRequiredFields = tool.fields.every((field) => (form[field] || '').trim().length > 0);
   const hasFieldErrors = Object.keys(fieldErrors).length > 0;
+  const updateField = (field: keyof ToolSubmitPayload, value: string) => {
+    setForm((current) => ({ ...current, [field]: value }));
+    setFieldErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  };
 
   return (
     <Screen title={tool.title} subtitle={tool.description}>
@@ -98,22 +112,34 @@ export default function ToolScreen() {
       ) : null}
 
       {tool.fields.map((field) => (
-        <TextField
-          key={field}
-          label={fieldLabels[field]}
-          value={form[field] || ''}
-          onChangeText={(value) => {
-            setForm((current) => ({ ...current, [field]: value }));
-            setFieldErrors((current) => {
-              if (!current[field]) return current;
-              const next = { ...current };
-              delete next[field];
-              return next;
-            });
-          }}
-          multiline={field === 'prompt' || field === 'characters'}
-          error={fieldErrors[field]}
-        />
+        tool.key === 'story-video' && field === 'audience' ? (
+          <SelectField
+            key={field}
+            label={fieldLabels[field]}
+            value={form[field]}
+            options={STORY_VIDEO_AUDIENCE_OPTIONS}
+            error={fieldErrors[field]}
+            onChange={(value) => updateField(field, value)}
+          />
+        ) : tool.key === 'story-video' && field === 'style' ? (
+          <SelectField
+            key={field}
+            label={fieldLabels[field]}
+            value={form[field]}
+            options={STORY_VIDEO_STYLE_OPTIONS}
+            error={fieldErrors[field]}
+            onChange={(value) => updateField(field, value)}
+          />
+        ) : (
+          <TextField
+            key={field}
+            label={fieldLabels[field]}
+            value={form[field] || ''}
+            onChangeText={(value) => updateField(field, value)}
+            multiline={field === 'prompt' || field === 'characters'}
+            error={fieldErrors[field]}
+          />
+        )
       ))}
 
       {tool.mobileNotes?.map((note) => (

@@ -31,17 +31,20 @@ Mobile sends exactly these fields for Story Video:
 | --- | --- | --- |
 | `Title` | `title` | trimmed string, 3-100 chars |
 | `Prompt` | `story_text` | trimmed string, 50-10000 chars |
-| `Cartoon`, `2D Cartoon` | `animation_style` | `cartoon_2d` |
-| `Anime` | `animation_style` | `anime_style` |
-| `3D`, `3D Animation`, `Pixar` | `animation_style` | `3d_pixar` |
+| `Cartoon` | `animation_style` | `cartoon` |
+| `Cinematic` | `animation_style` | `cinematic` |
+| `Anime` | `animation_style` | `anime` |
+| `3D Animation` | `animation_style` | `3d_animation` |
+| `Realistic` | `animation_style` | `realistic` |
 | `Watercolor` | `animation_style` | `watercolor` |
-| `Comic`, `Comic Book` | `animation_style` | `comic_book` |
-| `Claymation` | `animation_style` | `claymation` |
-| `2-4` | `age_group` | `toddler` |
-| `5-8`, `6-10` | `age_group` | `kids_5_8` |
-| `9-12` | `age_group` | `kids_9_12` |
-| `13+`, `Teen` | `age_group` | `teen` |
-| `All ages` | `age_group` | `all_ages` |
+| `Comic Book` | `animation_style` | `comic_book` |
+| `Kids Storybook` | `animation_style` | `kids_storybook` |
+| `3-5 years` | `age_group` | `preschool_3_5` |
+| `6-10 years` | `age_group` | `kids_6_10` |
+| `11-14 years` | `age_group` | `tweens_11_14` |
+| `Teens` | `age_group` | `teens` |
+| `Family` | `age_group` | `family` |
+| `General` | `age_group` | `general` |
 | `15-30 seconds` | `quality_mode` | `fast` |
 | `31-60 seconds` | `quality_mode` | `balanced` |
 | `61-180 seconds` | `quality_mode` | `high_quality` |
@@ -51,6 +54,7 @@ Mobile sends exactly these fields for Story Video:
 ## Required production behavior
 
 - Validate with Zod before submit.
+- Audience and Style must be controlled select fields, not free text.
 - Never show a generic validation banner.
 - Highlight failing fields inline.
 - Log outbound request payloads for generation submissions.
