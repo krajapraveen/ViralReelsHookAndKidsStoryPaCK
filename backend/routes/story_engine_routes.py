@@ -313,6 +313,43 @@ def _make_presigned_url(stored_url: str) -> str:
         return stored_url
 
 
+def _absolute_media_url(req: Request, url: str) -> str:
+    if not url:
+        return None
+    if url.startswith("http://") or url.startswith("https://"):
+        return url
+    if url.startswith("/"):
+        base = str(req.base_url).rstrip("/")
+        return f"{base}{url}"
+    return url
+
+
+async def _validate_playback_url(url: str) -> dict:
+    """Fast playback URL validation for status responses; never blocks generation."""
+    if not url:
+        return {"ready": False, "reason": "missing_video_url"}
+    if not (url.startswith("http://") or url.startswith("https://")):
+        return {"ready": False, "reason": "invalid_url_format", "url": url}
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=2.5, follow_redirects=True) as client:
+            response = await client.head(url)
+            if response.status_code == 405:
+                response = await client.get(url, headers={"Range": "bytes=0-0"})
+        content_length = response.headers.get("content-length")
+        size = int(content_length) if content_length and content_length.isdigit() else None
+        return {
+            "ready": 200 <= response.status_code < 300 or response.status_code == 206,
+            "http_status": response.status_code,
+            "size_bytes": size,
+            "content_type": response.headers.get("content-type"),
+            "reason": None if 200 <= response.status_code < 300 or response.status_code == 206 else "url_not_200",
+        }
+    except Exception as exc:
+        logger.warning(f"[PLAYBACK_VALIDATE] URL validation failed: {exc}")
+        return {"ready": False, "reason": "url_validation_failed", "detail": str(exc)}
+
+
 def _legacy_compute_view_mode(status: str) -> str:
     """Compute view_mode for legacy pipeline_jobs based on status."""
     if status in ("COMPLETED", "PARTIAL"):
@@ -917,7 +954,7 @@ async def _get_render_queue_position(job: dict) -> Optional[int]:
 
 
 @router.get("/status/{job_id}")
-async def get_status(job_id: str, current_user: dict = Depends(get_optional_user)):
+async def get_status(job_id: str, req: Request, current_user: dict = Depends(get_optional_user)):
     """Poll job progress. Returns frontend-compatible response shape.
     Falls back to legacy pipeline_jobs if not found in story_engine_jobs."""
     job = await db.story_engine_jobs.find_one({"job_id": job_id}, {"_id": 0})
@@ -964,9 +1001,24 @@ async def get_status(job_id: str, current_user: dict = Depends(get_optional_user
         })
 
     # Output URLs
-    output_url = _make_presigned_url(job.get("output_url"))
-    thumbnail_url = _make_presigned_url(job.get("thumbnail_url"))
-    preview_url = _make_presigned_url(job.get("preview_url"))
+    output_url = _absolute_media_url(req, _make_presigned_url(job.get("output_url")))
+    thumbnail_url = _absolute_media_url(req, _make_presigned_url(job.get("thumbnail_url")))
+    preview_url = _absolute_media_url(req, _make_presigned_url(job.get("preview_url")))
+    playback_url = preview_url or output_url
+    playback_validation = await _validate_playback_url(playback_url) if state in {"READY", "PARTIAL_READY"} else {
+        "ready": False,
+        "reason": "not_terminal",
+    }
+    asset_ready = bool(playback_validation.get("ready") and playback_url)
+    response_progress = progress
+    response_status = legacy_status
+    response_stage = legacy_stage
+    response_step = get_label(JobState(state))
+    if state in {"READY", "PARTIAL_READY"} and not asset_ready:
+        response_progress = 98
+        response_status = "PROCESSING_VIDEO_URL"
+        response_stage = "processing_video_url"
+        response_step = "Finalizing video"
 
     # ETA and elapsed time calculation
     elapsed_seconds = 0
@@ -993,10 +1045,14 @@ async def get_status(job_id: str, current_user: dict = Depends(get_optional_user
         "job": {
             "job_id": job["job_id"],
             "title": job.get("title", "Untitled"),
-            "status": legacy_status,
-            "progress": progress,
-            "current_stage": legacy_stage,
-            "current_step": get_label(JobState(state)),
+            "status": response_status,
+            "progress": response_progress,
+            "current_stage": response_stage,
+            "current_step": response_step,
+            "video_url": playback_url if asset_ready else None,
+            "playback_url": playback_url if asset_ready else None,
+            "asset_ready": asset_ready,
+            "asset_validation": playback_validation,
             "output_url": output_url if can_dl else None,
             "thumbnail_url": thumbnail_url,
             "preview_url": preview_url,

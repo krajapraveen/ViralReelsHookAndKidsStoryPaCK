@@ -57,6 +57,16 @@ export type GenerationJob = {
   created_at?: string;
   updated_at?: string;
   video_url?: string;
+  playback_url?: string;
+  asset_ready?: boolean;
+  asset_validation?: {
+    ready?: boolean;
+    reason?: string;
+    http_status?: number;
+    size_bytes?: number;
+    content_type?: string;
+    detail?: string;
+  };
   output_url?: string;
   download_url?: string;
   share_url?: string;

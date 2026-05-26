@@ -13,7 +13,7 @@ import { VideoPreview } from '@/components/VideoPreview';
 import type { ToolKey } from '@/types/api';
 
 function pickVideoUrl(job: any) {
-  return job?.video_url || job?.output_url || job?.download_url || job?.preview_url || job?.result?.video_url || job?.result?.output_url;
+  return job?.playback_url || job?.video_url || job?.output_url || job?.download_url || job?.preview_url || job?.result?.video_url || job?.result?.output_url;
 }
 
 function pickShareUrl(job: any) {
@@ -52,17 +52,21 @@ const relatedTools = [
   { label: 'Daily Viral Ideas', route: 'daily-viral-ideas' },
 ];
 
-function getStatus(job: any) {
+function getStatus(job: any, hasPlayableUrl: boolean) {
   const raw = job?.state || job?.status || '';
   const normalized = String(raw).toUpperCase();
-  const progress = Math.max(0, Math.min(100, Number(job?.progress ?? job?.progress_percent ?? 0)));
+  const rawProgress = Math.max(0, Math.min(100, Number(job?.progress ?? job?.progress_percent ?? 0)));
+  const backendCompleted = ['READY', 'PARTIAL_READY', 'COMPLETED'].includes(normalized);
+  const finalizing = backendCompleted && !hasPlayableUrl;
+  const progress = finalizing ? Math.min(rawProgress || 98, 98) : rawProgress;
   return {
     raw: normalized,
-    label: statusLabels[normalized] || job?.current_step || job?.current_stage || 'Queued',
+    label: finalizing ? 'Finalizing video' : statusLabels[normalized] || job?.current_step || job?.current_stage || 'Queued',
     progress,
-    terminal: ['READY', 'PARTIAL_READY', 'COMPLETED', 'FAILED', 'FAILED_PLANNING', 'FAILED_IMAGES', 'FAILED_TTS', 'FAILED_RENDER', 'CANCELLED'].includes(normalized),
+    terminal: !finalizing && ['READY', 'PARTIAL_READY', 'COMPLETED', 'FAILED', 'FAILED_PLANNING', 'FAILED_IMAGES', 'FAILED_TTS', 'FAILED_RENDER', 'CANCELLED'].includes(normalized),
     failed: normalized.startsWith('FAILED') || normalized === 'CANCELLED',
-    completed: ['READY', 'PARTIAL_READY', 'COMPLETED'].includes(normalized),
+    completed: backendCompleted && hasPlayableUrl,
+    finalizing,
   };
 }
 
@@ -75,8 +79,8 @@ export default function ResultScreen() {
     queryKey: ['job', tool, jobId],
     queryFn: () => generationApi.getToolJob(tool, jobId),
     refetchInterval: (query) => {
-      const status = getStatus(query.state.data);
-      return status.terminal ? false : 5000;
+      const status = getStatus(query.state.data, Boolean(pickVideoUrl(query.state.data)));
+      return status.terminal ? false : 2500;
     },
   });
 
@@ -109,8 +113,9 @@ export default function ResultScreen() {
 
   const videoUrl = pickVideoUrl(job.data);
   const shareUrl = pickShareUrl(job.data);
-  const status = getStatus(job.data);
-  const canShare = Boolean(shareUrl || videoUrl);
+  const hasValidVideoUrl = Boolean(videoUrl && /^https?:\/\//.test(videoUrl));
+  const status = getStatus(job.data, hasValidVideoUrl);
+  const canShare = Boolean(shareUrl);
   const canDownload = status.completed && Boolean(videoUrl);
   const quote = waitingQuotes[Math.abs(jobId.length + status.progress) % waitingQuotes.length];
 
@@ -152,7 +157,16 @@ export default function ResultScreen() {
               <Text className="mt-2 text-rose-300">{job.data.error || job.data.error_message || job.data.detail}</Text>
             ) : null}
           </View>
-          <VideoPreview uri={videoUrl} />
+          {hasValidVideoUrl ? (
+            <VideoPreview uri={videoUrl} onRetry={() => job.refetch()} />
+          ) : (
+            <VideoPreview onRetry={() => job.refetch()} />
+          )}
+          {!hasValidVideoUrl && status.finalizing ? (
+            <Text className="mt-3 text-center text-slate-300">
+              Finalizing video URL. We will keep checking every few seconds.
+            </Text>
+          ) : null}
           {!status.completed && !status.failed ? (
             <View className="mt-5 rounded-3xl border border-white/10 bg-white/5 p-4">
               <Text className="text-lg font-black text-white">{quote}</Text>
