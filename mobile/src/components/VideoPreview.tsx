@@ -5,13 +5,16 @@ import { ActivityIndicator, Text, View } from 'react-native';
 import { Button } from './Button';
 
 type VideoPreviewProps = {
+  jobId?: string;
   uri?: string;
+  thumbnailUri?: string;
   onRetry?: () => void;
 };
 
-export function VideoPreview({ uri, onRetry }: VideoPreviewProps) {
+export function VideoPreview({ jobId, uri, thumbnailUri, onRetry }: VideoPreviewProps) {
   const [loading, setLoading] = useState(Boolean(uri));
   const [error, setError] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
 
   if (!uri) {
     return (
@@ -38,17 +41,21 @@ export function VideoPreview({ uri, onRetry }: VideoPreviewProps) {
         </View>
       ) : null}
       <Video
-        key={uri}
+        key={`${jobId || 'video'}:${uri}`}
         source={{ uri }}
         useNativeControls
+        usePoster={Boolean(thumbnailUri)}
+        posterSource={thumbnailUri ? { uri: thumbnailUri } : undefined}
         resizeMode={ResizeMode.CONTAIN}
         onLoadStart={() => {
           setLoading(true);
           setError(null);
+          setReady(false);
           console.info('[video.playback.load_start]', { uri });
         }}
         onReadyForDisplay={() => {
           setLoading(false);
+          setReady(true);
           console.info('[video.playback.ready]', { uri });
         }}
         onError={(event) => {
@@ -59,6 +66,13 @@ export function VideoPreview({ uri, onRetry }: VideoPreviewProps) {
         }}
         style={{ width: '100%', aspectRatio: 16 / 9 }}
       />
+      {ready && !error ? (
+        <View pointerEvents="none" className="absolute inset-0 items-center justify-center">
+          <View className="rounded-full bg-black/55 px-5 py-3">
+            <Text className="text-center font-bold text-white">▶ Tap to play</Text>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }

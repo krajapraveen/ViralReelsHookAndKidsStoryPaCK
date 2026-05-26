@@ -4,6 +4,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Linking, Pressable, Text, View } from 'react-native';
+import { useState } from 'react';
 
 import { generationApi } from '@/api/generation';
 import { Button } from '@/components/Button';
@@ -74,6 +75,7 @@ export default function ResultScreen() {
   const params = useLocalSearchParams<{ jobId: string; tool?: ToolKey }>();
   const tool = params.tool || 'story-video';
   const jobId = params.jobId;
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const job = useQuery({
     queryKey: ['job', tool, jobId],
@@ -90,6 +92,7 @@ export default function ResultScreen() {
       const url = pickShareUrl(job.data) || created?.share_url || created?.url || '';
       if (url) {
         await Clipboard.setStringAsync(url);
+        setStatusMessage('Link copied');
         if (await Sharing.isAvailableAsync()) {
           await Sharing.shareAsync(url);
         }
@@ -104,6 +107,7 @@ export default function ResultScreen() {
       if (!url) throw new Error('No downloadable media URL is available yet.');
       const target = `${FileSystem.documentDirectory}${jobId}.mp4`;
       const result = await FileSystem.downloadAsync(url, target);
+      setStatusMessage('Downloaded');
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(result.uri);
       }
@@ -113,6 +117,7 @@ export default function ResultScreen() {
 
   const videoUrl = pickVideoUrl(job.data);
   const shareUrl = pickShareUrl(job.data);
+  const title = job.data?.title || 'My Visionary Suite video';
   const hasValidVideoUrl = Boolean(videoUrl && /^https?:\/\//.test(videoUrl));
   const status = getStatus(job.data, hasValidVideoUrl);
   const canShare = Boolean(shareUrl);
@@ -120,16 +125,28 @@ export default function ResultScreen() {
   const quote = waitingQuotes[Math.abs(jobId.length + status.progress) % waitingQuotes.length];
 
   const openSocialShare = async (platform: 'whatsapp' | 'x' | 'facebook') => {
-    const url = shareUrl || videoUrl;
-    if (!url) return;
-    const text = encodeURIComponent(`Watch my Visionary Suite video: ${url}`);
-    const encodedUrl = encodeURIComponent(url);
+    if (!shareUrl) return;
+    const encodedTitle = encodeURIComponent(title);
+    const encodedText = encodeURIComponent(`${title} ${shareUrl}`);
+    const encodedUrl = encodeURIComponent(shareUrl);
     const targets = {
-      whatsapp: `whatsapp://send?text=${text}`,
-      x: `https://twitter.com/intent/tweet?text=${text}`,
+      whatsapp: `https://wa.me/?text=${encodedText}`,
+      x: `https://twitter.com/intent/tweet?text=${encodedTitle}&url=${encodedUrl}`,
       facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
     };
-    await Linking.openURL(targets[platform]);
+    try {
+      await Linking.openURL(targets[platform]);
+    } catch {
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(shareUrl);
+      }
+    }
+  };
+
+  const refreshStatus = async () => {
+    setStatusMessage('Refreshing status...');
+    await job.refetch();
+    setStatusMessage('Status refreshed');
   };
 
   return (
@@ -153,12 +170,23 @@ export default function ResultScreen() {
                 Render queue position: {job.data.render_queue.position}
               </Text>
             ) : null}
+            {job.data?.requested_duration_seconds || job.data?.duration_seconds ? (
+              <Text className="mt-2 text-sm text-slate-300">
+                Requested: {job.data.requested_duration_seconds || job.data.duration_seconds}s
+                {job.data.actual_duration_seconds ? ` · Actual: ${Math.round(job.data.actual_duration_seconds)}s` : ''}
+              </Text>
+            ) : null}
             {job.data?.error || job.data?.error_message || job.data?.detail ? (
               <Text className="mt-2 text-rose-300">{job.data.error || job.data.error_message || job.data.detail}</Text>
             ) : null}
           </View>
           {hasValidVideoUrl ? (
-            <VideoPreview uri={videoUrl} onRetry={() => job.refetch()} />
+            <VideoPreview
+              jobId={jobId}
+              uri={videoUrl}
+              thumbnailUri={job.data?.thumbnail_url}
+              onRetry={() => job.refetch()}
+            />
           ) : (
             <VideoPreview onRetry={() => job.refetch()} />
           )}
@@ -197,10 +225,11 @@ export default function ResultScreen() {
             <Text className="text-center text-xs text-slate-400">
               Platform file sharing supports WhatsApp, Instagram, TikTok, YouTube, Facebook, X, and any app installed in the native share sheet.
             </Text>
-            <Button title="Refresh status" onPress={() => job.refetch()} />
+            <Button title="Refresh status" loading={job.isFetching} onPress={refreshStatus} />
           </View>
           {share.data ? <Text className="mt-3 text-emerald-100">Link copied.</Text> : null}
           {download.data ? <Text className="mt-3 text-emerald-100">Downloaded to app documents.</Text> : null}
+          {statusMessage ? <Text className="mt-3 text-center text-emerald-100">{statusMessage}</Text> : null}
         </>
       )}
     </Screen>

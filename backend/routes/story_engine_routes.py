@@ -953,6 +953,40 @@ async def _get_render_queue_position(job: dict) -> Optional[int]:
     return ahead + 1
 
 
+async def _get_or_create_story_share_url(job: dict, user_id: str) -> Optional[str]:
+    if not job.get("job_id") or not user_id:
+        return None
+    existing = await db.shares.find_one({"generationId": job["job_id"], "userId": user_id}, {"_id": 0})
+    base_url = os.environ.get("FRONTEND_URL", os.environ.get("BACKEND_PUBLIC_URL", "")).rstrip("/")
+    if existing:
+        return f"{base_url}/share/{existing['id']}" if base_url else f"/share/{existing['id']}"
+
+    import uuid
+    share_id = str(uuid.uuid4())[:12]
+    await db.shares.insert_one({
+        "id": share_id,
+        "generationId": job["job_id"],
+        "userId": user_id,
+        "type": "STORY",
+        "title": job.get("title", "Untitled"),
+        "preview": (job.get("story_text") or "")[:200],
+        "thumbnailUrl": job.get("thumbnail_url"),
+        "views": 0,
+        "shares": 0,
+        "forks": 0,
+        "storyContext": None,
+        "characters": [],
+        "tone": None,
+        "conflict": None,
+        "hookText": None,
+        "shareCaption": None,
+        "parentShareId": None,
+        "expiresAt": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat(),
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+    })
+    return f"{base_url}/share/{share_id}" if base_url else f"/share/{share_id}"
+
+
 @router.get("/status/{job_id}")
 async def get_status(job_id: str, req: Request, current_user: dict = Depends(get_optional_user)):
     """Poll job progress. Returns frontend-compatible response shape.
@@ -1009,7 +1043,15 @@ async def get_status(job_id: str, req: Request, current_user: dict = Depends(get
         "ready": False,
         "reason": "not_terminal",
     }
-    asset_ready = bool(playback_validation.get("ready") and playback_url)
+    user_id = current_user.get("id") or str(current_user.get("_id"))
+    share_url = None
+    if state in {"READY", "PARTIAL_READY"} and playback_validation.get("ready"):
+        try:
+            share_url = await _get_or_create_story_share_url(job, user_id)
+        except Exception as share_err:
+            logger.warning(f"[STATUS] Failed to create share URL for {job_id[:8]}: {share_err}")
+    share_url = _absolute_media_url(req, share_url) if share_url else None
+    asset_ready = bool(playback_validation.get("ready") and playback_url and thumbnail_url and share_url)
     response_progress = progress
     response_status = legacy_status
     response_stage = legacy_stage
@@ -1051,6 +1093,7 @@ async def get_status(job_id: str, req: Request, current_user: dict = Depends(get
             "current_step": response_step,
             "video_url": playback_url if asset_ready else None,
             "playback_url": playback_url if asset_ready else None,
+            "share_url": share_url if asset_ready else None,
             "asset_ready": asset_ready,
             "asset_validation": playback_validation,
             "output_url": output_url if can_dl else None,
@@ -1072,6 +1115,9 @@ async def get_status(job_id: str, req: Request, current_user: dict = Depends(get
             "voice_preset": job.get("voice_preset", "narrator_warm"),
             "story_text": job.get("story_text", ""),
             "duration_seconds": job.get("duration_seconds"),
+            "requested_duration_seconds": job.get("duration_seconds"),
+            "actual_duration_seconds": job.get("actual_duration_seconds"),
+            "duration_validation": job.get("duration_validation"),
             "render_queue": {
                 "name": os.environ.get("VIDEO_RENDER_QUEUE", "video_render"),
                 "position": await _get_render_queue_position(job),

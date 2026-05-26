@@ -50,6 +50,70 @@ async def _run_ffmpeg(cmd: str, timeout: int = 120) -> bool:
         return False
 
 
+async def get_duration_seconds(video_path: str) -> Optional[float]:
+    """Return MP4 duration from ffprobe, or None if the file is invalid."""
+    if not video_path or not os.path.exists(video_path) or os.path.getsize(video_path) <= 0:
+        return None
+    cmd = f'ffprobe -v error -show_entries format=duration -of csv=p=0 "{video_path}"'
+    proc = await asyncio.create_subprocess_shell(
+        cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        logger.warning(f"[FFPROBE] Duration probe failed: {stderr.decode()[-500:]}")
+        return None
+    try:
+        return float(stdout.decode().strip())
+    except (TypeError, ValueError):
+        return None
+
+
+async def conform_duration(video_path: str, output_path: str, target_seconds: int, tolerance: float = 2.0) -> Dict:
+    """Trim or pad a rendered MP4 to the requested duration and verify with ffprobe."""
+    actual = await get_duration_seconds(video_path)
+    if actual is None:
+        return {"ok": False, "actual_duration_seconds": None, "error": "ffprobe_duration_failed"}
+    if abs(actual - target_seconds) <= tolerance:
+        return {"ok": True, "path": video_path, "actual_duration_seconds": actual, "repaired": False}
+
+    if actual > target_seconds:
+        cmd = (
+            f'ffmpeg -y -i "{video_path}" -t {target_seconds} '
+            f'-c:v libx264 -pix_fmt yuv420p -c:a aac -movflags +faststart "{output_path}"'
+        )
+    else:
+        pad = max(0.1, target_seconds - actual)
+        cmd = (
+            f'ffmpeg -y -i "{video_path}" '
+            f'-vf "tpad=stop_mode=clone:stop_duration={pad:.2f}" '
+            f'-af "apad=pad_dur={pad:.2f}" -t {target_seconds} '
+            f'-c:v libx264 -pix_fmt yuv420p -c:a aac -movflags +faststart "{output_path}"'
+        )
+
+    ok = await _run_ffmpeg(cmd, timeout=180)
+    if not ok and actual < target_seconds:
+        # Some generated clips have no audio stream; retry video-only padding.
+        cmd = (
+            f'ffmpeg -y -i "{video_path}" '
+            f'-vf "tpad=stop_mode=clone:stop_duration={max(0.1, target_seconds - actual):.2f}" '
+            f'-t {target_seconds} -c:v libx264 -pix_fmt yuv420p -an -movflags +faststart "{output_path}"'
+        )
+        ok = await _run_ffmpeg(cmd, timeout=180)
+    if not ok:
+        return {"ok": False, "actual_duration_seconds": actual, "error": "duration_repair_failed"}
+
+    repaired_duration = await get_duration_seconds(output_path)
+    if repaired_duration is None or abs(repaired_duration - target_seconds) > tolerance:
+        return {
+            "ok": False,
+            "actual_duration_seconds": repaired_duration,
+            "error": "duration_validation_failed",
+        }
+    return {"ok": True, "path": output_path, "actual_duration_seconds": repaired_duration, "repaired": True}
+
+
 async def _run_ffmpeg_resilient(cmd: str, output_path: str, timeout: int = 300) -> bool:
     """
     Run a long FFmpeg command in a detached process that survives hot-reloads.

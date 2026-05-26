@@ -44,9 +44,18 @@ def validate_pipeline_outputs(job: dict) -> ValidationResult:
     if not job.get("preview_url"):
         result.warn("preview_url is missing — no preview clip generated")
 
-    # 3. Thumbnail must exist
+    # 3. Thumbnail/poster must exist
     if not job.get("thumbnail_url"):
-        result.warn("thumbnail_url is missing — no thumbnail generated")
+        result.fail("thumbnail_url is missing — poster frame not generated")
+
+    # 3b. Duration contract must be validated when requested
+    requested = job.get("duration_seconds")
+    if requested in (30, 45, 60):
+        actual = job.get("actual_duration_seconds")
+        if actual is None:
+            result.fail("actual_duration_seconds is missing — ffprobe validation did not run")
+        elif abs(float(actual) - int(requested)) > 2:
+            result.fail(f"actual_duration_seconds {actual:.2f}s does not match requested {requested}s")
 
     # 4. All scene clips must exist
     scene_plans = job.get("scene_motion_plans", [])
