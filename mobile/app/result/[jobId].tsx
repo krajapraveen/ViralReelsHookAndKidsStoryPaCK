@@ -76,6 +76,7 @@ export default function ResultScreen() {
   const tool = params.tool || 'story-video';
   const jobId = params.jobId;
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [preparedShareUrl, setPreparedShareUrl] = useState<string | null>(null);
 
   const job = useQuery({
     queryKey: ['job', tool, jobId],
@@ -88,8 +89,8 @@ export default function ResultScreen() {
 
   const share = useMutation({
     mutationFn: async () => {
-      const created = pickShareUrl(job.data) ? null : await generationApi.createShareLink(jobId);
-      const url = pickShareUrl(job.data) || created?.share_url || created?.url || '';
+      const url = shareUrl || preparedShareUrl || '';
+      console.info('[share.copy.clicked]', { jobId, share_url: url });
       if (url) {
         await Clipboard.setStringAsync(url);
         setStatusMessage('Link copied');
@@ -114,7 +115,7 @@ export default function ResultScreen() {
   });
 
   const videoUrl = pickVideoUrl(job.data);
-  const shareUrl = pickShareUrl(job.data);
+  const shareUrl = pickShareUrl(job.data) || preparedShareUrl;
   const title = job.data?.title || 'My Visionary Suite video';
   const hasValidVideoUrl = Boolean(videoUrl && /^https?:\/\//.test(videoUrl));
   const status = getStatus(job.data, hasValidVideoUrl);
@@ -132,16 +133,44 @@ export default function ResultScreen() {
       x: `https://twitter.com/intent/tweet?text=${encodedTitle}&url=${encodedUrl}`,
       facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
     };
+    const target = targets[platform];
+    console.info('[share.social.clicked]', { platform, share_url: shareUrl, target_url: target });
     try {
-      await Linking.openURL(targets[platform]);
-    } catch {
+      const canOpen = await Linking.canOpenURL(target);
+      if (!canOpen) {
+        throw new Error(`Cannot open URL for ${platform}`);
+      }
+      await Linking.openURL(target);
+    } catch (err) {
+      console.warn('[share.social.open_failed]', {
+        platform,
+        share_url: shareUrl,
+        target_url: target,
+        error: err instanceof Error ? err.message : String(err),
+      });
       await Share.share({ message: `${title} ${shareUrl}`, url: shareUrl, title });
     }
   };
 
   const refreshStatus = async () => {
     setStatusMessage('Refreshing status...');
-    await job.refetch();
+    const result = await job.refetch();
+    const refreshedShare = pickShareUrl(result.data);
+    if (refreshedShare) {
+      setPreparedShareUrl(refreshedShare);
+    } else if (getStatus(result.data, Boolean(pickVideoUrl(result.data))).completed) {
+      try {
+        console.info('[share.prepare.request]', { jobId });
+        const created = await generationApi.createShareLink(jobId);
+        const nextShareUrl = created?.share_url || created?.url || '';
+        if (nextShareUrl) {
+          setPreparedShareUrl(nextShareUrl);
+          console.info('[share.prepare.success]', { jobId, share_url: nextShareUrl });
+        }
+      } catch (err) {
+        console.warn('[share.prepare.failed]', { jobId, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
     setStatusMessage('Status refreshed');
   };
 
@@ -212,6 +241,9 @@ export default function ResultScreen() {
             </View>
           ) : null}
           <View className="mt-5 gap-3">
+            {!canShare ? (
+              <Text className="text-center text-sm text-amber-100">Share link is being prepared...</Text>
+            ) : null}
             <Button title="Copy/share link" variant="secondary" disabled={!canShare} loading={share.isPending} onPress={() => share.mutate()} />
             <View className="flex-row gap-2">
               <View className="flex-1"><Button title="WhatsApp" variant="secondary" disabled={!canShare} onPress={() => openSocialShare('whatsapp')} /></View>
