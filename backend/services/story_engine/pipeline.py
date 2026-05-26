@@ -987,9 +987,15 @@ async def _stage_scene_motion(job: dict) -> Dict:
 
     requested_duration = int(job.get("duration_seconds") or 0)
     if requested_duration in (30, 45, 60) and plans:
-        per_scene = max(2.0, requested_duration / len(plans))
-        for plan in plans:
-            plan["clip_duration_seconds"] = round(per_scene, 2)
+        base_scene_duration = round(requested_duration / len(plans), 2)
+        assigned = 0.0
+        for index, plan in enumerate(plans):
+            if index == len(plans) - 1:
+                clip_duration = round(requested_duration - assigned, 2)
+            else:
+                clip_duration = base_scene_duration
+                assigned += clip_duration
+            plan["clip_duration_seconds"] = clip_duration
             plan["target_total_duration_seconds"] = requested_duration
 
     await db.story_engine_jobs.update_one(
@@ -1220,7 +1226,7 @@ async def _stage_assembly(job: dict) -> Dict:
             final_path,
             conformed_path,
             requested_duration,
-            tolerance=1.0,
+            tolerance=0.5,
         )
         duration_validation["requested_duration_seconds"] = requested_duration
         if not duration_validation.get("ok"):
@@ -1266,7 +1272,7 @@ async def _stage_assembly(job: dict) -> Dict:
             final_path,
             final_conformed_path,
             requested_duration,
-            tolerance=1.0,
+            tolerance=0.5,
         )
         duration_validation["requested_duration_seconds"] = requested_duration
         if not duration_validation.get("ok"):

@@ -101,26 +101,26 @@ async def get_audio_duration_seconds(video_path: str) -> Optional[float]:
         return None
 
 
-async def conform_duration(video_path: str, output_path: str, target_seconds: int, tolerance: float = 1.0) -> Dict:
+async def conform_duration(video_path: str, output_path: str, target_seconds: int, tolerance: float = 0.5) -> Dict:
     """Trim/pad MP4 to requested duration and guarantee mobile-compatible H.264 + full-length AAC."""
     actual = await get_duration_seconds(video_path)
     if actual is None:
         return {"ok": False, "actual_duration_seconds": None, "error": "ffprobe_duration_failed"}
     has_audio = await has_audio_stream(video_path)
 
-    if actual > target_seconds:
+    if actual >= target_seconds:
         if has_audio:
             cmd = (
                 f'ffmpeg -y -i "{video_path}" -t {target_seconds} '
                 f'-map 0:v:0 -map 0:a:0 -c:v libx264 -pix_fmt yuv420p -c:a aac -b:a 192k '
-                f'-movflags +faststart -shortest "{output_path}"'
+                f'-movflags +faststart "{output_path}"'
             )
         else:
             cmd = (
                 f'ffmpeg -y -i "{video_path}" -f lavfi -t {target_seconds} '
                 f'-i "anullsrc=channel_layout=stereo:sample_rate=44100" '
                 f'-t {target_seconds} -map 0:v:0 -map 1:a:0 '
-                f'-c:v libx264 -pix_fmt yuv420p -c:a aac -b:a 192k -shortest -movflags +faststart "{output_path}"'
+                f'-c:v libx264 -pix_fmt yuv420p -c:a aac -b:a 192k -movflags +faststart "{output_path}"'
             )
     else:
         pad = max(0.1, target_seconds - actual)
@@ -138,7 +138,7 @@ async def conform_duration(video_path: str, output_path: str, target_seconds: in
                 f'-i "anullsrc=channel_layout=stereo:sample_rate=44100" '
                 f'-vf "tpad=stop_mode=clone:stop_duration={pad:.2f}" '
                 f'-t {target_seconds} -map 0:v:0 -map 1:a:0 '
-                f'-c:v libx264 -pix_fmt yuv420p -c:a aac -b:a 192k -shortest -movflags +faststart "{output_path}"'
+                f'-c:v libx264 -pix_fmt yuv420p -c:a aac -b:a 192k -movflags +faststart "{output_path}"'
             )
 
     ok = await _run_ffmpeg(cmd, timeout=180)
