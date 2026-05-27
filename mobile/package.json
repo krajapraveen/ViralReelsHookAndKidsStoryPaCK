@@ -43,7 +43,7 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
-    "test:contract": "node scripts/verify-story-video-contract.js"
+    "test:contract": "node scripts/verify-story-video-contract.js && node scripts/verify-story-series-contract.js"
   },
   "private": true
 }
