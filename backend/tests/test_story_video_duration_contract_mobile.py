@@ -51,6 +51,7 @@ def test_conform_duration_outputs_exact_h264_aac_contract(tmp_path: Path, target
     assert target_seconds - 0.5 <= result["actual_duration_seconds"] <= target_seconds + 0.5
     assert result["actual_audio_duration_seconds"] >= target_seconds - 0.5
     assert result["has_aac_audio"] is True
+    assert result["audible_audio_bed"] is True
 
 
 def test_ready_requires_duration_and_audio_contract():
@@ -60,7 +61,7 @@ def test_ready_requires_duration_and_audio_contract():
         "episode_plan": {"title": "Contract"},
         "duration_seconds": 30,
         "actual_duration_seconds": 28.9,
-        "duration_validation": {"actual_audio_duration_seconds": 30.0},
+        "duration_validation": {"actual_audio_duration_seconds": 30.0, "audible_audio_bed": True},
     })
 
     assert validation.passed is False
@@ -74,7 +75,7 @@ def test_ready_accepts_exact_duration_audio_contract():
         "episode_plan": {"title": "Contract"},
         "duration_seconds": 45,
         "actual_duration_seconds": 45.2,
-        "duration_validation": {"actual_audio_duration_seconds": 45.1},
+        "duration_validation": {"actual_audio_duration_seconds": 45.1, "audible_audio_bed": True},
     })
 
     assert validation.passed is True

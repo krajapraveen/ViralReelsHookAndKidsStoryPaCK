@@ -61,6 +61,8 @@ def validate_pipeline_outputs(job: dict) -> ValidationResult:
             result.fail("actual_audio_duration_seconds is missing — AAC audio validation did not run")
         elif abs(float(audio_actual) - int(requested)) > 0.5:
             result.fail(f"actual_audio_duration_seconds {audio_actual:.2f}s does not match requested {requested}s")
+        if not (job.get("duration_validation") or {}).get("audible_audio_bed"):
+            result.fail("audible_audio_bed is missing — final audio may be silent")
 
     # 4. All scene clips must exist
     scene_plans = job.get("scene_motion_plans", [])
@@ -146,6 +148,7 @@ def should_mark_ready(validation: ValidationResult) -> str:
     has_delivery_contract_error = any(
         "actual_duration_seconds" in e or
         "actual_audio_duration_seconds" in e or
+        "audible_audio_bed" in e or
         "AAC audio" in e
         for e in validation.errors
     )

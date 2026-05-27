@@ -107,39 +107,33 @@ async def conform_duration(video_path: str, output_path: str, target_seconds: in
     if actual is None:
         return {"ok": False, "actual_duration_seconds": None, "error": "ffprobe_duration_failed"}
     has_audio = await has_audio_stream(video_path)
-
-    if actual >= target_seconds:
-        if has_audio:
-            cmd = (
-                f'ffmpeg -y -i "{video_path}" -t {target_seconds} '
-                f'-map 0:v:0 -map 0:a:0 -c:v libx264 -pix_fmt yuv420p -c:a aac -b:a 192k '
-                f'-movflags +faststart "{output_path}"'
-            )
-        else:
-            cmd = (
-                f'ffmpeg -y -i "{video_path}" -f lavfi -t {target_seconds} '
-                f'-i "anullsrc=channel_layout=stereo:sample_rate=44100" '
-                f'-t {target_seconds} -map 0:v:0 -map 1:a:0 '
-                f'-c:v libx264 -pix_fmt yuv420p -c:a aac -b:a 192k -movflags +faststart "{output_path}"'
-            )
+    pad = max(0.0, target_seconds - actual)
+    fade_start = max(0.0, target_seconds - 1.0)
+    # Always mix a quiet audible ambience bed through the full target duration.
+    # This prevents "valid but silent" AAC tails when narration ends early.
+    bed_input = f'-f lavfi -t {target_seconds} -i "sine=frequency=261.63:sample_rate=44100"'
+    if pad > 0:
+        video_filter = f"[0:v]tpad=stop_mode=clone:stop_duration={pad:.3f},trim=0:{target_seconds},setpts=PTS-STARTPTS[v]"
     else:
-        pad = max(0.1, target_seconds - actual)
-        if has_audio:
-            cmd = (
-                f'ffmpeg -y -i "{video_path}" '
-                f'-vf "tpad=stop_mode=clone:stop_duration={pad:.2f}" '
-                f'-af "apad=pad_dur={pad:.2f}" -t {target_seconds} '
-                f'-map 0:v:0 -map 0:a:0 -c:v libx264 -pix_fmt yuv420p -c:a aac -b:a 192k '
-                f'-movflags +faststart "{output_path}"'
-            )
-        else:
-            cmd = (
-                f'ffmpeg -y -i "{video_path}" -f lavfi -t {target_seconds} '
-                f'-i "anullsrc=channel_layout=stereo:sample_rate=44100" '
-                f'-vf "tpad=stop_mode=clone:stop_duration={pad:.2f}" '
-                f'-t {target_seconds} -map 0:v:0 -map 1:a:0 '
-                f'-c:v libx264 -pix_fmt yuv420p -c:a aac -b:a 192k -movflags +faststart "{output_path}"'
-            )
+        video_filter = f"[0:v]trim=0:{target_seconds},setpts=PTS-STARTPTS[v]"
+    if has_audio:
+        audio_filter = (
+            f"[0:a]apad,atrim=0:{target_seconds},asetpts=PTS-STARTPTS,volume=1.0[a0];"
+            f"[1:a]volume=0.06[bed];"
+            f"[a0][bed]amix=inputs=2:duration=longest:dropout_transition=0,"
+            f"atrim=0:{target_seconds},afade=t=out:st={fade_start:.3f}:d=1[a]"
+        )
+    else:
+        audio_filter = (
+            f"[1:a]volume=0.09,atrim=0:{target_seconds},"
+            f"afade=t=out:st={fade_start:.3f}:d=1[a]"
+        )
+    cmd = (
+        f'ffmpeg -y -i "{video_path}" {bed_input} '
+        f'-filter_complex "{video_filter};{audio_filter}" '
+        f'-map "[v]" -map "[a]" -t {target_seconds} '
+        f'-c:v libx264 -pix_fmt yuv420p -c:a aac -b:a 192k -movflags +faststart "{output_path}"'
+    )
 
     ok = await _run_ffmpeg(cmd, timeout=180)
     if not ok:
@@ -173,6 +167,7 @@ async def conform_duration(video_path: str, output_path: str, target_seconds: in
         "actual_audio_duration_seconds": audio_duration,
         "repaired": True,
         "has_aac_audio": True,
+        "audible_audio_bed": True,
     }
 
 
