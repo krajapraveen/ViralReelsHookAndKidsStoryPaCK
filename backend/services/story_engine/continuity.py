@@ -143,6 +143,15 @@ def should_mark_ready(validation: ValidationResult) -> str:
     if has_output_url_error:
         return "FAILED"
 
+    has_delivery_contract_error = any(
+        "actual_duration_seconds" in e or
+        "actual_audio_duration_seconds" in e or
+        "AAC audio" in e
+        for e in validation.errors
+    )
+    if has_delivery_contract_error:
+        return "FAILED"
+
     if validation.passed and not validation.errors:
         return "READY"
     elif validation.errors and len(validation.errors) <= 2:

@@ -9,6 +9,7 @@ export type ToolSubmitPayload = {
   audience?: string;
   style?: string;
   duration?: string;
+  quality_mode?: string;
   brand?: string;
   characters?: string;
 };

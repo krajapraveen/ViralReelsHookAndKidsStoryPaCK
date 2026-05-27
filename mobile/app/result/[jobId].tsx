@@ -224,6 +224,18 @@ export default function ResultScreen() {
                 {job.data.actual_audio_duration_seconds ? ` · Audio: ${Math.round(job.data.actual_audio_duration_seconds)}s` : ''}
               </Text>
             ) : null}
+            {job.data?.quality_mode ? (
+              <Text className="mt-2 text-sm text-slate-300">
+                Quality: {String(job.data.quality_mode).replace('_', ' ')}
+              </Text>
+            ) : null}
+            {job.data?.parent_job_id || job.data?.series_id || job.data?.challenge_id ? (
+              <Text className="mt-2 text-sm text-slate-300">
+                {job.data.parent_job_id ? `Remix/continue: ${job.data.parent_job_id}` : ''}
+                {job.data.series_id ? ` Series: ${job.data.series_id}${job.data.episode_number ? ` #${job.data.episode_number}` : ''}` : ''}
+                {job.data.challenge_id ? ` Challenge: ${job.data.challenge_id}` : ''}
+              </Text>
+            ) : null}
             {job.data?.error || job.data?.error_message || job.data?.detail ? (
               <Text className="mt-2 text-rose-300">{job.data.error || job.data.error_message || job.data.detail}</Text>
             ) : null}

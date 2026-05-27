@@ -733,7 +733,7 @@ async def create_engine_job(
         validation_fields["quality_mode"] = "Unsupported generation mode."
     if validation_fields:
         return JSONResponse(
-            status_code=422,
+            status_code=400,
             content={
                 "error": "validation_failed",
                 "fields": validation_fields,

@@ -13,7 +13,7 @@ export type ToolDefinition = {
     config?: string;
     method?: 'GET' | 'POST';
   };
-  fields: Array<'title' | 'prompt' | 'audience' | 'style' | 'duration' | 'brand' | 'characters'>;
+  fields: Array<'title' | 'prompt' | 'audience' | 'style' | 'duration' | 'quality_mode' | 'brand' | 'characters'>;
   mobileNotes?: string[];
   uploadRequired?: boolean;
 };
@@ -30,7 +30,7 @@ export const CREATOR_TOOLS: ToolDefinition[] = [
       status: '/api/story-engine/status/{jobId}',
       list: '/api/story-engine/user-jobs',
     },
-    fields: ['title', 'prompt', 'audience', 'style', 'duration'],
+    fields: ['title', 'prompt', 'audience', 'style', 'duration', 'quality_mode'],
   },
   {
     key: 'story-series',

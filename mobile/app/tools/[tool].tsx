@@ -14,6 +14,7 @@ import { findTool } from '@/constants/features';
 import {
   STORY_VIDEO_AUDIENCE_OPTIONS,
   STORY_VIDEO_DURATION_OPTIONS,
+  STORY_VIDEO_QUALITY_OPTIONS,
   STORY_VIDEO_STYLE_OPTIONS,
   type FieldErrors,
 } from '@/contracts/storyVideo';
@@ -25,6 +26,7 @@ const fieldLabels: Record<keyof ToolSubmitPayload, string> = {
   audience: 'Audience',
   style: 'Style',
   duration: 'Duration',
+  quality_mode: 'Quality Mode',
   brand: 'Brand',
   characters: 'Characters',
 };
@@ -33,7 +35,7 @@ const backendToFormField: Record<string, keyof ToolSubmitPayload> = {
   story_text: 'prompt',
   animation_style: 'style',
   age_group: 'audience',
-  quality_mode: 'duration',
+  quality_mode: 'quality_mode',
 };
 
 const toFormFieldErrors = (fields: FieldErrors): FieldErrors =>
@@ -47,6 +49,7 @@ export default function ToolScreen() {
   const tool = useMemo(() => findTool(params.tool), [params.tool]);
   const [form, setForm] = useState<ToolSubmitPayload>({
     duration: '30',
+    quality_mode: 'balanced',
     audience: 'kids_6_10',
     style: 'cartoon',
   });
@@ -137,6 +140,15 @@ export default function ToolScreen() {
             label={fieldLabels[field]}
             value={form[field]}
             options={STORY_VIDEO_DURATION_OPTIONS}
+            error={fieldErrors[field]}
+            onChange={(value) => updateField(field, value)}
+          />
+        ) : tool.key === 'story-video' && field === 'quality_mode' ? (
+          <SelectField
+            key={field}
+            label={fieldLabels[field]}
+            value={form[field]}
+            options={STORY_VIDEO_QUALITY_OPTIONS}
             error={fieldErrors[field]}
             onChange={(value) => updateField(field, value)}
           />

@@ -51,6 +51,11 @@ export type GenerationJob = {
   current_stage?: string;
   current_step?: string;
   queue_position?: number;
+  quality_mode?: string;
+  series_id?: string;
+  episode_number?: number;
+  challenge_id?: string;
+  parent_job_id?: string;
   requested_duration_seconds?: number;
   actual_duration_seconds?: number;
   actual_audio_duration_seconds?: number;

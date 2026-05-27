@@ -50,15 +50,16 @@ export const STORY_VIDEO_DURATION_OPTIONS: StoryVideoOption[] = [
   { label: '60 seconds', value: '60' },
 ];
 
+export const STORY_VIDEO_QUALITY_OPTIONS: StoryVideoOption[] = [
+  { label: 'Fast - 1-2 min', value: 'fast' },
+  { label: 'Balanced - 2-4 min', value: 'balanced' },
+  { label: 'High Quality - 4-8 min', value: 'high_quality' },
+];
+
 const audienceValues = new Set(STORY_VIDEO_AUDIENCE_OPTIONS.map((option) => option.value));
 const styleValues = new Set(STORY_VIDEO_STYLE_OPTIONS.map((option) => option.value));
 const durationValues = new Set(STORY_VIDEO_DURATION_OPTIONS.map((option) => option.value));
-
-const durationToQuality = (durationSeconds: number) => {
-  if (durationSeconds <= 30) return 'fast';
-  if (durationSeconds <= 60) return 'balanced';
-  return 'high_quality';
-};
+const qualityValues = new Set(STORY_VIDEO_QUALITY_OPTIONS.map((option) => option.value));
 
 export type StoryVideoApiPayload = {
   title: string;
@@ -92,6 +93,7 @@ const storyVideoFormSchema = z.object({
   audience: z.string().refine((value) => audienceValues.has(value), 'Choose a supported audience category.'),
   style: z.string().refine((value) => styleValues.has(value), 'Choose a supported style preset.'),
   duration: z.string().refine((value) => durationValues.has(value), 'Choose 30, 45, or 60 seconds.'),
+  quality_mode: z.string().default('balanced').refine((value) => qualityValues.has(value), 'Choose Fast, Balanced, or High Quality.'),
 });
 
 export function fieldErrorsFromZod(error: z.ZodError): FieldErrors {
@@ -125,7 +127,7 @@ export function normalizeStoryVideoPayload(form: ToolSubmitPayload): StoryVideoA
     animation_style: data.style,
     age_group: data.audience,
     voice_preset: 'narrator_warm',
-    quality_mode: durationToQuality(durationSeconds),
+    quality_mode: data.quality_mode,
     duration_seconds: durationSeconds,
   };
 }
