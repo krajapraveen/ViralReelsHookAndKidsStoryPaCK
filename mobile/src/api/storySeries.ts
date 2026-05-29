@@ -83,7 +83,7 @@ export const storySeriesApi = {
   },
   async planEpisode(seriesId: string, payload: { direction_type: SeriesDirection; custom_prompt?: string }) {
     const response = await api.post(`/api/story-series/${encodeURIComponent(seriesId)}/plan-episode`, payload);
-    return response.data as { success?: boolean; episode_id?: string; episode_number?: number; plan?: Record<string, unknown>; status?: string };
+    return response.data as { success?: boolean; episode_id?: string; episode_number?: number; plan?: Record<string, any>; status?: string };
   },
   async generateEpisode(seriesId: string, episodeId: string) {
     const response = await api.post(`/api/story-series/${encodeURIComponent(seriesId)}/generate-episode`, { episode_id: episodeId });

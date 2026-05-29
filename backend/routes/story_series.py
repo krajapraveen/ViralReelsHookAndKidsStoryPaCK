@@ -81,7 +81,7 @@ class CreateSeriesRequest(BaseModel):
 
 
 class PlanEpisodeRequest(BaseModel):
-    direction_type: str = "continue"
+    direction_type: Literal["continue", "twist", "stakes", "flashback", "spinoff", "custom"] = "continue"
     custom_prompt: Optional[str] = None
 
 
@@ -126,6 +126,63 @@ async def _llm_json(system_msg: str, user_msg: str, session_id: str = "series", 
         return json.loads(text)
     except json.JSONDecodeError as e:
         raise ValueError(f"LLM returned non-JSON: {str(e)[:120]}") from e
+
+
+def _fallback_episode_plan(series: dict, last_ep: Optional[dict], request: PlanEpisodeRequest, next_num: int) -> dict:
+    """Deterministic fallback so Plan Episode never becomes a dead button when the LLM dependency fails."""
+    title = series.get("title", "Story Series")
+    direction = request.direction_type or "continue"
+    custom = (request.custom_prompt or "").strip()
+    previous_hook = (last_ep or {}).get("cliffhanger") or "an unresolved mystery"
+    premise = custom or f"Continue from {previous_hook}"
+    protagonist = "the main character"
+    scenes = []
+    for index in range(5):
+        scene_number = index + 1
+        is_final = scene_number == 5
+        scenes.append({
+            "scene_number": scene_number,
+            "scene_title": f"{title} - Episode {next_num}, Scene {scene_number}",
+            "description": (
+                f"{protagonist} follows the {direction} thread: {premise}."
+                if not is_final else
+                f"{protagonist} discovers a new clue tied to {previous_hook}, but the answer stays just out of reach."
+            ),
+            "location": "the established series world",
+            "characters": [protagonist],
+            "emotion": "wonder" if not is_final else "tension",
+            "visual_prompt": (
+                f"{protagonist}, consistent appearance from the character bible, "
+                f"{series.get('style', 'cartoon_2d')} style, same outfit, same proportions, "
+                f"in the established world of {title}. {UNIVERSAL_NEGATIVE_PROMPT}"
+            ),
+            "motion_hint": "slow cinematic camera move with character-focused action",
+            "dialogue": "",
+            "duration_seconds": 5,
+        })
+    return {
+        "episode_title": f"{title}: Episode {next_num}",
+        "summary": f"{title} continues with a {direction} turn. {premise}",
+        "theme": direction,
+        "tone": "suspense",
+        "character_arcs": [{
+            "name": protagonist,
+            "start_state": "curious",
+            "end_state": "determined",
+            "goal": "solve the next mystery",
+            "conflict": "new information raises the stakes",
+        }],
+        "scene_breakdown": scenes,
+        "continuity_notes": [
+            "Preserve all character appearances from the character bible.",
+            "Preserve world bible rules and unresolved story memory loops.",
+        ],
+        "cliffhanger": {
+            "type": "mystery",
+            "description": f"A new clue reveals that {previous_hook} is only the beginning.",
+        },
+        "_fallback": True,
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1106,8 +1163,8 @@ Return ONLY valid JSON:
     try:
         plan = await _llm_json(system_prompt, user_msg, f"plan_{series_id[:8]}_{next_num}")
     except Exception as e:
-        logger.error(f"Episode planning failed: {e}")
-        raise HTTPException(status_code=500, detail="Episode planning failed")
+        logger.error(f"Episode planning LLM failed, using deterministic fallback: {e}")
+        plan = _fallback_episode_plan(series, last_ep, request, next_num)
 
     episode_id = _uuid()
     cliffhanger_raw = plan.get("cliffhanger", "")

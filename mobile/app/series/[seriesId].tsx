@@ -116,7 +116,7 @@ export default function SeriesDetailScreen() {
       return storySeriesApi.planEpisode(seriesId, parsed.data as { direction_type: SeriesDirection; custom_prompt?: string });
     },
     onSuccess: async (data) => {
-      setMessage(`Episode ${data.episode_number || ''} planned.`);
+      setMessage(`Episode ${data.episode_number || ''} planned${data.plan?._fallback ? ' using fallback planner' : ''}.`);
       setCustomPrompt('');
       await detail.refetch();
     },

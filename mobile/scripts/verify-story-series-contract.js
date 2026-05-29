@@ -50,4 +50,8 @@ for (const snippet of ['planEpisode', 'generateEpisode', 'episodeStatus', 'sugge
   }
 }
 
+if (!detailScreen.includes('_fallback')) {
+  throw new Error('Story Series detail screen must surface fallback planner status');
+}
+
 console.log('Story Series mobile contract checks passed');
