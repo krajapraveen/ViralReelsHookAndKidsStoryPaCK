@@ -136,20 +136,51 @@ export function useStorySessionAutosave({
       sessionCreatingRef.current = false;
       if (!mountedRef.current) return;
       if (!created.ok) {
-        // Surface the failure with a request_id so the user can give
-        // support a reference, but DO NOT wipe local text.
-        toast.error(
-          `Couldn't start a new draft. Ref: ${created.requestId || 'unknown'}`,
-          { duration: 5000 }
-        );
-        return;
-      }
-      did = created.state.draftId;
-      versionRef.current = created.state.version;
-      canonicalLifecycleRef.current = created.state.lifecycle;
-      lastRequestIdRef.current = created.state.requestId;
-      if (typeof onDraftCreated === 'function') {
-        onDraftCreated(did);
+        // P0 2026-05-30 — DRAFT_ALREADY_ACTIVE is a recoverable state.
+        // The user already has a server-side active draft (lingering
+        // from an earlier session, refresh, or Start-Fresh that
+        // didn't fully archive). Adopt that draft instead of stranding
+        // the user behind a generic toast. Pinned by audit
+        // test_draft_already_active_recovery_2026_05.py.
+        if (created.alreadyActive && created.activeDraftId) {
+          const adopted = created.activeDraftId;
+          const hydrated = await client.fetchSessionState(adopted);
+          if (!mountedRef.current) return;
+          if (hydrated.ok && hydrated.state) {
+            did = adopted;
+            versionRef.current = hydrated.state.version;
+            canonicalLifecycleRef.current = hydrated.state.lifecycle;
+            lastRequestIdRef.current = hydrated.state.requestId;
+            if (typeof onDraftCreated === 'function') {
+              onDraftCreated(did);
+            }
+            // Fall through into Phase B with the adopted draft.
+          } else {
+            // Adoption failed (e.g. 404 — draft was archived between
+            // calls). Treat as a real failure and surface with ref.
+            toast.error(
+              `Couldn't resume your existing draft. Ref: ${hydrated.requestId || created.requestId || 'unknown'}`,
+              { duration: 5000 }
+            );
+            return;
+          }
+        } else {
+          // True failure — surface with request_id so support has a ref
+          // but DO NOT wipe local text.
+          toast.error(
+            `Couldn't start a new draft. Ref: ${created.requestId || 'unknown'}`,
+            { duration: 5000 }
+          );
+          return;
+        }
+      } else {
+        did = created.state.draftId;
+        versionRef.current = created.state.version;
+        canonicalLifecycleRef.current = created.state.lifecycle;
+        lastRequestIdRef.current = created.state.requestId;
+        if (typeof onDraftCreated === 'function') {
+          onDraftCreated(did);
+        }
       }
     }
 

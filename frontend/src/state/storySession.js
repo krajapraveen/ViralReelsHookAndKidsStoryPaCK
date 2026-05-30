@@ -71,6 +71,14 @@ export const ErrorCode = Object.freeze({
   ILLEGAL_TRANSITION: 'ILLEGAL_TRANSITION',
   SCHEMA_UNSUPPORTED: 'DRAFT_SCHEMA_UNSUPPORTED',
   INVALID_PATCH: 'INVALID_PATCH',
+  // P0 2026-05-30 — DRAFT_ALREADY_ACTIVE is a RECOVERABLE state, not a
+  // failure. Backend returns 409 + `active_draft_id` so the client can
+  // adopt the existing draft. Surfacing this as a generic error toast
+  // (the "Couldn't start a new draft. Ref: ..." bug) strands the user.
+  // Canonical recovery path: useStorySessionAutosave adopts the
+  // existing draft on this code. Pinned by audit
+  // test_draft_already_active_recovery_2026_05.py.
+  DRAFT_ALREADY_ACTIVE: 'DRAFT_ALREADY_ACTIVE',
 });
 
 // ─── Canonical state shape ───────────────────────────────────────────────

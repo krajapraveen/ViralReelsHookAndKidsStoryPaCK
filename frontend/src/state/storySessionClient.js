@@ -71,9 +71,16 @@ export async function createSession() {
     };
   } catch (e) {
     const requestId = e?.response?.headers?.['x-request-id'] || null;
+    const err = _toClientError(e?.response?.data?.detail, requestId);
+    // P0 2026-05-30 — DRAFT_ALREADY_ACTIVE is a canonical, recoverable
+    // state, not a failure. Surface a structured outcome so callers
+    // (autosave hook) can adopt the existing draft rather than show a
+    // generic "Couldn't start a new draft" toast. Pinned by audit.
     return {
       ok: false,
-      error: _toClientError(e?.response?.data?.detail, requestId),
+      error: err,
+      alreadyActive: err.code === ErrorCode.DRAFT_ALREADY_ACTIVE,
+      activeDraftId: err.activeDraftId || null,
       requestId,
     };
   }

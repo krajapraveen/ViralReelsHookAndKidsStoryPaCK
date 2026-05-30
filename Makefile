@@ -34,7 +34,8 @@ BOUNDARY_AUDIT_SUITES := \
 	backend/tests/test_storybook_next_action_hooks_2026_05.py \
 	backend/tests/test_silent_render_prevention_2026_05.py \
 	backend/tests/test_empty_myspace_after_create_2026_05.py \
-	backend/tests/test_story_video_locating_surface_2026_05.py
+	backend/tests/test_story_video_locating_surface_2026_05.py \
+	backend/tests/test_draft_already_active_recovery_2026_05.py
 
 PYTEST := python -m pytest
 
