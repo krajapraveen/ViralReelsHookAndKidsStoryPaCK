@@ -1337,6 +1337,7 @@ function LocatingProjectCard({ projectId, onRefresh }) {
           output_url: data.output_url || null,
           thumbnail_url: data.thumbnail_url || null,
           error: data.error || data.error_message || null,
+          retry_info: data.retry_info || null,
         };
         setJob(nextJob);
         missingCountRef.current = 0;
@@ -1487,16 +1488,36 @@ function LocatingProjectCard({ projectId, onRefresh }) {
             </div>
             <div className="flex-1">
               <h3 className="text-base font-bold text-white" data-testid="locating-title">
-                Render didn&apos;t complete
+                Video generation failed
               </h3>
-              <p className="text-sm text-slate-400 mt-1" data-testid="locating-fail-msg">
-                {hardError || 'Generation failed. Your credits have been refunded.'}
+              {/* P0 2026-05-31 — credits-safe copy is canonical. Backend
+                  auto-refunds + skips charge on retries; the UI must
+                  state this plainly so the user does not assume they
+                  were double-billed. */}
+              <p
+                className="text-sm text-slate-300 mt-1"
+                data-testid="locating-fail-msg"
+              >
+                {hardError || 'Generation failed.'} Your credits are safe.
               </p>
+              {job?.retry_info?.total_retries ? (
+                <p
+                  className="text-xs text-slate-500 mt-1"
+                  data-testid="locating-fail-retry-count"
+                >
+                  Auto-recovery attempted {job.retry_info.total_retries} time
+                  {job.retry_info.total_retries === 1 ? '' : 's'}
+                  {job.retry_info.last_error_stage
+                    ? ` (last failure: ${job.retry_info.last_error_stage.toLowerCase()})`
+                    : ''}
+                  .
+                </p>
+              ) : null}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <button onClick={handleRetry} className="px-4 py-2 rounded-lg bg-rose-500 hover:bg-rose-400 text-white text-sm flex items-center gap-2 transition-colors" data-testid="locating-retry-btn">
-              <RefreshCw className="w-4 h-4" /> Retry
+              <RefreshCw className="w-4 h-4" /> Retry generation
             </button>
             <button onClick={() => navigate('/app/story-video-studio')} className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white text-sm flex items-center gap-2 transition-colors" data-testid="locating-studio-btn">
               <ArrowRight className="w-4 h-4" /> Back to studio
@@ -1543,9 +1564,38 @@ function LocatingProjectCard({ projectId, onRefresh }) {
 
   // RUNNING / LOCATING / STALE — primary generation surface
   const pct = Math.min(99, Math.max(2, displayPct));
+  // P0 2026-05-31 — retry visibility contract. When backend reports
+  // is_retrying=true (i.e. an automatic in-stage retry is in flight),
+  // surface a distinct banner so the user knows the system is
+  // actively recovering — never let an honest retry look identical
+  // to a healthy first attempt. Pinned by
+  // test_retry_visibility_contract_2026_05.py.
+  const ri = job?.retry_info || null;
+  const isRetrying = !!(ri && ri.is_retrying);
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-6" data-testid="myspace-locating">
       <div className="rounded-2xl border border-indigo-500/30 bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/50 p-6 space-y-5">
+        {isRetrying && (
+          <div
+            className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 flex items-start gap-3"
+            data-testid="locating-retry-banner"
+          >
+            <RefreshCw className="w-4 h-4 text-amber-300 mt-0.5 shrink-0 animate-spin" />
+            <div className="text-sm">
+              <p className="text-amber-100 font-semibold" data-testid="locating-retry-banner-title">
+                Render failed once. Retrying automatically…
+              </p>
+              <p
+                className="text-amber-200/80 mt-0.5"
+                data-testid="locating-retry-banner-detail"
+              >
+                Attempt {ri.current_attempt} of {ri.max_attempts || ri.current_attempt}
+                {ri.last_error_stage ? ` (${ri.last_error_stage.toLowerCase()})` : ''}
+                {' '}— your credits are safe.
+              </p>
+            </div>
+          </div>
+        )}
         <div className="flex items-start gap-4">
           <div className="w-12 h-12 rounded-xl bg-indigo-500/15 flex items-center justify-center shrink-0">
             <Loader2 className="w-6 h-6 text-indigo-300 animate-spin" data-testid="locating-spinner" />

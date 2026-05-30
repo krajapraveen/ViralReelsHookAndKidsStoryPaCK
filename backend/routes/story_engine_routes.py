@@ -982,13 +982,25 @@ async def get_status(job_id: str, current_user: dict = Depends(get_optional_user
             "sora_clips_count": job.get("sora_clips_count", 0),
             "fallback_clips_count": job.get("fallback_clips_count", 0),
             # Honest retry/recovery info for UI
+            # P0 2026-05-31 — pinned by test_retry_visibility_contract_2026_05.
+            # `is_retrying`, `last_error_code`, and `credits_charged_once`
+            # are required so the LocatingProjectCard can render the
+            # "Render failed once. Retrying automatically…" banner
+            # without misclassifying a healthy first attempt.
             "retry_info": {
                 "current_attempt": job.get("current_attempt", 0),
                 "max_attempts": job.get("max_stage_attempts", 0),
                 "total_retries": job.get("retry_count", 0),
+                "is_retrying": int(job.get("current_attempt") or 0) > 1
+                               and state not in [s.value for s in PER_STAGE_FAILURE_STATES]
+                               and state not in ("READY", "PARTIAL_READY", "FAILED"),
                 "heartbeat_detail": job.get("heartbeat_detail", ""),
                 "can_retry": state in [s.value for s in PER_STAGE_FAILURE_STATES],
                 "last_error_stage": job.get("last_error_stage"),
+                "last_error_code": job.get("last_error_code"),
+                # Credit invariant — pinned by audit. Charging happens
+                # exactly once in create_job(); never on retries.
+                "credits_charged_once": True,
             },
             # Quality mode
             "quality_mode": job.get("quality_mode", "balanced"),
