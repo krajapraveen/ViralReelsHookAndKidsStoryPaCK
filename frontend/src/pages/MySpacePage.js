@@ -1195,71 +1195,184 @@ function CompletionPromptModal({ job, onClose, onDownload, onShareWhatsApp, onCr
     return 'ARCHIVED';
   }
 
-// ═══ LocatingProjectCard ═════════════════════════════════════════════════════
+// ═══ LocatingProjectCard — canonical generation surface ═════════════════════
 // P0 2026-05-24 invariant: when the user lands on MySpace with
-// ?projectId=<id> (i.e. they JUST clicked Generate Video), we must never
-// render the "No projects yet" empty state. This card polls the
-// canonical /api/story-engine/status/<id> endpoint as a fallback when
-// /user-jobs returned empty (race, user_id-shape mismatch, or auth
-// hiccup), and presents a clear, honest state to the user.
+// ?projectId=<id> they have JUST clicked Generate Video. This card is
+// the primary surface they live on until generation completes.
+// P0 2026-05-25 upgrade: real % progress bar with stage breakdown,
+// estimated-progress fallback when backend returns 0, 90s stale-state
+// escalation, hard timeout → retryable failed state, rotating
+// engagement panel (copyright-free tips/quotes), success toast +
+// auto-navigate to MySpace listing on COMPLETED. Trust-bug class
+// eliminated: infinite "Preparing scenes" with no progress.
 //
-// States:
-//   • LOCATING    — initial probe in flight (or retry after transient error)
-//   • PROCESSING  — probe found the job; show progress + canonical "what's
-//                   happening" copy; keep polling until COMPLETED.
-//   • NOT_FOUND   — three 404s in a row → escalate to recovery card with a
-//                   path back to studio AND a refresh button.
+// Card states (machine):
+//   LOCATING  → initial probe in flight or transient retry
+//   RUNNING   → job found, polling every 4s
+//   STALE     → no status change for 90s → "still rendering" copy
+//   READY     → status === COMPLETED → toast + 3s auto-redirect to listing
+//   FAILED    → status === FAILED or 8-min hard timeout → Retry CTA
+//   NOT_FOUND → 3× 404 from status endpoint → recovery card
+
+// Stage progress floor map — server returns canonical state via /status.
+// We anchor a floor % per stage so that even when backend `progress` is
+// momentarily 0 (between writes) the bar never moves backward.
+const __STAGE_PROGRESS = [
+  { key: 'INIT',                       floor: 4,  label: 'Request accepted' },
+  { key: 'PLANNING',                   floor: 12, label: 'Writing story scenes' },
+  { key: 'BUILDING_CHARACTER_CONTEXT', floor: 18, label: 'Building character profiles' },
+  { key: 'PLANNING_SCENE_MOTION',      floor: 24, label: 'Planning scene compositions' },
+  { key: 'GENERATING_KEYFRAMES',       floor: 35, label: 'Creating visuals' },
+  { key: 'GENERATING_SCENE_CLIPS',     floor: 55, label: 'Adding motion' },
+  { key: 'GENERATING_AUDIO',           floor: 72, label: 'Adding voice & music' },
+  { key: 'ASSEMBLING_VIDEO',           floor: 86, label: 'Rendering final video' },
+  { key: 'VALIDATING',                 floor: 95, label: 'Saving to My Space' },
+  { key: 'READY',                      floor: 100, label: 'Your video is ready' },
+];
+
+// Copyright-free engagement copy — rotated every 10s.
+// No brand names, scraped quotes, or third-party trademarks.
+const __ENGAGEMENT_TIPS = [
+  { kind: 'quote', text: 'The story you imagine is the story only you can tell.' },
+  { kind: 'quote', text: 'Every great video starts with a single brave idea.' },
+  { kind: 'quote', text: 'Patience is the secret ingredient of every great render.' },
+  { kind: 'quote', text: 'Your audience is waiting for a story only you can give them.' },
+  { kind: 'quote', text: 'Done is better than perfect — your first video is the spark.' },
+  { kind: 'try',   text: 'Try Character Memory next — give your characters a persistent identity.' },
+  { kind: 'try',   text: 'Reel Generator can turn this story into a short-form viral clip.' },
+  { kind: 'try',   text: 'Bedtime Stories generates calming narrated journeys for kids.' },
+  { kind: 'try',   text: 'My Movie Trailer turns your photos into a 60s cinematic teaser.' },
+  { kind: 'tip',   text: 'Renders typically take 2–5 minutes depending on scene count.' },
+  { kind: 'tip',   text: 'Higher quality mode adds detail but extends total render time.' },
+  { kind: 'tip',   text: 'You can leave this page — we will save the result to My Space automatically.' },
+];
+
+const STALE_AFTER_MS = 90 * 1000;        // 90s of no state change → "Still rendering"
+const HARD_TIMEOUT_MS = 8 * 60 * 1000;   // 8 minutes → fail + Retry
+const TIP_ROTATION_MS = 10 * 1000;
+const POLL_INTERVAL_MS = 4000;
+const TERMINAL_OK = new Set(['COMPLETED', 'READY', 'PARTIAL', 'PARTIAL_READY']);
+const TERMINAL_FAIL = new Set(['FAILED', 'FAILED_PLANNING', 'FAILED_IMAGES', 'FAILED_TTS', 'FAILED_RENDER']);
+
+function _stageInfo(state) {
+  const idx = __STAGE_PROGRESS.findIndex(s => s.key === (state || '').toString().toUpperCase());
+  if (idx < 0) return { floor: 4, label: 'Preparing scenes', index: 0, total: __STAGE_PROGRESS.length };
+  return { ...__STAGE_PROGRESS[idx], index: idx, total: __STAGE_PROGRESS.length };
+}
+
+function _estimateProgress({ backendProgress, state, startedAt, lastBackendProgress }) {
+  // Authoritative backend % wins when it's a real positive number.
+  if (typeof backendProgress === 'number' && backendProgress > 0) {
+    return Math.max(lastBackendProgress || 0, Math.min(99, backendProgress));
+  }
+  // Else: floor for the current state + a small elapsed-time creep
+  // bounded by the NEXT stage's floor so the bar advances honestly
+  // without lying about completion.
+  const stage = _stageInfo(state);
+  const next = __STAGE_PROGRESS[stage.index + 1];
+  const cap = (next?.floor ?? 99) - 1;
+  const elapsedSec = (Date.now() - startedAt) / 1000;
+  // 1% per ~6s of dwell time within a stage, capped by next floor.
+  const creep = Math.min(cap - stage.floor, Math.floor(elapsedSec / 6));
+  return Math.max(lastBackendProgress || 0, stage.floor + Math.max(0, creep));
+}
+
 function LocatingProjectCard({ projectId, onRefresh }) {
   const navigate = useNavigate();
-  const [state, setState] = useState('LOCATING');
+  const [cardState, setCardState] = useState('LOCATING'); // LOCATING|RUNNING|STALE|READY|FAILED|NOT_FOUND
   const [job, setJob] = useState(null);
-  const [missingCount, setMissingCount] = useState(0);
-  const cancelledRef = useRef(false);
+  const [tipIdx, setTipIdx] = useState(0);
+  const [displayPct, setDisplayPct] = useState(2);
+  const [redirectCountdown, setRedirectCountdown] = useState(null);
+  const [hardError, setHardError] = useState(null);
 
+  const cancelledRef = useRef(false);
+  const startedAtRef = useRef(Date.now());
+  const lastChangeAtRef = useRef(Date.now());
+  const lastStateRef = useRef(null);
+  const lastBackendProgressRef = useRef(0);
+  const completedFiredRef = useRef(false);
+  const missingCountRef = useRef(0);
+
+  // Probe loop
   useEffect(() => {
     cancelledRef.current = false;
     let timer = null;
 
     const probe = async () => {
+      // Hard timeout — refuse to wait forever
+      if (Date.now() - startedAtRef.current > HARD_TIMEOUT_MS) {
+        if (cancelledRef.current) return;
+        setHardError('Generation took longer than expected. Please retry.');
+        setCardState('FAILED');
+        return;
+      }
       try {
         const res = await api.get(`/api/story-engine/status/${projectId}`);
         if (cancelledRef.current) return;
         const data = res?.data || {};
-        setJob({
+        const rawStatus = (data.status || data.state || '').toString().toUpperCase();
+        const rawState = (data.state || rawStatus || '').toString().toUpperCase();
+        const stageLabel = _stageInfo(rawState).label;
+        const friendly = data.current_step || data.current_stage || stageLabel;
+        const backendProgress = typeof data.progress === 'number' ? data.progress : null;
+        if (backendProgress != null && backendProgress > lastBackendProgressRef.current) {
+          lastBackendProgressRef.current = backendProgress;
+        }
+
+        // Detect state change for stale-watchdog
+        if (rawState !== lastStateRef.current) {
+          lastStateRef.current = rawState;
+          lastChangeAtRef.current = Date.now();
+        }
+
+        const nextJob = {
           job_id: projectId,
           title: data.title || 'Your new video',
-          status: (data.status || 'PROCESSING').toString().toUpperCase(),
-          progress: typeof data.progress === 'number' ? data.progress : 0,
-          current_stage: data.current_stage || data.current_step || 'Preparing scenes',
-        });
-        setMissingCount(0);
-        if ((data.status || '').toUpperCase() === 'COMPLETED') {
-          setState('PROCESSING'); // briefly; the parent fetchJobs will pick it up
-          onRefresh && onRefresh();
-        } else {
-          setState('PROCESSING');
-          timer = setTimeout(probe, 4000);
+          state: rawState,
+          status: rawStatus,
+          progress: backendProgress,
+          current_stage: friendly,
+          stage_label: stageLabel,
+          output_url: data.output_url || null,
+          thumbnail_url: data.thumbnail_url || null,
+          error: data.error || data.error_message || null,
+        };
+        setJob(nextJob);
+        missingCountRef.current = 0;
+
+        // Terminal — success
+        if (TERMINAL_OK.has(rawState) || TERMINAL_OK.has(rawStatus)) {
+          setDisplayPct(100);
+          setCardState('READY');
+          // Refresh listing so the new card appears the moment we navigate
+          try { onRefresh && onRefresh(); } catch (_) {}
+          return; // stop polling
         }
+        // Terminal — failure
+        if (TERMINAL_FAIL.has(rawState) || TERMINAL_FAIL.has(rawStatus)) {
+          setHardError(nextJob.error || 'Generation failed.');
+          setCardState('FAILED');
+          return;
+        }
+        // Stale watchdog — no state change for 90s
+        const stale = Date.now() - lastChangeAtRef.current > STALE_AFTER_MS;
+        setCardState(stale ? 'STALE' : 'RUNNING');
+        timer = setTimeout(probe, POLL_INTERVAL_MS);
       } catch (err) {
         if (cancelledRef.current) return;
-        const status = err?.response?.status;
-        if (status === 404) {
-          setMissingCount(c => {
-            const next = c + 1;
-            if (next >= 3) {
-              setState('NOT_FOUND');
-              return next;
-            }
-            timer = setTimeout(probe, 2500);
-            return next;
-          });
-        } else if (status === 403) {
-          // Ownership mismatch — the job exists but the current session
-          // cannot see it. Surface a recovery path instead of pretending
-          // the action never happened.
-          setState('NOT_FOUND');
+        const httpStatus = err?.response?.status;
+        if (httpStatus === 404) {
+          missingCountRef.current += 1;
+          if (missingCountRef.current >= 3) {
+            setCardState('NOT_FOUND');
+            return;
+          }
+          timer = setTimeout(probe, 2500);
+        } else if (httpStatus === 403) {
+          setCardState('NOT_FOUND');
         } else {
-          // Transient (5xx / network) — keep trying with backoff.
+          // Transient — keep trying (the watchdog will escalate to STALE)
           timer = setTimeout(probe, 3000);
         }
       }
@@ -1272,60 +1385,237 @@ function LocatingProjectCard({ projectId, onRefresh }) {
     };
   }, [projectId, onRefresh]);
 
-  return (
-    <div className="max-w-4xl mx-auto px-4 py-6 space-y-6" data-testid="myspace-locating">
-      <div className="rounded-2xl border border-indigo-500/30 bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/50 p-6 space-y-4">
-        <div className="flex items-start gap-4">
-          <div className="w-12 h-12 rounded-xl bg-indigo-500/15 flex items-center justify-center shrink-0">
-            {state === 'NOT_FOUND'
-              ? <AlertTriangle className="w-6 h-6 text-amber-400" data-testid="locating-error-icon" />
-              : <Loader2 className="w-6 h-6 text-indigo-300 animate-spin" data-testid="locating-spinner" />
-            }
+  // Tip rotation
+  useEffect(() => {
+    if (cardState === 'READY' || cardState === 'FAILED' || cardState === 'NOT_FOUND') return undefined;
+    const t = setInterval(() => {
+      setTipIdx(i => (i + 1) % __ENGAGEMENT_TIPS.length);
+    }, TIP_ROTATION_MS);
+    return () => clearInterval(t);
+  }, [cardState]);
+
+  // Progress animator — recomputes every second so the % moves even
+  // when backend hasn't replied yet.
+  useEffect(() => {
+    if (cardState === 'READY') return undefined;
+    if (cardState === 'FAILED' || cardState === 'NOT_FOUND') return undefined;
+    const tick = () => {
+      const next = _estimateProgress({
+        backendProgress: job?.progress,
+        state: job?.state,
+        startedAt: startedAtRef.current,
+        lastBackendProgress: lastBackendProgressRef.current,
+      });
+      setDisplayPct(prev => Math.max(prev, Math.min(99, next)));
+    };
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [job, cardState]);
+
+  // Completion handoff — toast + 3s auto-navigate to /app/my-space
+  useEffect(() => {
+    if (cardState !== 'READY' || completedFiredRef.current) return undefined;
+    completedFiredRef.current = true;
+    try {
+      toast.success(`Your video is ready and saved to My Space.`, { duration: 4000, id: `ready-${projectId}` });
+    } catch (_) {}
+    setRedirectCountdown(3);
+    const interval = setInterval(() => {
+      setRedirectCountdown(c => (typeof c === 'number' ? c - 1 : c));
+    }, 1000);
+    const t = setTimeout(() => {
+      try { onRefresh && onRefresh(); } catch (_) {}
+      // Land on the listing (no projectId) so the new card is rendered cleanly.
+      navigate('/app/my-space', { replace: true });
+    }, 3000);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(t);
+    };
+  }, [cardState, navigate, onRefresh, projectId]);
+
+  // ── Failure recovery: route to studio with retry context ──
+  const handleRetry = () => {
+    navigate(`/app/story-video-studio?retry=${encodeURIComponent(projectId)}`);
+  };
+
+  // ── Renderers ──
+  const stage = _stageInfo(job?.state);
+  const tip = __ENGAGEMENT_TIPS[tipIdx];
+
+  // NOT_FOUND
+  if (cardState === 'NOT_FOUND') {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-6 space-y-6" data-testid="myspace-locating">
+        <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-br from-slate-900 via-slate-900 to-amber-950/30 p-6 space-y-4">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-6 h-6 text-amber-400" data-testid="locating-error-icon" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-base font-bold text-white" data-testid="locating-title">
+                We couldn&apos;t locate that project
+              </h3>
+              <p className="text-sm text-slate-400 mt-1">
+                Your video may still be saving. Try refreshing, or go back to the studio.
+                No credits were spent if the job was never recorded.
+              </p>
+            </div>
           </div>
-          <div className="flex-1">
-            {state === 'NOT_FOUND' ? (
-              <>
-                <h3 className="text-base font-bold text-white" data-testid="locating-title">
-                  We couldn't locate that project
-                </h3>
-                <p className="text-sm text-slate-400 mt-1">
-                  Your video may still be saving. Try refreshing, or go back to the studio.
-                  No credits were spent if the job was never recorded.
-                </p>
-              </>
-            ) : (
-              <>
-                <h3 className="text-base font-bold text-white" data-testid="locating-title">
-                  {job?.title ? `Locating "${job.title}"…` : 'Locating your video…'}
-                </h3>
-                <p className="text-sm text-slate-400 mt-1">
-                  {job?.current_stage || 'Connecting to your new project. This usually takes a moment.'}
-                </p>
-                {typeof job?.progress === 'number' && job.progress > 0 && (
-                  <div className="mt-3 h-1.5 w-full bg-white/[0.06] rounded-full overflow-hidden" data-testid="locating-progress-bar">
-                    <div
-                      className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all duration-700"
-                      style={{ width: `${Math.min(100, Math.max(2, job.progress))}%` }}
-                    />
-                  </div>
-                )}
-              </>
-            )}
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => onRefresh && onRefresh()} className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white text-sm flex items-center gap-2 transition-colors" data-testid="locating-refresh-btn">
+              <RefreshCw className="w-4 h-4" /> Refresh
+            </button>
+            <button onClick={() => navigate('/app/story-video-studio')} className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm flex items-center gap-2 transition-colors" data-testid="locating-studio-btn">
+              <ArrowRight className="w-4 h-4" /> Back to studio
+            </button>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  // FAILED (timeout or terminal)
+  if (cardState === 'FAILED') {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-6 space-y-6" data-testid="myspace-locating">
+        <div className="rounded-2xl border border-rose-500/30 bg-gradient-to-br from-slate-900 via-slate-900 to-rose-950/30 p-6 space-y-4">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-xl bg-rose-500/15 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-6 h-6 text-rose-400" data-testid="locating-fail-icon" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-base font-bold text-white" data-testid="locating-title">
+                Render didn&apos;t complete
+              </h3>
+              <p className="text-sm text-slate-400 mt-1" data-testid="locating-fail-msg">
+                {hardError || 'Generation failed. Your credits have been refunded.'}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={handleRetry} className="px-4 py-2 rounded-lg bg-rose-500 hover:bg-rose-400 text-white text-sm flex items-center gap-2 transition-colors" data-testid="locating-retry-btn">
+              <RefreshCw className="w-4 h-4" /> Retry
+            </button>
+            <button onClick={() => navigate('/app/story-video-studio')} className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white text-sm flex items-center gap-2 transition-colors" data-testid="locating-studio-btn">
+              <ArrowRight className="w-4 h-4" /> Back to studio
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // READY — handoff card (auto-navigates in 3s)
+  if (cardState === 'READY') {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-6 space-y-6" data-testid="myspace-locating">
+        <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/40 p-6 space-y-4">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-xl bg-emerald-500/15 flex items-center justify-center shrink-0">
+              <Check className="w-6 h-6 text-emerald-400" data-testid="locating-ready-icon" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-base font-bold text-white" data-testid="locating-title">
+                Your video is ready
+              </h3>
+              <p className="text-sm text-slate-300 mt-1">
+                Saved to My Space.
+                {typeof redirectCountdown === 'number' && redirectCountdown >= 0
+                  ? ` Opening in ${Math.max(0, redirectCountdown)}s…`
+                  : ''}
+              </p>
+              <div className="mt-3 h-1.5 w-full bg-white/[0.06] rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-emerald-500 to-cyan-400" style={{ width: '100%' }} />
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => navigate('/app/my-space', { replace: true })} className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm flex items-center gap-2 transition-colors" data-testid="locating-go-myspace-btn">
+              <ArrowRight className="w-4 h-4" /> Go to My Space
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // RUNNING / LOCATING / STALE — primary generation surface
+  const pct = Math.min(99, Math.max(2, displayPct));
+  return (
+    <div className="max-w-4xl mx-auto px-4 py-6 space-y-6" data-testid="myspace-locating">
+      <div className="rounded-2xl border border-indigo-500/30 bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/50 p-6 space-y-5">
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-xl bg-indigo-500/15 flex items-center justify-center shrink-0">
+            <Loader2 className="w-6 h-6 text-indigo-300 animate-spin" data-testid="locating-spinner" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-base font-bold text-white truncate" data-testid="locating-title">
+              {job?.title ? `Creating "${job.title}"` : 'Creating your video'}
+            </h3>
+            <p className="text-sm text-slate-300 mt-1" data-testid="locating-stage-label">
+              {cardState === 'STALE'
+                ? 'Still rendering. This is taking longer than usual — your credits are safe.'
+                : (job?.stage_label || job?.current_stage || 'Preparing scenes')}
+            </p>
+          </div>
+          <div className="text-right shrink-0">
+            <div className="text-2xl font-bold text-white tabular-nums" data-testid="locating-progress-pct">{pct}%</div>
+            <div className="text-[11px] uppercase tracking-wide text-slate-500" data-testid="locating-stage-index">
+              Step {Math.max(1, stage.index + 1)} / {stage.total - 1}
+            </div>
+          </div>
+        </div>
+
+        {/* Real progress bar */}
+        <div className="h-2 w-full bg-white/[0.06] rounded-full overflow-hidden" data-testid="locating-progress-bar">
+          <div
+            className="h-full bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 transition-all duration-700"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+
+        {/* Stage strip */}
+        <div className="flex flex-wrap gap-1.5" data-testid="locating-stages">
+          {__STAGE_PROGRESS.slice(0, -1).map((s, i) => {
+            const active = i === stage.index;
+            const done = pct >= s.floor && !active;
+            return (
+              <span
+                key={s.key}
+                className={`text-[11px] px-2 py-1 rounded-full border transition-colors ${
+                  active
+                    ? 'bg-indigo-500/20 border-indigo-400/40 text-indigo-200'
+                    : done
+                      ? 'bg-emerald-500/10 border-emerald-400/30 text-emerald-300/80'
+                      : 'bg-white/[0.03] border-white/[0.06] text-slate-500'
+                }`}
+              >
+                {done ? '✓ ' : active ? '● ' : ''}{s.label}
+              </span>
+            );
+          })}
+        </div>
+
+        {/* Engagement panel — rotating copyright-free tips */}
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4" data-testid="locating-tip">
+          <div className="flex items-start gap-3">
+            <Sparkles className="w-4 h-4 text-violet-300 mt-0.5 shrink-0" />
+            <div>
+              <div className="text-[11px] uppercase tracking-wide text-violet-300/70 mb-1">
+                {tip.kind === 'quote' ? 'A thought while we render' : tip.kind === 'try' ? 'Explore next' : 'Tip'}
+              </div>
+              <p className="text-sm text-slate-200 leading-snug" data-testid="locating-tip-text">{tip.text}</p>
+            </div>
+          </div>
+        </div>
+
         <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => onRefresh && onRefresh()}
-            className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white text-sm flex items-center gap-2 transition-colors"
-            data-testid="locating-refresh-btn"
-          >
+          <button onClick={() => onRefresh && onRefresh()} className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white text-sm flex items-center gap-2 transition-colors" data-testid="locating-refresh-btn">
             <RefreshCw className="w-4 h-4" /> Refresh
           </button>
-          <button
-            onClick={() => navigate('/app/story-video-studio')}
-            className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm flex items-center gap-2 transition-colors"
-            data-testid="locating-studio-btn"
-          >
+          <button onClick={() => navigate('/app/story-video-studio')} className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white text-sm flex items-center gap-2 transition-colors" data-testid="locating-studio-btn">
             <ArrowRight className="w-4 h-4" /> Back to studio
           </button>
         </div>
