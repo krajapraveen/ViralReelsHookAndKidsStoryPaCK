@@ -978,9 +978,29 @@ async def get_status(job_id: str, current_user: dict = Depends(get_optional_user
             "parent_job_id": job.get("parent_job_id"),
             # Engine-specific fields
             "engine_state": state,
+            # P0 2026-05-31 — visual-quality observability for mobile/web
+            # "X/Y cinematic scenes" badge. Sora is the cinematic path;
+            # Ken Burns is the still-image fallback. cinematic_ratio
+            # equals sora_clips / total_clips and is null when there's
+            # nothing to count yet (pre-clip-generation states).
             "used_ken_burns_fallback": job.get("used_ken_burns_fallback", False),
             "sora_clips_count": job.get("sora_clips_count", 0),
             "fallback_clips_count": job.get("fallback_clips_count", 0),
+            "visual_quality": {
+                "sora_clips_count": int(job.get("sora_clips_count") or 0),
+                "fallback_clips_count": int(job.get("fallback_clips_count") or 0),
+                "total_clips": int(job.get("sora_clips_count") or 0)
+                               + int(job.get("fallback_clips_count") or 0),
+                "cinematic_ratio": (
+                    (int(job.get("sora_clips_count") or 0)
+                     / max(1, int(job.get("sora_clips_count") or 0)
+                              + int(job.get("fallback_clips_count") or 0)))
+                    if (int(job.get("sora_clips_count") or 0)
+                        + int(job.get("fallback_clips_count") or 0)) > 0
+                    else None
+                ),
+                "used_ken_burns_fallback": bool(job.get("used_ken_burns_fallback", False)),
+            },
             # Honest retry/recovery info for UI
             # P0 2026-05-31 — pinned by test_retry_visibility_contract_2026_05.
             # `is_retrying`, `last_error_code`, and `credits_charged_once`

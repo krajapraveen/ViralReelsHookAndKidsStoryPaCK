@@ -282,7 +282,24 @@ async def mix_audio(
     narration_volume: float = 1.2,
     music_volume: float = 0.18,
 ) -> bool:
-    """Mix narration and background music onto the video."""
+    """Mix narration and background music onto the video.
+
+    P0 2026-05-31 — audio-tail-silence fix.
+    Pre-fix bug class: amix used `duration=first`, which clipped the
+    mixed audio to the narration length. If narration was shorter than
+    the video (typical for short scripts on long-cut renders), the
+    remaining seconds of video played in COMPLETE SILENCE — including
+    the music track, even though music was muxed in.
+
+    Post-fix contract:
+      • Music is `-stream_loop -1` so it covers the full video runtime.
+      • amix uses `duration=longest` so the mixed audio fills the full
+        video duration.
+      • Output is then `-shortest` against the video stream so the
+        final MP4's audio_duration ≈ video_duration (≤0.1s drift).
+    Pinned by audit test_audio_video_duration_parity_2026_05.py +
+    services/reliability/render_validator.audio_video_mismatch gate.
+    """
     _ensure_dir()
 
     if not narration_path and not music_path:
@@ -301,13 +318,20 @@ async def mix_audio(
         audio_inputs.append("narr")
 
     if music_path:
-        inputs += f' -i "{music_path}"'
+        # Loop music for the entire video runtime — prevents tail-silence
+        # when narration is shorter than video.
+        inputs += f' -stream_loop -1 -i "{music_path}"'
         idx = len(audio_inputs) + 1
         filter_parts.append(f"[{idx}:a]volume={music_volume}[music]")
         audio_inputs.append("music")
 
     if len(audio_inputs) == 2:
-        filter_parts.append(f"[{audio_inputs[0]}][{audio_inputs[1]}]amix=inputs=2:duration=first:dropout_transition=2[a]")
+        # duration=longest fills the mixed track to the longest input;
+        # combined with -shortest below the output ends with the video.
+        filter_parts.append(
+            f"[{audio_inputs[0]}][{audio_inputs[1]}]"
+            f"amix=inputs=2:duration=longest:dropout_transition=2[a]"
+        )
         audio_map = '"[a]"'
     elif len(audio_inputs) == 1:
         audio_map = f'"[{audio_inputs[0]}]"'
@@ -315,10 +339,13 @@ async def mix_audio(
         audio_map = ""
 
     filter_complex = ";".join(filter_parts)
+    # -shortest pins the output duration to the video stream — the audio
+    # filter graph runs as long as needed and ffmpeg trims to video end.
     cmd = (
         f'ffmpeg -y {inputs} '
         f"-filter_complex '{filter_complex}' "
-        f'-map 0:v -map {audio_map} -c:v copy -c:a aac -b:a 192k -movflags +faststart "{output_path}"'
+        f'-map 0:v -map {audio_map} -c:v copy -c:a aac -b:a 192k '
+        f'-shortest -movflags +faststart "{output_path}"'
     )
     return await _run_ffmpeg(cmd, timeout=180)
 

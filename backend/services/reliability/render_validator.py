@@ -60,6 +60,7 @@ class RenderValidationError(Exception):
       • wrong_video_codec
       • wrong_audio_codec
       • audio_shorter_than_video
+      • audio_longer_than_video
       • ffprobe_failed
       • ffprobe_non_json
     """
@@ -162,11 +163,24 @@ async def validate_render(path: str, expected_duration: float = 0.0) -> dict:
     fmt_dur = float((info.get("format") or {}).get("duration", 0) or 0)
     v_dur = _dur(v) or fmt_dur
     a_dur = _dur(a) or fmt_dur
-    if a_dur < (v_dur - 0.5):
-        raise RenderValidationError(
-            f"audio shorter than video (audio={a_dur:.2f}s, video={v_dur:.2f}s)",
-            "audio_shorter_than_video",
-        )
+    # P0 2026-05-31 — bidirectional audio/video duration parity check.
+    # Pre-fix: only `audio_shorter_than_video` was caught (tail silence).
+    # The new mix_audio path with -stream_loop -1 + duration=longest +
+    # -shortest can in theory produce audio_longer_than_video if the
+    # -shortest pin races the loop closure. Reject both deltas with a
+    # 0.5s tolerance — pinned by test_audio_video_duration_parity_2026_05.
+    if v_dur > 0:
+        delta = a_dur - v_dur
+        if delta < -0.5:
+            raise RenderValidationError(
+                f"audio shorter than video (audio={a_dur:.2f}s, video={v_dur:.2f}s)",
+                "audio_shorter_than_video",
+            )
+        if delta > 0.5:
+            raise RenderValidationError(
+                f"audio longer than video (audio={a_dur:.2f}s, video={v_dur:.2f}s)",
+                "audio_longer_than_video",
+            )
     logger.info(
         "[validate_render] OK video=%.2fs audio=%.2fs v_codec=%s a_codec=%s",
         v_dur, a_dur, v.get("codec_name"), a.get("codec_name"),
