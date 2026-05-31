@@ -1,6 +1,53 @@
 # Visionary Suite - Changelog
 
 
+## 2026-06 — P0 SECURITY: Open-Redirect Class Eliminated (`?next=` / `?return=`)
+
+**Status**: SHIPPED in preview. `make audit-boundaries` green (**491 passing, 1 skipped**). Awaiting production deploy.
+
+**Threat**: Unsanitized post-login redirect via `?next=` / `?return=` allowed phishing: `/login?next=https://evil.com` would relay a freshly-authenticated user to attacker-controlled origins. Also vulnerable: scheme-relative `//evil.com`, `javascript:`, `data:`, encoded variants, backslash bypass, and self-loops.
+
+**Cure**: New canonical sanitizer `frontend/src/utils/safeRedirect.js` (`safeRedirectPath`). Returns the founder-mandated `/app/dashboard` fallback for any tampered value. Defenses:
+- Must (after exhaustive URL-decoding) start with `/`
+- Must NOT start with `//` or backslash variants (`/\`, `\\`)
+- Must NOT contain `://` anywhere
+- Must NOT begin with `javascript:`, `data:`, `vbscript:`, `file:`, `about:`, `blob:`
+- Must NOT loop to `/login` or `/signup` (with query/hash/path variants)
+- Whitespace/control-char stripping before validation
+- Up-to-5-pass URL decode to defeat `%252F%252Fevil.com` style multi-encoding
+
+**Wiring** (4 files):
+- `frontend/src/utils/safeRedirect.js` — **NEW** sanitizer.
+- `frontend/src/pages/Login.js` — both email and Google login paths sanitize.
+- `frontend/src/App.js` — `AuthenticatedRedirect` sanitizes (authenticated users revisiting `/login?next=evil.com` are also protected).
+- `Makefile` — new test suite registered.
+
+**Test added**: `backend/tests/test_safe_redirect_open_redirect_guard_2026_06.py` — **17 tests** covering static-source contract + **27 distinct attack-vector cases** run through the live sanitizer via Node:
+- Allowed paths pass through (4)
+- HTTP/HTTPS external blocked (2)
+- Scheme-relative `//evil.com` blocked (2)
+- `javascript:` blocked (2 — bare and `/javascript:`)
+- `data:` blocked (2)
+- `vbscript:` + `file:` blocked
+- Encoded attacks blocked after decode (4 — single, double, encoded-https, encoded-js)
+- `/login` and `/signup` self-loops blocked (3)
+- Whitespace/empty/backslash/no-leading-slash edge cases (6)
+
+**End-to-end Playwright smoke (9 scenarios)**: ALL PASS
+- S1 `/login?next=/app/billing` → `/app/billing` ✅
+- S2 `/login?return=/app/my-space` (legacy) → `/app/my-space` ✅
+- S3 `/login?next=https://evil.com` → `/app/dashboard` ✅
+- S4 `/login?next=//evil.com` → `/app/dashboard` ✅
+- S5 `/login?next=javascript:alert(1)` → `/app/dashboard` ✅
+- S6 `/login?next=data:text/html,...` → `/app/dashboard` ✅
+- S7 `/login?next=%252F%252Fevil.com` (double-encoded) → `/app/dashboard` ✅
+- S8 `/login?next=/login` (self-loop) → `/app/dashboard` ✅
+- S9 No param → `/app` (legacy default) ✅
+
+**Defense-in-depth**: The sanitizer is also a pure unit and is dual-pinned by both static-source contracts (cannot regress silently in code review) and live-execution tests (cannot regress in logic).
+
+
+
 ## 2026-06 — P0 Reliability: Protected-route `?next=` Deep-Link Preservation
 
 **Status**: SHIPPED in preview. `make audit-boundaries` green (**474 passing, 1 skipped**). Awaiting production deploy.

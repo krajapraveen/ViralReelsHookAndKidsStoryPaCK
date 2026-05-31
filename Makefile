@@ -40,7 +40,8 @@ BOUNDARY_AUDIT_SUITES := \
 	backend/tests/test_audio_video_duration_parity_2026_05.py \
 	backend/tests/test_pricing_canonical_source_2026_05.py \
 	backend/tests/test_billing_decoupled_fetch_and_session_2026_05.py \
-	backend/tests/test_protected_route_next_redirect_2026_06.py
+	backend/tests/test_protected_route_next_redirect_2026_06.py \
+	backend/tests/test_safe_redirect_open_redirect_guard_2026_06.py
 
 PYTEST := python -m pytest
 

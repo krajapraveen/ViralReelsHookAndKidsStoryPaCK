@@ -12,6 +12,7 @@ import { linkSessionToUser } from '../utils/growthAnalytics';
 import { trackFunnel } from '../utils/funnelTracker';
 import { markActivated } from '../utils/activationSentinel';
 import { useGoogleLogin } from '@react-oauth/google';
+import { safeRedirectPath } from '../utils/safeRedirect';
 
 export default function Login({ setAuth }) {
   const [email, setEmail] = useState('');
@@ -197,14 +198,20 @@ export default function Login({ setAuth }) {
       // 2) localStorage remix_return_url, 3) /app.
       // `?next=` is the canonical Billing-page contract (founder-mandated,
       // P0 2026-06). `?return=` remains accepted for backwards compat.
-      const returnParam = searchParams.get('next') || searchParams.get('return');
-      const returnUrl = returnParam || localStorage.getItem('remix_return_url');
-      if (returnUrl) {
+      // P0 2026-06 SECURITY — sanitize against open-redirect attacks.
+      // Pinned: tests/test_safe_redirect_open_redirect_guard_2026_06.py
+      const rawParam =
+        searchParams.get('next') ||
+        searchParams.get('return') ||
+        localStorage.getItem('remix_return_url');
+      if (rawParam && localStorage.getItem('remix_return_url')) {
         localStorage.removeItem('remix_return_url');
-        navigate(returnUrl, { replace: true });
-      } else {
-        navigate('/app', { replace: true });
       }
+      // safeRedirectPath returns the canonical `/app/dashboard` fallback
+      // on any tampered value (per founder spec). If no rawParam at all,
+      // land at `/app` (historical post-login default).
+      const returnUrl = rawParam ? safeRedirectPath(rawParam) : '/app';
+      navigate(returnUrl, { replace: true });
     } catch (error) {
       const status = error.response?.status;
       const message = error.response?.data?.detail || '';
@@ -335,14 +342,16 @@ export default function Login({ setAuth }) {
       } catch (_) { /* never block auth */ }
       setAuth(true);
       // P0 2026-06 — accept `?next=` (canonical) or `?return=` (legacy).
-      const returnParam = searchParams.get('next') || searchParams.get('return');
-      const returnUrl = returnParam || localStorage.getItem('remix_return_url');
-      if (returnUrl) {
+      // P0 2026-06 SECURITY — sanitize against open-redirect attacks.
+      const rawParam =
+        searchParams.get('next') ||
+        searchParams.get('return') ||
+        localStorage.getItem('remix_return_url');
+      if (rawParam && localStorage.getItem('remix_return_url')) {
         localStorage.removeItem('remix_return_url');
-        window.location.href = returnUrl;
-      } else {
-        window.location.href = '/app';
       }
+      const returnUrl = rawParam ? safeRedirectPath(rawParam) : '/app';
+      window.location.href = returnUrl;
     } catch (error) {
       const msg = error?.response?.data?.detail || 'Google sign-in failed. Please try again.';
       toast.error(msg);

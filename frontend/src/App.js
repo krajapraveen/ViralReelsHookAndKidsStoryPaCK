@@ -12,6 +12,7 @@ import { GlobalBackButton } from './components/BackButton';
 import { ErrorBoundary } from './components/recovery';
 import AppTour, { TourProvider } from './components/AppTour';
 import { initActivationSentinel } from './utils/activationSentinel';
+import { safeRedirectPath } from './utils/safeRedirect';
 import CookieConsent from './components/CookieConsent';
 // P0 UI Cleanup (Apr 2026): floating support clutter removed by founder directive.
 // PushPrompt / GuideAssistant / ResponsiveSupportWrapper imports retired.
@@ -237,11 +238,16 @@ function AuthenticatedRedirect() {
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   // P0 2026-06 — accept canonical `?next=` first, then legacy `?return=`.
-  const returnParam = searchParams.get('next') || searchParams.get('return');
-  const returnUrl = returnParam || localStorage.getItem('remix_return_url') || '/app';
-  if (returnParam || localStorage.getItem('remix_return_url')) {
+  // P0 2026-06 SECURITY — sanitize against open-redirect attacks.
+  // Pinned: tests/test_safe_redirect_open_redirect_guard_2026_06.py
+  const rawParam =
+    searchParams.get('next') ||
+    searchParams.get('return') ||
+    localStorage.getItem('remix_return_url');
+  if (rawParam && localStorage.getItem('remix_return_url')) {
     localStorage.removeItem('remix_return_url');
   }
+  const returnUrl = rawParam ? safeRedirectPath(rawParam) : '/app';
   return <Navigate to={returnUrl} replace />;
 }
 
