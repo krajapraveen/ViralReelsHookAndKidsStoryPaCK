@@ -18,6 +18,10 @@ export default function Billing() {
   const [pageError, setPageError] = useState(false);
   const [verifyingReturn, setVerifyingReturn] = useState(false);
   const [showExitSurvey, setShowExitSurvey] = useState(false);
+  // P0 2026-05-31 — degraded-balance class fix. One failed dependency
+  // (balance 401) must NOT nuke the products page. Separate flag so
+  // we can render products + a small inline banner.
+  const [balanceUnavailable, setBalanceUnavailable] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
 
   // P1.7 — show exit-intent survey ONCE per session when user reaches /billing
@@ -32,32 +36,81 @@ export default function Billing() {
   const fetchData = useCallback(async () => {
     setPageLoading(true);
     setPageError(false);
+    setBalanceUnavailable(false);
+
+    // ═══════════════════════════════════════════════════════════════
+    // P0 2026-05-31 — session-health gate (B-scope fix).
+    // The auth-rot bug class: Billing was trusting a cached `user`
+    // object in localStorage while the token was already missing /
+    // expired, then loading the page shell and 401-ing on the first
+    // protected XHR. Fix: validate the LIVE session via /api/auth/me
+    // BEFORE rendering authenticated billing shell. If 401 → cleanly
+    // clear stale auth state and redirect to /login?next=/app/billing.
+    // Pinned by audit test_billing_decoupled_fetch_and_session_2026_05.
+    // ═══════════════════════════════════════════════════════════════
     try {
-      const [productsRes, creditsRes] = await Promise.all([
-        paymentAPI.getProducts(),
-        creditAPI.getBalance()
-      ]);
-      
-      const productsData = productsRes?.data?.products || {};
+      await api.get('/api/auth/me');
+    } catch (err) {
+      if (err?.response?.status === 401) {
+        // Live session is dead. Wipe local cache so the next render
+        // doesn't see a phantom "logged-in" state, and route to login
+        // with the canonical return-path.
+        try {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+        } catch (_) { /* ignore storage quota errors */ }
+        window.location.href = '/login?next=' + encodeURIComponent('/app/billing');
+        return; // never render authenticated shell on dead session
+      }
+      // For non-401 errors (network, 5xx), fall through — the page
+      // will surface the failure via the existing pageError UI.
+    }
+
+    // Phase 2 — load products and balance independently. Promise.all
+    // is forbidden here: products is the page's PRIMARY content and
+    // must NEVER be held hostage by an orthogonal balance failure.
+    const [productsRes, creditsRes] = await Promise.allSettled([
+      paymentAPI.getProducts(),
+      creditAPI.getBalance(),
+    ]);
+
+    if (productsRes.status === 'fulfilled') {
+      const productsData = productsRes.value?.data?.products || {};
       const productsArray = Object.entries(productsData).map(([id, product]) => ({
         id,
         ...product,
         type: product.period ? 'SUBSCRIPTION' : 'ONE_TIME',
-        interval: product.period === 'weekly' ? 'week' : 
-                  product.period === 'monthly' ? 'month' : 
-                  product.period === 'quarterly' ? 'quarter' : 
-                  product.period === 'yearly' ? 'year' : null
+        interval: product.period === 'weekly' ? 'week' :
+                  product.period === 'monthly' ? 'month' :
+                  product.period === 'quarterly' ? 'quarter' :
+                  product.period === 'yearly' ? 'year' : null,
       }));
-      
       setProducts(productsArray);
-      setCredits(creditsRes?.data?.credits || creditsRes?.data?.balance || 0);
-    } catch (error) {
-      console.error('Billing fetch error:', error);
+    } else {
+      // Products failure IS a real page error — without products,
+      // there's nothing to render. Surface the existing error UI.
+      console.error('Billing products fetch error:', productsRes.reason);
       setPageError(true);
       toast.error('Failed to load billing data');
-    } finally {
       setPageLoading(false);
+      return;
     }
+
+    if (creditsRes.status === 'fulfilled') {
+      setCredits(
+        creditsRes.value?.data?.credits ||
+        creditsRes.value?.data?.balance ||
+        0
+      );
+    } else {
+      // Balance failed in isolation — keep the page alive, surface an
+      // inline degraded-session banner. Do NOT toast.error (would
+      // imply the whole page failed).
+      console.warn('Billing balance fetch failed (page still usable):', creditsRes.reason);
+      setBalanceUnavailable(true);
+    }
+
+    setPageLoading(false);
   }, []);
 
   // Auto-verify payment on return from Cashfree redirect (mobile/popup-blocked fallback)
@@ -332,11 +385,42 @@ export default function Billing() {
             <Link to="/app"><Button variant="ghost" size="sm" className="text-slate-300 hover:text-white hover:bg-slate-800 flex-shrink-0"><ArrowLeft className="w-4 h-4 sm:mr-2" /><span className="hidden sm:inline">Dashboard</span></Button></Link>
             <div className="flex items-center gap-2 min-w-0"><Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-400 flex-shrink-0" /><span className="text-base sm:text-xl font-bold text-white truncate vs-header-title">Billing</span></div>
           </div>
-          <div className="hidden sm:flex items-center gap-2 bg-indigo-500/20 border border-indigo-500/30 rounded-full px-4 py-2"><Coins className="w-4 h-4 text-indigo-400" /><span className="font-semibold text-indigo-300">{credits} Credits</span></div>
+          <div className="hidden sm:flex items-center gap-2 bg-indigo-500/20 border border-indigo-500/30 rounded-full px-4 py-2" data-testid="billing-credit-chip">
+            <Coins className="w-4 h-4 text-indigo-400" />
+            <span className="font-semibold text-indigo-300">
+              {balanceUnavailable ? '— Credits' : `${credits} Credits`}
+            </span>
+          </div>
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto px-4 py-8">
+        {/* P0 2026-05-31 — degraded-balance inline banner. Products
+            loaded fine; only the balance call failed. Surface this
+            clearly without nuking the page. */}
+        {balanceUnavailable && !pageLoading && !pageError && (
+          <div
+            className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] px-4 py-3 flex items-start gap-3"
+            data-testid="billing-balance-degraded"
+          >
+            <AlertCircle className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-amber-200">
+                Balance unavailable — please sign in again to refresh your session.
+              </p>
+              <p className="text-xs text-amber-300/70 mt-0.5">
+                Plans and top-ups are still available below. Your credit total will refresh after sign-in.
+              </p>
+            </div>
+            <button
+              onClick={() => { window.location.href = '/login?next=' + encodeURIComponent('/app/billing'); }}
+              className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-100 text-xs font-semibold transition-colors shrink-0"
+              data-testid="billing-balance-degraded-relogin"
+            >
+              Sign in
+            </button>
+          </div>
+        )}
         {/* Return-from-payment verification */}
         {verifyingReturn && (
           <div className="flex items-center justify-center gap-3 py-12 mb-8 rounded-2xl border border-indigo-500/20 bg-indigo-500/[0.04]" data-testid="billing-verify-return">
