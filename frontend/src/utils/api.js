@@ -143,7 +143,17 @@ api.interceptors.response.use(
       const openAccessPaths = ['/app/story-video-studio', '/app/story-preview', '/v/', '/character/'];
       const isOpenAccess = openAccessPaths.some(p => path.startsWith(p));
       const isAuthEndpoint = url.includes('/auth/google-signin') || url.includes('/auth/login') || url.includes('/auth/register');
-      if (!isOpenAccess && !isAuthEndpoint) {
+      // ─── P0 2026-06 Billing Reliability — auth/me is a SESSION PROBE ───
+      // Pages like Billing.js call /api/auth/me to detect stale tokens and
+      // perform their own clean redirect with the page-canonical
+      // `?next=...` param (founder-mandated). If the global interceptor
+      // ALSO redirects, two `window.location.href` writes race and the
+      // resulting `?return=` URL doesn't match the contract Login.js
+      // documents. Treat /api/auth/me as a self-handled probe — the
+      // calling page owns the 401 redirect.
+      // Pinned: tests/test_billing_decoupled_fetch_and_session_2026_05.py
+      const isSessionProbe = url.includes('/auth/me');
+      if (!isOpenAccess && !isAuthEndpoint && !isSessionProbe) {
         // P0 2026-05-16 — generation-in-flight 401 deferral.
         // Token can expire DURING a 30-60s reel/trailer/story render.
         // Yanking the user to /login the moment their result is about to
@@ -169,8 +179,13 @@ api.interceptors.response.use(
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         const returnPath = window.location.pathname + window.location.search;
+        // P0 2026-06 — canonical `?next=` redirect param. Login.js
+        // accepts both `?next=` (canonical) and `?return=` (legacy) so
+        // this change is backwards-compatible. Unifying on `next=`
+        // here prevents a race where one redirect uses `return=` and
+        // another (page-owned) uses `next=`.
         const loginUrl = returnPath && returnPath !== '/' && returnPath !== '/login'
-          ? `/login?return=${encodeURIComponent(returnPath)}`
+          ? `/login?next=${encodeURIComponent(returnPath)}`
           : '/login';
         window.location.href = loginUrl;
       }

@@ -1,6 +1,31 @@
 # Visionary Suite - Changelog
 
 
+## 2026-06 — P0 Reliability: Billing Page Decoupled-Fetch & Session-Probe
+
+**Status**: SHIPPED in preview. `make audit-boundaries` green (459 passing, 1 skipped). Awaiting production deploy.
+
+**Symptom**: `/app/billing` rendered the shell then showed "Failed to load billing data" — page unusable. `/api/cashfree/products` was 200, but `/api/credits/balance` 401 was nuking the whole page (Promise.all coupling), and a stale localStorage user + expired token was bypassing live session checks.
+
+**Bug classes pinned**:
+1. **Dependency-coupling crash** — a non-critical XHR failure must never tombstone a page whose primary content loaded. Promise.all forbidden for fan-outs with decorative branches.
+2. **Stale-session phantom** — pages must NOT render authenticated shells from cached localStorage without a live `/api/auth/me` probe.
+3. **Param-mismatch race** — global axios interceptor used `?return=`, Billing.js used `?next=`, Login.js read only `?return=`. Now canonical `?next=` everywhere; Login.js accepts both.
+
+**Files changed**:
+- `frontend/src/utils/api.js` — interceptor exempts `/api/auth/me` (session probe); redirect param unified to `?next=`.
+- `frontend/src/pages/Login.js` — accepts both `?next=` (canonical) and `?return=` (legacy).
+- `frontend/src/App.js` — `/app/billing` route guard preserves `?next=/app/billing` on unauthenticated visit; `AuthenticatedRedirect` reads `?next=` first.
+- `frontend/src/utils/generationLifecycle.js` — deferred-login URL unified to `?next=`.
+- `backend/tests/test_billing_decoupled_fetch_and_session_2026_05.py` — **NEW** 17-test invariant suite (registered in `Makefile`).
+- `Makefile` — new test suite registered in `BOUNDARY_AUDIT_SUITES`.
+
+**No backend changes** — `/api/cashfree/products` (public) and `/api/credits/balance` (auth-required) contracts were already correct.
+
+**Verification**: All 3 spec scenarios PASS via Playwright smoke test (anonymous → next=, authenticated → renders, stale-token → wiped+redirected). 459/459 audit-boundaries tests green.
+
+
+
 ─────────────────────────────────────────────────────────
 [2026-05-19] GENERIC COMPLETION-INVARIANT SCANNER — SHIPPED
 ─────────────────────────────────────────────────────────

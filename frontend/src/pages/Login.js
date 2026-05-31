@@ -193,8 +193,11 @@ export default function Login({ setAuth }) {
       } catch (_) { /* never block auth */ }
       setAuth(true);
       toast.success('Login successful!');
-      // Priority: 1) URL ?return= param (from 401 redirect), 2) localStorage remix_return_url, 3) /app
-      const returnParam = searchParams.get('return');
+      // Priority: 1) URL ?next= / ?return= param (from 401 redirect),
+      // 2) localStorage remix_return_url, 3) /app.
+      // `?next=` is the canonical Billing-page contract (founder-mandated,
+      // P0 2026-06). `?return=` remains accepted for backwards compat.
+      const returnParam = searchParams.get('next') || searchParams.get('return');
       const returnUrl = returnParam || localStorage.getItem('remix_return_url');
       if (returnUrl) {
         localStorage.removeItem('remix_return_url');
@@ -331,7 +334,8 @@ export default function Login({ setAuth }) {
         markActivated();
       } catch (_) { /* never block auth */ }
       setAuth(true);
-      const returnParam = searchParams.get('return');
+      // P0 2026-06 — accept `?next=` (canonical) or `?return=` (legacy).
+      const returnParam = searchParams.get('next') || searchParams.get('return');
       const returnUrl = returnParam || localStorage.getItem('remix_return_url');
       if (returnUrl) {
         localStorage.removeItem('remix_return_url');

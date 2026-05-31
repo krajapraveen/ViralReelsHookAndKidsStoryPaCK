@@ -68,7 +68,7 @@ export function consumePendingLogin() {
   const returnPath = pendingLoginReason;
   pendingLoginReason = null;
   return returnPath && returnPath !== '/' && returnPath !== '/login'
-    ? `/login?return=${encodeURIComponent(returnPath)}`
+    ? `/login?next=${encodeURIComponent(returnPath)}`
     : '/login';
 }
 

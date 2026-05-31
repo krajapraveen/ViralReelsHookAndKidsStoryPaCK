@@ -211,7 +211,8 @@ function ProtectedRoute({ auth, children }) {
 function AuthenticatedRedirect() {
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
-  const returnParam = searchParams.get('return');
+  // P0 2026-06 — accept canonical `?next=` first, then legacy `?return=`.
+  const returnParam = searchParams.get('next') || searchParams.get('return');
   const returnUrl = returnParam || localStorage.getItem('remix_return_url') || '/app';
   if (returnParam || localStorage.getItem('remix_return_url')) {
     localStorage.removeItem('remix_return_url');
@@ -412,7 +413,7 @@ function App() {
 
         {/* ═══ USER PAGES ═══ */}
         <Route path="/app/history" element={isAuthenticated ? <L><History /></L> : <Navigate to="/login" />} />
-        <Route path="/app/billing" element={isAuthenticated ? <L><Billing /></L> : <Navigate to="/login" />} />
+        <Route path="/app/billing" element={isAuthenticated ? <L><Billing /></L> : <Navigate to={`/login?next=${encodeURIComponent('/app/billing')}`} replace />} />
         <Route path="/app/profile" element={isAuthenticated ? <L><Profile /></L> : <Navigate to="/login" />} />
         <Route path="/app/privacy" element={isAuthenticated ? <L><PrivacySettings /></L> : <Navigate to="/login" />} />
         <Route path="/app/copyright" element={isAuthenticated ? <L><CopyrightInfo /></L> : <Navigate to="/login" />} />
