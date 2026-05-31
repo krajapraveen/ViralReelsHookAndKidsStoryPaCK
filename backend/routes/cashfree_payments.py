@@ -39,6 +39,83 @@ except ImportError:
 
 router = APIRouter(prefix="/cashfree", tags=["Cashfree Payments"])
 
+
+# ─────────────────────────────────────────────────────────────────────
+# P0 2026-06 ENTITLEMENT SYNC — shared subscription activator.
+#
+# Bug history: the webhook AND the /verify endpoint each had their own
+# inline copy of the activation logic. Both wrote ONLY to the embedded
+# `users.subscription` field. Entitlement gates that read from the
+# `db.subscriptions` collection (photo_trailer, daily_viral_ideas,
+# comix_ai, subscriptions API) silently classified paid Monthly users
+# as non-Premium.
+#
+# Fix: dual-write through ONE helper. Both paths now produce the
+# same canonical write. Status is "ACTIVE" (uppercase) to match
+# cashfree_subscription_service and routes/subscriptions.py.
+# ─────────────────────────────────────────────────────────────────────
+async def _activate_subscription_for_order(order: dict, order_id: str, now_iso: str) -> None:
+    """Activate the subscription described by `order` for its user.
+
+    Writes to BOTH the embedded `users.subscription` (legacy
+    back-compat for genstudio/credits/auth readers) AND the canonical
+    `db.subscriptions` collection (read by every feature gate).
+    Marks any previously-active sub as SUPERSEDED first.
+    """
+    from config.pricing import SUBSCRIPTION_PLANS
+    plan_id = order.get("productId", "")
+    plan = SUBSCRIPTION_PLANS.get(plan_id, {})
+    duration_days = plan.get("duration_days", 30)
+    start_dt = datetime.now(timezone.utc)
+    end_dt = start_dt + timedelta(days=duration_days)
+
+    # 1) Embedded write — legacy back-compat.
+    await db.users.update_one(
+        {"id": order["userId"]},
+        {"$set": {
+            "subscription": {
+                "planId": plan_id,
+                "planName": order.get("productName", ""),
+                "status": "active",
+                "startDate": now_iso,
+                "endDate": end_dt.isoformat(),
+                "orderId": order_id,
+            }
+        }}
+    )
+
+    # 2) Canonical collection write. Match status case-insensitively
+    # when superseding so we catch both "ACTIVE" and legacy "active".
+    await db.subscriptions.update_many(
+        {"userId": order["userId"],
+         "status": {"$regex": "^active$", "$options": "i"}},
+        {"$set": {"status": "SUPERSEDED", "supersededAt": now_iso}},
+    )
+    await db.subscriptions.update_one(
+        {"userId": order["userId"], "orderId": order_id},
+        {
+            "$set": {
+                "userId": order["userId"],
+                "planId": plan_id,
+                "planName": order.get("productName", ""),
+                "status": "ACTIVE",
+                "startDate": now_iso,
+                "endDate": end_dt.isoformat(),
+                "orderId": order_id,
+                "amount": order.get("amount", 0),
+                "currency": order.get("currency", "INR"),
+                "gateway": "cashfree",
+                "updatedAt": now_iso,
+            },
+            "$setOnInsert": {
+                "createdAt": now_iso,
+                "id": f"sub_pay_{order['userId'][:8]}_{int(start_dt.timestamp())}",
+            },
+        },
+        upsert=True,
+    )
+
+
 # Rate limiting for payment endpoints
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -409,22 +486,14 @@ async def verify_cashfree_payment(request: Request, data: CashfreeVerifyRequest,
             # Determine final state based on product type
             if product_type == "subscription":
                 final_status = "SUBSCRIPTION_ACTIVATED"
-                from config.pricing import SUBSCRIPTION_PLANS
-                plan = SUBSCRIPTION_PLANS.get(order.get("productId", ""), {})
-                duration_days = plan.get("duration_days", 30)
-                
-                await db.users.update_one(
-                    {"id": user["id"]},
-                    {"$set": {
-                        "subscription": {
-                            "planId": order.get("productId", ""),
-                            "planName": order.get("productName", ""),
-                            "status": "active",
-                            "startDate": now_iso,
-                            "endDate": (datetime.now(timezone.utc) + timedelta(days=duration_days)).isoformat(),
-                            "orderId": data.order_id,
-                        }
-                    }}
+                # P0 2026-06 — use shared activator to write both
+                # users.subscription AND db.subscriptions atomically.
+                # `order` already has userId for this verify path
+                # (it's the user's own order), but the helper expects
+                # order.userId so we ensure it's present.
+                order_for_activator = {**order, "userId": user["id"]}
+                await _activate_subscription_for_order(
+                    order_for_activator, data.order_id, now_iso
                 )
             else:
                 final_status = "CREDIT_APPLIED"
@@ -601,22 +670,12 @@ async def cashfree_webhook(request: Request):
                     
                     if product_type == "subscription":
                         final_status = "SUBSCRIPTION_ACTIVATED"
-                        from config.pricing import SUBSCRIPTION_PLANS
-                        plan = SUBSCRIPTION_PLANS.get(order.get("productId", ""), {})
-                        duration_days = plan.get("duration_days", 30)
-                        
-                        await db.users.update_one(
-                            {"id": order["userId"]},
-                            {"$set": {
-                                "subscription": {
-                                    "planId": order.get("productId", ""),
-                                    "planName": order.get("productName", ""),
-                                    "status": "active",
-                                    "startDate": now_iso,
-                                    "endDate": (datetime.now(timezone.utc) + timedelta(days=duration_days)).isoformat(),
-                                    "orderId": order_id,
-                                }
-                            }}
+                        # P0 2026-06 — use shared activator to write
+                        # both users.subscription AND db.subscriptions
+                        # atomically (see _activate_subscription_for_order
+                        # docstring for the bug-class context).
+                        await _activate_subscription_for_order(
+                            order, order_id, now_iso
                         )
                     else:
                         final_status = "CREDIT_APPLIED"

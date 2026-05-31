@@ -140,18 +140,63 @@ def _credits_for(seconds: int) -> int:
 
 async def _user_plan(user: dict) -> str:
     """Compute the user's plan tier live. Returns FREE | PAID | PREMIUM.
-    ADMIN role short-circuits to PREMIUM so internal QA isn't paywalled."""
+    ADMIN role short-circuits to PREMIUM so internal QA isn't paywalled.
+
+    Reads from TWO sources to survive the historical split-brain:
+      1. `db.subscriptions` (canonical, written by
+         services/cashfree_subscription_service + the dual-write in
+         routes/cashfree_payments webhook as of P0 2026-06).
+      2. Embedded `users.subscription` field — written by the
+         legacy `/api/cashfree/webhook` handler. Already-paid users
+         whose record predates the 2026-06 dual-write fix are only
+         visible here. Reading both unblocks them on deploy.
+    Pinned: tests/test_entitlement_sync_after_webhook_2026_06.py
+    """
     if (user.get("role") or "").upper() == "ADMIN":
         return "PREMIUM"
-    # Check live subscription doc — there can only be one active sub per user.
+
+    def _classify(plan_id: str) -> str:
+        plan_id = (plan_id or "").lower()
+        if plan_id in PREMIUM_PLAN_IDS: return "PREMIUM"
+        if plan_id in WEEKLY_PLAN_IDS:  return "PAID"
+        return ""
+
+    def _is_active_status(s) -> bool:
+        # Codebase historically used both "ACTIVE" and "active". Treat
+        # both as active to survive the split.
+        return (s or "").lower() == "active"
+
+    # Source 1 — canonical collection. Match status case-insensitively
+    # via a regex so we catch both "ACTIVE" (cashfree_subscription_service,
+    # legacy subscriptions.py) and "active" (P0 2026-06 webhook fix).
     sub = await db.subscriptions.find_one(
-        {"userId": user["id"], "status": "active"},
+        {"userId": user["id"],
+         "status": {"$regex": "^active$", "$options": "i"}},
         sort=[("createdAt", -1)],
     )
     if sub:
-        plan_id = (sub.get("planId") or "").lower()
-        if plan_id in PREMIUM_PLAN_IDS: return "PREMIUM"
-        if plan_id in WEEKLY_PLAN_IDS:  return "PAID"
+        tier = _classify(sub.get("planId"))
+        if tier: return tier
+
+    # Source 2 — legacy embedded field. Required to unblock users
+    # whose record predates the dual-write fix.
+    embedded = user.get("subscription") or {}
+    if _is_active_status(embedded.get("status")):
+        # Honor endDate if present.
+        end_iso = embedded.get("endDate")
+        if end_iso:
+            try:
+                end_dt = datetime.fromisoformat(end_iso.replace("Z", "+00:00"))
+                if end_dt > datetime.now(timezone.utc):
+                    tier = _classify(embedded.get("planId"))
+                    if tier: return tier
+            except Exception:
+                tier = _classify(embedded.get("planId"))
+                if tier: return tier
+        else:
+            tier = _classify(embedded.get("planId"))
+            if tier: return tier
+
     # No active sub → fall back to credit balance check.
     if (user.get("credits") or 0) >= 35:  # enough to afford a 60s trailer
         return "PAID"

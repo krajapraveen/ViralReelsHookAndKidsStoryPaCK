@@ -1,6 +1,44 @@
 # Visionary Suite - Changelog
 
 
+## 2026-06 — P0 ENTITLEMENT SYNC: Monthly subscribers gated on MyTrailer 90s
+
+**Status**: SHIPPED in preview. `make audit-boundaries` green (**610 passing, 1 skipped**). **Production deploy REQUIRED to unblock paid users (e.g. krajapraveen@gmail.com).**
+
+**Threat**: Revenue-critical. User paid for Monthly Premium, but MyTrailer's 90s gate still rendered the paywall. Direct support-ticket / refund risk.
+
+**Root cause** (verified by code audit):
+The Cashfree `/api/cashfree/webhook` AND `/api/cashfree/verify` handlers each wrote subscription details ONLY into the EMBEDDED `users.subscription` field. The MyTrailer entitlement gate `_user_plan()` in `photo_trailer.py` read from the SEPARATE `db.subscriptions` COLLECTION. The two paths never touched the same data, so paid Monthly users were silently classified as non-Premium.
+
+**Secondary issue found while tracing**: `_user_plan` queried `status: "active"` (lowercase) but the rest of the codebase writes `"ACTIVE"` (uppercase). Even when `db.subscriptions` *was* populated, the case mismatch silently filtered every row out.
+
+**Two-direction fix**:
+
+1. **Forward-fix** — extracted shared `_activate_subscription_for_order()` helper in `routes/cashfree_payments.py`. Both `/verify` and `/webhook` now dual-write to `users.subscription` (legacy back-compat) AND `db.subscriptions` (canonical for feature gates). Writes `"ACTIVE"` (uppercase) to match codebase convention. Marks prior active subs as `SUPERSEDED` first.
+
+2. **Backward-fix** — `_user_plan()` in `routes/photo_trailer.py` now:
+   - Matches status case-insensitively via `$regex: ^active$/i`
+   - Falls back to embedded `users.subscription` if no canonical row exists
+   - Honors `endDate` expiry on the embedded fallback
+   - This unblocks already-paid users (krajapraveen) **on deploy with NO DB backfill required**.
+
+**Files changed** (2):
+- `backend/routes/cashfree_payments.py` — new `_activate_subscription_for_order` helper; both `/verify` and `/webhook` delegate to it.
+- `backend/routes/photo_trailer.py` — `_user_plan` reads both sources with case-insensitive status.
+
+**Test added**: `backend/tests/test_entitlement_sync_after_webhook_2026_06.py` — **26 tests** in 4 sections:
+1. **Webhook contract** (4 tests) — webhook writes both stores, uppercase ACTIVE, supersedes prior subs, shared helper exists and is called from both endpoints.
+2. **Reader contract** (4 tests) — `_user_plan` reads `db.subscriptions`, falls back to embedded, matches case-insensitively, PREMIUM_PLAN_IDS frozen.
+3. **Live classification** (17 tests with fake-DB monkeypatch — no Mongo coupling): every status case (`ACTIVE`/`active`/`Active`/`SUPERSEDED`/`CANCELLED`), every plan tier (monthly/quarterly/yearly → PREMIUM, weekly → PAID), every fallback (credits ≥ 35 → PAID, < 35 → FREE), every embedded edge case (expired endDate, malformed endDate, both sources populated → collection wins), and the ADMIN role short-circuit.
+4. **Duration gate invariants** — defensive coverage for `_required_plan_for_duration`.
+
+The **CORE krajapraveen scenario is the test `test_embedded_monthly_returns_premium`** — verifies that a user with ONLY the legacy embedded `subscription` field (no `db.subscriptions` row) is correctly classified as PREMIUM. This is the exact data shape his record has on production right now.
+
+**Out of scope for this delivery** (separate bug class, separate fix):
+- `routes/comix_ai.py:844`, `routes/daily_viral_ideas.py:203`, `routes/subscriptions.py:341/421` all query `db.subscriptions` with the same case-mismatch / embedded-blindness issue. They were NOT touched. **They may still silently gate paid users on those features.** Recommend a follow-up sprint to extract `_user_plan` into a shared helper and migrate all callers.
+
+
+
 ## 2026-06 — P0 SECURITY: Backend RedirectResponse Audit (server-side)
 
 **Status**: SHIPPED in preview. `make audit-boundaries` green (**556 passing, 1 skipped**). Awaiting production deploy.
