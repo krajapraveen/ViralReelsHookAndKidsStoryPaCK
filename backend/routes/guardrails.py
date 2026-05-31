@@ -9,7 +9,7 @@ import sys
 import logging
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends
-from typing import Optional
+from typing import Optional, List
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from shared import db, get_current_user
@@ -320,15 +320,16 @@ async def _check_orphan_deductions():
 
 
 async def _check_trailer_failed_without_refund():
-    """Find FAILED/CANCELLED photo trailer jobs that have a deduction but
-    no refund ledger row, observed > 5 minutes ago. This is the canonical
-    money-integrity tripwire for the photo-trailer pipeline.
+    """Find FAILED/CANCELLED photo trailer jobs whose ledger has more
+    deduct than refund value, observed > 5 minutes ago. This is the
+    canonical money-integrity tripwire for the photo-trailer pipeline.
 
-    Both legitimate refund schemes are accepted:
-      1. Canonical: credit_ledger row with reference_id="trailer_refund:<job_id>"
-      2. Legacy:   credit_ledger row with reason starting with "Refund"
-                   and containing the job_id (pre-2026-06 ledger entries
-                   written by add_credits(tx_type="REFUND")).
+    Counts SUMS, not "any refund row exists" — so retry-orphan deducts
+    (the krajapraveen case: 2 deducts + 1 refund per job) are flagged
+    instead of silently passing. Both legitimate refund schemes are
+    accepted:
+      1. Canonical: reference_id="trailer_refund:<job_id>[:attempt:<N>]"
+      2. Legacy:   reason="Refund (failed|cancelled|stale) trailer <jid>"
 
     A miss here is a P0: a user paid for a trailer that didn't deliver
     AND was not made whole.
@@ -336,19 +337,12 @@ async def _check_trailer_failed_without_refund():
     Pinned: backend/tests/test_photo_trailer_credit_integrity_2026_06.py
     """
     cutoff = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
-    # 7-day backstop so the scan never grows unbounded as history piles up.
     horizon = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
 
     candidates = await db.photo_trailer_jobs.find(
         {
             "status": {"$in": ["FAILED", "CANCELLED"]},
             "charged_credits": {"$gt": 0},
-            "$or": [
-                {"refunded_credits": {"$exists": False}},
-                {"refunded_credits": None},
-                {"refunded_credits": 0},
-            ],
-            # Use whichever timestamp the failure-path wrote first.
             "$and": [
                 {"$or": [
                     {"failed_at": {"$lt": cutoff, "$ne": None}},
@@ -369,35 +363,57 @@ async def _check_trailer_failed_without_refund():
     for j in candidates:
         jid = j["_id"]
         uid = j.get("user_id")
-        # Look for a refund row by canonical reference_id OR legacy reason patterns.
-        refund_row = await db.credit_ledger.find_one({
+        # Sum every deduct + refund row for this job — canonical & legacy.
+        deducts_total = 0
+        orphan_deduct_refs: List[str] = []
+        async for r in db.credit_ledger.find({
+            "user_id": uid, "type": "deduct",
+            "$or": [
+                {"reference_id": {"$regex": f"^trailer_deduct:{jid}:"}},
+                {"reason": f"Photo trailer {jid}"},
+                {"reason": {"$regex": f"^Photo trailer {jid} \\(attempt"}},
+            ],
+        }):
+            deducts_total += int(r.get("amount") or 0)
+            orphan_deduct_refs.append(
+                r.get("reference_id") or r.get("id") or r.get("reason") or "?"
+            )
+        refunds_total = 0
+        async for r in db.credit_ledger.find({
             "user_id": uid,
             "$or": [
-                {"reference_id": f"trailer_refund:{jid}"},
-                {"reason": {"$regex": f"^Refund.*trailer {jid}", "$options": ""}},
+                {"reference_id": {"$regex": f"^trailer_refund:{jid}"}},
+                {"reason": {"$regex": f"^Refund (failed|cancelled|stale) trailer {jid}"}},
             ],
-        })
-        if not refund_row:
+        }):
+            refunds_total += int(r.get("amount") or 0)
+
+        if deducts_total > refunds_total:
             violations.append({
                 "job_id": jid,
                 "user_id": uid,
-                "charged_credits": int(j.get("charged_credits") or 0),
+                "deducts_total": deducts_total,
+                "refunds_total": refunds_total,
+                "delta": deducts_total - refunds_total,
                 "duration": j.get("duration_target_seconds"),
                 "template": j.get("template_id"),
                 "error_code": j.get("error_code"),
                 "refund_error": j.get("refund_error"),
                 "failed_at": j.get("failed_at") or j.get("updated_at"),
+                "orphan_deduct_refs": orphan_deduct_refs[:5],
             })
 
     return {
         "violated": len(violations) > 0,
         "count": len(violations),
-        # Compact sample for the alert payload — full data via diagnose-user.
         "sample_ids": [
             f"{v['job_id'][:8]}:user={(v['user_id'] or '?')[:8]}:"
-            f"{v['charged_credits']}cr:{v['error_code'] or '?'}"
+            f"d={v['deducts_total']}-r={v['refunds_total']}="
+            f"delta={v['delta']}:{v['error_code'] or '?'}"
             for v in violations[:5]
         ],
+        # Full payload for ops UI / RCA without re-querying ledger.
+        "violations": violations[:20],
     }
 
 

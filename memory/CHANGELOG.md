@@ -1,6 +1,60 @@
 # Visionary Suite - Changelog
 
 
+## 2026-06 — P0 Per-attempt refunds + retry-orphan repair + admin credit grant
+
+**Status**: SHIPPED in preview. `make audit-boundaries-quick` green (**669 passing, 1 skipped**, +6 new). Awaiting redeploy.
+
+**Trigger**: production diagnose for krajapraveen@gmail.com revealed job `2282a6aa-...` had two `Photo trailer` deduct rows (60+60) but only one refund row → user is owed 60 credits despite `refunded_credits=60` denorm and "credits refunded" UI claim. Root cause class:
+
+  • Refund `reference_id` was per-job (`trailer_refund:<job_id>`). When user clicked Retry, the second pipeline attempt deducted again, then failed and tried to refund with the SAME `reference_id` — the CreditsService idempotency guard (correctly) blocked it. Net: user lost a deduction.
+  • Old guardrail only checked "any refund row exists" → didn't catch retry orphans.
+  • No admin endpoint to safely restore credits with audit trail.
+
+**Fixes**:
+
+1. **Per-attempt deduct + refund reference_id**:
+   - New helper `_trailer_deduct(user, amount, job_id, attempt_no)` writes `reference_id=f"trailer_deduct:{job_id}:attempt:{N}"`.
+   - New helper `_settle_unrefunded_trailer_deducts(job_id, user_id, reason_prefix)` walks every deduct row for the job and refunds each unrefunded attempt with `reference_id=f"trailer_refund:{job_id}:attempt:{N}"`. Handles three ledger eras transparently (canonical/legacy explicit/legacy implicit).
+   - All refund sinks (`_fail`, `cancel_job`, `_reap_stale_pipelines`, `admin_repair_refunds`) now delegate to the settle helper. Concurrent paths cannot double-refund or starve a retry attempt.
+
+2. **Tightened guardrail** (`trailer_failed_without_refund`):
+   - Counts `sum(deduct)` vs `sum(refund)` per FAILED/CANCELLED job over a 5-min grace + 7-day horizon window.
+   - Flags `delta > 0` and includes `deducts_total`, `refunds_total`, `delta`, `orphan_deduct_refs[]`, plus full `violations[]` payload (up to 20) so ops can read the RCA without hitting diagnose.
+   - Behavioural test seeds a retry-orphan job and proves the guardrail FAILs.
+
+3. **Admin credit-grant endpoint** `POST /api/photo-trailer/admin/credits/grant`:
+   - Body: `{user_email|user_id, amount(1-10000), reason(8+ chars), reference_id(8+ chars)}`.
+   - Strict idempotency via `reference_id` — re-posting returns `already_granted:true`, `amount:0`.
+   - Pre/post balance returned in payload.
+   - Audit row in `admin_credit_grants_audit` (append-only): `actor_user_id`, `actor_email`, `target_*`, `amount`, `reason`, `reference_id`, `balance_before`, `balance_after`, `timestamp`.
+   - Rejects non-admin tokens (401/403), short reasons (422), zero amounts (422).
+
+4. **Updated repair sweep** `POST /api/photo-trailer/admin/repair-refunds`:
+   - Old: filtered `refunded_credits=0`; missed retry orphans where denorm equaled first attempt.
+   - New: scans every FAILED/CANCELLED job with `charged_credits>0`, computes `delta = sum(deduct) - sum(refund)` from the ledger, refunds the delta via the settle helper. Idempotent because each attempt has its own reference_id.
+
+**Files changed**:
+- `backend/routes/photo_trailer.py` (+~250 lines: helpers, rewired `_fail`, `cancel_job`, `_reap_stale_pipelines`, `admin_repair_refunds`, new `/admin/credits/grant`)
+- `backend/routes/guardrails.py` (tightened `_check_trailer_failed_without_refund`)
+- `backend/tests/test_photo_trailer_credit_integrity_2026_06.py` (5 static-source tests retargeted to settle helper + new ledger fake supporting `async for`)
+- `backend/tests/test_photo_trailer_per_attempt_refunds_2026_06.py` (NEW — 6 behavioural tests: dry-run detection, live restoration + idempotency, guardrail-flags-orphan, grant idempotency, grant validation, grant requires admin)
+- `Makefile` (new suite registered in BOUNDARY_AUDIT_SUITES)
+
+**TTS / render root cause hunt**: still BLOCKED on production logs/diagnose. Krajapraveen's debug payload shows `GENERATING_VOICEOVER` completing in 10ms (stage marker only — actual TTS runs inline per-scene at image-gen stage). `last_progress_at` stopped at "Stitching trailer" and `ffmpeg_stderr_tail` is empty → suggests the validation step (`RenderValidationError` — missing/short audio) is firing but the stderr isn't being persisted. Next required data: same `/admin/jobs/<jid>/debug` call AFTER redeploy on a freshly failing job, plus a peek at `db.photo_trailer_jobs.find({_id: ...}, {"last_ffmpeg_stderr": 1})`.
+
+**Production operator runbook (in order)**:
+1. Deploy preview → production.
+2. Pause: `POST /api/photo-trailer/admin/pause {"paused":true,"message":"..."}` (DB-flag, no env var needed).
+3. Verify: `GET /api/photo-trailer/status` → `{"paused":true,...}`.
+4. Repair (dry): `POST /api/photo-trailer/admin/repair-refunds {"user_email":"krajapraveen@gmail.com","dry_run":true,"limit":50}` — should show `delta=60` for job `2282a6aa-...`.
+5. Repair (live): same with `dry_run:false` — restores 60 credits with `reference_id=trailer_refund:2282a6aa-...:attempt:1`.
+6. Verify guardrail: `GET /api/admin/guardrails` → `trailer_failed_without_refund.count == 0`.
+7. Verify balance: `GET /api/photo-trailer/admin/diagnose-user?email=krajapraveen@gmail.com` → `current_balance` increased by 60.
+8. Keep PAUSED until staging proves fresh 60s + 90s trailers complete end-to-end.
+
+
+
 ## 2026-06 — P0 KILL SWITCH: Hard pause for MyTrailer generation
 
 **Status**: SHIPPED in preview. `make audit-boundaries-quick` green (**660 passing, 1 skipped**, +9 new). Awaiting redeploy + `PHOTO_TRAILER_PAUSED=true` in production.

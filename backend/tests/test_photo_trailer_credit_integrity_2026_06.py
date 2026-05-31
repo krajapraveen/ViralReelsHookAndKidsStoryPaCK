@@ -59,9 +59,14 @@ def test_fail_function_refunds_before_setting_error_message():
     assert m, "_fail() must exist in photo_trailer.py"
     body = m.group("body")
 
-    refund_pos = body.find("svc.refund_credits(")
+    refund_pos = max(
+        body.find("_settle_unrefunded_trailer_deducts("),
+        body.find("svc.refund_credits("),
+    )
     msg_persist_pos = body.find("\"error_message\":")
-    assert refund_pos != -1, "_fail() must call svc.refund_credits() — refund path is required."
+    assert refund_pos != -1, (
+        "_fail() must invoke a refund path (settle helper or refund_credits)."
+    )
     assert msg_persist_pos != -1, "_fail() must persist error_message."
     assert refund_pos < msg_persist_pos, (
         "_fail() must attempt refund BEFORE persisting error_message — "
@@ -70,34 +75,44 @@ def test_fail_function_refunds_before_setting_error_message():
 
 
 def test_fail_function_uses_idempotent_reference_id():
-    """The refund call must use the canonical reference_id pattern
-    `trailer_refund:<job_id>` so concurrent fail+janitor+repair paths
-    CANNOT double-refund."""
+    """The refund path must use canonical reference_id patterns so
+    concurrent fail+janitor+repair paths CANNOT double-refund.
+
+    Two patterns satisfy this:
+      • Legacy single-attempt:  trailer_refund:<job_id>
+      • Per-attempt (P0 fix):   trailer_refund:<job_id>:attempt:<N>"""
     src = TRAILER_PATH.read_text()
-    assert 'reference_id=f"trailer_refund:{job_id}"' in src, (
-        "_fail() must use reference_id='trailer_refund:<job_id>' "
-        "for ledger-level idempotency."
+    assert "trailer_refund:" in src, (
+        "Source must reference 'trailer_refund:<job_id>' canonical key."
     )
-    # Same for cancel + janitor + repair surfaces (mandate: ALL refund sinks
-    # share the same idempotency key).
-    assert 'reference_id=f"trailer_refund:{jid}"' in src, (
-        "Janitor and repair sweeps must share the canonical reference_id."
+    assert "attempt:" in src, (
+        "P0 2026-06 — per-attempt reference_id must be present for retry safety."
     )
 
 
 def test_fail_function_falls_back_to_ledger_when_charged_credits_zero():
-    """If `deduct_credits` succeeded but the `charged_credits` denorm cache
-    write failed, the refund path must still recover the amount from the
-    credit_ledger — not silently skip the refund."""
+    """Refund logic must not rely on the `charged_credits` denorm cache —
+    it must walk the credit_ledger so a race window between deduct and
+    cache-update cannot hide a deduction. The settle helper is the
+    canonical implementation."""
     src = TRAILER_PATH.read_text()
-    m = re.search(r"async def _fail\([^\)]*\):(?P<body>.+?)(?=\nasync def |\ndef )", src, re.S)
-    body = m.group("body")
-    assert 'db.credit_ledger.find_one' in body, (
-        "_fail() must consult the credit_ledger as a fallback when "
-        "`charged_credits` denorm cache is 0."
+    settle_def = re.search(
+        r"async def _settle_unrefunded_trailer_deducts\(.+?(?=\nasync def |\ndef )",
+        src, re.S,
+    )
+    assert settle_def, "_settle_unrefunded_trailer_deducts() helper must exist."
+    body = settle_def.group(0)
+    assert "db.credit_ledger.find" in body, (
+        "Settle helper must read deduct rows directly from credit_ledger."
     )
     assert '"type": "deduct"' in body, (
-        "_fail() must look up the deduct ledger row by type='deduct'."
+        "Settle helper must filter on type='deduct'."
+    )
+    fail_def = re.search(
+        r"async def _fail\([^\)]*\):(?P<body>.+?)(?=\nasync def |\ndef )", src, re.S,
+    )
+    assert "_settle_unrefunded_trailer_deducts(" in fail_def.group("body"), (
+        "_fail() must delegate to the settle helper."
     )
 
 
@@ -140,17 +155,15 @@ def _extract_top_level_func(src: str, name: str) -> str:
 
 
 def test_janitor_uses_idempotent_refund_path():
-    """The stale-job janitor must use the same idempotent
-    CreditsService.refund_credits path as _fail() — never the legacy
+    """The stale-job janitor must use the settle helper — not the legacy
     `add_credits(..., tx_type="REFUND")` shortcut which has no ledger
-    idempotency."""
+    idempotency or per-attempt reference_id support."""
     src = TRAILER_PATH.read_text()
     body = _extract_top_level_func(src, "_reap_stale_pipelines")
     assert body, "_reap_stale_pipelines() must exist."
-    assert 'get_credits_service' in body and 'refund_credits' in body, (
-        "Janitor must use CreditsService.refund_credits, not legacy add_credits."
+    assert "_settle_unrefunded_trailer_deducts(" in body, (
+        "Janitor must delegate to the settle helper for retry-safe refunds."
     )
-    # Must NOT call the legacy non-idempotent add_credits(..., tx_type="REFUND") any more.
     legacy_call = re.search(r'add_credits\([^)]*tx_type="REFUND"', body)
     assert legacy_call is None, (
         "Janitor must not use the legacy non-idempotent add_credits refund path: "
@@ -159,12 +172,12 @@ def test_janitor_uses_idempotent_refund_path():
 
 
 def test_cancel_path_uses_idempotent_refund():
-    """`cancel_job` must use the same idempotent refund path as `_fail`."""
+    """`cancel_job` must use the settle helper — same contract as `_fail`."""
     src = TRAILER_PATH.read_text()
     body = _extract_top_level_func(src, "cancel_job")
     assert body, "cancel_job() must exist."
-    assert "refund_credits" in body and "trailer_refund" in body, (
-        "cancel_job must use CreditsService.refund_credits with the "
+    assert "_settle_unrefunded_trailer_deducts(" in body, (
+        "cancel_job must delegate to the settle helper with the "
         "canonical reference_id."
     )
 
@@ -377,11 +390,23 @@ async def test_trailer_failed_without_refund_detects_violation():
     class _Cursor:
         def __init__(self, rows):
             self._rows = rows
+            self._i = 0
 
         def to_list(self, n):
             async def _inner():
                 return list(self._rows[:n])
             return _inner()
+
+        def __aiter__(self):
+            self._i = 0
+            return self
+
+        async def __anext__(self):
+            if self._i >= len(self._rows):
+                raise StopAsyncIteration
+            r = self._rows[self._i]
+            self._i += 1
+            return dict(r)
 
     class _Col:
         def __init__(self, rows=None):
@@ -473,7 +498,21 @@ async def test_trailer_failed_without_refund_detects_violation():
          "duration_target_seconds": 60},
     ])
     ledger = _Col([
+        # jid-bad-1: deducted 60 cr, NO refund row → VIOLATION
+        {"user_id": "u-1", "type": "deduct",
+         "reason": "Photo trailer jid-bad-1", "amount": 60},
+        # jid-ok-1: deducted 35, refunded 35 → balanced
+        {"user_id": "u-2", "type": "deduct",
+         "reason": "Photo trailer jid-ok-1", "amount": 35},
         {"user_id": "u-2", "reference_id": "trailer_refund:jid-ok-1",
+         "type": "refund", "amount": 35},
+        # jid-grace: deducted, no refund, but failed_at within grace window
+        {"user_id": "u-3", "type": "deduct",
+         "reason": "Photo trailer jid-grace", "amount": 35},
+        # jid-refunded: deducted + refunded via canonical ref
+        {"user_id": "u-4", "type": "deduct",
+         "reason": "Photo trailer jid-refunded", "amount": 35},
+        {"user_id": "u-4", "reference_id": "trailer_refund:jid-refunded",
          "type": "refund", "amount": 35},
     ])
 
