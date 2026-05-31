@@ -1176,13 +1176,23 @@ function FailedStep({ job, onRetry, onEdit, onDelete }) {
   // CONFIRMED on the job doc (refunded_credits > 0). Small secondary CTA
   // links straight to /app/billing where the credit ledger already lives.
   // No modal, no new endpoint — just closes the trust loop visually.
+  //
+  // P0 2026-06 — Honest-message contract. Default fallback copy NEVER
+  // claims a refund unless the backend has confirmed one. Previously this
+  // surface read "Something went wrong. Your credits were refunded." even
+  // when no refund row existed in the ledger, costing user trust.
+  // Backend (`_fail`) now also normalises `error_message` so it only
+  // says "credits refunded" when the refund_credits ledger write succeeded.
   const refundConfirmed = Number(job?.refunded_credits || 0) > 0;
+  const fallbackMessage = refundConfirmed
+    ? 'Trailer failed — credits refunded. Please try again.'
+    : "Trailer didn't finish. Please try again.";
   return (
     <div className="space-y-5 text-center py-6" data-testid="trailer-step-failed">
       <AlertCircle className="w-10 h-10 text-rose-400 mx-auto" />
       <div>
         <h2 className="text-xl font-bold text-white">Trailer didn't render</h2>
-        <p className="text-sm text-slate-300 mt-1">{job.error_message || 'Something went wrong. Your credits were refunded.'}</p>
+        <p className="text-sm text-slate-300 mt-1">{job.error_message || fallbackMessage}</p>
         {refundConfirmed && (
           <a
             href="/app/billing"

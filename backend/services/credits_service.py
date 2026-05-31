@@ -112,6 +112,37 @@ class CreditsService:
     async def refund_credits(
         self, user_id: str, amount: int, reason: str, reference_id: Optional[str] = None
     ) -> dict:
+        """Refund credits to a user. When `reference_id` is provided we
+        enforce strict idempotency by checking the ledger first — a second
+        call with the same reference_id is a no-op and returns the existing
+        balance. This is the bedrock of the credit-integrity invariant:
+
+            FAILED paid job → ZERO or ONE refund ledger row. Never two.
+
+        Pinned: backend/tests/test_photo_trailer_credit_integrity_2026_06.py
+        """
+        # Idempotency guard — must check BEFORE the $inc so re-runs are safe.
+        if reference_id and self.ledger is not None:
+            existing = await self.ledger.find_one({
+                "reference_id": reference_id,
+                "type": "refund",
+                "user_id": user_id,
+            })
+            if existing:
+                logger.info(
+                    f"[CREDITS] Duplicate refund blocked for {user_id[:8]}, "
+                    f"ref={reference_id} (existing amount={existing.get('amount')})"
+                )
+                current = await self.users.find_one({"id": user_id}, {"_id": 0, "credits": 1})
+                return {
+                    "success": True,
+                    "new_balance": int((current or {}).get("credits", 0)),
+                    "amount": 0,
+                    "reason": f"DUPLICATE_BLOCKED: {reason}",
+                    "reference_id": reference_id,
+                    "already_refunded": True,
+                }
+
         result = await self.users.find_one_and_update(
             {"id": user_id},
             {
@@ -135,6 +166,7 @@ class CreditsService:
             "amount": amount,
             "reason": reason,
             "reference_id": reference_id,
+            "already_refunded": False,
         }
 
     async def award_credits(

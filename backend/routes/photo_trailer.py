@@ -570,8 +570,22 @@ async def cancel_job(job_id: str, user: dict = Depends(get_current_user)):
     if j.get("status") in ["COMPLETED", "CANCELLED"]: return {"ok": True}
     await db.photo_trailer_jobs.update_one({"_id": job_id}, {"$set": {"status": "CANCELLED", "updated_at": _now()}})
     if j.get("charged_credits"):
-        await add_credits(user["id"], j["charged_credits"], f"Refund cancelled trailer {job_id}", tx_type="REFUND")
-        await db.photo_trailer_jobs.update_one({"_id": job_id}, {"$set": {"refunded_credits": j["charged_credits"]}})
+        # P0 2026-06 — idempotent refund via CreditsService. Same reference
+        # the FAILED path uses so a cancel-then-fail race cannot double-pay.
+        from services.credits_service import get_credits_service
+        await get_credits_service(db).refund_credits(
+            user["id"], j["charged_credits"],
+            reason=f"Refund cancelled trailer {job_id}",
+            reference_id=f"trailer_refund:{job_id}",
+        )
+        await db.photo_trailer_jobs.update_one(
+            {"_id": job_id, "$or": [
+                {"refunded_credits": {"$exists": False}},
+                {"refunded_credits": None},
+                {"refunded_credits": 0},
+            ]},
+            {"$set": {"refunded_credits": j["charged_credits"]}},
+        )
     return {"ok": True}
 
 @router.delete("/jobs/{job_id}")
@@ -922,36 +936,112 @@ async def _fail(job_id: str, code: str, msg: str):
     failure_stage = j.get("current_stage") or "UNKNOWN"
     if failure_stage == "FAILED":  # double-fail edge case
         failure_stage = j.get("failure_stage") or "UNKNOWN"
-    # P0 2026-05-16 — user-facing copy normalization for RENDER_INVALID.
-    # Founder copy: "Trailer failed — credits refunded. Please try again."
-    # Keeps the techy ffprobe detail OUT of the user-facing message but
-    # leaves `error_code` intact for admin/debug surfaces.
-    user_facing_msg = msg
-    if code == "RENDER_INVALID":
-        user_facing_msg = "Trailer failed — credits refunded. Please try again."
-    await db.photo_trailer_jobs.update_one({"_id": job_id}, {"$set": {
+
+    # ── REFUND FIRST, message SECOND. ────────────────────────────────────
+    # P0 2026-06 — Credit-integrity bug class fix. Previously this method
+    # wrote `error_message = "Trailer failed — credits refunded. Please try
+    # again."` BEFORE the refund was attempted; if `add_credits` raised
+    # (transient DB hiccup, etc.) the UI displayed a refund claim while the
+    # user's balance was never restored. We now:
+    #   1. Resolve the amount-owed from the job doc, falling back to the
+    #      `credit_ledger` deduct row if the `charged_credits` denorm cache
+    #      hasn't been written yet (race window after deduct_credits).
+    #   2. Issue the refund through CreditsService with reference_id =
+    #      "trailer_refund:<job_id>" — strictly idempotent at the ledger
+    #      level, so retries / janitor double-fires CANNOT double-refund.
+    #   3. Compose the user-facing error_message based on what ACTUALLY
+    #      happened. "credits refunded" only when we have a ledger row.
+    # Pinned: backend/tests/test_photo_trailer_credit_integrity_2026_06.py
+    user_id = j["user_id"]
+    charged = int(j.get("charged_credits") or 0)
+    if charged == 0:
+        # Fallback: did deduct_credits succeed but charged_credits update
+        # never landed? Trust the ledger.
+        deduct_row = await db.credit_ledger.find_one({
+            "user_id": user_id,
+            "type": "deduct",
+            "reason": f"Photo trailer {job_id}",
+        })
+        if deduct_row:
+            charged = int(deduct_row.get("amount") or 0)
+            log.warning(
+                f"[trailer {job_id}] charged_credits=0 but ledger has deduct of "
+                f"{charged} — using ledger as source of truth for refund."
+            )
+
+    already_refunded_field = int(j.get("refunded_credits") or 0) > 0
+    refund_issued = False
+    refund_amount = 0
+    refund_error: Optional[str] = None
+
+    if charged > 0:
+        try:
+            from services.credits_service import get_credits_service
+            svc = get_credits_service(db)
+            result = await svc.refund_credits(
+                user_id, charged,
+                reason=f"Refund failed trailer {job_id}",
+                reference_id=f"trailer_refund:{job_id}",
+            )
+            # Refund succeeded OR was already there — both count as refunded.
+            refund_issued = True
+            refund_amount = charged
+            # Persist the denorm cache so /my-trailers + UI badges work
+            # without needing to re-query the ledger.
+            await db.photo_trailer_jobs.update_one(
+                {"_id": job_id, "$or": [
+                    {"refunded_credits": {"$exists": False}},
+                    {"refunded_credits": None},
+                    {"refunded_credits": 0},
+                ]},
+                {"$set": {"refunded_credits": charged}},
+            )
+        except Exception as e:
+            refund_error = f"{type(e).__name__}: {str(e)[:180]}"
+            log.error(f"[trailer {job_id}] REFUND FAILED: {refund_error}")
+    elif already_refunded_field:
+        # No `charged_credits` recorded but the doc already says refunded —
+        # honor that and keep error_message in sync.
+        refund_issued = True
+        refund_amount = int(j.get("refunded_credits") or 0)
+
+    # ── Compose error_message based on KNOWN outcome — never claim refund
+    #    unless the ledger confirmed it. ─────────────────────────────────
+    if refund_issued and refund_amount > 0:
+        user_facing_msg = (
+            "Trailer failed — credits refunded. Please try again."
+        )
+    elif charged > 0 and not refund_issued:
+        # Money was taken but refund failed. Honest message + ops alert.
+        user_facing_msg = (
+            "Trailer failed. Refund is being processed — if your balance "
+            "isn't restored shortly, please contact support."
+        )
+    else:
+        # No money was taken at all (failed before deduct or free preview).
+        if code == "RENDER_INVALID":
+            user_facing_msg = "Trailer failed. Please try again."
+        else:
+            user_facing_msg = msg
+
+    update_doc = {
         "status": "FAILED", "current_stage": "FAILED",
         "failure_stage": failure_stage,
         "error_code": code,
-        "error_message": user_facing_msg, "failed_at": _now(), "updated_at": _now(),
-    }})
-    refund_issued = False
-    if j.get("charged_credits") and not j.get("refunded_credits"):
-        try:
-            await add_credits(j["user_id"], j["charged_credits"], f"Refund failed trailer {job_id}", tx_type="REFUND")
-            await db.photo_trailer_jobs.update_one({"_id": job_id}, {"$set": {"refunded_credits": j["charged_credits"]}})
-            refund_issued = True
-        except Exception as e:
-            log.warning(f"refund failed: {e}")
-    elif j.get("refunded_credits"):
-        refund_issued = True
+        "error_message": user_facing_msg,
+        "failed_at": _now(), "updated_at": _now(),
+    }
+    if refund_error:
+        update_doc["refund_error"] = refund_error
+    await db.photo_trailer_jobs.update_one({"_id": job_id}, {"$set": update_doc})
+
     await _emit("photo_trailer_generation_failed", j["user_id"], {"job_id": job_id, "code": code})
 
     # P0 2026-05-16 — in-app notification on CONFIRMED refund only.
     # User mandate: only fire for refunded jobs, never for non-refunded
     # failures (which would be misleading). Founder copy is concise so
     # users immediately know they aren't out the credits.
-    if refund_issued:
+    if refund_issued and refund_amount > 0:
         try:
             from services.notification_service import NotificationService
             title = "Trailer failed — credits refunded"
@@ -970,7 +1060,7 @@ async def _fail(job_id: str, code: str, msg: str):
                 metadata={
                     "refund_issued": True,
                     "error_code": code,
-                    "refunded_credits": j.get("charged_credits") or 0,
+                    "refunded_credits": refund_amount,
                 },
             )
         except Exception as e:
@@ -1982,19 +2072,17 @@ async def _reap_stale_pipelines() -> Dict[str, Any]:
         cur_stage = j.get("current_stage") or ""
         if exceeded_hard_max and cur_stage == "RENDERING_TRAILER":
             err_code = "RENDER_TIMEOUT"
-            err_msg = "Final render didn't finish in time. Credits refunded — please retry."
             failure_stage = "RENDERING_TRAILER"
         else:
             err_code = "STALE_PIPELINE"
-            err_msg = "Trailer didn't complete in time. Credits refunded — please retry."
             failure_stage = "JANITOR_STALE"
+        # ── Pre-claim atomic status transition so we own the refund. ──
         upd = await db.photo_trailer_jobs.update_one(
             {"_id": jid, "status": "PROCESSING"},
             {"$set": {
                 "status": "FAILED", "current_stage": "FAILED",
                 "failure_stage": failure_stage,
                 "error_code": err_code,
-                "error_message": err_msg,
                 "failed_at": _now(), "updated_at": _now(),
             }},
         )
@@ -2003,12 +2091,34 @@ async def _reap_stale_pipelines() -> Dict[str, Any]:
             continue
         charged = j.get("charged_credits") or 0
         prior_refund = j.get("refunded_credits") or 0
+        # If denorm cache hasn't been written yet, fall back to ledger.
+        if charged == 0:
+            deduct_row = await db.credit_ledger.find_one({
+                "user_id": j["user_id"],
+                "type": "deduct",
+                "reason": f"Photo trailer {jid}",
+            })
+            if deduct_row:
+                charged = int(deduct_row.get("amount") or 0)
         refund_issued = False
+        refund_error = None
         if charged > 0 and prior_refund == 0:
             try:
-                await add_credits(j["user_id"], charged, f"Refund stale trailer {jid}", tx_type="REFUND")
+                # P0 2026-06 — idempotent refund via CreditsService. Shared
+                # reference_id with the inline _fail() path so concurrent
+                # janitor+pipeline failures CANNOT double-refund.
+                from services.credits_service import get_credits_service
+                await get_credits_service(db).refund_credits(
+                    j["user_id"], charged,
+                    reason=f"Refund stale trailer {jid}",
+                    reference_id=f"trailer_refund:{jid}",
+                )
                 await db.photo_trailer_jobs.update_one(
-                    {"_id": jid, "refunded_credits": 0},
+                    {"_id": jid, "$or": [
+                        {"refunded_credits": {"$exists": False}},
+                        {"refunded_credits": None},
+                        {"refunded_credits": 0},
+                    ]},
                     {"$set": {"refunded_credits": charged}},
                 )
                 refunded_total += charged
@@ -2020,7 +2130,8 @@ async def _reap_stale_pipelines() -> Dict[str, Any]:
                 )
             except Exception as e:
                 refund_failures += 1
-                log.error(f"[trailer-janitor] Refund failed for {jid}: {e}")
+                refund_error = f"{type(e).__name__}: {str(e)[:180]}"
+                log.error(f"[trailer-janitor] Refund failed for {jid}: {refund_error}")
         elif prior_refund > 0:
             refund_issued = True
         else:
@@ -2028,6 +2139,32 @@ async def _reap_stale_pipelines() -> Dict[str, Any]:
                 f"[trailer-janitor] Reaped stale job {jid} user={j['user_id']} "
                 f"template={j.get('template_id')} age={round(age_min,1)}min retry={retry_count} (no refund needed)"
             )
+
+        # P0 2026-06 — set error_message based on KNOWN refund outcome.
+        # Mirrors _fail()'s honest-message contract: only claim refund
+        # when the ledger says so.
+        if refund_issued and (charged > 0 or prior_refund > 0):
+            final_err_msg = (
+                "Final render didn't finish in time. Credits refunded — please retry."
+                if err_code == "RENDER_TIMEOUT"
+                else "Trailer didn't complete in time. Credits refunded — please retry."
+            )
+        elif charged > 0 and not refund_issued:
+            final_err_msg = (
+                "Trailer didn't complete in time. Refund is being processed — "
+                "if your balance isn't restored shortly, please contact support."
+            )
+        else:
+            final_err_msg = (
+                "Final render didn't finish in time. Please try again."
+                if err_code == "RENDER_TIMEOUT"
+                else "Trailer didn't complete in time. Please try again."
+            )
+        final_update = {"error_message": final_err_msg}
+        if refund_error:
+            final_update["refund_error"] = refund_error
+        await db.photo_trailer_jobs.update_one({"_id": jid}, {"$set": final_update})
+
         try:
             await _emit("photo_trailer_generation_failed", j["user_id"],
                         {"job_id": jid, "code": err_code, "via": "janitor"})
@@ -2230,6 +2367,278 @@ async def admin_stuck_jobs(
 async def admin_run_retention(user: dict = Depends(get_admin_user)):
     """Admin manual trigger for the photo retention sweep."""
     return await _purge_old_source_photos()
+
+
+# ─── P0 Credit-integrity ops: diagnose + repair ──────────────────────────────
+# Background: 2026-06 production incident — user krajapraveen@gmail.com saw
+# a FAILED 60s "Anime Intro" trailer whose card said "60 credits refunded"
+# but the actual balance was never restored. Root cause: _fail() wrote the
+# refund-claim message BEFORE the refund itself was attempted, and the
+# `add_credits` path had no ledger-level idempotency / fallback when
+# `charged_credits` denorm cache was zero. Both paths are now fixed; these
+# endpoints close the loop for ops to (a) inspect a specific user's state
+# and (b) safely repair historical jobs that fell into the bug window.
+# Pinned: backend/tests/test_photo_trailer_credit_integrity_2026_06.py
+
+class _RefundRepairIn(BaseModel):
+    """Optional scope to limit a repair sweep. All fields optional."""
+    user_id: Optional[str] = None
+    user_email: Optional[str] = None
+    job_ids: Optional[List[str]] = None
+    dry_run: bool = True
+    limit: int = Field(200, ge=1, le=1000)
+
+
+@router.get("/admin/diagnose-user")
+async def admin_diagnose_user(
+    user: dict = Depends(get_admin_user),
+    email: Optional[str] = Query(None),
+    user_id: Optional[str] = Query(None),
+    limit: int = Query(20, ge=1, le=100),
+):
+    """P0 ops: dump trailer + credit-ledger state for one user.
+
+    Returns user balance, last N trailer jobs (with status, charged, refunded,
+    error_code, error_message, stage timeline), and the matching deduct/refund
+    ledger rows per job. Used to answer the question:
+        "Did the user actually get their refund, or was the UI lying?"
+    """
+    if not email and not user_id:
+        raise HTTPException(400, "Provide ?email= or ?user_id=")
+    u = None
+    if user_id:
+        u = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not u and email:
+        u = await db.users.find_one({"email": email}, {"_id": 0})
+    if not u:
+        raise HTTPException(404, f"User not found (email={email}, user_id={user_id})")
+    uid = u["id"]
+
+    # Pull last N trailer jobs (most recent first)
+    jobs_cur = db.photo_trailer_jobs.find({"user_id": uid}).sort("created_at", -1).limit(limit)
+    jobs: List[Dict[str, Any]] = []
+    async for j in jobs_cur:
+        jid = j.get("_id")
+        charged = int(j.get("charged_credits") or 0)
+        refunded = int(j.get("refunded_credits") or 0)
+        deduct = await db.credit_ledger.find_one(
+            {"user_id": uid, "type": "deduct", "reason": f"Photo trailer {jid}"},
+            {"_id": 0},
+        )
+        # Refund row — try canonical reference_id first, then legacy reason patterns.
+        refund_row = await db.credit_ledger.find_one(
+            {"user_id": uid, "reference_id": f"trailer_refund:{jid}"},
+            {"_id": 0},
+        )
+        if not refund_row:
+            refund_row = await db.credit_ledger.find_one(
+                {"user_id": uid,
+                 "$or": [
+                     {"reason": f"Refund failed trailer {jid}"},
+                     {"reason": f"Refund cancelled trailer {jid}"},
+                     {"reason": f"Refund stale trailer {jid}"},
+                 ]},
+                {"_id": 0},
+            )
+        ledger_refund_amount = int((refund_row or {}).get("amount") or 0)
+        # Invariant: a FAILED paid job must have exactly one refund ledger row
+        # OR zero deduction. Otherwise the card is lying about money.
+        invariant_violated = (
+            j.get("status") in ("FAILED", "CANCELLED")
+            and (charged > 0 or (deduct and int(deduct.get("amount") or 0) > 0))
+            and ledger_refund_amount == 0
+        )
+        jobs.append({
+            "job_id": jid,
+            "status": j.get("status"),
+            "current_stage": j.get("current_stage"),
+            "failure_stage": j.get("failure_stage"),
+            "duration_target_seconds": j.get("duration_target_seconds"),
+            "template_id": j.get("template_id"),
+            "estimated_credits": j.get("estimated_credits"),
+            "charged_credits": charged,
+            "refunded_credits": refunded,
+            "error_code": j.get("error_code"),
+            "error_message": j.get("error_message"),
+            "refund_error": j.get("refund_error"),
+            "created_at": j.get("created_at"),
+            "failed_at": j.get("failed_at"),
+            "completed_at": j.get("completed_at"),
+            "ledger_deduct": deduct,
+            "ledger_refund": refund_row,
+            "ledger_refund_amount": ledger_refund_amount,
+            "card_claims_refund": "credits refunded" in (j.get("error_message") or "").lower(),
+            "money_integrity_violated": invariant_violated,
+        })
+
+    # Compute current balance + recent ledger window for context
+    ledger_window: List[Dict[str, Any]] = []
+    async for row in db.credit_ledger.find({"user_id": uid}).sort("created_at", -1).limit(50):
+        row.pop("_id", None)
+        ledger_window.append(row)
+
+    return {
+        "user_id": uid,
+        "email": u.get("email"),
+        "name": u.get("name"),
+        "current_balance": int(u.get("credits") or 0),
+        "role": u.get("role"),
+        "trailers": jobs,
+        "credit_ledger_recent": ledger_window,
+        "summary": {
+            "jobs_total": len(jobs),
+            "money_integrity_violations": sum(1 for j in jobs if j["money_integrity_violated"]),
+            "cards_falsely_claim_refund": sum(
+                1 for j in jobs
+                if j["card_claims_refund"] and j["ledger_refund_amount"] == 0
+                   and j["charged_credits"] > 0
+            ),
+        },
+    }
+
+
+@router.post("/admin/repair-refunds")
+async def admin_repair_refunds(body: _RefundRepairIn, user: dict = Depends(get_admin_user)):
+    """P0 ops: idempotent repair sweep for FAILED trailer jobs that have a
+    deduction but NO refund ledger row.
+
+    Default is `dry_run=True` so an operator can preview the impact. When
+    `dry_run=False` the sweep:
+      1. Atomically claims each candidate job (guard on `refund_repair_in_progress`)
+      2. Refunds via CreditsService.refund_credits with the canonical
+         `reference_id="trailer_refund:<job_id>"` — DOUBLE-refund is
+         mathematically impossible because the service rejects duplicates.
+      3. Updates the job doc with `refunded_credits` + clears refund_error.
+      4. Returns per-job before/after balance + refunded amount.
+    """
+    # Resolve scope → list of candidate job docs
+    target_user_id: Optional[str] = body.user_id
+    if not target_user_id and body.user_email:
+        u = await db.users.find_one({"email": body.user_email}, {"_id": 0, "id": 1})
+        if not u:
+            raise HTTPException(404, f"User not found: {body.user_email}")
+        target_user_id = u["id"]
+
+    filt: Dict[str, Any] = {
+        "status": {"$in": ["FAILED", "CANCELLED"]},
+        "charged_credits": {"$gt": 0},
+        "$or": [
+            {"refunded_credits": {"$exists": False}},
+            {"refunded_credits": None},
+            {"refunded_credits": 0},
+        ],
+    }
+    if target_user_id:
+        filt["user_id"] = target_user_id
+    if body.job_ids:
+        filt["_id"] = {"$in": body.job_ids}
+
+    candidates: List[Dict[str, Any]] = []
+    async for j in db.photo_trailer_jobs.find(filt).limit(body.limit):
+        candidates.append(j)
+
+    from services.credits_service import get_credits_service
+    svc = get_credits_service(db)
+    results: List[Dict[str, Any]] = []
+    total_restored = 0
+    for j in candidates:
+        jid = j["_id"]
+        uid = j["user_id"]
+        charged = int(j.get("charged_credits") or 0)
+        # If a refund row ALREADY exists (with the canonical reference_id OR
+        # legacy reason patterns), the job doc is just stale — mark + skip.
+        legacy_refund = await db.credit_ledger.find_one(
+            {"user_id": uid,
+             "$or": [
+                 {"reference_id": f"trailer_refund:{jid}"},
+                 {"reason": f"Refund failed trailer {jid}"},
+                 {"reason": f"Refund cancelled trailer {jid}"},
+                 {"reason": f"Refund stale trailer {jid}"},
+             ]},
+            {"_id": 0, "amount": 1, "type": 1, "reason": 1, "reference_id": 1},
+        )
+        if legacy_refund:
+            amt = int(legacy_refund.get("amount") or charged)
+            if not body.dry_run:
+                await db.photo_trailer_jobs.update_one(
+                    {"_id": jid, "$or": [
+                        {"refunded_credits": {"$exists": False}},
+                        {"refunded_credits": None},
+                        {"refunded_credits": 0},
+                    ]},
+                    {"$set": {"refunded_credits": amt}},
+                )
+            results.append({
+                "job_id": jid, "user_id": uid,
+                "charged_credits": charged,
+                "action": "denorm_sync_only" if body.dry_run else "denorm_synced",
+                "restored_credits": 0,
+                "ledger_amount": amt,
+                "note": "refund row already exists in ledger; only denorm cache lagged",
+            })
+            continue
+
+        before = await db.users.find_one({"id": uid}, {"_id": 0, "credits": 1})
+        before_bal = int((before or {}).get("credits") or 0)
+
+        if body.dry_run:
+            results.append({
+                "job_id": jid, "user_id": uid,
+                "charged_credits": charged,
+                "balance_before": before_bal,
+                "would_restore_credits": charged,
+                "action": "would_refund",
+            })
+            continue
+
+        try:
+            out = await svc.refund_credits(
+                uid, charged,
+                reason=f"Refund failed trailer {jid} (P0 repair sweep)",
+                reference_id=f"trailer_refund:{jid}",
+            )
+            await db.photo_trailer_jobs.update_one(
+                {"_id": jid, "$or": [
+                    {"refunded_credits": {"$exists": False}},
+                    {"refunded_credits": None},
+                    {"refunded_credits": 0},
+                ]},
+                {"$set": {"refunded_credits": charged, "refund_repaired_at": _now()}},
+            )
+            restored = 0 if out.get("already_refunded") else charged
+            total_restored += restored
+            results.append({
+                "job_id": jid, "user_id": uid,
+                "charged_credits": charged,
+                "balance_before": before_bal,
+                "balance_after": int(out.get("new_balance") or 0),
+                "restored_credits": restored,
+                "already_refunded": bool(out.get("already_refunded")),
+                "action": "refunded",
+            })
+        except Exception as e:
+            log.error(f"[refund-repair] job={jid} user={uid} FAILED: {e}")
+            results.append({
+                "job_id": jid, "user_id": uid,
+                "charged_credits": charged,
+                "balance_before": before_bal,
+                "restored_credits": 0,
+                "action": "error",
+                "error": f"{type(e).__name__}: {str(e)[:200]}",
+            })
+
+    return {
+        "dry_run": body.dry_run,
+        "candidates": len(candidates),
+        "total_restored_credits": total_restored,
+        "scope": {
+            "user_id": target_user_id,
+            "user_email": body.user_email,
+            "job_ids": body.job_ids,
+            "limit": body.limit,
+        },
+        "results": results,
+    }
 
 
 @router.get("/admin/queue-stats")

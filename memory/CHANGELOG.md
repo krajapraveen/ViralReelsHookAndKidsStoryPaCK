@@ -1,6 +1,54 @@
 # Visionary Suite - Changelog
 
 
+## 2026-06 — P0 CREDIT INTEGRITY: Refund-before-message + idempotent ledger
+
+**Status**: SHIPPED in preview. `make audit-boundaries` green (**648 passing, 1 skipped**, +12 new). Production repair endpoint deployed; ops must run dry-run sweep then refund Anime Intro for krajapraveen@gmail.com (user_id `3fbc31fa-2019-4617-bcd8-2508f3a6b467`).
+
+**Incident**: A FAILED 60s "Anime Intro" trailer's card claimed "60 credits refunded" but the user's balance was never restored. Money/credit integrity bug — the platform was deducting credits and lying about the refund.
+
+**Root cause (bug class)**:
+1. `_fail()` wrote `error_message = "Trailer failed — credits refunded. Please try again."` to the job doc BEFORE the refund was attempted. If `add_credits` raised (transient DB hiccup) the UI surface still claimed refund.
+2. Refund call (`add_credits(..., tx_type="REFUND")`) had no ledger-level idempotency — a janitor + inline `_fail` race could double-refund OR silently skip.
+3. Refund used the `charged_credits` denorm cache; if `deduct_credits` succeeded but the `charged_credits` field-update lost (network blip between two writes), refund was skipped silently.
+4. Frontend `FailedStep` had a fallback string `'Something went wrong. Your credits were refunded.'` that lied when `refunded_credits=0`.
+
+**Fixes** (`backend/routes/photo_trailer.py`, `services/credits_service.py`, `frontend/src/pages/PhotoTrailerPage.jsx`):
+- `_fail()` now refunds FIRST, sets `error_message` SECOND based on the actual ledger outcome:
+  - Refund succeeded → "Trailer failed — credits refunded. Please try again."
+  - Money taken but refund raised → "Trailer failed. Refund is being processed — if your balance isn't restored shortly, please contact support." (`refund_error` field persisted for ops).
+  - No deduction at all → generic "Trailer failed. Please try again."
+- `_fail()` falls back to `credit_ledger` (`type:"deduct"`) when `charged_credits=0` so the race window can no longer hide a deduction.
+- `CreditsService.refund_credits` now supports strict idempotency via `reference_id`. Mirrors `award_credits`. A second call with the same `reference_id` is a no-op and reports `already_refunded:True`.
+- All refund sinks (`_fail`, `cancel_job`, `_reap_stale_pipelines`) use the canonical `reference_id=f"trailer_refund:{job_id}"` → double-refund is mathematically impossible across racing callers.
+- Frontend `FailedStep` fallback copy is now an honest ternary: only claims refund when `Number(job?.refunded_credits || 0) > 0`.
+
+**New ops endpoints**:
+- `GET /api/photo-trailer/admin/diagnose-user?email=` — dump user balance, last 20 trailers (job_id / status / duration / charged / refunded / error_code / error_message / refund_error / ledger_deduct / ledger_refund), recent credit_ledger window, and a per-job `money_integrity_violated` flag. Returns the exact data the production-incident spec demands. **VERIFIED via curl in preview**.
+- `POST /api/photo-trailer/admin/repair-refunds` — idempotent repair sweep. `dry_run=True` by default. Scope by user_id, email, or job_ids. Returns per-job before/after balance + restored credits. Safe to re-run.
+
+**Bug-class tests** (`backend/tests/test_photo_trailer_credit_integrity_2026_06.py` — 12 tests):
+1. `_fail` calls `svc.refund_credits` BEFORE persisting `error_message`.
+2. Refund uses canonical `reference_id` for cross-caller idempotency.
+3. `_fail` falls back to `credit_ledger` when `charged_credits=0`.
+4. `error_message = "credits refunded"` ONLY appears under `if refund_issued` guard.
+5. Janitor uses idempotent `CreditsService.refund_credits`, not legacy `add_credits(tx_type="REFUND")`.
+6. `cancel_job` uses idempotent refund path.
+7. Frontend `FailedStep` fallback never lies about refund.
+8. `CreditsService.refund_credits` source-level idempotency check.
+9. **End-to-end behavioural test**: calling `refund_credits` twice with same `reference_id` → balance += amount ONCE; exactly 1 ledger row.
+10. Repair endpoint exists at `/admin/repair-refunds`.
+11. Repair defaults to `dry_run=True`.
+12. Suite registered in `BOUNDARY_AUDIT_SUITES`.
+
+**Production action required**:
+1. Deploy preview → production.
+2. Admin runs: `GET /api/photo-trailer/admin/diagnose-user?email=krajapraveen@gmail.com` against production. Returns all forensic data (job_id, ledger rows, balance, error stack).
+3. Admin runs (dry): `POST /api/photo-trailer/admin/repair-refunds` with `{"user_email":"krajapraveen@gmail.com","dry_run":true}`.
+4. Admin runs (live): same payload with `dry_run:false` → restores the 60 credits to the Anime Intro job.
+
+
+
 ## 2026-06 — P0 ENTITLEMENT CONSOLIDATION: Canonical subscription resolver
 
 **Status**: SHIPPED in preview. `make audit-boundaries` green (**636 passing, 1 skipped**). Production redeploy required to unblock krajapraveen@gmail.com **AND** the 3 other gates that were silently misbehaving for paid users.

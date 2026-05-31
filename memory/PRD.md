@@ -8,6 +8,35 @@ Evolve the platform from a standard AI content generator into a highly addictive
 
 ## What's Been Implemented
 
+### P0 CREDIT INTEGRITY — Refund-before-message + ledger idempotency — Feb 2026
+**Status**: SHIPPED in preview. **boundary audit gate green (648 passing, +12 new)**. Awaiting production redeploy + repair-sweep for krajapraveen@gmail.com.
+
+**Production money-bug** (krajapraveen@gmail.com, FAILED 60s "Anime Intro" trailer): card said "60 credits refunded" but the actual user balance was never restored — header balance still showed the deduction.
+
+**Root cause (bug class)**: `_fail()` persisted `error_message = "...credits refunded..."` BEFORE the refund was attempted. If the refund's `add_credits` raised, the UI lied about the money. Compounded by: (a) no ledger-level idempotency on refunds so concurrent fail+janitor paths could double-refund OR silently skip, (b) refund logic only read the `charged_credits` denorm cache — a race window where `deduct_credits` succeeded but the `charged_credits` field update was lost would skip the refund silently.
+
+**Fixes**:
+- `_fail()` refunds FIRST via `CreditsService.refund_credits(reference_id=f"trailer_refund:{job_id}")`, then sets `error_message` based on confirmed ledger outcome.
+- `_fail()` falls back to `db.credit_ledger` `type:"deduct"` lookup when `charged_credits=0`.
+- `CreditsService.refund_credits` now supports strict idempotency via `reference_id` (mirrors `award_credits`).
+- All refund sinks (`_fail`, `cancel_job`, `_reap_stale_pipelines`, new `repair-refunds`) share the canonical `reference_id` — double-refund mathematically impossible.
+- Frontend `FailedStep` fallback string is now an honest ternary; never claims refund unless `refunded_credits > 0`.
+
+**New ops endpoints**:
+- `GET /api/photo-trailer/admin/diagnose-user?email=` — dumps balance, last 20 trailer jobs with full forensic data (ledger_deduct, ledger_refund, error_code, error_message, refund_error, money_integrity_violated flag).
+- `POST /api/photo-trailer/admin/repair-refunds` — idempotent repair sweep; `dry_run=True` by default.
+
+**Files**:
+- `backend/routes/photo_trailer.py` (`_fail`, `cancel_job`, `_reap_stale_pipelines`, 2 new admin endpoints)
+- `backend/services/credits_service.py` (`refund_credits` idempotency)
+- `frontend/src/pages/PhotoTrailerPage.jsx` (`FailedStep` honest fallback)
+- `backend/tests/test_photo_trailer_credit_integrity_2026_06.py` (12 tests)
+- `/app/Makefile` (BOUNDARY_AUDIT_SUITES)
+
+**Production action**: admin runs `GET /admin/diagnose-user?email=krajapraveen@gmail.com` → then `POST /admin/repair-refunds` dry-run → live.
+
+
+
 ### P0 TRUST — Silent-render bug-class elimination — May 23, 2026
 **Status**: SHIPPED in preview, **boundary audit gate green (344 passing)**. Awaiting redeploy.
 
