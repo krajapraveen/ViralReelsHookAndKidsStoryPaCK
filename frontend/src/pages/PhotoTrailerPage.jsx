@@ -741,7 +741,7 @@ function ProgressStep({ jobId, onDone, onFail }) {
           </p>
           <p className="text-xs text-amber-100/80 mt-1">
             You can leave this page — we'll notify you when it's ready, and your
-            trailer will be saved in Profile → MySpace either way.
+            trailer will be saved in Profile → My Space or Profile → My Jobs.
           </p>
         </div>
       )}
@@ -753,7 +753,7 @@ function ProgressStep({ jobId, onDone, onFail }) {
           Your trailer is being created. <span className="text-violet-200 font-semibold">You can leave this page</span> and use other Visionary Suite features — we'll notify you when it's ready.
         </p>
         <p className="text-xs text-slate-400 mt-1.5">
-          Your trailer will be saved in <span className="text-violet-300">Profile → MySpace</span>.
+          Your trailer will be saved in <span className="text-violet-300">Profile → My Space or Profile → My Jobs</span>.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
           <button
