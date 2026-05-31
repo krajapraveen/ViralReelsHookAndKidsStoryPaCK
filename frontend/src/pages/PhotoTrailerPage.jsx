@@ -1588,6 +1588,11 @@ export default function PhotoTrailerPage() {
   const [failedJob, setFailedJob] = useState(null);
   // Plan & paywall
   const [userPlan, setUserPlan] = useState(null); // {plan, credits, max_duration_seconds, ...}
+  // P0 KILL SWITCH — when backend reports paused=true, we render an inline
+  // banner on top of the page and block the Generate button. The probe is
+  // public so it works on first render (no auth race). See:
+  //   /app/backend/routes/photo_trailer.py:_is_paused
+  const [paused, setPaused] = useState({ paused: false, message: '' });
   const [paywall, setPaywall] = useState(null);   // { current_plan, required_plan, duration_seconds }
   const [lowCredits, setLowCredits] = useState(null); // structured 402 INSUFFICIENT_CREDITS payload
   const [startError, setStartError] = useState(null); // {code, message, http_status, retryable, cta?}
@@ -1599,6 +1604,11 @@ export default function PhotoTrailerPage() {
     fetch(`${API}/api/photo-trailer/me/plan`, { headers: authHeaders() })
       .then(r => r.ok ? r.json() : null)
       .then(p => { if (p) setUserPlan(p); })
+      .catch(() => {});
+    // Probe kill-switch state (public — no auth needed).
+    fetch(`${API}/api/photo-trailer/status`)
+      .then(r => r.ok ? r.json() : null)
+      .then(s => { if (s) setPaused(s); })
       .catch(() => {});
   }, []);
 
@@ -1614,6 +1624,17 @@ export default function PhotoTrailerPage() {
     // Clear any previous start error so the inline panel disappears the
     // moment the user retries (no stale red panels haunting the UI).
     setStartError(null);
+    // P0 KILL SWITCH — bail before any network call. Backend will return
+    // 503 anyway; this just prevents a wasted round-trip.
+    if (paused.paused) {
+      setStartError({
+        code: 'TRAILER_PAUSED',
+        message: paused.message || 'My Movie Trailer is temporarily paused.',
+        http_status: 503,
+        retryable: false,
+      });
+      return;
+    }
     // Client-side guard: open paywall if duration exceeds the user's max.
     // Server-side enforcement is authoritative — we still send the request
     // and rely on a clean 402 — but this avoids a wasteful round-trip when
@@ -1716,6 +1737,7 @@ export default function PhotoTrailerPage() {
 
   const onRetry = async () => {
     if (!jobId) return;
+    if (paused.paused) return;  // P0 KILL SWITCH — retries also burn compute.
     const r = await fetch(`${API}/api/photo-trailer/jobs/${jobId}/retry`, { method: 'POST', headers: authHeaders() });
     if (r.ok) { setFailedJob(null); setStep(4); }
   };
@@ -1732,6 +1754,23 @@ export default function PhotoTrailerPage() {
             <p className="text-sm text-slate-400 mt-1">Upload photos · Pick a template · Generate a 20-60s cinematic AI trailer.</p>
           </div>
         </header>
+
+        {/* P0 KILL SWITCH banner — shown when backend reports paused=true.
+            Existing trailers (the YOUR TRAILERS section below) keep working
+            so users can still watch what they paid for. */}
+        {paused.paused && (
+          <div
+            className="mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/[0.06] px-4 py-3.5 flex items-start gap-3"
+            data-testid="trailer-paused-banner"
+            role="alert"
+          >
+            <AlertCircle className="w-5 h-5 text-amber-300 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-amber-100">My Movie Trailer is temporarily paused</p>
+              <p className="text-sm text-amber-200/80">{paused.message || 'We are fixing rendering reliability. Your existing trailers are safe.'}</p>
+            </div>
+          </div>
+        )}
 
         {/* step indicator */}
         <div className="flex items-center gap-2 mb-6" data-testid="trailer-stepper">

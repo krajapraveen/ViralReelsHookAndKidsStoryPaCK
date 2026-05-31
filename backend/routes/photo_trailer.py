@@ -99,6 +99,27 @@ FREE_MONTHLY_QUOTA = int(os.environ.get("PHOTO_TRAILER_FREE_QUOTA", "3"))
 PREMIUM_MIN_DURATION = 90  # 90s+ requires PREMIUM
 PAID_MIN_DURATION    = 60  # 60s+ requires PAID or PREMIUM
 
+# ─── P0 Damage-control kill switch ────────────────────────────────────────────
+# When PHOTO_TRAILER_PAUSED=true the create-job + retry endpoints return 503
+# BEFORE any credit deduction, upload validation, render scheduling, or worker
+# enqueue. Everything else (listing, viewing, sharing, admin diagnose+repair)
+# keeps working so the user can still recover their money + watch what they
+# already paid for. Born from the 2026-06 krajapraveen@gmail.com incident
+# where the render pipeline + refund integrity both regressed simultaneously.
+#
+# Operator runbook: set env var → redeploy. Unset to resume.
+PAUSE_MESSAGE = (
+    "My Movie Trailer is temporarily paused while we fix rendering "
+    "reliability. Your existing trailers are safe."
+)
+
+def _is_paused() -> bool:
+    """Single source of truth for the trailer kill switch. Read from env
+    EVERY call (not cached at import) so an operator can toggle live by
+    bouncing the process without code changes. Truthy values: 1/true/yes/on."""
+    val = (os.environ.get("PHOTO_TRAILER_PAUSED") or "").strip().lower()
+    return val in {"1", "true", "yes", "on"}
+
 # ─── Templates ────────────────────────────────────────────────────────────────
 TEMPLATES: Dict[str, Dict[str, Any]] = {
     "superhero_origin":  {"title": "Superhero Origin",  "description": "Ordinary person discovers extraordinary power.",       "tone": "epic",        "narrator": "onyx",   "music_mood": "heroic",      "scene_count": 6, "safety": ["no_violence_glorification"]},
@@ -336,6 +357,19 @@ async def my_plan(user: dict = Depends(get_current_user)):
         },
     }
 
+
+@router.get("/status")
+async def trailer_status():
+    """P0 kill-switch probe — public so the banner can render before login.
+    Returns `{ paused: bool, message: str }`. The frontend polls this on
+    page load and short-circuits the upload flow when paused=true.
+    Existing trailers + admin diagnose/repair are unaffected by this flag."""
+    paused = _is_paused()
+    return {
+        "paused": paused,
+        "message": PAUSE_MESSAGE if paused else "",
+    }
+
 # ─── Trust & Legal: prompt sanitizer ──────────────────────────────────────────
 # Hard-block list of phrases we will not generate. Three categories:
 #   1. Real public figures & celebrities (likeness rights + defamation risk)
@@ -395,6 +429,18 @@ def _sanitize_prompt(text: str) -> tuple[str, Optional[str]]:
 # ─── Job creation ─────────────────────────────────────────────────────────────
 @router.post("/jobs")
 async def create_job(body: JobCreateIn, bg: BackgroundTasks, user: dict = Depends(get_current_user)):
+    # P0 KILL SWITCH — must fire BEFORE any deduction, upload validation,
+    # render scheduling, or worker enqueue. Returns a structured 503 so the
+    # frontend can show the "paused" banner instead of a generic error.
+    if _is_paused():
+        await _emit("photo_trailer_paused_block", user["id"], {
+            "duration": body.duration_target_seconds,
+            "template_id": body.template_id,
+        })
+        raise HTTPException(status_code=503, detail={
+            "code": "TRAILER_PAUSED",
+            "message": PAUSE_MESSAGE,
+        })
     if body.template_id not in TEMPLATES:
         raise HTTPException(400, detail={"code": "INVALID_TEMPLATE", "message": "Invalid template"})
     sess = await db.photo_trailer_upload_sessions.find_one({"_id": body.upload_session_id, "user_id": user["id"]})
@@ -552,6 +598,13 @@ async def get_job(job_id: str, user: dict = Depends(get_current_user)):
 
 @router.post("/jobs/{job_id}/retry")
 async def retry_job(job_id: str, bg: BackgroundTasks, user: dict = Depends(get_current_user)):
+    # P0 KILL SWITCH — retry triggers a fresh pipeline (free compute burn).
+    # Block it the same way as create_job so a paused feature truly halts.
+    if _is_paused():
+        raise HTTPException(status_code=503, detail={
+            "code": "TRAILER_PAUSED",
+            "message": PAUSE_MESSAGE,
+        })
     j = await db.photo_trailer_jobs.find_one({"_id": job_id, "user_id": user["id"]})
     if not j: raise HTTPException(404, "Job not found")
     if j.get("status") != "FAILED": raise HTTPException(400, "Only failed jobs can be retried")

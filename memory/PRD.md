@@ -8,6 +8,25 @@ Evolve the platform from a standard AI content generator into a highly addictive
 
 ## What's Been Implemented
 
+### P0 KILL SWITCH — Hard pause for MyTrailer generation — Feb 2026
+**Status**: SHIPPED in preview. **boundary audit gate green (660 passing, +9 new)**. Awaiting production redeploy + env-var activation.
+
+**Trigger**: post credit-integrity patch, krajapraveen@gmail.com still saw 3 FAILED Anime Intro trailers in production (2× 90s + 1× 60s). User ordered a hard kill switch: pause new generation entirely until refund integrity is proven against production data.
+
+**Switch**: `PHOTO_TRAILER_PAUSED=true` (env var, read every call). When ON:
+- `POST /api/photo-trailer/jobs` → 503 with code `TRAILER_PAUSED`, fired BEFORE any deduction / upload / enqueue.
+- `POST /api/photo-trailer/jobs/{id}/retry` → 503 (retries also burn compute).
+- `GET /api/photo-trailer/status` → public probe, drives the frontend banner.
+- Everything else (listing, viewing, sharing, admin diagnose/repair, janitor) unchanged.
+
+**Frontend** (`PhotoTrailerPage.jsx`): probes `/status` on mount, renders amber banner above the stepper (`data-testid="trailer-paused-banner"`), short-circuits `onGenerate` + `onRetry` before any fetch.
+
+**Tests**: `backend/tests/test_photo_trailer_kill_switch_2026_06.py` (9 tests, in-process ASGI for the toggle-observability tests).
+
+**Operator runbook**: deploy → set env var → run the credit-integrity playbook → spot-check the `trailer_failed_without_refund` guardrail → re-enable only after staging proves refunds + renders work end-to-end.
+
+
+
 ### P0 CREDIT INTEGRITY — Refund-before-message + ledger idempotency — Feb 2026
 **Status**: SHIPPED in preview. **boundary audit gate green (648 passing, +12 new)**. Awaiting production redeploy + repair-sweep for krajapraveen@gmail.com.
 

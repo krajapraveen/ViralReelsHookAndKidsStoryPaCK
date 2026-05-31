@@ -1,6 +1,48 @@
 # Visionary Suite - Changelog
 
 
+## 2026-06 — P0 KILL SWITCH: Hard pause for MyTrailer generation
+
+**Status**: SHIPPED in preview. `make audit-boundaries-quick` green (**660 passing, 1 skipped**, +9 new). Awaiting redeploy + `PHOTO_TRAILER_PAUSED=true` in production.
+
+**Trigger**: krajapraveen@gmail.com escalation — 3 FAILED Anime Intro trailers (2× 90s + 1× 60s) visible in production after the credit-integrity patch shipped. User mandate: pause new generation entirely until refund integrity is proven against production data. No soft pause (free compute hides the render failure).
+
+**Behaviour**:
+- `os.environ.get("PHOTO_TRAILER_PAUSED")` truthy (`1`/`true`/`yes`/`on`) → switch ON. Read every call so an operator can toggle without code changes.
+- `POST /api/photo-trailer/jobs` → **503** with `{ "code": "TRAILER_PAUSED", "message": "My Movie Trailer is temporarily paused while we fix rendering reliability. Your existing trailers are safe." }`, fired BEFORE template lookup / upload-session lookup / plan check / credit deduction / prompt sanitization / job insert / worker enqueue. Static-source test pins ordering.
+- `POST /api/photo-trailer/jobs/{id}/retry` → also 503 (retries burn compute and would defeat the pause).
+- `GET /api/photo-trailer/status` → public probe `{ paused: bool, message: str }`. No auth — frontend banner renders before login.
+- All other surfaces unchanged: `/my-trailers`, `/jobs/{id}` detail, `/jobs/{id}/stream`, `/share/{slug}`, `/admin/diagnose-user`, `/admin/repair-refunds`, `/admin/guardrails`, janitor sweep.
+
+**Frontend** (`PhotoTrailerPage.jsx`):
+- Probes `/status` on mount.
+- Renders an inline amber banner above the stepper with `data-testid="trailer-paused-banner"` when `paused=true`.
+- `onGenerate` short-circuits before any fetch; `onRetry` short-circuits before the retry fetch. UI never claims the feature is gone — it shows the message verbatim.
+
+**Tests added** (`backend/tests/test_photo_trailer_kill_switch_2026_06.py`, 9 tests):
+1. Pause check is the FIRST work `create_job` does (lexically before any DB lookup).
+2. `retry_job` is also pause-gated (no free-compute back door).
+3. `_is_paused()` reads `os.environ` per call, not at import time.
+4. Frontend probes `/status`, renders banner, `onGenerate` bails before fetch.
+5. **Behavioural**: with flag ON, `POST /jobs` → 503, `user.credits` unchanged, **zero** new job docs created. (Drives the FastAPI app in-process via `httpx.ASGITransport` so the env-var toggle is observable.)
+6. `/status` correctly flips between `paused: false` and `paused: true`.
+7. Existing trailers remain listable + viewable when paused.
+8. Admin `diagnose-user` + `repair-refunds` still work when paused (ops unblocked).
+9. With flag OFF, the same payload does NOT trip the kill switch.
+
+**Production operator runbook**:
+1. Deploy preview → production.
+2. Set `PHOTO_TRAILER_PAUSED=true` in production env. Bounce process (or wait for next deploy).
+3. Verify: `curl https://www.visionary-suite.com/api/photo-trailer/status` → `{"paused": true, "message": "..."}`.
+4. Run the existing credit-integrity playbook against production:
+   - `GET /api/photo-trailer/admin/diagnose-user?email=krajapraveen@gmail.com&limit=50`
+   - `POST /api/photo-trailer/admin/repair-refunds` (dry_run=true, then dry_run=false)
+   - `GET /api/admin/guardrails` → `trailer_failed_without_refund.count` must be `0`.
+5. Generate a fresh trailer with the flag ON (should 503), then with flag OFF in a STAGING environment to validate the render path BEFORE re-enabling production.
+6. When ready: unset `PHOTO_TRAILER_PAUSED`. Bounce. Verify `/status` returns `paused: false`.
+
+
+
 ## 2026-06 — P0 CREDIT INTEGRITY: Refund-before-message + idempotent ledger
 
 **Status**: SHIPPED in preview. `make audit-boundaries` green (**648 passing, 1 skipped**, +12 new). Production repair endpoint deployed; ops must run dry-run sweep then refund Anime Intro for krajapraveen@gmail.com (user_id `3fbc31fa-2019-4617-bcd8-2508f3a6b467`).
