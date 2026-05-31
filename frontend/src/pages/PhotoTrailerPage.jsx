@@ -1591,11 +1591,18 @@ export default function PhotoTrailerPage() {
     // and rely on a clean 402 — but this avoids a wasteful round-trip when
     // we already know the answer.
     if (userPlan && userPlan.max_duration_seconds && duration > userPlan.max_duration_seconds) {
+      const reqPlan = duration >= 90 ? 'PREMIUM' : 'PAID';
+      // P0 2026-06 UX — explicit "credits alone won't unlock this"
+      // disambiguation. The hybrid pricing model gates 90s on
+      // subscription tier (not credit balance), and users with
+      // healthy credit balances were confused by the generic
+      // "requires the PREMIUM plan" copy.
+      const subWord = reqPlan === 'PREMIUM' ? 'subscription' : 'plan';
       setPaywall({
         current_plan: userPlan.plan,
-        required_plan: duration >= 90 ? 'PREMIUM' : 'PAID',
+        required_plan: reqPlan,
         duration_seconds: duration,
-        message: `${duration}s trailers require the ${duration >= 90 ? 'PREMIUM' : 'PAID'} plan.`,
+        message: `${duration}-second trailers require a ${reqPlan} ${subWord}. Credits alone do not unlock this feature.`,
       });
       try { trackFunnel('photo_trailer_paywall_shown', { meta: { duration, current_plan: userPlan.plan } }); } catch {}
       return;

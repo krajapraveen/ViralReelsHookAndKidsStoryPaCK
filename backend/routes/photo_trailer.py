@@ -418,9 +418,13 @@ async def create_job(body: JobCreateIn, bg: BackgroundTasks, user: dict = Depend
         })
         raise HTTPException(status_code=402, detail={
             "code": "UPGRADE_REQUIRED",
+            # P0 2026-06 UX — disambiguate against the credit-economy mental
+            # model. Users with healthy credit balances were confused why
+            # they were still gated. Spell out: credits alone don't unlock.
             "message": (
-                f"{body.duration_target_seconds}-second trailers require the "
-                f"{required} plan. Upgrade to unlock."
+                f"{body.duration_target_seconds}-second trailers require a "
+                f"{required} {'subscription' if required == 'PREMIUM' else 'plan'}. "
+                f"Credits alone do not unlock this feature."
             ),
             "current_plan": plan,
             "required_plan": required,
