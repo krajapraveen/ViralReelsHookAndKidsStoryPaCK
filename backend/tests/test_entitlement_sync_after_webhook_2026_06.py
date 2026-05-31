@@ -138,38 +138,37 @@ class TestWebhookDualWriteContract:
 
 
 class TestUserPlanReaderContract:
-    """`_user_plan()` MUST read from both `db.subscriptions` and the
-    embedded `users.subscription` field. This is what unblocks
-    already-paid users on deploy with no DB backfill."""
+    """`_user_plan()` MUST delegate to the canonical entitlement
+    service (P0 2026-06 consolidation). The actual split-brain reader
+    logic now lives in `services.entitlement` and is pinned by
+    `test_entitlement_consolidation_2026_06.py`."""
 
     def setup_method(self):
         self.src = (BACKEND / "routes" / "photo_trailer.py").read_text(encoding="utf-8")
 
-    def test_reads_db_subscriptions(self):
-        assert "db.subscriptions.find_one" in self.src
-
-    def test_reads_embedded_subscription_fallback(self):
-        # Must look at user.get("subscription") as a fallback.
-        assert re.search(
-            r"user\.get\(\s*[\"']subscription[\"']\s*\)",
-            self.src,
-        ), (
-            "_user_plan must fall back to `user.get('subscription')` "
-            "so users whose record was written by the legacy webhook "
-            "(embedded only) get correctly classified."
+    def test_delegates_to_canonical_service(self):
+        # _user_plan must import the canonical service.
+        assert "from services.entitlement import" in self.src, (
+            "_user_plan must delegate to services.entitlement instead "
+            "of duplicating the split-brain reader logic."
+        )
+        assert "get_user_subscription_tier" in self.src, (
+            "_user_plan must call get_user_subscription_tier from the "
+            "canonical entitlement service."
         )
 
-    def test_matches_status_case_insensitively(self):
-        # Must use $regex with /i case-insensitive flag for status.
-        assert "$regex" in self.src and "active" in self.src, (
-            "_user_plan must match `status` case-insensitively — the "
-            "codebase writes both 'ACTIVE' and 'active' historically."
+    def test_no_direct_db_subscriptions_read(self):
+        # Direct db.subscriptions.find_one is the bug-class boundary —
+        # nothing in photo_trailer.py should bypass the service.
+        assert "db.subscriptions.find_one" not in self.src, (
+            "photo_trailer.py must NOT call db.subscriptions.find_one "
+            "directly. Use services.entitlement instead."
         )
 
     def test_premium_plan_ids_unchanged(self):
-        # Defense: if PREMIUM_PLAN_IDS ever drops monthly/quarterly/yearly,
-        # the gate silently breaks.
-        assert "PREMIUM_PLAN_IDS = {\"monthly\", \"quarterly\", \"yearly\"}" in self.src
+        # The local constant stays for back-compat with any callers
+        # importing it from this module.
+        assert 'PREMIUM_PLAN_IDS = {"monthly", "quarterly", "yearly"}' in self.src
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -212,12 +211,12 @@ class _FakeCursor:
 class _FakeSubsCollection:
     """Stand-in for `db.subscriptions` that returns a pre-seeded doc
     matching the same `userId + case-insensitive status=active` query
-    that `_user_plan` performs."""
+    that `_user_plan` (via the canonical entitlement service) performs."""
 
     def __init__(self, docs):
         self._docs = docs  # list of subscription documents
 
-    async def find_one(self, query, **kwargs):  # noqa: ARG002
+    async def find_one(self, query, projection=None, **kwargs):  # noqa: ARG002
         user_id = query.get("userId")
         status_q = query.get("status")
         # status_q is either a literal string or a regex dict.
@@ -249,8 +248,29 @@ def fake_user():
 
 
 def _patch_db(monkeypatch, subs_docs):
-    """Install a fake `db` into the photo_trailer module for the test."""
-    monkeypatch.setattr(pt_module, "db", _FakeDB(subs_docs))
+    """Install a fake `db` so the canonical entitlement service that
+    `_user_plan` delegates to sees the right rows. The service does
+    `from shared import db as _db` lazily inside its functions, so we
+    patch `shared.db` (not `pt_module.db`)."""
+    import shared as shared_module
+    fake = _FakeDB(subs_docs)
+
+    # Also stub a minimal users collection so the embedded fallback
+    # in the canonical service can resolve user.subscription.
+    class _UsersStub:
+        async def find_one(self, query, projection=None, **kwargs):  # noqa: ARG002
+            # The fake_user fixture is the only user in play per test;
+            # we surface it through a closure. The actual user dict
+            # is passed via _patch_db_with_user below.
+            return getattr(_UsersStub, "_doc", None)
+    fake.users = _UsersStub()
+    monkeypatch.setattr(shared_module, "db", fake, raising=False)
+    return _UsersStub  # so callers can set ._doc for embedded tests
+
+
+def _patch_db_with_user(monkeypatch, subs_docs, user_doc):
+    UsersStub = _patch_db(monkeypatch, subs_docs)
+    UsersStub._doc = user_doc
 
 
 @pytest.mark.skipif(
@@ -316,7 +336,6 @@ class TestUserPlanLive:
     def test_embedded_monthly_returns_premium(self, fake_user, monkeypatch):
         """The CORE krajapraveen case: only embedded data exists.
         No db.subscriptions row at all. Must still return PREMIUM."""
-        _patch_db(monkeypatch, [])
         now = datetime.now(timezone.utc)
         fake_user["subscription"] = {
             "planId": "monthly",
@@ -326,43 +345,44 @@ class TestUserPlanLive:
             "endDate": (now + timedelta(days=30)).isoformat(),
             "orderId": "ord_test_xyz",
         }
+        _patch_db_with_user(monkeypatch, [], fake_user)
         assert _run_async(pt_module._user_plan(fake_user)) == "PREMIUM"
 
     def test_embedded_uppercase_active_also_works(self, fake_user, monkeypatch):
-        _patch_db(monkeypatch, [])
         now = datetime.now(timezone.utc)
         fake_user["subscription"] = {
             "planId": "monthly", "status": "ACTIVE",
             "endDate": (now + timedelta(days=30)).isoformat(),
         }
+        _patch_db_with_user(monkeypatch, [], fake_user)
         assert _run_async(pt_module._user_plan(fake_user)) == "PREMIUM"
 
     def test_embedded_with_expired_end_date_falls_back(self, fake_user, monkeypatch):
-        _patch_db(monkeypatch, [])
         now = datetime.now(timezone.utc)
         fake_user["subscription"] = {
             "planId": "monthly", "status": "active",
             "endDate": (now - timedelta(days=1)).isoformat(),
         }
+        _patch_db_with_user(monkeypatch, [], fake_user)
         assert _run_async(pt_module._user_plan(fake_user)) == "FREE"
 
     def test_embedded_malformed_end_date_still_trusts_active_flag(self, fake_user, monkeypatch):
-        _patch_db(monkeypatch, [])
         fake_user["subscription"] = {
             "planId": "monthly", "status": "active",
             "endDate": "garbage-not-iso",
         }
+        _patch_db_with_user(monkeypatch, [], fake_user)
         assert _run_async(pt_module._user_plan(fake_user)) == "PREMIUM"
 
     def test_both_sources_collection_wins(self, fake_user, monkeypatch):
         """When both sources exist, the collection answer must be
         honored (it's the canonical write going forward)."""
-        _patch_db(monkeypatch, [self._sub_doc(fake_user["id"], "monthly", "ACTIVE")])
         now = datetime.now(timezone.utc)
         fake_user["subscription"] = {
             "planId": "weekly", "status": "active",
             "endDate": (now + timedelta(days=7)).isoformat(),
         }
+        _patch_db_with_user(monkeypatch, [self._sub_doc(fake_user["id"], "monthly", "ACTIVE")], fake_user)
         assert _run_async(pt_module._user_plan(fake_user)) == "PREMIUM"
 
     def test_admin_role_short_circuits_premium(self, fake_user, monkeypatch):
@@ -371,11 +391,11 @@ class TestUserPlanLive:
         assert _run_async(pt_module._user_plan(fake_user)) == "PREMIUM"
 
     def test_superseded_sub_is_ignored(self, fake_user, monkeypatch):
-        _patch_db(monkeypatch, [self._sub_doc(fake_user["id"], "monthly", "SUPERSEDED")])
+        _patch_db_with_user(monkeypatch, [self._sub_doc(fake_user["id"], "monthly", "SUPERSEDED")], fake_user)
         assert _run_async(pt_module._user_plan(fake_user)) == "FREE"
 
     def test_cancelled_sub_is_ignored(self, fake_user, monkeypatch):
-        _patch_db(monkeypatch, [self._sub_doc(fake_user["id"], "monthly", "CANCELLED")])
+        _patch_db_with_user(monkeypatch, [self._sub_doc(fake_user["id"], "monthly", "CANCELLED")], fake_user)
         assert _run_async(pt_module._user_plan(fake_user)) == "FREE"
 
 

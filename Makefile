@@ -45,7 +45,8 @@ BOUNDARY_AUDIT_SUITES := \
 	backend/tests/test_navigation_sink_audit_2026_06.py \
 	backend/tests/test_backend_redirect_sink_audit_2026_06.py \
 	backend/tests/test_premium_subscription_clarity_2026_06.py \
-	backend/tests/test_entitlement_sync_after_webhook_2026_06.py
+	backend/tests/test_entitlement_sync_after_webhook_2026_06.py \
+	backend/tests/test_entitlement_consolidation_2026_06.py
 
 PYTEST := python -m pytest
 

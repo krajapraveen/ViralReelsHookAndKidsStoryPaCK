@@ -337,27 +337,40 @@ async def get_subscription_plans(currency: str = "INR"):
 
 @router.get("/current")
 async def get_current_subscription(user: dict = Depends(get_current_user)):
-    """Get user's current active subscription"""
-    subscription = await db.subscriptions.find_one(
-        {"userId": user["id"], "status": "ACTIVE"},
-        {"_id": 0}
-    )
-    
+    """Get user's current active subscription.
+
+    P0 2026-06 — migrated to canonical entitlement service. Previously
+    queried only `db.subscriptions` with `status="ACTIVE"` (uppercase)
+    — paid users whose record was only in the legacy embedded
+    `users.subscription` field were silently reported as having NO
+    subscription on the Billing page.
+    """
+    from services.entitlement import get_current_subscription as _get_current_sub
+    subscription = await _get_current_sub(user["id"])
+
     if subscription:
-        # Check if expired
-        end_date = datetime.fromisoformat(subscription["endDate"].replace("Z", "+00:00"))
-        if end_date < datetime.now(timezone.utc):
-            # Mark as expired
-            await db.subscriptions.update_one(
-                {"id": subscription["id"]},
-                {"$set": {"status": "EXPIRED", "updatedAt": datetime.now(timezone.utc).isoformat()}}
-            )
-            subscription["status"] = "EXPIRED"
-        
+        # Check if expired (collection rows only — embedded fallback
+        # already filters by endDate in the service).
+        if subscription.get("_source") == "collection":
+            end_iso = subscription.get("endDate")
+            if end_iso:
+                try:
+                    end_date = datetime.fromisoformat(end_iso.replace("Z", "+00:00"))
+                    if end_date < datetime.now(timezone.utc):
+                        await db.subscriptions.update_one(
+                            {"id": subscription["id"]},
+                            {"$set": {"status": "EXPIRED", "updatedAt": datetime.now(timezone.utc).isoformat()}}
+                        )
+                        subscription["status"] = "EXPIRED"
+                except (ValueError, TypeError):
+                    pass
+
         # Add plan details
-        plan = SUBSCRIPTION_PLANS.get(subscription["planId"], {})
+        plan = SUBSCRIPTION_PLANS.get(subscription.get("planId", ""), {})
         subscription["planDetails"] = plan
-    
+        # Strip diagnostic field before returning.
+        subscription.pop("_source", None)
+
     return {"subscription": subscription}
 
 

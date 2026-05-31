@@ -1,6 +1,53 @@
 # Visionary Suite - Changelog
 
 
+## 2026-06 — P0 ENTITLEMENT CONSOLIDATION: Canonical subscription resolver
+
+**Status**: SHIPPED in preview. `make audit-boundaries` green (**636 passing, 1 skipped**). Production redeploy required to unblock krajapraveen@gmail.com **AND** the 3 other gates that were silently misbehaving for paid users.
+
+**Mandate**: Fix entitlement correctness across the whole codebase, not just MyTrailer. Same paid-user-blocked bug class was lurking in `comix_ai.py`, `daily_viral_ideas.py`, and the Billing page's `GET /api/subscriptions/current`.
+
+**Canonical resolver** — `backend/services/entitlement.py` (new helpers appended to existing module):
+- `get_current_subscription(user_id)` — returns the active sub dict from EITHER store
+- `get_user_subscription_tier(user_id)` → `"PREMIUM" | "STANDARD" | "FREE"`
+- `is_premium_user(user_id)` → bool
+- `is_active_subscriber(user_id)` → bool (Standard OR Premium)
+
+Behavior:
+- Reads `db.subscriptions` (canonical) FIRST, falls back to embedded `users.subscription`.
+- Case-insensitive status match (`"ACTIVE"`, `"active"`, `"Active"` all work).
+- Honors `endDate` — expired subs return None even if status says active.
+- Plan-id mapping: `weekly → STANDARD`, `monthly|quarterly|yearly → PREMIUM`, plus legacy back-compat for `premium|pro|unlimited` (pre-2026-06 daily_viral_ideas rows).
+
+**Routes migrated** (5):
+- `routes/photo_trailer.py` — `_user_plan` now delegates to the service.
+- `routes/comix_ai.py` — `is_active_subscriber()` replaces direct `db.subscriptions.find_one`.
+- `routes/daily_viral_ideas.py` — `check_pro_subscription()` now uses `is_premium_user()` (also fixes a `user_id`/`userId` field-name mismatch that existed independently).
+- `routes/subscriptions.py:GET /current` — now uses `get_current_subscription()`, finally honors the embedded fallback so the Billing UI shows correct sub status.
+- `routes/gif_maker.py` — `is_active_subscriber()` for download gate.
+
+**Tests added**: `backend/tests/test_entitlement_consolidation_2026_06.py` — **27 tests** in 5 sections:
+1. Module contract — helpers exist, plan-id sets correct.
+2. Live classification (15 cases): collection ACTIVE/active/Active monthly/quarterly/yearly → PREMIUM; weekly → STANDARD; no sub → FREE; embedded krajapraveen case → PREMIUM; embedded expired → FREE; both sources → collection wins; SUPERSEDED/CANCELLED ignored; legacy plan ids (`pro`/`premium`/`unlimited`) → PREMIUM; shape preservation; empty user_id → None.
+3. **Migration audit — STATIC SCAN forbids new `db.subscriptions.find_one` in any route file.** Allowlist explicit, audited per call site.
+4. Per-route migration verification (5 routes).
+5. Writer-direction sanity — `cashfree_payments.py` still dual-writes both stores.
+
+Plus the older `test_entitlement_sync_after_webhook_2026_06.py` (26 tests) updated to assert delegation rather than inline logic.
+
+**Net result**:
+- Total audit suite: **636 tests** (was 610 before, was 442 at session start)
+- One canonical reader, two stores in sync, zero route-level subscription queries.
+- A new PR cannot reintroduce the bug class without either using the service OR explicitly amending the test allowlist.
+
+**Krajapraveen unblock path**: Once production redeploys, his MyTrailer 90s, daily-viral-ideas pro features, comix download, and Billing sub-status display all start working — without any DB backfill. The embedded `users.subscription` field his account already has becomes the source of truth via the canonical service's fallback.
+
+**Out of scope (intentionally left for separate refactor)**:
+- `routes/subscriptions.py` recurring/CRUD handlers — these operate on specific subscription docs by id/orderId, not for entitlement gating. Allowlisted with justification.
+- `services/cashfree_subscription_service.py` — writer-side reads, not entitlement reads. Allowlisted with justification.
+
+
+
 ## 2026-06 — P0 ENTITLEMENT SYNC: Monthly subscribers gated on MyTrailer 90s
 
 **Status**: SHIPPED in preview. `make audit-boundaries` green (**610 passing, 1 skipped**). **Production deploy REQUIRED to unblock paid users (e.g. krajapraveen@gmail.com).**

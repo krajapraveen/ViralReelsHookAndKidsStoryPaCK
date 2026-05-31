@@ -249,3 +249,151 @@ def get_media_access(user: dict, asset_owner_id: Optional[str] = None) -> dict:
         "plan_type": ent["plan_type"],
         "watermark_text": f"Visionary Suite \u2022 Free Preview \u2022 U:{fingerprint}" if ent["watermark_required"] else None,
     }
+
+
+# ═════════════════════════════════════════════════════════════════════
+# P0 2026-06 — Canonical Subscription-Tier Resolver
+# ═════════════════════════════════════════════════════════════════════
+#
+# This block is the SINGLE SOURCE OF TRUTH for "what tier is this user on?".
+# Every feature gate that checks subscription tier MUST go through one of
+# these helpers. Direct calls to `db.subscriptions.find_one` from a route
+# file are forbidden (audited by tests/test_entitlement_consolidation_2026_06.py).
+#
+# History: before this consolidation, subscription state was scattered:
+#   • embedded `users.subscription`            (written by some webhooks)
+#   • separate `db.subscriptions` collection   (written by others, read by gates)
+# Different routes queried different fields, with different status casing
+# (`ACTIVE` vs `active`), and different plan id sets (`pro`/`premium`/
+# `unlimited` vs `monthly`/`quarterly`/`yearly`). A paid Monthly user was
+# silently gated from 90-second MyTrailer because writer and reader looked
+# at different stores. This module fixes that — readers don't care which
+# store has the data; both are consulted.
+#
+# Plan-id canonical mapping (mirror frontend utils/pricing.js):
+#   weekly                                   → STANDARD
+#   monthly | quarterly | yearly             → PREMIUM
+#   premium | pro | unlimited (legacy)       → PREMIUM (back-compat)
+# ═════════════════════════════════════════════════════════════════════
+SUB_PREMIUM_PLAN_IDS = {
+    "monthly", "quarterly", "yearly",
+    # Legacy back-compat for daily_viral_ideas rows pre-2026-06.
+    "premium", "pro", "unlimited",
+}
+SUB_STANDARD_PLAN_IDS = {"weekly"}
+
+_ACTIVE_STATUS_REGEX = {"$regex": "^active$", "$options": "i"}
+
+
+def _sub_classify_plan(plan_id: Optional[str]) -> str:
+    """Plan id → tier. Returns 'PREMIUM', 'STANDARD', or '' for unknown
+    so callers know to fall through to the next source."""
+    p = (plan_id or "").strip().lower()
+    if not p:
+        return ""
+    if p in SUB_PREMIUM_PLAN_IDS:
+        return "PREMIUM"
+    if p in SUB_STANDARD_PLAN_IDS:
+        return "STANDARD"
+    return ""
+
+
+def _sub_is_active_status(s: Optional[str]) -> bool:
+    return (s or "").strip().lower() == "active"
+
+
+def _sub_end_date_in_future(end_iso: Optional[str]) -> Optional[bool]:
+    """True/False if endDate parseable; None if unparseable (caller
+    should TREAT None as 'trust the status flag')."""
+    if not end_iso:
+        return None
+    try:
+        end_dt = datetime.fromisoformat(str(end_iso).replace("Z", "+00:00"))
+        if end_dt.tzinfo is None:
+            end_dt = end_dt.replace(tzinfo=timezone.utc)
+        return end_dt > datetime.now(timezone.utc)
+    except Exception:
+        return None
+
+
+async def get_current_subscription(user_id: str) -> Optional[dict]:
+    """Return the user's currently-active subscription doc, or None.
+
+    Consults TWO sources:
+      1. `db.subscriptions` collection — canonical (dual-write 2026-06+).
+      2. Embedded `users.subscription` field — legacy back-compat.
+
+    Status is matched case-insensitively. endDate, if present, is
+    honored.
+
+    Embedded matches are reshaped to look like a collection doc so
+    callers don't need to know which source produced the answer.
+    `_source` field is added for diagnostics only.
+    """
+    if not user_id:
+        return None
+
+    # Import here (not at module load) to avoid circular imports — `shared`
+    # itself imports route files which import this module.
+    from shared import db as _db
+
+    # Source 1 — canonical collection.
+    sub = await _db.subscriptions.find_one(
+        {"userId": user_id, "status": _ACTIVE_STATUS_REGEX},
+        {"_id": 0},
+        sort=[("createdAt", -1)],
+    )
+    if sub:
+        end_check = _sub_end_date_in_future(sub.get("endDate"))
+        if end_check is None or end_check is True:
+            sub["_source"] = "collection"
+            return sub
+
+    # Source 2 — embedded fallback.
+    user = await _db.users.find_one(
+        {"id": user_id},
+        {"_id": 0, "subscription": 1},
+    )
+    if not user:
+        return None
+    embedded = user.get("subscription") or {}
+    if _sub_is_active_status(embedded.get("status")):
+        end_check = _sub_end_date_in_future(embedded.get("endDate"))
+        if end_check is None or end_check is True:
+            return {
+                "userId": user_id,
+                "planId": embedded.get("planId"),
+                "planName": embedded.get("planName"),
+                "status": "ACTIVE",
+                "startDate": embedded.get("startDate"),
+                "endDate": embedded.get("endDate"),
+                "orderId": embedded.get("orderId"),
+                "_source": "embedded",
+            }
+
+    return None
+
+
+async def get_user_subscription_tier(user_id: str) -> str:
+    """Return 'PREMIUM' | 'STANDARD' | 'FREE' for the user.
+
+    Pure tier classification — does NOT consider credit balance, ADMIN
+    role, or feature-specific overrides. Callers that need those
+    overrides should layer them on top.
+    """
+    sub = await get_current_subscription(user_id)
+    if not sub:
+        return "FREE"
+    return _sub_classify_plan(sub.get("planId")) or "FREE"
+
+
+async def is_premium_user(user_id: str) -> bool:
+    """Convenience: is this user on a Premium subscription tier?"""
+    return await get_user_subscription_tier(user_id) == "PREMIUM"
+
+
+async def is_active_subscriber(user_id: str) -> bool:
+    """Convenience: does the user have ANY active subscription
+    (Standard or Premium)? Used for download/feature gates that just
+    need to know whether the user is paid."""
+    return (await get_user_subscription_tier(user_id)) in ("STANDARD", "PREMIUM")

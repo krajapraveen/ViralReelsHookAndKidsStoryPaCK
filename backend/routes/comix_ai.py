@@ -840,13 +840,14 @@ async def download_comic(job_id: str, user: dict = Depends(get_current_user)):
     # Check user credits
     current_credits = user.get("credits", 0)
     if current_credits < download_cost:
-        # Check subscription status
-        subscription = await db.subscriptions.find_one(
-            {"userId": user["id"], "status": "ACTIVE"},
-            {"_id": 0}
-        )
-        
-        if subscription:
+        # P0 2026-06 — use canonical entitlement service. Reads both
+        # db.subscriptions AND the legacy embedded users.subscription
+        # field with case-insensitive status — fixes paid users
+        # historically gated out by the split-brain bug.
+        from services.entitlement import is_active_subscriber
+        has_subscription = await is_active_subscriber(user["id"])
+
+        if has_subscription:
             return {
                 "success": False,
                 "error": "INSUFFICIENT_CREDITS",

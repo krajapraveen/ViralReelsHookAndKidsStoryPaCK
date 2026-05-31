@@ -804,12 +804,11 @@ async def download_gif(job_id: str, user: dict = Depends(get_current_user)):
     current_credits = user.get("credits", 0)
     
     if current_credits < download_cost:
-        subscription = await db.subscriptions.find_one(
-            {"userId": user["id"], "status": "ACTIVE"},
-            {"_id": 0}
-        )
-        
-        if subscription:
+        # P0 2026-06 — use canonical entitlement service.
+        from services.entitlement import is_active_subscriber
+        has_sub = await is_active_subscriber(user["id"])
+
+        if has_sub:
             return {
                 "success": False,
                 "error": "INSUFFICIENT_CREDITS",

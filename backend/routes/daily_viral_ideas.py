@@ -199,13 +199,16 @@ async def get_user_free_claim_today(user_id: str) -> bool:
     return claim is not None
 
 async def check_pro_subscription(user: dict) -> bool:
-    """Check if user has Pro subscription"""
-    subscription = await db.subscriptions.find_one({
-        "user_id": str(user["id"]),
-        "status": "active",
-        "plan": {"$in": ["pro", "premium", "unlimited"]}
-    })
-    return subscription is not None
+    """Check if user has Pro/Premium subscription.
+
+    P0 2026-06 — migrated to canonical entitlement service. Previously
+    queried `db.subscriptions` with `user_id` (snake_case, wrong field
+    name) and only checked legacy plan ids (`pro`/`premium`/`unlimited`)
+    — so any user on Monthly/Quarterly/Yearly was silently classified
+    as non-Pro.
+    """
+    from services.entitlement import is_premium_user
+    return await is_premium_user(user["id"])
 
 async def get_daily_ideas(niche: str = None, count: int = 10) -> List[dict]:
     """Get today's viral ideas from DB or defaults"""
