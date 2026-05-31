@@ -181,29 +181,32 @@ class TestFrontendCanonicalPricing(unittest.TestCase):
     def setUp(self):
         self.src = (FRONTEND / "utils" / "pricing.js").read_text()
 
-    def test_weekly_object(self):
-        self.assertIn(
-            "weekly: { price: 299, credits: 40, label: '₹299/week' }",
-            self.src,
+    def _assert_plan_fields(self, plan_id, price, credits, label_fragment):
+        """Assert a plan object contains the canonical price/credits/label
+        invariants. Extra fields (tier, tierLabel, etc.) are allowed."""
+        import re as _re
+        pattern = (
+            rf"{plan_id}\s*:\s*\{{[^}}]*\bprice\s*:\s*{price}\b[^}}]*"
+            rf"\bcredits\s*:\s*{credits}\b[^}}]*"
+            rf"\blabel\s*:\s*['\"][^'\"]*{_re.escape(label_fragment)}[^'\"]*['\"][^}}]*\}}"
         )
+        self.assertRegex(
+            self.src, pattern,
+            f"{plan_id} plan must carry price={price}, credits={credits}, "
+            f"label containing {label_fragment!r} (extra fields like tier/tierLabel are allowed)."
+        )
+
+    def test_weekly_object(self):
+        self._assert_plan_fields("weekly", 299, 40, "₹299/week")
 
     def test_monthly_object(self):
-        self.assertIn(
-            "monthly: { price: 899, credits: 200, label: '₹899/month' }",
-            self.src,
-        )
+        self._assert_plan_fields("monthly", 899, 200, "₹899/month")
 
     def test_quarterly_object(self):
-        self.assertIn(
-            "quarterly: { price: 2499, credits: 750, label: '₹2,499/quarter' }",
-            self.src,
-        )
+        self._assert_plan_fields("quarterly", 2499, 750, "₹2,499/quarter")
 
     def test_yearly_object(self):
-        self.assertIn(
-            "yearly: { price: 5999, credits: 3000, label: '₹5,999/year' }",
-            self.src,
-        )
+        self._assert_plan_fields("yearly", 5999, 3000, "₹5,999/year")
 
     def test_topup_array_entries(self):
         for fragment in (

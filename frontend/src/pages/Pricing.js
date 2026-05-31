@@ -4,7 +4,7 @@ import { Helmet } from 'react-helmet-async';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import { Check, Sparkles, ArrowLeft, Loader2, Zap, Film, Star } from 'lucide-react';
-import { getPricing } from '../utils/pricing';
+import { getPricing, getPlanTier } from '../utils/pricing';
 
 export default function Pricing() {
   const [loading, setLoading] = useState({});
@@ -166,7 +166,21 @@ export default function Pricing() {
                 {plan.badge && !plan.popular && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-500 text-black text-xs font-bold px-4 py-1 rounded-full">{plan.badge}</div>
                 )}
-                <h3 className="text-xl font-bold text-white mb-2">{plan.name}</h3>
+                <h3 className="text-xl font-bold text-white mb-1">{plan.name}</h3>
+                {/* P0 2026-06 — canonical tier label so users always know
+                    which subscription is Premium. */}
+                {(() => {
+                  const t = getPlanTier(plan.id);
+                  const isPrem = t.tier === 'Premium';
+                  return (
+                    <p
+                      className={`text-[11px] uppercase tracking-widest font-bold mb-2 ${isPrem ? 'text-amber-300' : 'text-slate-400'}`}
+                      data-testid={`plan-${plan.id}-tier-label`}
+                    >
+                      {t.tierLabel}
+                    </p>
+                  );
+                })()}
                 <div className="flex items-baseline gap-1 mb-1">
                   <span className="text-3xl font-black text-white">{plan.price}</span>
                   <span className="text-slate-400 text-sm">{plan.priceNote}</span>

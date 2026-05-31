@@ -3,6 +3,7 @@ import { Button } from './ui/button';
 import { trackFunnel } from '../utils/funnelTracker';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import { getPlanTier } from '../utils/pricing';
 import {
   Sparkles, X, Crown, Check, Zap, Lock, ArrowRight, Loader2
 } from 'lucide-react';
@@ -216,6 +217,21 @@ export function UpgradeModal({ open, isOpen, onClose, reason, context, triggerSo
                       )}
 
                       <p className="text-xs text-slate-400 font-medium mb-1">{uiLabel}</p>
+                      {/* P0 2026-06 — canonical tier label. The id on the
+                          plan may be 'monthly'/'quarterly'/etc OR a period
+                          field; cover both via getPlanTier. */}
+                      {(() => {
+                        const t = getPlanTier(plan.id || plan.period);
+                        const isPrem = t.tier === 'Premium';
+                        return (
+                          <p
+                            className={`text-[10px] uppercase tracking-widest font-bold mb-2 ${isPrem ? 'text-amber-300' : 'text-slate-500'}`}
+                            data-testid={`paywall-plan-${plan.id}-tier-label`}
+                          >
+                            {t.tierLabel}
+                          </p>
+                        );
+                      })()}
                       <div className="flex items-baseline gap-1 mb-2">
                         <span className="text-2xl font-bold text-white">{plan.price_inr}</span>
                         <span className="text-[10px] text-slate-500">INR</span>

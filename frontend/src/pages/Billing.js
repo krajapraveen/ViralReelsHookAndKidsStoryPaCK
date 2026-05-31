@@ -4,6 +4,7 @@ import { Button } from '../components/ui/button';
 import { Coins, Sparkles, Check, Star, Zap, ArrowLeft, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import api, { paymentAPI, creditAPI } from '../utils/api';
+import { getPlanTier } from '../utils/pricing';
 import HelpGuide from '../components/HelpGuide';
 import analytics from '../utils/analytics';
 import { trackFunnel } from '../utils/funnelTracker';
@@ -473,7 +474,21 @@ export default function Billing() {
                     <Zap className="w-3 h-3" /> Best
                   </div>
                 )}
-                <h3 className="text-lg font-bold mb-2 text-white">{product.name}</h3>
+                <h3 className="text-lg font-bold mb-1 text-white">{product.name}</h3>
+                {/* P0 2026-06 — canonical tier label so users know which
+                    plans are Premium subscriptions. */}
+                {(() => {
+                  const t = getPlanTier(product.id);
+                  const isPrem = t.tier === 'Premium';
+                  return (
+                    <p
+                      className={`text-[10px] uppercase tracking-widest font-bold mb-2 ${isPrem ? 'text-amber-300' : 'text-slate-400'}`}
+                      data-testid={`buy-${product.id}-tier-label`}
+                    >
+                      {t.tierLabel}
+                    </p>
+                  );
+                })()}
                 <div className="flex items-baseline gap-1 mb-3">
                   <span className="text-2xl font-bold text-white">₹{product.displayPrice || product.price}</span>
                   <span className="text-slate-400 text-sm">{getIntervalLabel(product.interval)}</span>

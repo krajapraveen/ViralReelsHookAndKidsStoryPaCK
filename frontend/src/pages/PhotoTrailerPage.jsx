@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { trackFunnel } from '../utils/funnelTracker';
+import { PREMIUM_PLAN_NAMES } from '../utils/pricing';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 const MAX_PHOTOS = 10;
@@ -1318,7 +1319,8 @@ function deriveStartError(resp, parsedBody, thrown) {
 function PaywallModal({ paywall, onClose, onUpgrade }) {
   if (!paywall) return null;
   const tier = (paywall.required_plan || 'PREMIUM').toUpperCase();
-  const benefits = tier === 'PREMIUM' ? [
+  const isPremium = tier === 'PREMIUM';
+  const benefits = isPremium ? [
     { icon: Crown, label: 'Up to 90-second cinematic trailers' },
     { icon: Sparkles, label: 'Priority queue — your job runs first' },
     { icon: Film, label: 'Vertical 9:16 + widescreen, every time' },
@@ -1329,9 +1331,20 @@ function PaywallModal({ paywall, onClose, onUpgrade }) {
     { icon: CheckCircle2, label: 'Unlimited monthly trailers' },
   ];
   const dur = paywall.duration_seconds;
+  // P0 2026-06 UX clarity — name the eligible subscription tier
+  // explicitly and disambiguate against the credit-economy mental
+  // model. Subscription unlocks the feature; credits pay for usage.
+  const subscriptionWord = isPremium ? 'Premium Subscription' : 'Standard Plan';
   const headline = paywall.quota_exhausted
     ? 'You\'ve used your free trailers this month'
-    : (dur ? `${dur}-second trailers need ${tier}` : `Upgrade to ${tier}`);
+    : (dur
+        ? `${dur}-second trailers require a ${subscriptionWord}`
+        : `Upgrade to a ${subscriptionWord}`);
+  const subtext = paywall.quota_exhausted
+    ? 'Upgrade for unlimited trailers and longer durations.'
+    : (isPremium
+        ? `Choose ${PREMIUM_PLAN_NAMES} to unlock ${dur || 90}-second trailers. Credits are still used when you generate.`
+        : 'Choose any subscription plan to unlock longer trailers. Credits are still used when you generate.');
 
   return (
     <div
@@ -1353,14 +1366,19 @@ function PaywallModal({ paywall, onClose, onUpgrade }) {
         </button>
         <div className="flex items-center gap-2 mb-2">
           <Crown className="w-6 h-6 text-amber-300" />
-          <p className="text-[11px] uppercase tracking-widest text-amber-300 font-bold">{tier}</p>
+          <p className="text-[11px] uppercase tracking-widest text-amber-300 font-bold">{subscriptionWord}</p>
         </div>
         <h2 className="text-2xl font-bold text-white leading-tight" data-testid="trailer-paywall-headline">
           {headline}
         </h2>
-        <p className="text-sm text-slate-400 mt-2">
-          {paywall.message || 'Unlock longer, higher-impact trailers and skip the queue.'}
+        <p className="text-sm text-slate-400 mt-2" data-testid="trailer-paywall-subtext">
+          {subtext}
         </p>
+        {paywall.message && (
+          <p className="text-xs text-slate-500 mt-2">
+            {paywall.message}
+          </p>
+        )}
         <ul className="mt-5 space-y-2.5">
           {benefits.map((b, i) => (
             <li key={i} className="flex items-start gap-3 text-sm text-slate-200">
@@ -1592,17 +1610,13 @@ export default function PhotoTrailerPage() {
     // we already know the answer.
     if (userPlan && userPlan.max_duration_seconds && duration > userPlan.max_duration_seconds) {
       const reqPlan = duration >= 90 ? 'PREMIUM' : 'PAID';
-      // P0 2026-06 UX — explicit "credits alone won't unlock this"
-      // disambiguation. The hybrid pricing model gates 90s on
-      // subscription tier (not credit balance), and users with
-      // healthy credit balances were confused by the generic
-      // "requires the PREMIUM plan" copy.
-      const subWord = reqPlan === 'PREMIUM' ? 'subscription' : 'plan';
+      // P0 2026-06 UX — the modal renders its own canonical subtext
+      // from required_plan + duration_seconds. We don't pass a custom
+      // message here so the canonical copy isn't overridden.
       setPaywall({
         current_plan: userPlan.plan,
         required_plan: reqPlan,
         duration_seconds: duration,
-        message: `${duration}-second trailers require a ${reqPlan} ${subWord}. Credits alone do not unlock this feature.`,
       });
       try { trackFunnel('photo_trailer_paywall_shown', { meta: { duration, current_plan: userPlan.plan } }); } catch {}
       return;

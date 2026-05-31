@@ -7,10 +7,10 @@ const PRICING = {
   INR: {
     symbol: '₹',
     code: 'INR',
-    weekly: { price: 299, credits: 40, label: '₹299/week' },
-    monthly: { price: 899, credits: 200, label: '₹899/month' },
-    quarterly: { price: 2499, credits: 750, label: '₹2,499/quarter' },
-    yearly: { price: 5999, credits: 3000, label: '₹5,999/year' },
+    weekly:    { price: 299,  credits: 40,   label: '₹299/week',     tier: 'Standard', tierLabel: 'Standard Plan' },
+    monthly:   { price: 899,  credits: 200,  label: '₹899/month',    tier: 'Premium',  tierLabel: 'Premium Subscription' },
+    quarterly: { price: 2499, credits: 750,  label: '₹2,499/quarter',tier: 'Premium',  tierLabel: 'Premium Subscription' },
+    yearly:    { price: 5999, credits: 3000, label: '₹5,999/year',   tier: 'Premium',  tierLabel: 'Premium Subscription' },
     topups: [
       { id: 'topup_40', price: 200, credits: 60, label: '₹200' },
       { id: 'topup_120', price: 350, credits: 150, label: '₹350' },
@@ -21,6 +21,39 @@ const PRICING = {
     subscribeDesc: '200 credits/mo + priority generation + HD downloads',
   },
 };
+
+// ─── Plan tier canonical helpers (P0 2026-06 entitlement clarity) ───
+// Founder spec (visionary-suite, 2026-06):
+//   Weekly    → Standard Plan
+//   Monthly   → Premium Subscription
+//   Quarterly → Premium Subscription
+//   Yearly    → Premium Subscription
+// 90-second trailers require Premium. 60-second trailers unlock via
+// any active sub OR ≥35 credit balance. Used everywhere the UI talks
+// about plan tiers so the answer to "which subscription is Premium?"
+// is always consistent.
+const PLAN_TIERS = {
+  weekly:    { tier: 'Standard', tierLabel: 'Standard Plan' },
+  monthly:   { tier: 'Premium',  tierLabel: 'Premium Subscription' },
+  quarterly: { tier: 'Premium',  tierLabel: 'Premium Subscription' },
+  yearly:    { tier: 'Premium',  tierLabel: 'Premium Subscription' },
+};
+
+/** Eligible plan ids for a tier (used by paywall copy). */
+export const PREMIUM_PLAN_IDS = ['monthly', 'quarterly', 'yearly'];
+
+/** Human-readable list of Premium-eligible plans for the paywall. */
+export const PREMIUM_PLAN_NAMES = 'Monthly, Quarterly, or Yearly';
+
+/** Get the tier label for a plan id. Defaults to `Standard Plan`. */
+export function getPlanTier(planId) {
+  return PLAN_TIERS[(planId || '').toLowerCase()] || { tier: 'Standard', tierLabel: 'Standard Plan' };
+}
+
+/** Is the given plan id a Premium subscription? */
+export function isPremiumPlan(planId) {
+  return getPlanTier(planId).tier === 'Premium';
+}
 
 export function getCurrency() {
   return 'INR';

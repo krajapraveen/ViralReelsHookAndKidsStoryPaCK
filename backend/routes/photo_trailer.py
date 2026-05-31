@@ -419,12 +419,18 @@ async def create_job(body: JobCreateIn, bg: BackgroundTasks, user: dict = Depend
         raise HTTPException(status_code=402, detail={
             "code": "UPGRADE_REQUIRED",
             # P0 2026-06 UX — disambiguate against the credit-economy mental
-            # model. Users with healthy credit balances were confused why
-            # they were still gated. Spell out: credits alone don't unlock.
+            # model. Subscription unlocks the feature; credits pay for
+            # usage. Premium-eligible plans named explicitly so users know
+            # which sub to pick.
             "message": (
                 f"{body.duration_target_seconds}-second trailers require a "
-                f"{required} {'subscription' if required == 'PREMIUM' else 'plan'}. "
-                f"Credits alone do not unlock this feature."
+                f"{'Premium Subscription' if required == 'PREMIUM' else 'Standard Plan'}. "
+                + (
+                    "Choose Monthly, Quarterly, or Yearly to unlock 90-second trailers. "
+                    "Credits are still used when you generate."
+                    if required == "PREMIUM"
+                    else "Choose any subscription plan, or hold ≥35 credits, to unlock 60-second trailers."
+                )
             ),
             "current_plan": plan,
             "required_plan": required,
