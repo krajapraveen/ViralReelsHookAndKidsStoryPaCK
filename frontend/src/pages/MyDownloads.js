@@ -63,7 +63,13 @@ export default function MyDownloads() {
     try {
       const res = await api.get(`/api/downloads/${item.id}/url`);
       if (res.data.url) {
-        window.open(res.data.url, '_blank');
+        // P0 2026-06 SECURITY — INTENTIONAL external navigation:
+        // `res.data.url` is a SHORT-LIVED SIGNED CDN URL (Cloudflare R2)
+        // issued by our own backend for the user's own file. Opening in
+        // `_blank` keeps the user's session in this tab. This is the
+        // ONLY way to deliver large media assets; sanitizing here would
+        // break downloads. Audited 2026-06.
+        window.open(res.data.url, '_blank', 'noopener,noreferrer');
         toast.success('Download started!');
         await api.post(`/api/downloads/${item.id}/mark-downloaded`).catch(() => {});
         fetchDownloads();

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import { safeRedirectPath } from '../utils/safeRedirect';
 
 // Template Icons Map
 const templateIcons = {
@@ -387,7 +388,10 @@ export function WaitingGames({ jobId, onVideoReady }) {
             </div>
             {videoStatus.is_ready && (
               <Button 
-                onClick={() => window.location.href = videoStatus.redirect_to}
+                /* P0 2026-06 SECURITY — backend-provided redirect_to must
+                   be sanitized to prevent open-redirect via tampered or
+                   malicious job records. */
+                onClick={() => { window.location.href = safeRedirectPath(videoStatus.redirect_to); }}
                 className="bg-green-500 hover:bg-green-600"
               >
                 View Video

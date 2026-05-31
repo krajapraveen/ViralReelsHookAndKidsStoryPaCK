@@ -16,6 +16,12 @@
  * has definitively failed.
  *
  * NEVER imports anything else (must be cheap + circular-safe with api.js).
+ *
+ * P0 2026-06 SECURITY — `consumePendingLogin()` returns a SELF-BUILT
+ * `/login?next=${encodeURIComponent(returnPath)}` URL. The base path is a
+ * hardcoded literal; `returnPath` is the current page's own pathname (not
+ * user-supplied). Login.js sanitizes the next param on consume via
+ * safeRedirectPath, so the end-to-end chain is safe.
  */
 
 let activeCount = 0;

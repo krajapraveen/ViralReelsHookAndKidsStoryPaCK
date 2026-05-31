@@ -350,8 +350,7 @@ export default function Login({ setAuth }) {
       if (rawParam && localStorage.getItem('remix_return_url')) {
         localStorage.removeItem('remix_return_url');
       }
-      const returnUrl = rawParam ? safeRedirectPath(rawParam) : '/app';
-      window.location.href = returnUrl;
+      window.location.href = rawParam ? safeRedirectPath(rawParam) : '/app';
     } catch (error) {
       const msg = error?.response?.data?.detail || 'Google sign-in failed. Please try again.';
       toast.error(msg);

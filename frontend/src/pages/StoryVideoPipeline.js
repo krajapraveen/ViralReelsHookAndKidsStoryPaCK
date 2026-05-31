@@ -1802,6 +1802,11 @@ function InputPhase({ options, title, setTitle, storyText, setStoryText,
                   <div className="flex gap-1.5 flex-shrink-0">
                     <RetryButton jobId={fj.job_id} onRetryStarted={() => { window.location.reload(); }} />
                     <button
+                      /* P0 2026-06 SECURITY — self-built path: hardcoded
+                         `/app/my-space` base + backend-issued job_id used
+                         only as a QUERY VALUE (not as the redirect target).
+                         The job_id is a UUID-shaped string written by our
+                         own backend. No user-controlled redirect input. */
                       onClick={() => window.location.href = `/app/my-space?projectId=${fj.job_id}`}
                       className="h-7 px-2 text-[11px] rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
                       data-testid={`view-failed-${fj.job_id}`}
@@ -2595,6 +2600,9 @@ function PostGenPhase({ postGen, job, jobId, onNew, onResume, onRetryValidation,
     // Force a HARD navigation so the editor re-mounts and reads the new
     // remix_video payload from localStorage.
     const samePathname = window.location.pathname === '/app/story-video-studio';
+    // P0 2026-06 SECURITY — self-built path: `target` is composed from a
+    // hardcoded `/app/story-video-studio` base + query-only interpolation of
+    // a backend-issued job id (`jid`). Not a user-controlled redirect target.
     const target = `/app/story-video-studio?remix=continue&continue_from=${encodeURIComponent(jid)}&t=${Date.now()}`;
     if (samePathname) {
       window.location.href = target;

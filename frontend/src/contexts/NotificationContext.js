@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import { safeRedirectPath } from '../utils/safeRedirect';
 
 // Notification types
 const NOTIFICATION_TYPES = {
@@ -163,7 +164,9 @@ export function NotificationProvider({ children }) {
         description: notification.message,
         action: notification.actionUrl ? {
           label: 'View',
-          onClick: () => window.location.href = notification.actionUrl
+          // P0 2026-06 SECURITY — actionUrl is backend-provided and could
+          // be tampered or future-poisoned. Sanitize against open-redirect.
+          onClick: () => { window.location.href = safeRedirectPath(notification.actionUrl); }
         } : undefined
       });
     }

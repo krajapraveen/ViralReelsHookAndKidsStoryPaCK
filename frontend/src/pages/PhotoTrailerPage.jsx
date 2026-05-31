@@ -990,6 +990,10 @@ function ResultStep({ job, onCreateAnother, onBackToWizard }) {
         // 2. Hard fallback for older Safari / very locked-down WebKit:
         //    just navigate the current tab to the signed URL. Browser will
         //    serve it inline thanks to the backend's Content-Disposition.
+        // P0 2026-06 SECURITY — INTENTIONAL external navigation:
+        // `url` is a SHORT-LIVED SIGNED URL from our own backend
+        // (`/api/photo-trailer/download/...`). Sanitizing here would
+        // break the download path for Safari. Audited 2026-06.
         toast.success('Opening file…', { id: prepToast });
         window.location.href = url;
       }

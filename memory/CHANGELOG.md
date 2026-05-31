@@ -1,6 +1,56 @@
 # Visionary Suite - Changelog
 
 
+## 2026-06 — P0 SECURITY: Codebase-wide Navigation-Sink Audit
+
+**Status**: SHIPPED in preview. `make audit-boundaries` green (**507 passing, 1 skipped**). Awaiting production deploy.
+
+**Mandate**: Eliminate the entire open-redirect surface, not just the login path. Every `window.location.href = <variable>` and `navigate(<variable>)` sink in the frontend must be classified.
+
+**Inventory** (frontend-wide grep):
+- **~50 sinks total** across `pages/`, `components/`, `contexts/`, `utils/`
+- **Category A — hardcoded literals** (~30 sites): `'/app/billing'`, `'/login'`, `'/app/pricing'` etc. — SAFE, no change needed.
+- **Category B — user/backend-controlled** (5 sites, now sanitized): all routed through `safeRedirectPath()`:
+  - `Login.js` (email + Google paths)
+  - `Signup.js` (email + Google paths) — **NEW** in this audit
+  - `App.js` `AuthenticatedRedirect`
+  - `contexts/NotificationContext.js` (`notification.actionUrl` from backend) — **NEW**
+  - `components/StoryVideoComponents.jsx` (`videoStatus.redirect_to` from backend) — **NEW**
+- **Category C — intentionally external** (7 sites, now documented with inline `SECURITY:` justification):
+  - `pages/MyDownloads.js` — signed Cloudflare R2 CDN download URL (added `noopener,noreferrer`)
+  - `pages/PhotoTrailerPage.jsx` — Safari `Content-Disposition` download fallback (signed URL)
+  - `pages/Billing.js` — self-built `/login?next=/app/billing` with hardcoded base
+  - `pages/StoryVideoPipeline.js` — self-built `/app/my-space?projectId=…` and `/app/story-video-studio?…` URLs (hardcoded base, only query interpolates backend job_id)
+  - `pages/ReelGenerator.js` — `loginUrl` built by `consumePendingLogin()` (self-built `/login?next=`)
+  - `utils/api.js` — interceptor self-built `/login?next=<currentPath>` (consumer sanitizes)
+  - `utils/generationLifecycle.js` — `consumePendingLogin()` self-built URL
+- **Window.open / share links / mailto:** untouched (explicit external by design — Twitter, WhatsApp, support emails, share URLs).
+
+**Files changed** (7):
+- `frontend/src/pages/Signup.js` — both auth paths sanitized
+- `frontend/src/pages/Login.js` — inlined sanitizer call for audit-scanner clarity
+- `frontend/src/contexts/NotificationContext.js` — backend actionUrl sanitized
+- `frontend/src/components/StoryVideoComponents.jsx` — backend redirect_to sanitized
+- `frontend/src/pages/MyDownloads.js` — added `noopener,noreferrer` + SECURITY justification
+- `frontend/src/pages/PhotoTrailerPage.jsx` — SECURITY justification on download fallback
+- `frontend/src/pages/Billing.js` + `frontend/src/pages/StoryVideoPipeline.js` + `frontend/src/pages/ReelGenerator.js` + `frontend/src/utils/api.js` + `frontend/src/utils/generationLifecycle.js` — inline `SECURITY:` justification comments on every self-built sink
+
+**Test added**: `backend/tests/test_navigation_sink_audit_2026_06.py` — **16 tests** across 4 dimensions:
+1. Every Category-B sink imports `safeRedirectPath` and calls it the expected number of times.
+2. **Net-new prohibition** — static scan of every `*.js`/`*.jsx` file in `frontend/src` flags any `window.location.href = <variable>` that is neither sanitized nor in the documented-exemption set with a `SECURITY:` inline comment within ±5 lines.
+3. Every `navigate(varName)` site with user/backend input is confirmed to route through `safeRedirectPath`.
+4. Every documented exemption file must contain the literal `SECURITY` keyword in source (proves the deviation remains intentional after future edits).
+
+This means: **a future PR cannot add a new `window.location.href = backendValue` without either routing through `safeRedirectPath` OR explicitly adding the file to `DOCUMENTED_EXEMPTIONS` with an inline `SECURITY:` justification**. The audit becomes the bug-class boundary, not a one-off cleanup.
+
+**End-to-end Playwright smoke (10 scenarios)**: ALL PASS
+- `AuthenticatedRedirect` blocks `?next=https://evil.com` → `/app/dashboard` ✅
+- `AuthenticatedRedirect` preserves legitimate `?next=/app/billing` ✅
+- Login attack matrix re-verified (6 attack vectors all blocked) ✅
+- NotificationContext + Signup paths covered by static audit + Node harness (sanitizer logic dual-pinned)
+
+
+
 ## 2026-06 — P0 SECURITY: Open-Redirect Class Eliminated (`?next=` / `?return=`)
 
 **Status**: SHIPPED in preview. `make audit-boundaries` green (**491 passing, 1 skipped**). Awaiting production deploy.

@@ -722,9 +722,16 @@ export default function ReelGenerator() {
           if (loginUrl) {
             // Give the reward UI two frames to mount before the redirect,
             // so the user at least registers that the result existed.
+            // P0 2026-06 SECURITY — `loginUrl` is built by
+            // generationLifecycle.consumePendingLogin() which returns a
+            // self-built `/login?next=` URL (hardcoded base + the
+            // deferred returnPath that originated from our own
+            // window.location.pathname). Login.js then sanitizes the
+            // next param via safeRedirectPath. No user-controlled input.
             setTimeout(() => {
               localStorage.removeItem('token');
               localStorage.removeItem('user');
+              // SECURITY: loginUrl built by consumePendingLogin (self-built).
               window.location.href = loginUrl;
             }, 1500);
           }

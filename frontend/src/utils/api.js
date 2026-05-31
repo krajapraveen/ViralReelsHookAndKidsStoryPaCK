@@ -184,9 +184,15 @@ api.interceptors.response.use(
         // this change is backwards-compatible. Unifying on `next=`
         // here prevents a race where one redirect uses `return=` and
         // another (page-owned) uses `next=`.
+        // P0 2026-06 SECURITY — `loginUrl` is SELF-BUILT from a hardcoded
+        // `/login?next=` base + encodeURIComponent of the current page's
+        // own pathname+search (NOT user-supplied). Login.js sanitizes the
+        // next param on consume via safeRedirectPath, so the end-to-end
+        // chain is safe even if currentPath were ever tampered.
         const loginUrl = returnPath && returnPath !== '/' && returnPath !== '/login'
           ? `/login?next=${encodeURIComponent(returnPath)}`
           : '/login';
+        // SECURITY: loginUrl self-built; consumer sanitizes next param.
         window.location.href = loginUrl;
       }
     }

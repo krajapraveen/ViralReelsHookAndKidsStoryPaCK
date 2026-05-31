@@ -55,6 +55,9 @@ export default function Billing() {
         // Live session is dead. Wipe local cache so the next render
         // doesn't see a phantom "logged-in" state, and route to login
         // with the canonical return-path.
+        // P0 2026-06 SECURITY — self-built `/login?next=` URL with
+        // hardcoded `/app/billing` literal. No user input on the
+        // redirect target.
         try {
           localStorage.removeItem('token');
           localStorage.removeItem('user');

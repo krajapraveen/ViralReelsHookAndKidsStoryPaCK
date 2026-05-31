@@ -12,6 +12,7 @@ import { useRecaptcha } from '../hooks/useRecaptcha';
 import { trackSignupCompleted, linkSessionToUser } from '../utils/growthAnalytics';
 import { trackConversion } from '../lib/abTesting';
 import { useGoogleLogin } from '@react-oauth/google';
+import { safeRedirectPath } from '../utils/safeRedirect';
 
 export default function Signup({ setAuth }) {
   const [name, setName] = useState('');
@@ -303,10 +304,11 @@ export default function Signup({ setAuth }) {
       
       // Onboarding: redirect to Story→Video studio if user came from a prompt
       const onboardingPrompt = localStorage.getItem('onboarding_prompt');
-      const returnUrl = localStorage.getItem('remix_return_url');
-      if (returnUrl) {
+      // P0 2026-06 SECURITY — sanitize against open-redirect attacks.
+      const rawReturn = localStorage.getItem('remix_return_url');
+      if (rawReturn) {
         localStorage.removeItem('remix_return_url');
-        navigate(returnUrl, { replace: true });
+        navigate(safeRedirectPath(rawReturn), { replace: true });
       } else if (onboardingPrompt) {
         navigate('/app/story-video-studio', { replace: true });
       } else {
@@ -369,15 +371,15 @@ export default function Signup({ setAuth }) {
       setAuth(true);
       const firstName = user?.name?.split(' ')[0] || 'there';
       toast.success(`Welcome, ${firstName}!`);
-      const returnUrl = localStorage.getItem('auth_return_path')
-        || localStorage.getItem('remix_return_url');
-      if (returnUrl) {
+      // P0 2026-06 SECURITY — sanitize against open-redirect attacks.
+      const rawReturn =
+        localStorage.getItem('auth_return_path') ||
+        localStorage.getItem('remix_return_url');
+      if (rawReturn) {
         localStorage.removeItem('auth_return_path');
         localStorage.removeItem('remix_return_url');
-        window.location.href = returnUrl;
-      } else {
-        window.location.href = '/app';
       }
+      window.location.href = rawReturn ? safeRedirectPath(rawReturn) : '/app';
     } catch (error) {
       const msg = error?.response?.data?.detail || 'Google sign-up failed. Please try again.';
       toast.error(msg);
