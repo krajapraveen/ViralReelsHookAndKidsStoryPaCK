@@ -555,14 +555,20 @@ export default function ProgressiveGeneration({
 
       {/* ═══ SAFE LEAVE + NOTIFY ═══ */}
       {!isDone && (
-        <div className="bg-slate-800/30 rounded-xl border border-slate-700/30 p-4 flex items-center justify-between" data-testid="safe-leave-section">
-          <div className="flex items-center gap-3">
+        <div className="bg-slate-800/30 rounded-xl border border-slate-700/30 p-4 flex items-center justify-between gap-3" data-testid="safe-leave-section">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
               <Shield className="w-4 h-4 text-blue-400" />
             </div>
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="text-slate-200 text-sm font-medium">You can safely leave this page</p>
-              <p className="text-slate-400 text-xs">Your video will keep generating. We'll notify you when it's ready.</p>
+              {/* P1 2026-06 UX — exact founder-spec copy with canonical → arrow.
+                  `break-words` prevents overflow on narrow viewports; the
+                  `whitespace-nowrap` keeps "Profile → My Space" intact. */}
+              <p className="text-slate-400 text-xs break-words">
+                Your video will keep generating. We will notify you when it&apos;s ready. The generated video will be saved in your{' '}
+                <span className="whitespace-nowrap">Profile → My Space</span>.
+              </p>
             </div>
           </div>
           {!notifySubscribed ? (
