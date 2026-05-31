@@ -15,7 +15,7 @@ SUBSCRIPTION_PLANS = {
         "name": "Weekly Plan",
         "period": "weekly",
         "duration_days": 7,
-        "price_inr": 699,
+        "price_inr": 299,
         "credits": 40,
         "features": [
             "40 credits",
@@ -37,14 +37,14 @@ SUBSCRIPTION_PLANS = {
             "Priority generation",
             "HD downloads",
         ],
-        "badge": "POPULAR",
+        "badge": "MOST POPULAR",
     },
     "quarterly": {
         "id": "quarterly",
         "name": "Quarterly Plan",
         "period": "quarterly",
         "duration_days": 90,
-        "price_inr": 3999,
+        "price_inr": 2999,
         "credits": 750,
         "features": [
             "750 credits",
@@ -52,7 +52,7 @@ SUBSCRIPTION_PLANS = {
             "Bonus styles / packs",
             "All core tools unlocked",
         ],
-        "badge": "BEST VALUE",
+        "badge": None,
     },
     "yearly": {
         "id": "yearly",
@@ -65,10 +65,9 @@ SUBSCRIPTION_PLANS = {
             "3,000 credits",
             "Highest priority",
             "Early feature access",
-            "Best value",
             "All core tools unlocked",
         ],
-        "badge": "BEST DEAL",
+        "badge": "BEST VALUE",
     },
 }
 
@@ -107,7 +106,7 @@ TOPUP_PACKS = {
         "id": "topup_700",
         "name": "800 Credits",
         "credits": 800,
-        "price_inr": 1999,
+        "price_inr": 1299,
         "popular": False,
     },
 }

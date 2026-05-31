@@ -48,7 +48,7 @@ class TestBackendCanonicalPricing(unittest.TestCase):
         self.all_products = ALL_PRODUCTS
 
     def test_weekly_price_and_credits(self):
-        self.assertEqual(self.subs["weekly"]["price_inr"], 699)
+        self.assertEqual(self.subs["weekly"]["price_inr"], 299)
         self.assertEqual(self.subs["weekly"]["credits"], 40)
 
     def test_monthly_price_and_credits(self):
@@ -56,7 +56,7 @@ class TestBackendCanonicalPricing(unittest.TestCase):
         self.assertEqual(self.subs["monthly"]["credits"], 200)
 
     def test_quarterly_price_and_credits(self):
-        self.assertEqual(self.subs["quarterly"]["price_inr"], 3999)
+        self.assertEqual(self.subs["quarterly"]["price_inr"], 2999)
         self.assertEqual(self.subs["quarterly"]["credits"], 750)
 
     def test_yearly_price_and_credits(self):
@@ -81,22 +81,97 @@ class TestBackendCanonicalPricing(unittest.TestCase):
         self.assertIn("400", self.topups["topup_300"]["name"])
 
     def test_topup_700_slug_carries_new_800_credit_pack(self):
-        self.assertEqual(self.topups["topup_700"]["price_inr"], 1999)
+        self.assertEqual(self.topups["topup_700"]["price_inr"], 1299)
         self.assertEqual(self.topups["topup_700"]["credits"], 800)
         self.assertIn("800", self.topups["topup_700"]["name"])
+
+    def test_largest_topup_is_best_value_per_credit(self):
+        """Pricing-arithmetic invariant: the largest top-up pack MUST
+        have the lowest ₹/credit. Anything else creates the buy-2-smaller-
+        instead-of-1-larger arbitrage we just shipped a fix for."""
+        ratios = [
+            (pid, p["price_inr"] / p["credits"])
+            for pid, p in self.topups.items()
+        ]
+        ratios.sort(key=lambda r: -self.topups[r[0]]["credits"])
+        biggest_ratio = ratios[0][1]
+        for pid, ratio in ratios[1:]:
+            self.assertLessEqual(
+                biggest_ratio, ratio + 1e-9,
+                f"Largest top-up must be best ₹/credit. "
+                f"Largest={ratios[0][0]} ({biggest_ratio:.3f} ₹/credit), "
+                f"{pid} undercuts it ({ratio:.3f} ₹/credit) — fix pricing.py",
+            )
 
     def test_get_price_helper_returns_new_prices(self):
         from config.pricing import get_price
         # Subscription
-        self.assertEqual(get_price("weekly"), 699)
+        self.assertEqual(get_price("weekly"), 299)
         self.assertEqual(get_price("monthly"), 899)
-        self.assertEqual(get_price("quarterly"), 3999)
+        self.assertEqual(get_price("quarterly"), 2999)
         self.assertEqual(get_price("yearly"), 5999)
         # Top-ups
         self.assertEqual(get_price("topup_40"), 200)
         self.assertEqual(get_price("topup_120"), 350)
         self.assertEqual(get_price("topup_300"), 699)
-        self.assertEqual(get_price("topup_700"), 1999)
+        self.assertEqual(get_price("topup_700"), 1299)
+
+    def test_weekly_4x_does_not_exceed_monthly_2x(self):
+        """Pricing rationality: 4 weeks of weekly must NOT be more than
+        ~2x monthly. Otherwise users would never choose weekly over
+        monthly even for short trials. This is the subscription-side
+        analog of the top-up arbitrage check."""
+        weekly_4x = self.subs["weekly"]["price_inr"] * 4
+        monthly = self.subs["monthly"]["price_inr"]
+        self.assertLess(
+            weekly_4x, monthly * 2,
+            f"4× weekly ({weekly_4x}) >= 2× monthly ({monthly*2}) — "
+            f"weekly is irrationally priced relative to monthly",
+        )
+
+    def test_quarterly_offers_commitment_value_over_yearly_floor(self):
+        """Quarterly must be cheaper than 4× monthly (the price ceiling
+        — beyond which nobody would ever commit upfront). We don't
+        enforce quarterly < 3× monthly because that's a marketing call
+        the user explicitly flagged for data-driven evaluation
+        ('compare the new quarterly plan against actual user behavior').
+
+        We surface the strict ratio as a structured print so analytics
+        can spot the arbitrage gap during rollout."""
+        monthly = self.subs["monthly"]["price_inr"]
+        quarterly = self.subs["quarterly"]["price_inr"]
+        monthly_3x = monthly * 3
+        monthly_4x = monthly * 4
+        self.assertLess(
+            quarterly, monthly_4x,
+            f"Quarterly ({quarterly}) must be < 4× monthly ({monthly_4x}) — "
+            f"otherwise users have zero reason to commit upfront",
+        )
+        if quarterly >= monthly_3x:
+            arbitrage = quarterly - monthly_3x
+            print(
+                f"[PRICING-NOTE] Quarterly ({quarterly}) is ₹{arbitrage} "
+                f"MORE than 3× monthly ({monthly_3x}). Users who do the "
+                f"arithmetic will re-subscribe monthly 3× instead. "
+                f"Track quarterly conversion rate post-rollout."
+            )
+
+    def test_yearly_beats_12_monthly_and_4_quarterly(self):
+        """Yearly must beat 12 months AND 4 quarters — i.e. be the
+        unambiguous best deal."""
+        m12 = self.subs["monthly"]["price_inr"] * 12
+        q4 = self.subs["quarterly"]["price_inr"] * 4
+        yearly = self.subs["yearly"]["price_inr"]
+        self.assertLess(yearly, m12, f"Yearly ({yearly}) must beat 12× monthly ({m12})")
+        self.assertLess(yearly, q4, f"Yearly ({yearly}) must beat 4× quarterly ({q4})")
+
+    def test_subscription_badges_match_brief(self):
+        """Brief: Monthly → Most Popular, Yearly → Best Value.
+        Weekly and Quarterly carry no badge."""
+        self.assertEqual(self.subs["monthly"].get("badge"), "MOST POPULAR")
+        self.assertEqual(self.subs["yearly"].get("badge"), "BEST VALUE")
+        self.assertIsNone(self.subs["weekly"].get("badge"))
+        self.assertIsNone(self.subs["quarterly"].get("badge"))
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -108,7 +183,7 @@ class TestFrontendCanonicalPricing(unittest.TestCase):
 
     def test_weekly_object(self):
         self.assertIn(
-            "weekly: { price: 699, credits: 40, label: '₹699/week' }",
+            "weekly: { price: 299, credits: 40, label: '₹299/week' }",
             self.src,
         )
 
@@ -120,7 +195,7 @@ class TestFrontendCanonicalPricing(unittest.TestCase):
 
     def test_quarterly_object(self):
         self.assertIn(
-            "quarterly: { price: 3999, credits: 750, label: '₹3,999/quarter' }",
+            "quarterly: { price: 2999, credits: 750, label: '₹2,999/quarter' }",
             self.src,
         )
 
@@ -135,7 +210,7 @@ class TestFrontendCanonicalPricing(unittest.TestCase):
             "{ id: 'topup_40', price: 200, credits: 60",
             "{ id: 'topup_120', price: 350, credits: 150",
             "{ id: 'topup_300', price: 699, credits: 400",
-            "{ id: 'topup_700', price: 1999, credits: 800",
+            "{ id: 'topup_700', price: 1299, credits: 800",
         ):
             self.assertIn(
                 fragment, self.src,

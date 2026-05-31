@@ -169,7 +169,7 @@ async def chatbot_message(data: ChatMessage):
         
         # Common questions and quick responses
         quick_responses = {
-            "pricing": "You can check our pricing at /pricing page. We offer flexible credit packs starting from ₹200, or subscribe weekly from ₹699!",
+            "pricing": "You can check our pricing at /pricing page. We offer flexible credit packs starting from ₹200, or subscribe weekly from ₹299!",
             "features": "CreatorStudio AI offers: Viral Reel Generator, Kids Story Pack Creator, GenStudio AI tools, Creator Pro features, and TwinFinder!",
             "help": "I can help you with: 1) Creating viral reels 2) Generating kids stories 3) Using AI tools 4) Understanding pricing",
             "contact": "You can reach us at support@creatorstudio.ai or use the Contact page.",

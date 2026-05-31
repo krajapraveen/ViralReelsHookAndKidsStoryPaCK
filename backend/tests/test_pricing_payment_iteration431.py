@@ -34,9 +34,9 @@ WEBHOOK_SECRET = "bzpvyga4m362do0eyvmb"
 
 # Expected pricing from config/pricing.py
 EXPECTED_SUBSCRIPTIONS = {
-    "weekly": {"price_inr": 699, "credits": 40},
+    "weekly": {"price_inr": 299, "credits": 40},
     "monthly": {"price_inr": 899, "credits": 200},
-    "quarterly": {"price_inr": 3999, "credits": 750},
+    "quarterly": {"price_inr": 2999, "credits": 750},
     "yearly": {"price_inr": 5999, "credits": 3000},
 }
 
@@ -44,7 +44,7 @@ EXPECTED_TOPUPS = {
     "topup_40": {"price_inr": 200, "credits": 60},
     "topup_120": {"price_inr": 350, "credits": 150},
     "topup_300": {"price_inr": 699, "credits": 400},
-    "topup_700": {"price_inr": 1999, "credits": 800},
+    "topup_700": {"price_inr": 1299, "credits": 800},
 }
 
 
@@ -540,7 +540,7 @@ class TestWebhookPaymentFailed:
             "data": {
                 "order": {
                     "order_id": order_id,
-                    "order_amount": 3999,
+                    "order_amount": 2999,
                     "order_currency": "INR"
                 },
                 "payment": {

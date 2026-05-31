@@ -38,7 +38,7 @@ export default function UpsellModal({ credits, onClose, isOpen }) {
               <Sparkles className="w-5 h-5 text-indigo-400" />
             </div>
             <div className="flex-1">
-              <p className="font-semibold text-white">Subscribe — from {p?.weekly?.label || '₹699/week'}</p>
+              <p className="font-semibold text-white">Subscribe — from {p?.weekly?.label || '₹299/week'}</p>
               <p className="text-xs text-slate-400">{p?.subscribeDesc || '200 credits/mo + priority generation + HD downloads'}</p>
             </div>
             <ArrowRight className="w-4 h-4 text-indigo-400" />

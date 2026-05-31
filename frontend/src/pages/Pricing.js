@@ -33,7 +33,7 @@ export default function Pricing() {
     {
       id: 'weekly',
       name: 'Weekly',
-      price: pricing ? `${pricing.symbol}${pricing.weekly.price.toLocaleString('en-IN')}` : '₹699',
+      price: pricing ? `${pricing.symbol}${pricing.weekly.price.toLocaleString('en-IN')}` : '₹299',
       priceNote: '/week',
       credits: pricing?.weekly?.credits ?? 40,
       features: ['All core tools unlocked', 'Standard support', '40 credits per week'],
@@ -45,15 +45,15 @@ export default function Pricing() {
       priceNote: '/month',
       credits: pricing?.monthly?.credits ?? 200,
       popular: true,
+      badge: 'MOST POPULAR',
       features: ['All core tools unlocked', 'Priority generation', 'HD downloads', '200 credits per month'],
     },
     {
       id: 'quarterly',
       name: 'Quarterly',
-      price: pricing ? `${pricing.symbol}${pricing.quarterly.price.toLocaleString('en-IN')}` : '₹3,999',
+      price: pricing ? `${pricing.symbol}${pricing.quarterly.price.toLocaleString('en-IN')}` : '₹2,999',
       priceNote: '/quarter',
       credits: pricing?.quarterly?.credits ?? 750,
-      badge: 'BEST VALUE',
       features: ['Faster generation queue', 'Bonus styles / packs', 'All core tools unlocked', '750 credits per quarter'],
     },
     {
@@ -62,7 +62,7 @@ export default function Pricing() {
       price: pricing ? `${pricing.symbol}${pricing.yearly.price.toLocaleString('en-IN')}` : '₹5,999',
       priceNote: '/year',
       credits: pricing?.yearly?.credits ?? 3000,
-      badge: 'BEST DEAL',
+      badge: 'BEST VALUE',
       features: ['Highest priority', 'Early feature access', 'All core tools unlocked', '3,000 credits per year'],
     },
   ];
@@ -74,12 +74,13 @@ export default function Pricing() {
         price: `${pricing.symbol}${t.price.toLocaleString('en-IN')}`,
         credits: t.credits,
         popular: t.popular || false,
+        bestDeal: t.bestDeal || false,
       }))
     : [
         { id: 'topup_40', name: '60 Credits', price: '₹200', credits: 60 },
         { id: 'topup_120', name: '150 Credits', price: '₹350', credits: 150 },
         { id: 'topup_300', name: '400 Credits', price: '₹699', credits: 400, popular: true },
-        { id: 'topup_700', name: '800 Credits', price: '₹1,999', credits: 800 },
+        { id: 'topup_700', name: '800 Credits', price: '₹1,299', credits: 800, bestDeal: true },
       ];
 
   return (
@@ -160,7 +161,7 @@ export default function Pricing() {
                 data-testid={`plan-${plan.id}`}
               >
                 {plan.popular && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-xs font-bold px-4 py-1 rounded-full">POPULAR</div>
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-xs font-bold px-4 py-1 rounded-full">{plan.badge || 'POPULAR'}</div>
                 )}
                 {plan.badge && !plan.popular && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-500 text-black text-xs font-bold px-4 py-1 rounded-full">{plan.badge}</div>
@@ -205,9 +206,11 @@ export default function Pricing() {
               <div
                 key={pack.id}
                 className={`flex flex-col items-center rounded-2xl p-6 transition-all ${
-                  pack.popular
-                    ? 'border-2 border-emerald-500/40 bg-emerald-500/[0.05]'
-                    : 'border border-white/[0.08] bg-white/[0.02]'
+                  pack.bestDeal
+                    ? 'border-2 border-amber-500/50 bg-amber-500/[0.05]'
+                    : pack.popular
+                      ? 'border-2 border-emerald-500/40 bg-emerald-500/[0.05]'
+                      : 'border border-white/[0.08] bg-white/[0.02]'
                 }`}
                 data-testid={`topup-${pack.id}`}
               >
@@ -216,7 +219,8 @@ export default function Pricing() {
                 </div>
                 <h3 className="text-lg font-bold text-white mb-1">{pack.credits} Credits</h3>
                 <p className="text-2xl font-black text-white mb-4">{pack.price}</p>
-                {pack.popular && <span className="text-xs text-emerald-400 font-medium mb-3">Most Popular</span>}
+                {pack.bestDeal && <span className="text-xs text-amber-400 font-bold mb-3 uppercase tracking-wide">Best Deal</span>}
+                {pack.popular && !pack.bestDeal && <span className="text-xs text-emerald-400 font-medium mb-3">Most Popular</span>}
                 <Button
                   onClick={() => handlePurchase(pack.id)}
                   disabled={loading[pack.id]}

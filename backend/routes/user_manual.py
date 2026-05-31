@@ -421,9 +421,9 @@ USER_MANUAL = {
             "title": "Subscription Plans",
             "description": "Choose a plan that fits your needs.",
             "plans": [
-                {"name": "Weekly", "price": "₹699", "credits": 40},
+                {"name": "Weekly", "price": "₹299", "credits": 40},
                 {"name": "Monthly", "price": "₹899", "credits": 200},
-                {"name": "Quarterly", "price": "₹3,999", "credits": 750},
+                {"name": "Quarterly", "price": "₹2,999", "credits": 750},
                 {"name": "Yearly", "price": "₹5,999", "credits": 3000}
             ],
             "howToManage": [
