@@ -423,7 +423,7 @@ USER_MANUAL = {
             "plans": [
                 {"name": "Weekly", "price": "₹299", "credits": 40},
                 {"name": "Monthly", "price": "₹899", "credits": 200},
-                {"name": "Quarterly", "price": "₹2,999", "credits": 750},
+                {"name": "Quarterly", "price": "₹2,499", "credits": 750},
                 {"name": "Yearly", "price": "₹5,999", "credits": 3000}
             ],
             "howToManage": [

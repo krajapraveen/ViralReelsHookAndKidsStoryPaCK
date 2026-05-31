@@ -36,7 +36,7 @@ WEBHOOK_SECRET = "bzpvyga4m362do0eyvmb"
 EXPECTED_SUBSCRIPTIONS = {
     "weekly": {"price_inr": 299, "credits": 40},
     "monthly": {"price_inr": 899, "credits": 200},
-    "quarterly": {"price_inr": 2999, "credits": 750},
+    "quarterly": {"price_inr": 2499, "credits": 750},
     "yearly": {"price_inr": 5999, "credits": 3000},
 }
 
@@ -540,7 +540,7 @@ class TestWebhookPaymentFailed:
             "data": {
                 "order": {
                     "order_id": order_id,
-                    "order_amount": 2999,
+                    "order_amount": 2499,
                     "order_currency": "INR"
                 },
                 "payment": {

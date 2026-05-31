@@ -44,7 +44,7 @@ SUBSCRIPTION_PLANS = {
         "name": "Quarterly Plan",
         "period": "quarterly",
         "duration_days": 90,
-        "price_inr": 2999,
+        "price_inr": 2499,
         "credits": 750,
         "features": [
             "750 credits",

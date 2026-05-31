@@ -9,7 +9,7 @@ const PRICING = {
     code: 'INR',
     weekly: { price: 299, credits: 40, label: '₹299/week' },
     monthly: { price: 899, credits: 200, label: '₹899/month' },
-    quarterly: { price: 2999, credits: 750, label: '₹2,999/quarter' },
+    quarterly: { price: 2499, credits: 750, label: '₹2,499/quarter' },
     yearly: { price: 5999, credits: 3000, label: '₹5,999/year' },
     topups: [
       { id: 'topup_40', price: 200, credits: 60, label: '₹200' },

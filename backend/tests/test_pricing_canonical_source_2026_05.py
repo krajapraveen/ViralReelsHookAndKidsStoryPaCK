@@ -56,7 +56,7 @@ class TestBackendCanonicalPricing(unittest.TestCase):
         self.assertEqual(self.subs["monthly"]["credits"], 200)
 
     def test_quarterly_price_and_credits(self):
-        self.assertEqual(self.subs["quarterly"]["price_inr"], 2999)
+        self.assertEqual(self.subs["quarterly"]["price_inr"], 2499)
         self.assertEqual(self.subs["quarterly"]["credits"], 750)
 
     def test_yearly_price_and_credits(self):
@@ -108,7 +108,7 @@ class TestBackendCanonicalPricing(unittest.TestCase):
         # Subscription
         self.assertEqual(get_price("weekly"), 299)
         self.assertEqual(get_price("monthly"), 899)
-        self.assertEqual(get_price("quarterly"), 2999)
+        self.assertEqual(get_price("quarterly"), 2499)
         self.assertEqual(get_price("yearly"), 5999)
         # Top-ups
         self.assertEqual(get_price("topup_40"), 200)
@@ -195,7 +195,7 @@ class TestFrontendCanonicalPricing(unittest.TestCase):
 
     def test_quarterly_object(self):
         self.assertIn(
-            "quarterly: { price: 2999, credits: 750, label: '₹2,999/quarter' }",
+            "quarterly: { price: 2499, credits: 750, label: '₹2,499/quarter' }",
             self.src,
         )
 

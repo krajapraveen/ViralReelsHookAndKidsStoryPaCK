@@ -51,7 +51,7 @@ export default function Pricing() {
     {
       id: 'quarterly',
       name: 'Quarterly',
-      price: pricing ? `${pricing.symbol}${pricing.quarterly.price.toLocaleString('en-IN')}` : '₹2,999',
+      price: pricing ? `${pricing.symbol}${pricing.quarterly.price.toLocaleString('en-IN')}` : '₹2,499',
       priceNote: '/quarter',
       credits: pricing?.quarterly?.credits ?? 750,
       features: ['Faster generation queue', 'Bonus styles / packs', 'All core tools unlocked', '750 credits per quarter'],
