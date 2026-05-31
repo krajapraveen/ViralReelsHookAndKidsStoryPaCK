@@ -38,7 +38,7 @@ export default function UpsellModal({ credits, onClose, isOpen }) {
               <Sparkles className="w-5 h-5 text-indigo-400" />
             </div>
             <div className="flex-1">
-              <p className="font-semibold text-white">Subscribe — from {p?.weekly?.label || '₹149/week'}</p>
+              <p className="font-semibold text-white">Subscribe — from {p?.weekly?.label || '₹699/week'}</p>
               <p className="text-xs text-slate-400">{p?.subscribeDesc || '200 credits/mo + priority generation + HD downloads'}</p>
             </div>
             <ArrowRight className="w-4 h-4 text-indigo-400" />
@@ -54,7 +54,7 @@ export default function UpsellModal({ credits, onClose, isOpen }) {
             </div>
             <div className="flex-1">
               <p className="font-semibold text-white">Top Up Credits</p>
-              <p className="text-xs text-slate-400">{p?.topupDesc || '40 credits from ₹99'}</p>
+              <p className="text-xs text-slate-400">{p?.topupDesc || '60 credits from ₹200'}</p>
             </div>
             <ArrowRight className="w-4 h-4 text-slate-500" />
           </button>

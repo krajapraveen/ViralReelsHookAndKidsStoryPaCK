@@ -169,7 +169,7 @@ async def chatbot_message(data: ChatMessage):
         
         # Common questions and quick responses
         quick_responses = {
-            "pricing": "You can check our pricing at /pricing page. We offer flexible credit packs starting from ₹499!",
+            "pricing": "You can check our pricing at /pricing page. We offer flexible credit packs starting from ₹200, or subscribe weekly from ₹699!",
             "features": "CreatorStudio AI offers: Viral Reel Generator, Kids Story Pack Creator, GenStudio AI tools, Creator Pro features, and TwinFinder!",
             "help": "I can help you with: 1) Creating viral reels 2) Generating kids stories 3) Using AI tools 4) Understanding pricing",
             "contact": "You can reach us at support@creatorstudio.ai or use the Contact page.",
@@ -188,7 +188,7 @@ async def chatbot_message(data: ChatMessage):
 Answer this user question concisely (2-3 sentences max): {data.message}
 
 Key features: Reel Generator, Story Generator, GenStudio (Text-to-Image, Text-to-Video), Creator Pro Tools, TwinFinder.
-Pricing starts at ₹499 for credit packs."""
+Pricing starts at ₹200 for credit packs."""
         
         result = await chat.send_message(UserMessage(text=prompt))
         return {"success": True, "response": result.text, "sessionId": data.sessionId}

@@ -33,7 +33,7 @@ export default function Pricing() {
     {
       id: 'weekly',
       name: 'Weekly',
-      price: pricing ? `${pricing.symbol}${pricing.weekly.price.toLocaleString('en-IN')}` : '₹149',
+      price: pricing ? `${pricing.symbol}${pricing.weekly.price.toLocaleString('en-IN')}` : '₹699',
       priceNote: '/week',
       credits: pricing?.weekly?.credits ?? 40,
       features: ['All core tools unlocked', 'Standard support', '40 credits per week'],
@@ -41,7 +41,7 @@ export default function Pricing() {
     {
       id: 'monthly',
       name: 'Monthly',
-      price: pricing ? `${pricing.symbol}${pricing.monthly.price.toLocaleString('en-IN')}` : '₹499',
+      price: pricing ? `${pricing.symbol}${pricing.monthly.price.toLocaleString('en-IN')}` : '₹899',
       priceNote: '/month',
       credits: pricing?.monthly?.credits ?? 200,
       popular: true,
@@ -50,7 +50,7 @@ export default function Pricing() {
     {
       id: 'quarterly',
       name: 'Quarterly',
-      price: pricing ? `${pricing.symbol}${pricing.quarterly.price.toLocaleString('en-IN')}` : '₹1,199',
+      price: pricing ? `${pricing.symbol}${pricing.quarterly.price.toLocaleString('en-IN')}` : '₹3,999',
       priceNote: '/quarter',
       credits: pricing?.quarterly?.credits ?? 750,
       badge: 'BEST VALUE',
@@ -59,7 +59,7 @@ export default function Pricing() {
     {
       id: 'yearly',
       name: 'Yearly',
-      price: pricing ? `${pricing.symbol}${pricing.yearly.price.toLocaleString('en-IN')}` : '₹3,999',
+      price: pricing ? `${pricing.symbol}${pricing.yearly.price.toLocaleString('en-IN')}` : '₹5,999',
       priceNote: '/year',
       credits: pricing?.yearly?.credits ?? 3000,
       badge: 'BEST DEAL',
@@ -76,10 +76,10 @@ export default function Pricing() {
         popular: t.popular || false,
       }))
     : [
-        { id: 'topup_40', name: '40 Credits', price: '₹99', credits: 40 },
-        { id: 'topup_120', name: '120 Credits', price: '₹249', credits: 120 },
-        { id: 'topup_300', name: '300 Credits', price: '₹499', credits: 300, popular: true },
-        { id: 'topup_700', name: '700 Credits', price: '₹999', credits: 700 },
+        { id: 'topup_40', name: '60 Credits', price: '₹200', credits: 60 },
+        { id: 'topup_120', name: '150 Credits', price: '₹350', credits: 150 },
+        { id: 'topup_300', name: '400 Credits', price: '₹699', credits: 400, popular: true },
+        { id: 'topup_700', name: '800 Credits', price: '₹1,999', credits: 800 },
       ];
 
   return (

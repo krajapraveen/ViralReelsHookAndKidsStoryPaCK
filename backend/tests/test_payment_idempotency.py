@@ -39,7 +39,7 @@ def setup_test_user():
     })
     print(f"Created test user: {TEST_USER_ID} with 50 credits")
 
-def create_test_order(order_id, product_type="subscription", product_id="weekly", credits=40, amount=14900):
+def create_test_order(order_id, product_type="subscription", product_id="weekly", credits=40, amount=69900):
     """Create a test order"""
     db.orders.insert_one({
         "id": str(uuid.uuid4()),

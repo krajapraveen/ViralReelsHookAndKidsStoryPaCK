@@ -34,17 +34,17 @@ WEBHOOK_SECRET = "bzpvyga4m362do0eyvmb"
 
 # Expected pricing from config/pricing.py
 EXPECTED_SUBSCRIPTIONS = {
-    "weekly": {"price_inr": 149, "credits": 40},
-    "monthly": {"price_inr": 499, "credits": 200},
-    "quarterly": {"price_inr": 1199, "credits": 750},
-    "yearly": {"price_inr": 3999, "credits": 3000},
+    "weekly": {"price_inr": 699, "credits": 40},
+    "monthly": {"price_inr": 899, "credits": 200},
+    "quarterly": {"price_inr": 3999, "credits": 750},
+    "yearly": {"price_inr": 5999, "credits": 3000},
 }
 
 EXPECTED_TOPUPS = {
-    "topup_40": {"price_inr": 99, "credits": 40},
-    "topup_120": {"price_inr": 249, "credits": 120},
-    "topup_300": {"price_inr": 499, "credits": 300},
-    "topup_700": {"price_inr": 999, "credits": 700},
+    "topup_40": {"price_inr": 200, "credits": 60},
+    "topup_120": {"price_inr": 350, "credits": 150},
+    "topup_300": {"price_inr": 699, "credits": 400},
+    "topup_700": {"price_inr": 1999, "credits": 800},
 }
 
 
@@ -247,10 +247,10 @@ class TestCreateOrder:
         data = response.json()
         
         assert data.get("success") == True, f"Expected success=True, got {data.get('success')}"
-        assert data.get("amount") == 499, f"Expected amount 499, got {data.get('amount')}"
+        assert data.get("amount") == 899, f"Expected amount 899, got {data.get('amount')}"
         assert data.get("credits") == 200, f"Expected credits 200, got {data.get('credits')}"
         
-        print(f"PASS: Created subscription order - orderId={data.get('orderId')}, amount=₹499, credits=200")
+        print(f"PASS: Created subscription order - orderId={data.get('orderId')}, amount=₹899, credits=200")
         return data
 
 
@@ -323,12 +323,12 @@ class TestWebhookIdempotency:
             "data": {
                 "order": {
                     "order_id": order_id,
-                    "order_amount": 499,
+                    "order_amount": 699,
                     "order_currency": "INR"
                 },
                 "payment": {
                     "payment_status": "SUCCESS",
-                    "payment_amount": 499
+                    "payment_amount": 699
                 }
             }
         }
@@ -465,12 +465,12 @@ class TestWebhookPaymentSuccess:
             "data": {
                 "order": {
                     "order_id": order_id,
-                    "order_amount": 3999,
+                    "order_amount": 5999,
                     "order_currency": "INR"
                 },
                 "payment": {
                     "payment_status": "SUCCESS",
-                    "payment_amount": 3999
+                    "payment_amount": 5999
                 }
             }
         }
@@ -540,7 +540,7 @@ class TestWebhookPaymentFailed:
             "data": {
                 "order": {
                     "order_id": order_id,
-                    "order_amount": 1199,
+                    "order_amount": 3999,
                     "order_currency": "INR"
                 },
                 "payment": {

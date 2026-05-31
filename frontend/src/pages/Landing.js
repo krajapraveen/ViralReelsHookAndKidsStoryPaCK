@@ -12,6 +12,7 @@ import { trackFunnel } from '../utils/funnelTracker';
 import FounderAuthorityBlock from '../components/FounderAuthorityBlock';
 import ReviewWall from '../components/ReviewWall';
 import { DEFAULT_FEATURES } from '../data/creatorTools';
+import { getPricing } from '../utils/pricing';
 
 // Icon resolver shared with Dashboard. New icons require both:
 //   1. import above (lucide-react)
@@ -713,6 +714,9 @@ export default function Landing() {
 
       {/* ═══════ PRICING TEASER ═══════ */}
       <section className="py-16 px-4 border-t border-white/[0.04]" data-testid="pricing-teaser">
+        {(() => {
+          const _p = getPricing();
+          return (
         <div className="max-w-3xl mx-auto text-center">
           <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-3">Subscribe to start creating.</h2>
           <p className="text-sm text-slate-400 mb-2">No free credits. Subscription required for all generation features.</p>
@@ -720,8 +724,8 @@ export default function Landing() {
           <div className="grid sm:grid-cols-2 gap-4 max-w-xl mx-auto mb-8">
             <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6 text-left">
               <div className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2">Weekly</div>
-              <div className="text-2xl font-black text-white mb-1">₹149<span className="text-sm text-slate-400 font-normal">/week</span></div>
-              <p className="text-xs text-slate-400 mb-4">40 credits weekly</p>
+              <div className="text-2xl font-black text-white mb-1" data-testid="landing-weekly-price">{_p.symbol}{_p.weekly.price.toLocaleString('en-IN')}<span className="text-sm text-slate-400 font-normal">/week</span></div>
+              <p className="text-xs text-slate-400 mb-4">{_p.weekly.credits} credits weekly</p>
               <ul className="space-y-2 text-xs text-slate-300">
                 <li className="flex items-center gap-2"><Zap className="w-3 h-3 text-emerald-400" /> Create story videos</li>
                 <li className="flex items-center gap-2"><Zap className="w-3 h-3 text-emerald-400" /> All AI tools included</li>
@@ -730,8 +734,8 @@ export default function Landing() {
             </div>
             <div className="rounded-2xl border border-violet-500/30 bg-gradient-to-br from-violet-500/[0.08] to-rose-500/[0.06] p-6 text-left">
               <div className="text-xs font-bold text-violet-400 uppercase tracking-wider mb-2">Monthly</div>
-              <div className="text-2xl font-black text-white mb-1">₹499<span className="text-sm text-slate-400 font-normal">/month</span></div>
-              <p className="text-xs text-slate-400 mb-4">200 credits monthly</p>
+              <div className="text-2xl font-black text-white mb-1" data-testid="landing-monthly-price">{_p.symbol}{_p.monthly.price.toLocaleString('en-IN')}<span className="text-sm text-slate-400 font-normal">/month</span></div>
+              <p className="text-xs text-slate-400 mb-4">{_p.monthly.credits} credits monthly</p>
               <ul className="space-y-2 text-xs text-slate-300">
                 <li className="flex items-center gap-2"><Zap className="w-3 h-3 text-violet-400" /> Faster generation</li>
                 <li className="flex items-center gap-2"><Zap className="w-3 h-3 text-violet-400" /> Premium styles</li>
@@ -745,6 +749,8 @@ export default function Landing() {
             </button>
           </Link>
         </div>
+          );
+        })()}
       </section>
 
       {/* ═══════ FAQ ═══════ */}

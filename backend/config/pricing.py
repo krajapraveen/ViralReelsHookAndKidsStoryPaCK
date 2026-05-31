@@ -15,7 +15,7 @@ SUBSCRIPTION_PLANS = {
         "name": "Weekly Plan",
         "period": "weekly",
         "duration_days": 7,
-        "price_inr": 149,
+        "price_inr": 699,
         "credits": 40,
         "features": [
             "40 credits",
@@ -29,7 +29,7 @@ SUBSCRIPTION_PLANS = {
         "name": "Monthly Plan",
         "period": "monthly",
         "duration_days": 30,
-        "price_inr": 499,
+        "price_inr": 899,
         "credits": 200,
         "features": [
             "200 credits",
@@ -44,7 +44,7 @@ SUBSCRIPTION_PLANS = {
         "name": "Quarterly Plan",
         "period": "quarterly",
         "duration_days": 90,
-        "price_inr": 1199,
+        "price_inr": 3999,
         "credits": 750,
         "features": [
             "750 credits",
@@ -59,7 +59,7 @@ SUBSCRIPTION_PLANS = {
         "name": "Yearly Plan",
         "period": "yearly",
         "duration_days": 365,
-        "price_inr": 3999,
+        "price_inr": 5999,
         "credits": 3000,
         "features": [
             "3,000 credits",
@@ -75,34 +75,39 @@ SUBSCRIPTION_PLANS = {
 # ═══════════════════════════════════════════════════════════════
 # TOP-UP PACKS
 # ═══════════════════════════════════════════════════════════════
+# Pack IDs are STABLE slugs (e.g. topup_40) — they index Cashfree
+# orders and ledger rows already in production. We deliberately keep
+# the slug naming even when credit counts change, so in-flight orders
+# and historical reports remain dereferenceable. Display name +
+# credits + price_inr are the customer-facing truth.
 
 TOPUP_PACKS = {
     "topup_40": {
         "id": "topup_40",
-        "name": "40 Credits",
-        "credits": 40,
-        "price_inr": 99,
+        "name": "60 Credits",
+        "credits": 60,
+        "price_inr": 200,
         "popular": False,
     },
     "topup_120": {
         "id": "topup_120",
-        "name": "120 Credits",
-        "credits": 120,
-        "price_inr": 249,
+        "name": "150 Credits",
+        "credits": 150,
+        "price_inr": 350,
         "popular": False,
     },
     "topup_300": {
         "id": "topup_300",
-        "name": "300 Credits",
-        "credits": 300,
-        "price_inr": 499,
+        "name": "400 Credits",
+        "credits": 400,
+        "price_inr": 699,
         "popular": True,
     },
     "topup_700": {
         "id": "topup_700",
-        "name": "700 Credits",
-        "credits": 700,
-        "price_inr": 999,
+        "name": "800 Credits",
+        "credits": 800,
+        "price_inr": 1999,
         "popular": False,
     },
 }

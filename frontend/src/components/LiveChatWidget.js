@@ -3,8 +3,29 @@ import { MessageCircle, X, Send, Minimize2, Maximize2, Bot, User, Sparkles, Help
 import { Button } from './ui/button';
 import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
+import { getPricing, formatPrice } from '../utils/pricing';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+
+// Build the pricing-plans message lazily from the canonical pricing
+// helper so this widget stays in sync with every price change.
+// Pricing is read from /app/frontend/src/utils/pricing.js → backend
+// /app/backend/config/pricing.py.
+function _buildPricingMessage() {
+  const p = getPricing();
+  const topupLines = p.topups
+    .map(t => `- ${formatPrice(t.price)} → ${t.credits} credits`)
+    .join('\n');
+  return (
+    `Our flexible pricing:\n\n` +
+    `Subscriptions:\n` +
+    `- Weekly: ${formatPrice(p.weekly.price)} (${p.weekly.credits} credits)\n` +
+    `- Monthly: ${formatPrice(p.monthly.price)} (${p.monthly.credits} credits)\n` +
+    `- Quarterly: ${formatPrice(p.quarterly.price)} (${p.quarterly.credits} credits)\n` +
+    `- Yearly: ${formatPrice(p.yearly.price)} (${p.yearly.credits.toLocaleString('en-IN')} credits) - Best value!\n\n` +
+    `Credit Top-Ups:\n${topupLines}`
+  );
+}
 
 // Enhanced Quick Replies based on current page
 const getQuickReplies = (pathname) => {
@@ -71,7 +92,7 @@ const AUTO_RESPONSES = {
     suggestions: ["How to get more credits?", "Pricing plans"]
   },
   "pricing plans": {
-    message: "Our flexible pricing:\n\nSubscriptions:\n- Weekly: ₹149 (40 credits)\n- Monthly: ₹499 (200 credits)\n- Quarterly: ₹1,199 (750 credits)\n- Yearly: ₹3,999 (3,000 credits) - Best value!\n\nCredit Top-Ups:\n- ₹99 → 40 credits\n- ₹249 → 120 credits\n- ₹499 → 300 credits\n- ₹999 → 700 credits",
+    message: _buildPricingMessage(),
     link: { text: "Subscribe Now", url: "/app/billing" },
     suggestions: ["What are credits?", "How do I get started?"]
   },
