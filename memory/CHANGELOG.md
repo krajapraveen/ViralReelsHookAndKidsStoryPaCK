@@ -47,6 +47,15 @@
 3. Admin runs (dry): `POST /api/photo-trailer/admin/repair-refunds` with `{"user_email":"krajapraveen@gmail.com","dry_run":true}`.
 4. Admin runs (live): same payload with `dry_run:false` → restores the 60 credits to the Anime Intro job.
 
+**Follow-up — Guardrail tripwire (per user mandate: prevent, don't explain)**:
+Added the `trailer_failed_without_refund` invariant to `routes/guardrails.py` so the next incident is caught BEFORE the user notices the missing balance:
+- Severity: **critical**.
+- Window: > 5 minutes after `failed_at` (long enough for inline `_fail` + first janitor sweep to land).
+- Detection: any `FAILED`/`CANCELLED` photo_trailer_job with `charged_credits > 0` and no matching refund ledger row (accepts BOTH canonical `reference_id="trailer_refund:<job_id>"` AND legacy `reason="Refund …trailer <job_id>"` patterns).
+- Surfaced via the existing `GET /api/admin/guardrails` endpoint. Trips an entry in `system_alerts` (deduplicated, auto-resolves once invariant heals).
+- Verified live in preview: invariant `PASS`, count 0.
+- 3 additional tests pin: invariant registered + critical severity, 5-min window + dual-scheme acceptance, behavioural detection (FAILED-no-refund flagged, grace-window job ignored, refunded job ignored).
+
 
 
 ## 2026-06 — P0 ENTITLEMENT CONSOLIDATION: Canonical subscription resolver

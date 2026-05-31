@@ -69,6 +69,22 @@ INVARIANTS = {
         "description": "Every generation-related deduction must map to a valid job (active, completed, or failed-with-refund)",
         "severity": "critical",
     },
+    "trailer_failed_without_refund": {
+        # P0 2026-06 — Money-integrity tripwire. Born from the
+        # krajapraveen@gmail.com incident where a FAILED 60s "Anime Intro"
+        # trailer had a deduction but no refund row (and the UI was
+        # claiming "credits refunded" anyway). Higher leverage than a UI
+        # trust widget: catch the violation BEFORE the user notices.
+        # Window: 5 minutes after `failed_at`/`updated_at` — long enough
+        # for the inline `_fail` refund branch + the janitor's first
+        # sweep to land, short enough to alert before support tickets.
+        "name": "No FAILED Trailer With Deduction And No Refund",
+        "description": (
+            "Every FAILED/CANCELLED photo trailer job whose charged_credits > 0 "
+            "MUST have a matching refund ledger row within 5 minutes."
+        ),
+        "severity": "critical",
+    },
 }
 
 
@@ -303,6 +319,88 @@ async def _check_orphan_deductions():
     return {"violated": len(orphans) > 0, "count": len(orphans), "sample_ids": orphans[:5]}
 
 
+async def _check_trailer_failed_without_refund():
+    """Find FAILED/CANCELLED photo trailer jobs that have a deduction but
+    no refund ledger row, observed > 5 minutes ago. This is the canonical
+    money-integrity tripwire for the photo-trailer pipeline.
+
+    Both legitimate refund schemes are accepted:
+      1. Canonical: credit_ledger row with reference_id="trailer_refund:<job_id>"
+      2. Legacy:   credit_ledger row with reason starting with "Refund"
+                   and containing the job_id (pre-2026-06 ledger entries
+                   written by add_credits(tx_type="REFUND")).
+
+    A miss here is a P0: a user paid for a trailer that didn't deliver
+    AND was not made whole.
+
+    Pinned: backend/tests/test_photo_trailer_credit_integrity_2026_06.py
+    """
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+    # 7-day backstop so the scan never grows unbounded as history piles up.
+    horizon = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+
+    candidates = await db.photo_trailer_jobs.find(
+        {
+            "status": {"$in": ["FAILED", "CANCELLED"]},
+            "charged_credits": {"$gt": 0},
+            "$or": [
+                {"refunded_credits": {"$exists": False}},
+                {"refunded_credits": None},
+                {"refunded_credits": 0},
+            ],
+            # Use whichever timestamp the failure-path wrote first.
+            "$and": [
+                {"$or": [
+                    {"failed_at": {"$lt": cutoff, "$ne": None}},
+                    {"updated_at": {"$lt": cutoff}},
+                ]},
+                {"$or": [
+                    {"failed_at": {"$gte": horizon}},
+                    {"updated_at": {"$gte": horizon}},
+                ]},
+            ],
+        },
+        {"_id": 1, "user_id": 1, "charged_credits": 1, "failed_at": 1,
+         "duration_target_seconds": 1, "template_id": 1, "error_code": 1,
+         "refund_error": 1},
+    ).to_list(200)
+
+    violations = []
+    for j in candidates:
+        jid = j["_id"]
+        uid = j.get("user_id")
+        # Look for a refund row by canonical reference_id OR legacy reason patterns.
+        refund_row = await db.credit_ledger.find_one({
+            "user_id": uid,
+            "$or": [
+                {"reference_id": f"trailer_refund:{jid}"},
+                {"reason": {"$regex": f"^Refund.*trailer {jid}", "$options": ""}},
+            ],
+        })
+        if not refund_row:
+            violations.append({
+                "job_id": jid,
+                "user_id": uid,
+                "charged_credits": int(j.get("charged_credits") or 0),
+                "duration": j.get("duration_target_seconds"),
+                "template": j.get("template_id"),
+                "error_code": j.get("error_code"),
+                "refund_error": j.get("refund_error"),
+                "failed_at": j.get("failed_at") or j.get("updated_at"),
+            })
+
+    return {
+        "violated": len(violations) > 0,
+        "count": len(violations),
+        # Compact sample for the alert payload — full data via diagnose-user.
+        "sample_ids": [
+            f"{v['job_id'][:8]}:user={(v['user_id'] or '?')[:8]}:"
+            f"{v['charged_credits']}cr:{v['error_code'] or '?'}"
+            for v in violations[:5]
+        ],
+    }
+
+
 # Map invariant keys to check functions
 CHECKERS = {
     "negative_credits": _check_negative_credits,
@@ -315,6 +413,7 @@ CHECKERS = {
     "credit_drift": _check_credit_drift,
     "generation_integrity": _check_generation_integrity,
     "orphan_deductions": _check_orphan_deductions,
+    "trailer_failed_without_refund": _check_trailer_failed_without_refund,
 }
 
 
