@@ -11,6 +11,9 @@ from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional, List
 import logging
 
+# P0 2026-06 SECURITY — defensive guard against future open-redirect bugs.
+from utils.safe_redirect import assert_same_origin_https
+
 logger = logging.getLogger(__name__)
 
 # Configuration
@@ -150,7 +153,18 @@ class CashfreeSubscriptionService:
         plan = SUBSCRIPTION_PLANS.get(plan_key)
         if not plan:
             raise ValueError(f"Unknown plan: {plan_key}")
-        
+
+        # P0 2026-06 SECURITY — validate the return_url is an https URL on
+        # one of our allowed hosts BEFORE handing it to Cashfree. This is
+        # defense in depth: today only internal callers pass server-built
+        # URLs, but a future regression could wire a user-supplied value
+        # through here and turn it into an open-redirect post-payment.
+        try:
+            return_url = assert_same_origin_https(return_url)
+        except ValueError as e:
+            logger.error(f"create_subscription: rejected unsafe return_url: {e}")
+            raise ValueError("return_url failed origin validation") from e
+
         subscription_id = f"sub_{user_id[:8]}_{int(datetime.now(timezone.utc).timestamp())}"
         
         plan_amount = plan["price_inr"] if currency == "INR" else plan.get("price_usd", plan["price_inr"])
@@ -382,6 +396,10 @@ class CashfreeSubscriptionService:
         await self.cancel_subscription(current_subscription_id, user_id)
         
         # Create new subscription
+        # P0 2026-06 SECURITY — server-built return_url: hardcoded
+        # `/app/billing` base + FRONTEND_URL env var. No user input.
+        # The downstream create_subscription() also validates this URL
+        # via assert_same_origin_https() as defense in depth.
         return await self.create_subscription(
             user_id=user_id,
             plan_key=new_plan_key,

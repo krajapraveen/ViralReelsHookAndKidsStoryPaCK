@@ -1,6 +1,53 @@
 # Visionary Suite - Changelog
 
 
+## 2026-06 — P0 SECURITY: Backend RedirectResponse Audit (server-side)
+
+**Status**: SHIPPED in preview. `make audit-boundaries` green (**556 passing, 1 skipped**). Awaiting production deploy.
+
+**Mandate**: Close the server-side equivalent of the open-redirect class fixed in the frontend so the backend cannot bypass the now-locked-down frontend `safeRedirectPath` boundary.
+
+**Backend inventory (audited 2026-06)**:
+
+| Sink                                                  | Source              | Category | Action                                |
+|-------------------------------------------------------|---------------------|----------|---------------------------------------|
+| `r2_proxy.py:81` `RedirectResponse(url=cached_url)`   | boto3 presigned     | C        | SECURITY comment + audit pin          |
+| `r2_proxy.py:97` `RedirectResponse(url=presigned_url)`| boto3 presigned     | C        | SECURITY comment + audit pin          |
+| `cashfree_payments.py:270` `return_url`               | server f-string     | A        | SECURITY comment                      |
+| `subscriptions.py:863` `return_url` (create)          | server f-string     | A        | SECURITY comment                      |
+| `subscriptions.py:1067` `return_url` (upgrade)        | server f-string     | A        | SECURITY comment                      |
+| `cashfree_subscription_service.py:391` `return_url`   | server f-string     | A        | SECURITY comment                      |
+| `cashfree_subscription_service.create_subscription`   | function parameter  | B (latent)| **validated via `assert_same_origin_https`** |
+| `auth.py:850` `redirect_uri="postmessage"`            | hardcoded literal   | A        | (no-op; already a string literal)     |
+
+**Result**: ZERO active backend sinks accept user-controlled redirect input. The only public 302 endpoint (`/api/media/r2/{path}`) is bound by boto3 to a fixed R2 host. Defense-in-depth applied to the Cashfree subscription service to fail-closed if a future caller wires user input through it.
+
+**Files changed** (6):
+- `backend/utils/safe_redirect.py` — **NEW** server-side sanitizer + `assert_same_origin_https` validator.
+- `backend/services/cashfree_subscription_service.py` — `create_subscription` now validates its `return_url` parameter. Both `return_url=...` sites (create + upgrade/cancel) carry SECURITY comments.
+- `backend/routes/r2_proxy.py` — both `RedirectResponse` sites carry inline `SECURITY` justification.
+- `backend/routes/cashfree_payments.py` — SECURITY comment on `OrderMeta(return_url=...)`.
+- `backend/routes/subscriptions.py` — SECURITY comment on both `OrderMeta(return_url=...)` sites.
+- `Makefile` — new audit suite registered.
+
+**Test added**: `backend/tests/test_backend_redirect_sink_audit_2026_06.py` — **49 tests** in 7 sections:
+1. Sanitizer module contract (exports, fallback constant)
+2. Attack-vector matrix (29 cases incl. encoded multi-pass, schemes, loops, edge cases) — **all blocked**
+3. `assert_same_origin_https` host/scheme validator (5 cases)
+4. Cashfree subscription service validator wiring (2 contract tests)
+5. **Net-new prohibition** — codebase-wide static scan rejects any `RedirectResponse(url=<variable>)` not on `REDIRECT_RESPONSE_EXEMPTIONS` with inline SECURITY comment
+6. Cashfree builder files MUST carry SECURITY justification near every `return_url=` site
+7. R2 path-traversal guard (function-level + live HTTP smoke confirming Location header stays on R2 host even for encoded attacks)
+
+**Live verification**:
+- `GET /api/media/r2/foo/bar/x.png` → 302 to `*.r2.cloudflarestorage.com` (server-controlled host) ✅
+- `GET /api/media/r2/` → 400 (guard fires) ✅
+- Backend services healthy ✅
+
+**Closing the chain**: With this audit, the full redirect attack surface — frontend `safeRedirectPath()`, backend `safe_redirect_path()`, backend `assert_same_origin_https()`, and the codebase-wide static prohibitions in both layers — is now closed and pinned by **556 audit-boundary tests**.
+
+
+
 ## 2026-06 — P0 SECURITY: Codebase-wide Navigation-Sink Audit
 
 **Status**: SHIPPED in preview. `make audit-boundaries` green (**507 passing, 1 skipped**). Awaiting production deploy.

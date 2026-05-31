@@ -859,6 +859,9 @@ async def create_recurring_subscription(
             customer_name=user_data.get("name", "User")
         )
 
+        # P0 2026-06 SECURITY — `return_url` and `notify_url` are
+        # SERVER-BUILT from a hardcoded base path + `frontend_url` env
+        # var + server-generated `order_id`. No user input. Audited.
         order_meta = OrderMeta(
             return_url=f"{frontend_url}/app/subscription?order_id={order_id}&status=success",
             notify_url=f"{frontend_url}/api/cashfree/webhook"
@@ -872,7 +875,6 @@ async def create_recurring_subscription(
             order_meta=order_meta,
             order_note=f"Subscription: {plan['name']} - {plan['credits_per_cycle']} credits/month"
         )
-
         api_version = "2023-08-01"
         response = client.PGCreateOrder(api_version, order_request, None, None)
 
@@ -1064,6 +1066,8 @@ async def change_recurring_plan(
             customer_phone=user_data.get("phone", "9999999999"),
             customer_name=user_data.get("name", "User")
         )
+        # P0 2026-06 SECURITY — server-built return/notify URLs (no user
+        # input). Hardcoded base + env var + server-generated order_id.
         order_meta = OrderMeta(
             return_url=f"{frontend_url}/app/subscription?order_id={order_id}&status=success",
             notify_url=f"{frontend_url}/api/cashfree/webhook"

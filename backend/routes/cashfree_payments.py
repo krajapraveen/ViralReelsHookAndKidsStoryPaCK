@@ -261,6 +261,11 @@ async def create_cashfree_order(request: Request, data: CashfreeOrderRequest, us
         frontend_url = os.environ.get("FRONTEND_URL", "https://www.visionary-suite.com")
         # Webhook URL must be STATIC and env-based — never derived from frontend/preview URLs
         webhook_url = os.environ.get("CASHFREE_WEBHOOK_URL", f"{frontend_url}/api/cashfree/webhook")
+        # P0 2026-06 SECURITY — `return_url` and `notify_url` are sent to
+        # Cashfree as part of order creation and used by Cashfree to
+        # redirect the user back AFTER payment. They are SERVER-BUILT
+        # from a hardcoded `/app/billing` base + server-generated
+        # `order_id`. No user input reaches these strings.
         order_meta = OrderMeta(
             return_url=f"{frontend_url}/app/billing?order_id={order_id}&gateway=cashfree",
             notify_url=webhook_url
