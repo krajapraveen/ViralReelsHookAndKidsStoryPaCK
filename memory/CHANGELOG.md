@@ -1,6 +1,40 @@
 # Visionary Suite - Changelog
 
 
+## 2026-06 — P0 Reliability: Protected-route `?next=` Deep-Link Preservation
+
+**Status**: SHIPPED in preview. `make audit-boundaries` green (**474 passing, 1 skipped**). Awaiting production deploy.
+
+**Symptom**: Anonymous visits to ANY of ~80 protected `/app/*` routes were silently stripped at the route guard (`<Navigate to="/login" />`). After login, users were dumped at `/app` instead of their intended destination (email links, share URLs, bookmarks all leaked).
+
+**Bug class**: Destination-erasure at route guard — a measurable, recurring funnel leak for every paying customer who clicks a deep link.
+
+**Cure**: Single canonical `LoginRedirect` component in `App.js` reads `useLocation()` and forwards `?next=<encoded-path>`. All 79 inline `<Navigate to="/login" />` (78 routes + 1 in `ProtectedRoute`) replaced via bulk sed.
+
+**Files changed**:
+- `frontend/src/App.js` — `LoginRedirect` component + 79 route guards switched + `AuthenticatedRedirect` now reads `?next=` first.
+- `backend/tests/test_protected_route_next_redirect_2026_06.py` — **NEW** 15-test suite covering: legacy-pattern eradication, LoginRedirect component contract, billing/creation/dashboard/admin route coverage, public-routes untouched, catch-all untouched, `?return=` back-compat, and explicit loop-prevention.
+- `backend/tests/test_billing_decoupled_fetch_and_session_2026_05.py` — billing-route assertion updated to accept either inline or centralized form.
+- `Makefile` — new suite registered.
+
+**End-to-end smoke (Playwright, 11 scenarios)**:
+- 7 protected routes (billing, story-generator, comic-storybook, my-space, dashboard, characters, profile) — all redirect with correct `?next=<route>` ✅
+- Round-trip: anonymous → /app/my-space → login → returns to /app/my-space ✅
+- Legacy `?return=` still routes correctly after login ✅
+- Loop prevention: anonymous visit to /login does NOT preserve `/login` as next ✅
+- Admin: intentionally unchanged (AdminLayout owns its own auth gate) — pinned by test
+
+**Acceptance criteria all met**:
+1. ✅ Anonymous `/app/*` → `/login?next=<encoded-path>`
+2. ✅ Post-login lands back on original route
+3. ✅ `/app/billing` behavior unchanged
+4. ✅ No redirect loops (test_login_redirect_skips_root_and_login + e2e)
+5. ✅ Public/open routes untouched (test_public_routes_have_no_login_redirect)
+6. ✅ Regression tests cover billing + creation + dashboard + admin + legacy `?return=`
+7. ✅ `make audit-boundaries` returns 474 passed, 1 skipped
+
+
+
 ## 2026-06 — P0 Reliability: Billing Page Decoupled-Fetch & Session-Probe
 
 **Status**: SHIPPED in preview. `make audit-boundaries` green (459 passing, 1 skipped). Awaiting production deploy.

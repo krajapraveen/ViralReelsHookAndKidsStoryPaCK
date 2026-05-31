@@ -346,22 +346,32 @@ class TestRedirectContract:
         prospect arrives at bare `/login` and is dumped to `/app` after
         sign-in (broken funnel).
 
-        Bug pinned: the outer ProtectedRoute guard previously dropped
-        the intended destination on the floor, defeating the
-        Billing.js inner /auth/me probe contract.
+        The contract is satisfied EITHER by:
+          (a) an inline `Navigate to={`/login?next=${encodeURIComponent(
+              '/app/billing')}`}` (per-route fix), OR
+          (b) a centralized `<LoginRedirect />` component used by ALL
+              protected routes (the canonical refactor — pinned by
+              test_protected_route_next_redirect_2026_06.py).
         """
         app_js = REPO / "frontend" / "src" / "App.js"
         assert app_js.exists(), "App.js missing"
         src = app_js.read_text(encoding="utf-8")
-        # The /app/billing route must redirect with a `next` param that
-        # encodes /app/billing.
-        m = re.search(
-            r'path="/app/billing".*?Navigate\s+to=\{[^}]*next=\$\{[^}]*encodeURIComponent\([^)]*[\'"]/app/billing[\'"]',
-            src,
-            re.DOTALL,
+        # Find the /app/billing route line.
+        billing_line = None
+        for line in src.splitlines():
+            if 'path="/app/billing"' in line and '<Route ' in line:
+                billing_line = line
+                break
+        assert billing_line, "Route for /app/billing missing"
+        # Form (a): inline encodeURIComponent('/app/billing') in next=
+        form_a = re.search(
+            r'next=\$\{[^}]*encodeURIComponent\([^)]*[\'"]/app/billing[\'"]',
+            billing_line,
         )
-        assert m, (
-            "App.js /app/billing route must redirect to "
-            "/login?next=<encoded /app/billing> when unauthenticated. "
-            "Bare /login destroys the prospect → login → billing funnel."
+        # Form (b): centralized <LoginRedirect /> component.
+        form_b = '<LoginRedirect />' in billing_line
+        assert form_a or form_b, (
+            "App.js /app/billing route must redirect with a next param "
+            "that encodes /app/billing — either inline or via "
+            "<LoginRedirect />. Current line:\n  " + billing_line.strip()
         )

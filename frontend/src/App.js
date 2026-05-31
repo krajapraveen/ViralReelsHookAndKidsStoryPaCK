@@ -203,9 +203,34 @@ function ProtectedRoute({ auth, children }) {
     if (loc.pathname && loc.pathname !== '/login' && loc.pathname !== '/signup') {
       localStorage.setItem('auth_return_path', loc.pathname);
     }
-    return <Navigate to="/login" state={{ from: loc }} replace />;
+    return <LoginRedirect />;
   }
   return children;
+}
+
+/**
+ * P0 2026-06 — Deep-link-preserving login redirect.
+ *
+ * Replaces every plain login-Navigate so that anonymous deep-link
+ * visits to `/app/<route>` round-trip cleanly: user → /login?next=<path>
+ * → sign-in → original route. Previously, ~80 protected routes silently
+ * dropped the destination, which was a measurable funnel leak (paid
+ * users clicking email/share links lost context).
+ *
+ * Param contract: canonical `?next=<encoded-path>`. Login.js also accepts
+ * legacy `?return=`. Pinned by
+ * tests/test_protected_route_next_redirect_2026_06.py.
+ */
+function LoginRedirect() {
+  const loc = useLocation();
+  const path = (loc.pathname || '') + (loc.search || '');
+  // Never preserve `/`, `/login`, or `/signup` — those are not
+  // meaningful return destinations and would cause loops.
+  const safe = path && path !== '/' && path !== '/login' && path !== '/signup';
+  const target = safe
+    ? `/login?next=${encodeURIComponent(path)}`
+    : '/login';
+  return <Navigate to={target} replace />;
 }
 
 function AuthenticatedRedirect() {
@@ -356,101 +381,101 @@ function App() {
         <Route path="/refer" element={<L><ReferLanding /></L>} />
 
         {/* ═══ CORE APP — Dashboard eager, rest lazy ═══ */}
-        <Route path="/app" element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} />
+        <Route path="/app" element={isAuthenticated ? <Dashboard /> : <LoginRedirect />} />
         <Route path="/app/story-video-studio" element={<L><ErrorBoundary><StoryVideoPipeline /></ErrorBoundary></L>} />
         <Route path="/app/story-preview/:jobId" element={<L><StoryPreview /></L>} />
-        <Route path="/app/story-battle/:storyId" element={isAuthenticated ? <L><StoryBattlePage /></L> : <Navigate to="/login" />} />
-        <Route path="/app/story-viewer/:jobId" element={isAuthenticated ? <L><StoryViewerPage /></L> : <Navigate to="/login" />} />
-        <Route path="/app/story-chain/:chainId" element={isAuthenticated ? <L><StoryChainView /></L> : <Navigate to="/login" />} />
-        <Route path="/app/story-chain-timeline/:storyId" element={isAuthenticated ? <L><StoryChainTimeline /></L> : <Navigate to="/login" />} />
-        <Route path="/app/war" element={isAuthenticated ? <L><DailyWarPage /></L> : <Navigate to="/login" />} />
-        <Route path="/app/my-stories" element={isAuthenticated ? <L><MyStories /></L> : <Navigate to="/login" />} />
+        <Route path="/app/story-battle/:storyId" element={isAuthenticated ? <L><StoryBattlePage /></L> : <LoginRedirect />} />
+        <Route path="/app/story-viewer/:jobId" element={isAuthenticated ? <L><StoryViewerPage /></L> : <LoginRedirect />} />
+        <Route path="/app/story-chain/:chainId" element={isAuthenticated ? <L><StoryChainView /></L> : <LoginRedirect />} />
+        <Route path="/app/story-chain-timeline/:storyId" element={isAuthenticated ? <L><StoryChainTimeline /></L> : <LoginRedirect />} />
+        <Route path="/app/war" element={isAuthenticated ? <L><DailyWarPage /></L> : <LoginRedirect />} />
+        <Route path="/app/my-stories" element={isAuthenticated ? <L><MyStories /></L> : <LoginRedirect />} />
 
         {/* ═══ NAVIGATION PAGES ═══ */}
-        <Route path="/app/my-space" element={isAuthenticated ? <L><MySpacePage /></L> : <Navigate to="/login" />} />
-        <Route path="/app/my-space/:assetId" element={isAuthenticated ? <L><MySpacePage /></L> : <Navigate to="/login" />} />
+        <Route path="/app/my-space" element={isAuthenticated ? <L><MySpacePage /></L> : <LoginRedirect />} />
+        <Route path="/app/my-space/:assetId" element={isAuthenticated ? <L><MySpacePage /></L> : <LoginRedirect />} />
         {/* /app/create routes to CreateMenuPage (see line below) — old CreatePage removed 2026-05-03 */}
-        <Route path="/app/browse" element={isAuthenticated ? <L><BrowsePage /></L> : <Navigate to="/login" />} />
-        <Route path="/app/characters" element={isAuthenticated ? <L><CharacterLibrary /></L> : <Navigate to="/login" />} />
-        <Route path="/app/dashboard" element={isAuthenticated ? <L><UserDashboardPage /></L> : <Navigate to="/login" />} />
-        <Route path="/app/referrals" element={isAuthenticated ? <L><ReferralsPage /></L> : <Navigate to="/login" />} />
-        <Route path="/dashboard/referrals" element={isAuthenticated ? <L><ReferralsPage /></L> : <Navigate to="/login" />} />
+        <Route path="/app/browse" element={isAuthenticated ? <L><BrowsePage /></L> : <LoginRedirect />} />
+        <Route path="/app/characters" element={isAuthenticated ? <L><CharacterLibrary /></L> : <LoginRedirect />} />
+        <Route path="/app/dashboard" element={isAuthenticated ? <L><UserDashboardPage /></L> : <LoginRedirect />} />
+        <Route path="/app/referrals" element={isAuthenticated ? <L><ReferralsPage /></L> : <LoginRedirect />} />
+        <Route path="/dashboard/referrals" element={isAuthenticated ? <L><ReferralsPage /></L> : <LoginRedirect />} />
 
         {/* ═══ CREATOR TOOLS ═══ */}
-        <Route path="/app/reels" element={isAuthenticated ? <L><ReelGenerator /></L> : <Navigate to="/login" />} />
-        <Route path="/app/reel-generator" element={isAuthenticated ? <L><ReelGenerator /></L> : <Navigate to="/login" />} />
-        <Route path="/app/reel" element={isAuthenticated ? <Navigate to="/app/reel-generator" /> : <Navigate to="/login" />} />
-        <Route path="/app/stories" element={isAuthenticated ? <L><StoryGenerator /></L> : <Navigate to="/login" />} />
-        <Route path="/app/kids-story" element={isAuthenticated ? <L><StoryGenerator /></L> : <Navigate to="/login" />} />
-        <Route path="/app/story-generator" element={isAuthenticated ? <L><StoryGenerator /></L> : <Navigate to="/login" />} />
-        <Route path="/app/story" element={isAuthenticated ? <Navigate to="/app/story-generator" /> : <Navigate to="/login" />} />
-        <Route path="/app/story-pack" element={isAuthenticated ? <Navigate to="/app/story-generator" /> : <Navigate to="/login" />} />
-        <Route path="/app/character-studio" element={isAuthenticated ? <L><CharacterConsistencyStudio /></L> : <Navigate to="/login" />} />
-        <Route path="/app/story-video-studio/characters" element={isAuthenticated ? <L><CharacterConsistencyStudio /></L> : <Navigate to="/login" />} />
-        <Route path="/app/coloring-book" element={isAuthenticated ? <L><ColoringBookWizard /></L> : <Navigate to="/login" />} />
-        <Route path="/app/comic" element={isAuthenticated ? <L><PhotoToComic /></L> : <Navigate to="/login" />} />
-        <Route path="/app/comix" element={isAuthenticated ? <L><PhotoToComic /></L> : <Navigate to="/login" />} />
-        <Route path="/app/comix-ai" element={isAuthenticated ? <L><PhotoToComic /></L> : <Navigate to="/login" />} />
-        <Route path="/app/photo-to-comic" element={isAuthenticated ? <L><PhotoToComic /></L> : <Navigate to="/login" />} />
-        <Route path="/app/gif-maker" element={isAuthenticated ? <L><PhotoReactionGIF /></L> : <Navigate to="/login" />} />
-        <Route path="/app/reaction-gif" element={isAuthenticated ? <L><PhotoReactionGIF /></L> : <Navigate to="/login" />} />
-        <Route path="/app/gif-maker-old" element={isAuthenticated ? <L><GifMaker /></L> : <Navigate to="/login" />} />
-        <Route path="/app/comic-storybook" element={isAuthenticated ? <L><ComicStorybookBuilder /></L> : <Navigate to="/login" />} />
-        <Route path="/app/comic-story-builder" element={isAuthenticated ? <L><ComicStorybookBuilder /></L> : <Navigate to="/login" />} />
-        <Route path="/app/comic-storybook-old" element={isAuthenticated ? <L><ComicStorybook /></L> : <Navigate to="/login" />} />
-        <Route path="/app/bedtime-story-builder" element={isAuthenticated ? <L><BedtimeStoryBuilder /></L> : <Navigate to="/login" />} />
-        <Route path="/app/bedtime-stories" element={isAuthenticated ? <L><BedtimeStoryBuilder /></L> : <Navigate to="/login" />} />
-        <Route path="/app/story-episode-creator" element={isAuthenticated ? <L><StoryEpisodeCreator /></L> : <Navigate to="/login" />} />
-        <Route path="/app/content-challenge-planner" element={isAuthenticated ? <L><ContentChallengePlanner /></L> : <Navigate to="/login" />} />
-        <Route path="/app/caption-rewriter" element={isAuthenticated ? <L><CaptionRewriterPro /></L> : <Navigate to="/login" />} />
-        <Route path="/app/promo-videos" element={isAuthenticated ? <L><PromoVideos /></L> : <Navigate to="/login" />} />
-        <Route path="/app/photo-trailer" element={isAuthenticated ? <L><PhotoTrailerPage /></L> : <Navigate to="/login" />} />
-        <Route path="/app/create" element={isAuthenticated ? <L><CreateMenuPage /></L> : <Navigate to="/login" />} />
-        <Route path="/app/youstar" element={isAuthenticated ? <L><PhotoTrailerPage /></L> : <Navigate to="/login" />} />
-        <Route path="/app/my-movie-trailer" element={isAuthenticated ? <L><PhotoTrailerPage /></L> : <Navigate to="/login" />} />
+        <Route path="/app/reels" element={isAuthenticated ? <L><ReelGenerator /></L> : <LoginRedirect />} />
+        <Route path="/app/reel-generator" element={isAuthenticated ? <L><ReelGenerator /></L> : <LoginRedirect />} />
+        <Route path="/app/reel" element={isAuthenticated ? <Navigate to="/app/reel-generator" /> : <LoginRedirect />} />
+        <Route path="/app/stories" element={isAuthenticated ? <L><StoryGenerator /></L> : <LoginRedirect />} />
+        <Route path="/app/kids-story" element={isAuthenticated ? <L><StoryGenerator /></L> : <LoginRedirect />} />
+        <Route path="/app/story-generator" element={isAuthenticated ? <L><StoryGenerator /></L> : <LoginRedirect />} />
+        <Route path="/app/story" element={isAuthenticated ? <Navigate to="/app/story-generator" /> : <LoginRedirect />} />
+        <Route path="/app/story-pack" element={isAuthenticated ? <Navigate to="/app/story-generator" /> : <LoginRedirect />} />
+        <Route path="/app/character-studio" element={isAuthenticated ? <L><CharacterConsistencyStudio /></L> : <LoginRedirect />} />
+        <Route path="/app/story-video-studio/characters" element={isAuthenticated ? <L><CharacterConsistencyStudio /></L> : <LoginRedirect />} />
+        <Route path="/app/coloring-book" element={isAuthenticated ? <L><ColoringBookWizard /></L> : <LoginRedirect />} />
+        <Route path="/app/comic" element={isAuthenticated ? <L><PhotoToComic /></L> : <LoginRedirect />} />
+        <Route path="/app/comix" element={isAuthenticated ? <L><PhotoToComic /></L> : <LoginRedirect />} />
+        <Route path="/app/comix-ai" element={isAuthenticated ? <L><PhotoToComic /></L> : <LoginRedirect />} />
+        <Route path="/app/photo-to-comic" element={isAuthenticated ? <L><PhotoToComic /></L> : <LoginRedirect />} />
+        <Route path="/app/gif-maker" element={isAuthenticated ? <L><PhotoReactionGIF /></L> : <LoginRedirect />} />
+        <Route path="/app/reaction-gif" element={isAuthenticated ? <L><PhotoReactionGIF /></L> : <LoginRedirect />} />
+        <Route path="/app/gif-maker-old" element={isAuthenticated ? <L><GifMaker /></L> : <LoginRedirect />} />
+        <Route path="/app/comic-storybook" element={isAuthenticated ? <L><ComicStorybookBuilder /></L> : <LoginRedirect />} />
+        <Route path="/app/comic-story-builder" element={isAuthenticated ? <L><ComicStorybookBuilder /></L> : <LoginRedirect />} />
+        <Route path="/app/comic-storybook-old" element={isAuthenticated ? <L><ComicStorybook /></L> : <LoginRedirect />} />
+        <Route path="/app/bedtime-story-builder" element={isAuthenticated ? <L><BedtimeStoryBuilder /></L> : <LoginRedirect />} />
+        <Route path="/app/bedtime-stories" element={isAuthenticated ? <L><BedtimeStoryBuilder /></L> : <LoginRedirect />} />
+        <Route path="/app/story-episode-creator" element={isAuthenticated ? <L><StoryEpisodeCreator /></L> : <LoginRedirect />} />
+        <Route path="/app/content-challenge-planner" element={isAuthenticated ? <L><ContentChallengePlanner /></L> : <LoginRedirect />} />
+        <Route path="/app/caption-rewriter" element={isAuthenticated ? <L><CaptionRewriterPro /></L> : <LoginRedirect />} />
+        <Route path="/app/promo-videos" element={isAuthenticated ? <L><PromoVideos /></L> : <LoginRedirect />} />
+        <Route path="/app/photo-trailer" element={isAuthenticated ? <L><PhotoTrailerPage /></L> : <LoginRedirect />} />
+        <Route path="/app/create" element={isAuthenticated ? <L><CreateMenuPage /></L> : <LoginRedirect />} />
+        <Route path="/app/youstar" element={isAuthenticated ? <L><PhotoTrailerPage /></L> : <LoginRedirect />} />
+        <Route path="/app/my-movie-trailer" element={isAuthenticated ? <L><PhotoTrailerPage /></L> : <LoginRedirect />} />
         {/* Public share page — no auth, slug is the access token */}
         <Route path="/trailer/:slug" element={<L><PublicTrailerPage /></L>} />
 
         {/* ═══ USER PAGES ═══ */}
-        <Route path="/app/history" element={isAuthenticated ? <L><History /></L> : <Navigate to="/login" />} />
-        <Route path="/app/billing" element={isAuthenticated ? <L><Billing /></L> : <Navigate to={`/login?next=${encodeURIComponent('/app/billing')}`} replace />} />
-        <Route path="/app/profile" element={isAuthenticated ? <L><Profile /></L> : <Navigate to="/login" />} />
-        <Route path="/app/privacy" element={isAuthenticated ? <L><PrivacySettings /></L> : <Navigate to="/login" />} />
-        <Route path="/app/copyright" element={isAuthenticated ? <L><CopyrightInfo /></L> : <Navigate to="/login" />} />
-        <Route path="/app/creator-tools" element={isAuthenticated ? <L><CreatorTools /></L> : <Navigate to="/login" />} />
+        <Route path="/app/history" element={isAuthenticated ? <L><History /></L> : <LoginRedirect />} />
+        <Route path="/app/billing" element={isAuthenticated ? <L><Billing /></L> : <LoginRedirect />} />
+        <Route path="/app/profile" element={isAuthenticated ? <L><Profile /></L> : <LoginRedirect />} />
+        <Route path="/app/privacy" element={isAuthenticated ? <L><PrivacySettings /></L> : <LoginRedirect />} />
+        <Route path="/app/copyright" element={isAuthenticated ? <L><CopyrightInfo /></L> : <LoginRedirect />} />
+        <Route path="/app/creator-tools" element={isAuthenticated ? <L><CreatorTools /></L> : <LoginRedirect />} />
         <Route path="/app/content-vault" element={<Navigate to="/app/blueprint-library" replace />} />
-        <Route path="/app/blueprint-library" element={isAuthenticated ? <L><ContentBlueprintLibrary /></L> : <Navigate to="/login" />} />
-        <Route path="/app/payment-history" element={isAuthenticated ? <L><PaymentHistory /></L> : <Navigate to="/login" />} />
-        <Route path="/app/feature-requests" element={isAuthenticated ? <L><FeatureRequests /></L> : <Navigate to="/login" />} />
-        <Route path="/app/referral" element={isAuthenticated ? <L><ReferralProgram /></L> : <Navigate to="/login" />} />
-        <Route path="/app/gift-cards" element={isAuthenticated ? <L><ReferralProgram /></L> : <Navigate to="/login" />} />
-        <Route path="/app/downloads" element={isAuthenticated ? <L><MyDownloads /></L> : <Navigate to="/login" />} />
-        <Route path="/app/my-downloads" element={isAuthenticated ? <L><MyDownloads /></L> : <Navigate to="/login" />} />
-        <Route path="/app/pricing" element={isAuthenticated ? <L><PricingPage /></L> : <Navigate to="/login" />} />
-        <Route path="/app/subscription" element={isAuthenticated ? <L><SubscriptionManagement /></L> : <Navigate to="/login" />} />
-        <Route path="/app/analytics" element={isAuthenticated ? <L><AnalyticsDashboard /></L> : <Navigate to="/login" />} />
+        <Route path="/app/blueprint-library" element={isAuthenticated ? <L><ContentBlueprintLibrary /></L> : <LoginRedirect />} />
+        <Route path="/app/payment-history" element={isAuthenticated ? <L><PaymentHistory /></L> : <LoginRedirect />} />
+        <Route path="/app/feature-requests" element={isAuthenticated ? <L><FeatureRequests /></L> : <LoginRedirect />} />
+        <Route path="/app/referral" element={isAuthenticated ? <L><ReferralProgram /></L> : <LoginRedirect />} />
+        <Route path="/app/gift-cards" element={isAuthenticated ? <L><ReferralProgram /></L> : <LoginRedirect />} />
+        <Route path="/app/downloads" element={isAuthenticated ? <L><MyDownloads /></L> : <LoginRedirect />} />
+        <Route path="/app/my-downloads" element={isAuthenticated ? <L><MyDownloads /></L> : <LoginRedirect />} />
+        <Route path="/app/pricing" element={isAuthenticated ? <L><PricingPage /></L> : <LoginRedirect />} />
+        <Route path="/app/subscription" element={isAuthenticated ? <L><SubscriptionManagement /></L> : <LoginRedirect />} />
+        <Route path="/app/analytics" element={isAuthenticated ? <L><AnalyticsDashboard /></L> : <LoginRedirect />} />
 
         {/* ═══ SERIES / CHARACTERS ═══ */}
-        <Route path="/app/story-series" element={isAuthenticated ? <L><StorySeries /></L> : <Navigate to="/login" />} />
-        <Route path="/app/story-series/create" element={isAuthenticated ? <L><CreateSeries /></L> : <Navigate to="/login" />} />
+        <Route path="/app/story-series" element={isAuthenticated ? <L><StorySeries /></L> : <LoginRedirect />} />
+        <Route path="/app/story-series/create" element={isAuthenticated ? <L><CreateSeries /></L> : <LoginRedirect />} />
         <Route path="/app/story-series/:seriesId" element={<L><SeriesTimeline /></L>} />
-        <Route path="/app/characters/create" element={isAuthenticated ? <L><CharacterCreator /></L> : <Navigate to="/login" />} />
-        <Route path="/app/characters/:characterId" element={isAuthenticated ? <L><CharacterDetail /></L> : <Navigate to="/login" />} />
+        <Route path="/app/characters/create" element={isAuthenticated ? <L><CharacterCreator /></L> : <LoginRedirect />} />
+        <Route path="/app/characters/:characterId" element={isAuthenticated ? <L><CharacterDetail /></L> : <LoginRedirect />} />
 
         {/* ═══ TEMPLATE FEATURES ═══ */}
-        <Route path="/app/creator-pro" element={isAuthenticated ? <L><CreatorProTools /></L> : <Navigate to="/login" />} />
-        <Route path="/app/twinfinder" element={isAuthenticated ? <L><TwinFinder /></L> : <Navigate to="/login" />} />
-        <Route path="/app/challenge-generator" element={isAuthenticated ? <L><ChallengeGenerator /></L> : <Navigate to="/login" />} />
-        <Route path="/app/tone-switcher" element={isAuthenticated ? <L><ToneSwitcher /></L> : <Navigate to="/login" />} />
-        <Route path="/app/instagram-bio-generator" element={isAuthenticated ? <L><InstagramBioGenerator /></L> : <Navigate to="/login" />} />
-        <Route path="/app/bio-generator" element={isAuthenticated ? <L><InstagramBioGenerator /></L> : <Navigate to="/login" />} />
-        <Route path="/app/comment-reply-bank" element={isAuthenticated ? <L><CommentReplyBank /></L> : <Navigate to="/login" />} />
-        <Route path="/app/reply-bank" element={isAuthenticated ? <L><CommentReplyBank /></L> : <Navigate to="/login" />} />
-        <Route path="/app/thumbnail-generator" element={isAuthenticated ? <L><YouTubeThumbnailGenerator /></L> : <Navigate to="/login" />} />
-        <Route path="/app/brand-story-builder" element={isAuthenticated ? <L><BrandStoryBuilder /></L> : <Navigate to="/login" />} />
-        <Route path="/app/offer-generator" element={isAuthenticated ? <L><OfferGenerator /></L> : <Navigate to="/login" />} />
-        <Route path="/app/story-hook-generator" element={isAuthenticated ? <L><StoryHookGenerator /></L> : <Navigate to="/login" />} />
-        <Route path="/app/daily-viral-ideas" element={isAuthenticated ? <L><DailyViralIdeas /></L> : <Navigate to="/login" />} />
+        <Route path="/app/creator-pro" element={isAuthenticated ? <L><CreatorProTools /></L> : <LoginRedirect />} />
+        <Route path="/app/twinfinder" element={isAuthenticated ? <L><TwinFinder /></L> : <LoginRedirect />} />
+        <Route path="/app/challenge-generator" element={isAuthenticated ? <L><ChallengeGenerator /></L> : <LoginRedirect />} />
+        <Route path="/app/tone-switcher" element={isAuthenticated ? <L><ToneSwitcher /></L> : <LoginRedirect />} />
+        <Route path="/app/instagram-bio-generator" element={isAuthenticated ? <L><InstagramBioGenerator /></L> : <LoginRedirect />} />
+        <Route path="/app/bio-generator" element={isAuthenticated ? <L><InstagramBioGenerator /></L> : <LoginRedirect />} />
+        <Route path="/app/comment-reply-bank" element={isAuthenticated ? <L><CommentReplyBank /></L> : <LoginRedirect />} />
+        <Route path="/app/reply-bank" element={isAuthenticated ? <L><CommentReplyBank /></L> : <LoginRedirect />} />
+        <Route path="/app/thumbnail-generator" element={isAuthenticated ? <L><YouTubeThumbnailGenerator /></L> : <LoginRedirect />} />
+        <Route path="/app/brand-story-builder" element={isAuthenticated ? <L><BrandStoryBuilder /></L> : <LoginRedirect />} />
+        <Route path="/app/offer-generator" element={isAuthenticated ? <L><OfferGenerator /></L> : <LoginRedirect />} />
+        <Route path="/app/story-hook-generator" element={isAuthenticated ? <L><StoryHookGenerator /></L> : <LoginRedirect />} />
+        <Route path="/app/daily-viral-ideas" element={isAuthenticated ? <L><DailyViralIdeas /></L> : <LoginRedirect />} />
 
         {/* ═══ ADMIN — Entire admin lazy loaded ═══ */}
         <Route path="/app/admin" element={<L><AdminLayout /></L>}>
