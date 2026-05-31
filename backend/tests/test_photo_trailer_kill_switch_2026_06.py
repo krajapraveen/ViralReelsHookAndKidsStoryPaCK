@@ -172,7 +172,7 @@ async def trailer_user():
 def test_create_job_pause_check_is_first_statement():
     """The pause guard must execute BEFORE template lookup, upload-session
     lookup, plan check, credit math, prompt sanitizer, or job insert.
-    Lexically: the `_is_paused()` call must appear before the first
+    Lexically: the pause resolver call must appear before the first
     `db.photo_trailer_upload_sessions.find_one` AND before the
     `deduct_credits` call inside the body of `create_job`."""
     src = TRAILER_PATH.read_text()
@@ -182,12 +182,15 @@ def test_create_job_pause_check_is_first_statement():
     )
     assert m, "create_job() must exist."
     body = m.group("body")
-    paused_pos = body.find("_is_paused()")
+    # Accept either resolver (sync env-only or async env+DB).
+    paused_pos = body.find("_resolve_pause()")
+    if paused_pos == -1:
+        paused_pos = body.find("_is_paused()")
     session_pos = body.find("db.photo_trailer_upload_sessions.find_one")
-    assert paused_pos != -1, "create_job must call _is_paused()"
+    assert paused_pos != -1, "create_job must call the pause resolver (_resolve_pause or _is_paused)."
     assert session_pos != -1, "create_job must look up upload session"
     assert paused_pos < session_pos, (
-        "_is_paused() must be checked BEFORE upload-session lookup so a "
+        "Pause resolver must be checked BEFORE upload-session lookup so a "
         "paused feature does not consume any DB/compute work."
     )
 
@@ -202,9 +205,11 @@ def test_retry_job_also_pause_gated():
     )
     assert m, "retry_job() must exist."
     body = m.group("body")
-    pause_pos = body.find("_is_paused()")
+    pause_pos = body.find("_resolve_pause()")
+    if pause_pos == -1:
+        pause_pos = body.find("_is_paused()")
     db_pos = body.find("db.photo_trailer_jobs.find_one")
-    assert pause_pos != -1, "retry_job must call _is_paused()"
+    assert pause_pos != -1, "retry_job must call the pause resolver."
     assert db_pos != -1, "retry_job must look up the existing job"
     assert pause_pos < db_pos, (
         "Pause check must precede the job lookup."
@@ -212,15 +217,17 @@ def test_retry_job_also_pause_gated():
 
 
 def test_is_paused_reads_env_per_call_not_import_time():
-    """The helper must read os.environ on every call so operators can
+    """The env-var path must read os.environ on every call so operators can
     toggle the flag without restarting code. A cached `paused=...` at
     import time would defeat the purpose."""
     src = TRAILER_PATH.read_text()
-    m = re.search(r"def _is_paused\(\)[^:]*:(?P<body>.+?)\n\n", src, re.S)
-    assert m, "_is_paused() must exist."
-    body = m.group("body")
-    assert "os.environ" in body, (
-        "_is_paused() must read os.environ at call time."
+    # Accept either the legacy `_is_paused` helper or the new `_is_paused_env`.
+    for name in ("_is_paused_env", "_is_paused"):
+        m = re.search(rf"def {name}\(\)[^:]*:(?P<body>.+?)\n\n", src, re.S)
+        if m and "os.environ" in m.group("body"):
+            return
+    raise AssertionError(
+        "Env-var pause helper must read os.environ at call time."
     )
 
 
@@ -327,6 +334,99 @@ async def test_status_endpoint_reports_pause_state(trailer_user):
         body = r2.json()
         assert body["paused"] is True
         assert body["message"], "Paused response must carry a user-facing message."
+
+
+# ─── DB-backed kill switch (admin/pause) ────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_db_kill_switch_pauses_without_env_var(trailer_user):
+    """DB feature flag must work as a peer toggle to the env var. Born from
+    the 2026-06 incident where the operator could not edit production env
+    vars — the kill switch must be reachable via admin curl.
+
+    Note: we don't use ASGITransport in-process here because the
+    photo_trailer module's `db` handle is bound to the first event loop
+    that imported it, and a pytest-asyncio test runs in a fresh loop.
+    Driving via the live supervisor backend dodges that problem and is
+    the right semantic anyway — this is an integration test for an
+    ops-facing endpoint."""
+    import sys
+    sys.path.insert(0, "/app/backend")
+    from shared import create_token  # noqa: WPS433
+
+    admin_id = f"adm-dbflag-{uuid.uuid4().hex[:6]}"
+    db = trailer_user["db"]
+    await db.users.insert_one({
+        "_id": admin_id, "id": admin_id, "email": f"{admin_id}@example.com",
+        "name": "DB Flag Admin", "role": "ADMIN",
+        "credits": 0, "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    admin_token = create_token(admin_id, "ADMIN")
+
+    base = _api_base()
+    _Flag.off()  # Make absolutely sure env var path is OFF.
+    # Clear any stale flag from prior runs.
+    await db.feature_flags.delete_one({"_id": "photo_trailer_paused"})
+    try:
+        async with httpx.AsyncClient(base_url=base, timeout=20.0) as cli:
+            # Baseline — neither mechanism on → not paused.
+            r = await cli.get("/api/photo-trailer/status")
+            assert r.status_code == 200 and r.json()["paused"] is False
+
+            # Flip DB flag ON via admin endpoint.
+            r = await cli.post(
+                "/api/photo-trailer/admin/pause",
+                headers={"Authorization": f"Bearer {admin_token}"},
+                json={"paused": True, "message": "Testing DB-backed pause"},
+            )
+            assert r.status_code == 200, f"admin/pause failed: {r.text}"
+            body = r.json()
+            assert body["paused"] is True
+            assert body["via"] == "db_flag"
+            assert body["env_var_paused"] is False, "Env path must not have flipped"
+
+            # Status now reports paused with the custom message.
+            r = await cli.get("/api/photo-trailer/status")
+            assert r.status_code == 200
+            assert r.json()["paused"] is True
+            assert "Testing DB-backed pause" in r.json()["message"]
+
+            # POST /jobs is now blocked (just like env-var path).
+            r = await cli.post(
+                "/api/photo-trailer/jobs",
+                headers={"Authorization": f"Bearer {trailer_user['token']}"},
+                json={
+                    "upload_session_id": trailer_user["session_id"],
+                    "hero_asset_id":     trailer_user["hero_asset_id"],
+                    "supporting_asset_ids": [],
+                    "template_id": "anime_intro",
+                    "duration_target_seconds": 60,
+                },
+            )
+            assert r.status_code == 503
+            assert r.json()["detail"]["code"] == "TRAILER_PAUSED"
+
+            # Audit trail row must exist.
+            audit = await db.feature_flags_audit.find_one(
+                {"flag": "photo_trailer_paused", "action": "pause", "actor_user_id": admin_id},
+            )
+            assert audit is not None, "pause action must write an audit row"
+
+            # Flip back OFF.
+            r = await cli.post(
+                "/api/photo-trailer/admin/pause",
+                headers={"Authorization": f"Bearer {admin_token}"},
+                json={"paused": False},
+            )
+            assert r.status_code == 200
+            assert r.json()["paused"] is False
+            r = await cli.get("/api/photo-trailer/status")
+            assert r.json()["paused"] is False
+    finally:
+        await db.users.delete_one({"id": admin_id})
+        await db.feature_flags.delete_one({"_id": "photo_trailer_paused"})
+        await db.feature_flags_audit.delete_many({"actor_user_id": admin_id})
 
 
 @pytest.mark.asyncio

@@ -100,25 +100,67 @@ PREMIUM_MIN_DURATION = 90  # 90s+ requires PREMIUM
 PAID_MIN_DURATION    = 60  # 60s+ requires PAID or PREMIUM
 
 # ─── P0 Damage-control kill switch ────────────────────────────────────────────
-# When PHOTO_TRAILER_PAUSED=true the create-job + retry endpoints return 503
-# BEFORE any credit deduction, upload validation, render scheduling, or worker
-# enqueue. Everything else (listing, viewing, sharing, admin diagnose+repair)
-# keeps working so the user can still recover their money + watch what they
-# already paid for. Born from the 2026-06 krajapraveen@gmail.com incident
-# where the render pipeline + refund integrity both regressed simultaneously.
+# When the trailer kill switch is ON the create-job + retry endpoints return
+# 503 BEFORE any credit deduction, upload validation, render scheduling, or
+# worker enqueue. Everything else (listing, viewing, sharing, admin
+# diagnose+repair) keeps working so the user can still recover their money +
+# watch what they already paid for. Born from the 2026-06 krajapraveen@gmail.com
+# incident where the render pipeline + refund integrity both regressed
+# simultaneously.
 #
-# Operator runbook: set env var → redeploy. Unset to resume.
+# Two equally authoritative toggle mechanisms (either turns it on):
+#   1. `PHOTO_TRAILER_PAUSED` env var (truthy: 1/true/yes/on). Requires
+#      backend restart — survives DB outage. Original mechanism.
+#   2. `feature_flags.photo_trailer_paused.enabled` MongoDB document.
+#      Toggle live from `POST /api/photo-trailer/admin/pause` — no
+#      restart, no env access, works through admin curl. Added 2026-06
+#      because some deploy targets don't expose an "add env var" UI to
+#      operators, so the kill switch was effectively unreachable
+#      mid-incident.
+# Operator runbook (preferred): hit the admin endpoint. Operator fallback:
+# set env var + redeploy.
 PAUSE_MESSAGE = (
     "My Movie Trailer is temporarily paused while we fix rendering "
     "reliability. Your existing trailers are safe."
 )
 
-def _is_paused() -> bool:
-    """Single source of truth for the trailer kill switch. Read from env
-    EVERY call (not cached at import) so an operator can toggle live by
-    bouncing the process without code changes. Truthy values: 1/true/yes/on."""
+def _is_paused_env() -> bool:
+    """ENV-var mechanism — read each call so an operator can toggle live."""
     val = (os.environ.get("PHOTO_TRAILER_PAUSED") or "").strip().lower()
     return val in {"1", "true", "yes", "on"}
+
+
+async def _is_paused_db() -> tuple[bool, Optional[str]]:
+    """DB feature-flag mechanism — overrides nothing; just an OR with env.
+    Returns (paused, custom_message). Soft-fail on DB errors so a Mongo
+    outage cannot accidentally pause / unpause the feature."""
+    try:
+        doc = await db.feature_flags.find_one(
+            {"_id": "photo_trailer_paused"},
+            {"_id": 0, "enabled": 1, "message": 1},
+        )
+        if doc and bool(doc.get("enabled")):
+            return True, (doc.get("message") or None)
+    except Exception as e:
+        log.warning(f"[kill-switch] DB read failed (soft-fail): {e}")
+    return False, None
+
+
+async def _resolve_pause() -> tuple[bool, str]:
+    """Canonical resolver — checks BOTH mechanisms. Either ON → paused.
+    Custom DB message wins when present (lets ops override copy live)."""
+    db_paused, db_message = await _is_paused_db()
+    if db_paused:
+        return True, (db_message or PAUSE_MESSAGE)
+    if _is_paused_env():
+        return True, PAUSE_MESSAGE
+    return False, ""
+
+
+def _is_paused() -> bool:
+    """Back-compat shim — used by older sync callers. Prefer
+    `_resolve_pause()` for new code so the DB mechanism is honored."""
+    return _is_paused_env()
 
 # ─── Templates ────────────────────────────────────────────────────────────────
 TEMPLATES: Dict[str, Dict[str, Any]] = {
@@ -363,11 +405,74 @@ async def trailer_status():
     """P0 kill-switch probe — public so the banner can render before login.
     Returns `{ paused: bool, message: str }`. The frontend polls this on
     page load and short-circuits the upload flow when paused=true.
-    Existing trailers + admin diagnose/repair are unaffected by this flag."""
-    paused = _is_paused()
+    Honours BOTH the env-var and DB feature-flag mechanisms — either ON
+    means paused. Existing trailers + admin diagnose/repair are unaffected
+    by this flag."""
+    paused, message = await _resolve_pause()
     return {
         "paused": paused,
-        "message": PAUSE_MESSAGE if paused else "",
+        "message": message,
+    }
+
+
+# ─── Admin: live pause toggle (no env-var access required) ────────────────────
+# Born from the 2026-06 production incident where the env-var kill switch
+# I shipped first was unreachable because the deploy target didn't expose
+# an "add environment variable" UI to the operator. This DB-backed
+# mechanism gives ops a curl-able lever that survives the next outage.
+
+class _PauseToggleIn(BaseModel):
+    paused: bool
+    message: Optional[str] = None  # overrides the default PAUSE_MESSAGE when paused=true
+
+
+@router.post("/admin/pause")
+async def admin_pause_trailer(body: _PauseToggleIn, user: dict = Depends(get_admin_user)):
+    """Flip the DB feature flag that pauses MyTrailer generation.
+
+    Idempotent: re-posting the same state is a no-op. Writes an audit
+    trail to `feature_flags_audit` so we can answer "when did this flip,
+    and who flipped it?" weeks later.
+
+    Toggle ON:  POST {"paused": true,  "message": "..."}
+    Toggle OFF: POST {"paused": false}
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    update_doc: Dict[str, Any] = {
+        "enabled": bool(body.paused),
+        "updated_at": now,
+        "updated_by": user.get("email") or user.get("id"),
+    }
+    if body.paused and body.message:
+        update_doc["message"] = body.message[:500]
+    elif not body.paused:
+        # Clear the custom message when unpausing so the next pause starts
+        # from the canonical PAUSE_MESSAGE instead of a stale override.
+        update_doc["message"] = None
+
+    await db.feature_flags.update_one(
+        {"_id": "photo_trailer_paused"},
+        {"$set": update_doc, "$setOnInsert": {"created_at": now}},
+        upsert=True,
+    )
+    # Audit trail — append-only collection so we can reconstruct history.
+    await db.feature_flags_audit.insert_one({
+        "_id": str(uuid.uuid4()),
+        "flag": "photo_trailer_paused",
+        "action": "pause" if body.paused else "unpause",
+        "actor_user_id": user.get("id"),
+        "actor_email": user.get("email"),
+        "message": (body.message or None) if body.paused else None,
+        "timestamp": now,
+    })
+    # Resolve+return the canonical state so the operator can confirm.
+    paused, message = await _resolve_pause()
+    return {
+        "ok": True,
+        "paused": paused,
+        "message": message,
+        "via": "db_flag",
+        "env_var_paused": _is_paused_env(),
     }
 
 # ─── Trust & Legal: prompt sanitizer ──────────────────────────────────────────
@@ -432,14 +537,17 @@ async def create_job(body: JobCreateIn, bg: BackgroundTasks, user: dict = Depend
     # P0 KILL SWITCH — must fire BEFORE any deduction, upload validation,
     # render scheduling, or worker enqueue. Returns a structured 503 so the
     # frontend can show the "paused" banner instead of a generic error.
-    if _is_paused():
+    # Checks BOTH env var AND db.feature_flags so ops can toggle without
+    # access to the production env config.
+    paused, pause_msg = await _resolve_pause()
+    if paused:
         await _emit("photo_trailer_paused_block", user["id"], {
             "duration": body.duration_target_seconds,
             "template_id": body.template_id,
         })
         raise HTTPException(status_code=503, detail={
             "code": "TRAILER_PAUSED",
-            "message": PAUSE_MESSAGE,
+            "message": pause_msg,
         })
     if body.template_id not in TEMPLATES:
         raise HTTPException(400, detail={"code": "INVALID_TEMPLATE", "message": "Invalid template"})
@@ -600,10 +708,11 @@ async def get_job(job_id: str, user: dict = Depends(get_current_user)):
 async def retry_job(job_id: str, bg: BackgroundTasks, user: dict = Depends(get_current_user)):
     # P0 KILL SWITCH — retry triggers a fresh pipeline (free compute burn).
     # Block it the same way as create_job so a paused feature truly halts.
-    if _is_paused():
+    paused, pause_msg = await _resolve_pause()
+    if paused:
         raise HTTPException(status_code=503, detail={
             "code": "TRAILER_PAUSED",
-            "message": PAUSE_MESSAGE,
+            "message": pause_msg,
         })
     j = await db.photo_trailer_jobs.find_one({"_id": job_id, "user_id": user["id"]})
     if not j: raise HTTPException(404, "Job not found")
