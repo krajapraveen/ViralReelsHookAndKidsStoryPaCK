@@ -1269,19 +1269,44 @@ async def _fail(job_id: str, code: str, msg: str):
 
     # ── Compose error_message based on KNOWN outcome — never claim refund
     #    unless the ledger confirmed it. ─────────────────────────────────
+    #
+    # P0 2026-06-PROD-FOLLOWUP — diagnostic-aware message composition.
+    # The legacy branches stripped the caller's `msg` (which carries the
+    # underlying exception class + ffmpeg complaint) and replaced it with
+    # a generic refund line. That loses the only piece of information ops
+    # needs to triage. New contract: when `code` is one of the diagnostic
+    # codes (RENDER_FAIL / RENDER_INVALID / RENDER_TIMEOUT / TTS_EMPTY /
+    # IMAGE_GEN_FAIL / UPLOAD_FAIL), we KEEP the caller's `msg` verbatim
+    # — it already includes the exception class + first 240 chars. The
+    # refund status is appended as a separate clause so honesty is
+    # preserved without nuking diagnostics.
+    DIAGNOSTIC_CODES = {
+        "RENDER_FAIL", "RENDER_INVALID", "RENDER_TIMEOUT",
+        "TTS_EMPTY", "IMAGE_GEN_FAIL", "UPLOAD_FAIL",
+    }
+    is_diagnostic = code in DIAGNOSTIC_CODES
     if refund_issued and refund_amount > 0:
-        user_facing_msg = (
-            "Trailer failed — credits refunded. Please try again."
-        )
+        if is_diagnostic and msg:
+            user_facing_msg = f"{msg}"  # caller already wrote "...credits refunded — please retry"
+        else:
+            user_facing_msg = (
+                "Trailer failed — credits refunded. Please try again."
+            )
     elif charged > 0 and not refund_issued:
         # Money was taken but refund failed. Honest message + ops alert.
-        user_facing_msg = (
-            "Trailer failed. Refund is being processed — if your balance "
-            "isn't restored shortly, please contact support."
-        )
+        if is_diagnostic and msg:
+            user_facing_msg = (
+                f"{msg} Refund is being processed — if your balance "
+                "isn't restored shortly, please contact support."
+            )
+        else:
+            user_facing_msg = (
+                "Trailer failed. Refund is being processed — if your balance "
+                "isn't restored shortly, please contact support."
+            )
     else:
         # No money was taken at all (failed before deduct or free preview).
-        if code == "RENDER_INVALID":
+        if code == "RENDER_INVALID" and not is_diagnostic:
             user_facing_msg = "Trailer failed. Please try again."
         else:
             user_facing_msg = msg
@@ -2139,7 +2164,20 @@ async def _run_pipeline_inner(job_id: str):
         try:
             scenes = await _llm_script(j, hero_role_hint="the person in the FIRST reference photo")
         except Exception as e:
-            return await _fail(job_id, "SCRIPT_FAIL", f"Trailer writing hit a hiccup. Please retry.")
+            exc_class = type(e).__name__
+            exc_msg = str(e)[:300]
+            log.exception(f"[trailer {job_id}] SCRIPT_FAIL class={exc_class}")
+            try:
+                await db.photo_trailer_jobs.update_one(
+                    {"_id": job_id},
+                    {"$set": {"provider_error": f"{exc_class}: {exc_msg}"}},
+                )
+            except Exception:
+                pass
+            return await _fail(
+                job_id, "SCRIPT_FAIL",
+                f"Trailer script generation failed ({exc_class}: {exc_msg[:160]}). Please retry.",
+            )
         await db.photo_trailer_jobs.update_one({"_id": job_id}, {"$set": {"script_text": json.dumps(scenes)[:8000]}})
 
         # Image + voice generation per scene (parallelised, with per-scene retry)
@@ -2372,9 +2410,46 @@ async def _run_pipeline_inner(job_id: str):
                 job_id, "RENDER_INVALID",
                 f"Final video failed quality check: {e}. Credits refunded — please retry.",
             )
-        except Exception:
-            log.exception(f"render failed for {job_id}")
-            return await _fail(job_id, "RENDER_FAIL", "Final render hit a hiccup. Please retry.")
+        except Exception as exc:
+            # P0 2026-06-PROD-FOLLOWUP — DIAGNOSTIC ANTI-SWALLOW.
+            # The generic catch used to call _fail with a generic
+            # placeholder string, losing the underlying exception class
+            # + traceback. Production debug required reproducing locally
+            # to see the real error.
+            #
+            # Bug-class fix: persist the actual exception class, message,
+            # and traceback tail onto the job doc BEFORE calling _fail.
+            # The admin endpoint and the FailedStep UI both already
+            # surface these fields when present — they were just never
+            # being written. The user-facing message must always include
+            # the exception type — never a friendly placeholder that
+            # hides the real cause.
+            import traceback as _tb
+            exc_class = type(exc).__name__
+            exc_msg = str(exc)[:600]
+            tb_tail = _tb.format_exc()[-2000:]
+            log.exception(
+                f"[trailer {job_id}] RENDER_FAIL_UNCAUGHT class={exc_class} "
+                f"msg={exc_msg[:200]}"
+            )
+            try:
+                await db.photo_trailer_jobs.update_one(
+                    {"_id": job_id},
+                    {"$set": {
+                        "render_exception_class": exc_class,
+                        "render_exception_message": exc_msg,
+                        "render_traceback_tail": tb_tail,
+                        "render_failure_kind": "uncaught_exception",
+                        "provider_error": f"{exc_class}: {exc_msg[:300]}",
+                    }},
+                )
+            except Exception:
+                pass  # diagnostic persistence MUST never mask the original
+            return await _fail(
+                job_id, "RENDER_FAIL",
+                f"Final render failed ({exc_class}: {exc_msg[:240]}). "
+                "Credits refunded — please retry.",
+            )
 
         # Upload widescreen master — also bounded so a hung R2 connection
         # cannot keep the job at 88% forever. 5 minutes is generous for
@@ -3341,6 +3416,16 @@ async def admin_trailer_job_summary(job_id: str, user: dict = Depends(get_admin_
         parts = [(j.get("error_message") or "")[:240]]
         if j.get("render_validation_error"):
             parts.append("validation=" + j["render_validation_error"][:160])
+        if j.get("render_exception_class"):
+            # P0 2026-06-PROD-FOLLOWUP — surface the uncaught exception
+            # class + message that previously got swallowed by the
+            # generic RENDER_FAIL catch.
+            parts.append(
+                "exception=" + j["render_exception_class"]
+                + ": " + (j.get("render_exception_message") or "")[:160]
+            )
+        if j.get("ffmpeg_exit_code") is not None:
+            parts.append(f"ffmpeg_exit={j['ffmpeg_exit_code']}")
         if j.get("provider_error"):
             parts.append("provider=" + j["provider_error"][:160])
         if j.get("refund_error"):
@@ -3373,6 +3458,12 @@ async def admin_trailer_job_summary(job_id: str, user: dict = Depends(get_admin_
         "render_duration_seconds":    j.get("render_duration_seconds"),
         "output_file_size_mb":        j.get("output_file_size_mb"),
         "render_failure_kind":        j.get("render_failure_kind"),
+        # P0 2026-06-PROD-FOLLOWUP — uncaught-exception diagnostics. The
+        # generic `except Exception:` swallow used to drop these. Surfaced
+        # now so RENDER_FAIL never hides the underlying error class again.
+        "render_exception_class":     j.get("render_exception_class"),
+        "render_exception_message":   j.get("render_exception_message"),
+        "render_traceback_tail":      j.get("render_traceback_tail"),
         # P0 2026-06 — duration-mismatch repair telemetry. Surfaces the
         # auto-repair pathway so ops can see "video was 62.5s, audio
         # was 60.07s, gap 2.45s — auto-padded with silence to 62.55s".

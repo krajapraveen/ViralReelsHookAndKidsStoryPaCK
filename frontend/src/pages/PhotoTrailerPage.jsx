@@ -1193,16 +1193,42 @@ function FailedStep({ job, onRetry, onEdit, onDelete }) {
 
   // Compose a human-readable diagnostic string from the structured fields.
   // Each is short — full payload is on the clipboard button.
+  //
+  // P0 2026-06-PROD-FOLLOWUP — extended composition. The backend now
+  // persists `render_exception_class`, `render_exception_message`,
+  // `render_traceback_tail`, and `ffmpeg_exit_code` for uncaught render
+  // failures. We surface them here so a generic RENDER_FAIL never hides
+  // the underlying error class again. Details row is ALWAYS rendered
+  // when any diagnostic field is non-empty — no more "matches
+  // error_message → hide" short-circuit.
+  const detailParts = [
+    job?.render_validation_error ? `validation: ${job.render_validation_error}` : null,
+    job?.render_exception_class
+      ? `exception: ${job.render_exception_class}: ${(job?.render_exception_message || '').slice(0, 200)}`
+      : null,
+    (job?.ffmpeg_exit_code !== undefined && job?.ffmpeg_exit_code !== null)
+      ? `ffmpeg exit: ${job.ffmpeg_exit_code}` : null,
+    job?.render_validation_reason ? `reason: ${job.render_validation_reason}` : null,
+    (job?.duration_gap_seconds !== undefined && job?.duration_gap_seconds !== null)
+      ? `duration gap: ${job.duration_gap_seconds}s` : null,
+    job?.provider_error          ? `provider: ${job.provider_error}` : null,
+    job?.refund_error            ? `refund: ${job.refund_error}` : null,
+  ].filter(Boolean);
   const diagnostic = {
     job_id:        job?.job_id || job?._id,
     error_code:    job?.error_code || null,
     failure_stage: job?.failure_stage || job?.current_stage || null,
-    failure_reason: [
-      job?.error_message,
-      job?.render_validation_error ? `validation: ${job.render_validation_error}` : null,
-      job?.provider_error          ? `provider: ${job.provider_error}` : null,
-      job?.refund_error            ? `refund: ${job.refund_error}` : null,
-    ].filter(Boolean).join(' | '),
+    failure_reason: [job?.error_message, ...detailParts].filter(Boolean).join(' | '),
+    // P0 — full uncaught-exception payload travels via clipboard so
+    // users can paste the raw traceback into a support ticket.
+    render_exception_class:   job?.render_exception_class || null,
+    render_exception_message: job?.render_exception_message || null,
+    render_traceback_tail:    job?.render_traceback_tail || null,
+    ffmpeg_exit_code:         job?.ffmpeg_exit_code ?? null,
+    ffmpeg_stderr_tail:       job?.ffmpeg_stderr_tail || null,
+    render_failure_kind:      job?.render_failure_kind || null,
+    render_validation_reason: job?.render_validation_reason || null,
+    duration_gap_seconds:     job?.duration_gap_seconds ?? null,
     retry_count: job?.retry_count || 0,
   };
   const hasDiagnostic = Boolean(diagnostic.error_code || diagnostic.failure_stage);
@@ -1256,11 +1282,11 @@ function FailedStep({ job, onRetry, onEdit, onDelete }) {
               </span>
             </div>
           )}
-          {diagnostic.failure_reason && diagnostic.failure_reason !== job.error_message && (
+          {detailParts.length > 0 && (
             <div className="flex gap-2">
               <span className="text-slate-400 shrink-0 w-24">Details:</span>
               <span className="text-slate-300 break-words" data-testid="trailer-failed-details">
-                {diagnostic.failure_reason}
+                {detailParts.join(' | ')}
               </span>
             </div>
           )}

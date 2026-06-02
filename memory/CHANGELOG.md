@@ -1,6 +1,65 @@
 # Visionary Suite - Changelog
 
 
+## 2026-06 — P0 Diagnostic Anti-Swallow (PROD FOLLOWUP #2)
+
+**Status**: SHIPPED in preview. `make audit-boundaries-quick` green (**715 passing, 1 skipped**, +12 new). Awaiting redeploy.
+
+**Trigger**: Third production failure for krajapraveen@gmail.com. After the duration-repair hardening, a NEW code path failed with diagnostics regressed back to a generic placeholder:
+```json
+{
+  "error_code": "RENDER_FAIL",
+  "failure_stage": "RENDERING_TRAILER",
+  "failure_reason": "Final render hit a hiccup. Please retry.",
+  "retry_count": 0
+}
+```
+The generic `except Exception:` catch-all at the render-pipeline boundary swallowed the real exception (likely the auto-repair branch raising a non-`FfmpegFailure` exception, or an asyncio/IO error). Ops could not triage from `failure_reason` alone — the entire diagnostic apparatus shipped earlier (ffmpeg_exit_code, stderr_tail, render_validation_reason) was bypassed.
+
+**Fixes shipped**:
+
+1. **Render-pipeline catch-all anti-swallow** (`photo_trailer.py` line ~2376):
+   - Captures `type(exc).__name__`, `str(exc)[:600]`, `traceback.format_exc()[-2000:]` into named locals.
+   - Persists `render_exception_class`, `render_exception_message`, `render_traceback_tail`, `render_failure_kind="uncaught_exception"`, `provider_error=f"{class}: {msg}"` onto the job doc BEFORE calling `_fail()`.
+   - User-facing `_fail()` message now includes the exception class + first 240 chars: `"Final render failed (ValueError: bad cmd). Credits refunded — please retry."`
+   - The legacy "Final render hit a hiccup" string is fully eliminated from the codebase — pinned by test.
+
+2. **SCRIPT_FAIL parallel fix**: Same anti-swallow treatment for the LLM script-generation catch (was using the same generic-hiccup placeholder).
+
+3. **`_fail()` diagnostic-aware message composition**: Introduced `DIAGNOSTIC_CODES = {RENDER_FAIL, RENDER_INVALID, RENDER_TIMEOUT, TTS_EMPTY, IMAGE_GEN_FAIL, UPLOAD_FAIL}`. When the failure code is in this set, the caller's `msg` (which already includes the exception class) is preserved verbatim instead of being replaced by the generic refund line. Refund honesty is still maintained — the message already includes the refund clause.
+
+4. **Admin endpoint extended**: `/admin/trailer-jobs/<id>` now surfaces `render_exception_class`, `render_exception_message`, `render_traceback_tail`, and includes them in the composed `failure_reason` string (alongside `ffmpeg_exit=` when present).
+
+5. **FailedStep UI hardening** (`PhotoTrailerPage.jsx`):
+   - Removed the `failure_reason !== job.error_message` short-circuit that HID the Details row when both strings matched (exactly the production case).
+   - Details row now always renders when any diagnostic field is populated.
+   - Composition includes `exception: {class}: {msg}`, `ffmpeg exit: {code}`, `reason: {render_validation_reason}`, `duration gap: {seconds}s`.
+   - Copy-diagnostic clipboard payload carries the full `render_traceback_tail` for support tickets.
+
+**Tests added** (`backend/tests/test_photo_trailer_render_antiswallow_2026_06_prod.py`, 12 tests, all green):
+- Static: "Final render hit a hiccup" string is forbidden in `_run_pipeline_inner`.
+- Static: catch-all captures `type(exc).__name__` + `format_exc()`.
+- Static: catch-all persists all five diagnostic fields BEFORE calling `_fail`.
+- Static: `_fail` message includes `exc_class` reference (never a friendly placeholder).
+- Static: `DIAGNOSTIC_CODES` set is declared with all six codes.
+- Static: refund-issued branch checks `is_diagnostic` to preserve caller's `msg`.
+- Static: admin endpoint returns `render_exception_class`, `render_exception_message`, `render_traceback_tail`.
+- Static: admin `failure_reason` includes the exception class + ffmpeg exit code when set.
+- Frontend: FailedStep reads `render_exception_class` + `render_exception_message`.
+- Frontend: `detailParts` array includes exception class + ffmpeg_exit_code.
+- Frontend: legacy `!== job.error_message` hide-short-circuit is forbidden.
+- Frontend: clipboard payload carries `render_traceback_tail`.
+
+**What the user will see on the next failed job**:
+```
+Failed during:  RENDERING_TRAILER
+Error code:     RENDER_FAIL
+Details:        exception: TimeoutError: ... | ffmpeg exit: 1 | reason: audio_shorter_than_video | duration gap: 12.45s | provider: TimeoutError: ...
+[Copy diagnostic info]  ← full traceback included
+```
+
+
+
 ## 2026-06 — P0 Duration-mismatch auto-repair hardening (PROD FOLLOWUP)
 
 **Status**: SHIPPED in preview. `make audit-boundaries-quick` green (**703 passing, 1 skipped**, +10 new). Awaiting redeploy.

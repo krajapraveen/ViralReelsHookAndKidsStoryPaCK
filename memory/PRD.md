@@ -8,6 +8,22 @@ Evolve the platform from a standard AI content generator into a highly addictive
 
 ## What's Been Implemented
 
+### P0 DIAGNOSTIC ANTI-SWALLOW (prod followup #2) — Feb 2026
+**Status**: SHIPPED in preview. **boundary audit gate green (715 passing, +12 new)**. Awaiting redeploy.
+
+**Trigger**: Third production strike — `RENDER_FAIL: "Final render hit a hiccup. Please retry."` regressed diagnostics back to a generic placeholder. The generic `except Exception:` swallowed the underlying exception class + traceback. The previously-shipped diagnostic apparatus (ffmpeg_exit_code, stderr_tail, render_validation_reason) was completely bypassed because no exception of those typed kinds was raised — a downstream `Exception` subclass slipped through and got silenced.
+
+**Bug-class fix**:
+- Render catch-all (`photo_trailer.py`) now captures `type(exc).__name__`, `str(exc)`, `traceback.format_exc()` and persists them as `render_exception_class`, `render_exception_message`, `render_traceback_tail`, `render_failure_kind=uncaught_exception`, `provider_error=f"{class}: {msg}"` BEFORE calling `_fail()`. The user-facing message includes the exception class verbatim.
+- SCRIPT_FAIL path got the same anti-swallow treatment.
+- `_fail()` introduces `DIAGNOSTIC_CODES` set — codes in this set keep the caller's diagnostic message verbatim, never replaced with a generic refund line.
+- Admin endpoint surfaces the new fields + includes them in composed `failure_reason`.
+- FailedStep UI removes the `!== error_message` hide-short-circuit and surfaces exception class + ffmpeg exit + duration gap + traceback in the clipboard payload.
+
+**Pinned by**: `backend/tests/test_photo_trailer_render_antiswallow_2026_06_prod.py` (12 tests).
+
+
+
 ### P0 DURATION-MISMATCH AUTO-REPAIR HARDENING (prod followup) — Feb 2026
 **Status**: SHIPPED in preview. **boundary audit gate green (703 passing, +10 new)**. Awaiting production redeploy.
 
