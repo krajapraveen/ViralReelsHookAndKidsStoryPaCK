@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom';
 import {
   Upload, Camera, ShieldCheck, Sparkles, Film, Wand2, Loader2, X,
-  CheckCircle2, AlertCircle, Trash2, Play, Download, Share2, RefreshCw, MessageCircle, Check, Lock, Crown,
+  CheckCircle2, AlertCircle, Trash2, Play, Download, Share2, RefreshCw, MessageCircle, Check, Lock, Crown, Copy,
   ArrowLeft, Home,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -1175,18 +1175,48 @@ function FailedStep({ job, onRetry, onEdit, onDelete }) {
   // P0 2026-05-16 — "View refund" trust chip. Only when a refund is
   // CONFIRMED on the job doc (refunded_credits > 0). Small secondary CTA
   // links straight to /app/billing where the credit ledger already lives.
-  // No modal, no new endpoint — just closes the trust loop visually.
   //
   // P0 2026-06 — Honest-message contract. Default fallback copy NEVER
-  // claims a refund unless the backend has confirmed one. Previously this
-  // surface read "Something went wrong. Your credits were refunded." even
-  // when no refund row existed in the ledger, costing user trust.
-  // Backend (`_fail`) now also normalises `error_message` so it only
-  // says "credits refunded" when the refund_credits ledger write succeeded.
+  // claims a refund unless the backend has confirmed one.
+  //
+  // P0 2026-06 — Diagnostic transparency. The backend now persists
+  // `error_code`, `failure_stage`, `provider_error`, and
+  // `render_validation_error` on every failed job. Hiding them behind a
+  // generic "Trailer failed. Please try again." message turns every
+  // support ticket into 30 minutes of back-and-forth. Surface them
+  // honestly (collapsible block) and give users a one-click way to copy
+  // the full payload when they reach out to support.
   const refundConfirmed = Number(job?.refunded_credits || 0) > 0;
   const fallbackMessage = refundConfirmed
     ? 'Trailer failed — credits refunded. Please try again.'
     : "Trailer didn't finish. Please try again.";
+
+  // Compose a human-readable diagnostic string from the structured fields.
+  // Each is short — full payload is on the clipboard button.
+  const diagnostic = {
+    job_id:        job?.job_id || job?._id,
+    error_code:    job?.error_code || null,
+    failure_stage: job?.failure_stage || job?.current_stage || null,
+    failure_reason: [
+      job?.error_message,
+      job?.render_validation_error ? `validation: ${job.render_validation_error}` : null,
+      job?.provider_error          ? `provider: ${job.provider_error}` : null,
+      job?.refund_error            ? `refund: ${job.refund_error}` : null,
+    ].filter(Boolean).join(' | '),
+    retry_count: job?.retry_count || 0,
+  };
+  const hasDiagnostic = Boolean(diagnostic.error_code || diagnostic.failure_stage);
+
+  const onCopyDiagnostic = async () => {
+    try {
+      const payload = JSON.stringify(diagnostic, null, 2);
+      await navigator.clipboard.writeText(payload);
+      toast.success('Diagnostic info copied — paste it in your support ticket.');
+    } catch {
+      toast.error('Could not access clipboard. Long-press the panel to copy manually.');
+    }
+  };
+
   return (
     <div className="space-y-5 text-center py-6" data-testid="trailer-step-failed">
       <AlertCircle className="w-10 h-10 text-rose-400 mx-auto" />
@@ -1204,6 +1234,47 @@ function FailedStep({ job, onRetry, onEdit, onDelete }) {
           </a>
         )}
       </div>
+
+      {hasDiagnostic && (
+        <div
+          className="mx-auto max-w-md rounded-xl bg-slate-900/60 border border-slate-700/60 p-3.5 text-left text-xs space-y-1.5"
+          data-testid="trailer-failed-diagnostic"
+        >
+          {diagnostic.failure_stage && (
+            <div className="flex gap-2">
+              <span className="text-slate-400 shrink-0 w-24">Failed during:</span>
+              <span className="text-slate-200 font-mono" data-testid="trailer-failed-stage">
+                {diagnostic.failure_stage}
+              </span>
+            </div>
+          )}
+          {diagnostic.error_code && (
+            <div className="flex gap-2">
+              <span className="text-slate-400 shrink-0 w-24">Error code:</span>
+              <span className="text-rose-300 font-mono" data-testid="trailer-failed-code">
+                {diagnostic.error_code}
+              </span>
+            </div>
+          )}
+          {diagnostic.failure_reason && diagnostic.failure_reason !== job.error_message && (
+            <div className="flex gap-2">
+              <span className="text-slate-400 shrink-0 w-24">Details:</span>
+              <span className="text-slate-300 break-words" data-testid="trailer-failed-details">
+                {diagnostic.failure_reason}
+              </span>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={onCopyDiagnostic}
+            data-testid="trailer-copy-diagnostic-btn"
+            className="mt-2 w-full py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 text-slate-300 text-[11px] font-medium flex items-center justify-center gap-1.5 transition-colors"
+          >
+            <Copy className="w-3 h-3" /> Copy diagnostic info
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-2 justify-center">
         <button onClick={onRetry} className="py-2.5 px-4 rounded-xl bg-violet-600 text-white text-sm font-semibold flex items-center gap-2" data-testid="trailer-retry-btn">
           <RefreshCw className="w-4 h-4" /> Retry
