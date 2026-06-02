@@ -55,7 +55,8 @@ BOUNDARY_AUDIT_SUITES := \
 	backend/tests/test_photo_trailer_failed_step_diagnostic_2026_06.py \
 	backend/tests/test_photo_trailer_render_timeout_hardening_2026_06.py \
 	backend/tests/test_photo_trailer_duration_repair_2026_06_prod.py \
-	backend/tests/test_photo_trailer_render_antiswallow_2026_06_prod.py
+	backend/tests/test_photo_trailer_render_antiswallow_2026_06_prod.py \
+	backend/tests/test_photo_trailer_validation_error_shape_2026_06_prod.py
 
 PYTEST := python -m pytest
 

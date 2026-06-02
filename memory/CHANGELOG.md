@@ -1,6 +1,39 @@
 # Visionary Suite - Changelog
 
 
+## 2026-06 — P0 RenderValidationError attribute surface fix (PROD FOLLOWUP #3)
+
+**Status**: SHIPPED in preview. `make audit-boundaries-quick` green (**720 passing, 1 skipped**, +5 new). Awaiting redeploy.
+
+**Trigger**: Fourth production strike — the previously-shipped diagnostic anti-swallow surfaced the real bug for the first time:
+```
+AttributeError: 'RenderValidationError' object has no attribute 'reason'
+```
+
+**Root cause** (line-level):
+- The LOCAL `class RenderValidationError(Exception): ...` in `routes/photo_trailer.py` was a bare alias with NO `__init__`, NO attributes.
+- The `_validate_render` wrapper translated the shared error via `raise RenderValidationError(str(e)) from e` — silently stripping `reason`, `video_duration`, `audio_duration`, `gap_seconds`.
+- The duration-repair branch then accessed `e.reason in ("audio_shorter_than_video", ...)`, AttributeError-ing immediately. The AttributeError bubbled up, hit the generic catch-all, and surfaced as `RENDER_FAIL` — but the anti-swallow patch from FOLLOWUP #2 made the AttributeError visible on the UI for the first time.
+
+**Fix** (`backend/routes/photo_trailer.py`):
+- Local `RenderValidationError` now has the same `__init__` signature as the canonical `services.reliability.render_validator.RenderValidationError`: `(message, reason="unknown", *, video_duration=None, audio_duration=None)` and computes `gap_seconds` from the two durations.
+- `_validate_render` wrapper now copies ALL four attributes (`reason`, `video_duration`, `audio_duration`, message) from the shared error to the local one in the translation step.
+
+**Tests added** (`backend/tests/test_photo_trailer_validation_error_shape_2026_06_prod.py`, 5 tests, all green):
+- Bare construction defaults `.reason = "unknown"` (no more AttributeError).
+- Named construction populates `reason`, `video_duration`, `audio_duration`, and computes `gap_seconds`.
+- The repair-branch dispatch pattern (`e.reason in (...)`) works on a locally-raised error.
+- The wrapper preserves all four attributes end-to-end across the shared→local translation.
+- `inspect.signature(__init__)` pins the parameter list — future PRs cannot drop the attribute surface.
+
+**What this unlocks**: the duration auto-repair branch can now actually execute on the production 2.45s drift case. The repair will:
+1. Catch `RenderValidationError(reason="audio_shorter_than_video", video_duration=62.52, audio_duration=60.07, gap_seconds=2.45)`.
+2. See `gap=2.45 ≤ 10.0` AND `reason="audio_shorter_than_video"` → repairable.
+3. Run `apad,atrim=0:62.57` against the rendered MP4.
+4. Re-validate → pass → COMPLETED with valid `video_url`.
+
+
+
 ## 2026-06 — P0 Diagnostic Anti-Swallow (PROD FOLLOWUP #2)
 
 **Status**: SHIPPED in preview. `make audit-boundaries-quick` green (**715 passing, 1 skipped**, +12 new). Awaiting redeploy.

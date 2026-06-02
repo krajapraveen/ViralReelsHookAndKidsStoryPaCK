@@ -1986,9 +1986,41 @@ async def _render_trailer(job: dict, scenes_data: List[dict], tmp: str) -> str:
 
 
 class RenderValidationError(Exception):
-    """Legacy local alias — preserved for backward-compat. New code
-    should import directly from services.reliability.render_validator.
-    The shared helper is the source of truth (P0 2026-05-21)."""
+    """Local error type for the render-pipeline validation gate.
+
+    P0 2026-06-PROD-FOLLOWUP — Bug-class fix for the production
+    AttributeError. The previous incarnation was a bare `Exception`
+    subclass with NO attributes; the wrapper below did
+    `raise RenderValidationError(str(e))` which stripped `reason`,
+    `video_duration`, `audio_duration`, and `gap_seconds`. The repair
+    branch then crashed on `e.reason` with:
+
+        AttributeError: 'RenderValidationError' object has no
+        attribute 'reason'
+
+    Fix: carry the same attribute surface as the canonical
+    services.reliability.render_validator.RenderValidationError so
+    every `except RenderValidationError as e:` site can rely on
+    `e.reason`, `e.video_duration`, `e.audio_duration`, and
+    `e.gap_seconds`.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        reason: str = "unknown",
+        *,
+        video_duration: Optional[float] = None,
+        audio_duration: Optional[float] = None,
+    ) -> None:
+        super().__init__(message)
+        self.reason = reason
+        self.video_duration = video_duration
+        self.audio_duration = audio_duration
+        if video_duration is not None and audio_duration is not None:
+            self.gap_seconds = abs(float(video_duration) - float(audio_duration))
+        else:
+            self.gap_seconds = None
 
 
 async def _validate_render(path: str, expected_duration: float = 0.0) -> None:
@@ -2000,6 +2032,9 @@ async def _validate_render(path: str, expected_duration: float = 0.0) -> None:
     translates the shared error type back into the local one to keep
     photo_trailer's existing `except RenderValidationError` paths
     working without churn.
+
+    P0 2026-06-PROD-FOLLOWUP — preserves `reason`, `video_duration`,
+    `audio_duration` end-to-end so callers can dispatch on them.
     """
     from services.reliability.render_validator import (
         validate_render as _shared_validate,
@@ -2008,7 +2043,12 @@ async def _validate_render(path: str, expected_duration: float = 0.0) -> None:
     try:
         await _shared_validate(path, expected_duration)
     except _SharedRenderValidationError as e:
-        raise RenderValidationError(str(e)) from e
+        raise RenderValidationError(
+            str(e),
+            getattr(e, "reason", "unknown"),
+            video_duration=getattr(e, "video_duration", None),
+            audio_duration=getattr(e, "audio_duration", None),
+        ) from e
 
 
 # ─── 9:16 vertical auto-cut ──────────────────────────────────────────────────

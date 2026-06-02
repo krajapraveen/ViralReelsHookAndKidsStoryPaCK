@@ -8,6 +8,17 @@ Evolve the platform from a standard AI content generator into a highly addictive
 
 ## What's Been Implemented
 
+### P0 RenderValidationError attribute surface fix (prod followup #3) — Feb 2026
+**Status**: SHIPPED in preview. **boundary audit gate green (720 passing, +5 new)**. Awaiting redeploy.
+
+**Trigger**: Fourth prod strike — anti-swallow patch from followup #2 surfaced the actual bug for the first time: `AttributeError: 'RenderValidationError' object has no attribute 'reason'`. The local `RenderValidationError` was a bare `Exception` subclass; the wrapper stripped all named attributes via `raise RenderValidationError(str(e)) from e`. Repair-branch crashed on `e.reason`.
+
+**Fix**: Local `RenderValidationError` now has the same `__init__` surface as `services.reliability.render_validator.RenderValidationError` — `(message, reason, *, video_duration, audio_duration)` with `gap_seconds` computed. Wrapper copies all four attributes end-to-end. The duration auto-repair branch can now actually execute on the production 2.45s drift case.
+
+**Pinned by**: `backend/tests/test_photo_trailer_validation_error_shape_2026_06_prod.py` (5 tests).
+
+
+
 ### P0 DIAGNOSTIC ANTI-SWALLOW (prod followup #2) — Feb 2026
 **Status**: SHIPPED in preview. **boundary audit gate green (715 passing, +12 new)**. Awaiting redeploy.
 
