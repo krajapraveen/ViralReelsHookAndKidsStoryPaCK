@@ -1,6 +1,48 @@
 # Visionary Suite - Changelog
 
 
+## 2026-06 — P0 Playback fix: removed global COEP/COOP (PROD FOLLOWUP #4)
+
+**Status**: SHIPPED in preview. `make audit-boundaries-quick` green (**727 passing, 1 skipped**, +7 new). Awaiting redeploy.
+
+**Trigger**: Fifth production strike. Trailer generation finally reached COMPLETED + a valid thumbnail rendered, but the `<video>` element on the result page failed with:
+```
+Status: (failed) net::ERR_BLOCKED_BY_RESPONSE
+        (NotSameOriginAfterDefaultedToSameOriginByCoep)
+Size:   0.0 kB
+```
+User saw "Video failed to load. Tap reload or refresh the page."
+
+**Root cause**:
+- `backend/server.py` AND `backend/middleware/security.py` both set `Cross-Origin-Embedder-Policy: credentialless` + `Cross-Origin-Opener-Policy: same-origin` globally on every response.
+- These were added speculatively to enable SharedArrayBuffer for the optional `BrowserVideoExport` (ffmpeg.wasm) feature.
+- Under COEP, every cross-origin subresource the page loads must either pass CORS or carry a `Cross-Origin-Resource-Policy` header. R2 presigned URLs send NEITHER. Chrome refused the `<video>` GET, the player silently showed the generic failure copy.
+
+**Fixes shipped**:
+1. **`backend/server.py`** — removed the COEP+COOP setters; kept `Cross-Origin-Resource-Policy: cross-origin` (harmless without COEP, useful for our own embedding).
+2. **`backend/middleware/security.py`** — same removal (this was the SECOND silent setter; removing only from `server.py` initially left the headers still firing on `curl -I`).
+3. **`frontend/src/setupProxy.js`** — removed the dev-only mirror so preview reproduces production header state exactly.
+4. **Verified** `BrowserVideoExport.js:51` already guards on `typeof SharedArrayBuffer` → degrades to single-threaded ffmpeg.wasm without SAB. Slower but functional. No code change needed.
+
+**Verification**:
+```bash
+$ curl -sI http://localhost:8001/api/health/ | grep -i cross-origin
+cross-origin-resource-policy: cross-origin    # ← only this one, intentional
+# cross-origin-embedder-policy: GONE
+# cross-origin-opener-policy: GONE
+```
+
+**Tests added** (`backend/tests/test_photo_trailer_coep_playback_2026_06_prod.py`, 7 tests, all green):
+- `test_no_global_coep_header` — `response.headers["Cross-Origin-Embedder-Policy"]` setter forbidden in `server.py`.
+- `test_no_global_coop_same_origin` — same for COOP setter.
+- `test_security_middleware_does_not_set_coep_coop` — same forbidden in `backend/middleware/security.py` (bug-class elimination — TWO middlewares had the bug).
+- `test_setup_proxy_does_not_set_coep_coop` — dev proxy must mirror prod.
+- `test_cross_origin_resource_policy_retained` — confirms we KEEP CORP `cross-origin` (intentional, harmless).
+- `test_browser_video_export_has_sab_fallback_guard` — pins the ffmpeg.wasm fallback so removing COEP doesn't break the export feature.
+- `test_csp_media_src_allows_https` — pins `media-src 'self' blob: https:` so future CSP tightening can't re-break R2 playback.
+
+
+
 ## 2026-06 — P0 RenderValidationError attribute surface fix (PROD FOLLOWUP #3)
 
 **Status**: SHIPPED in preview. `make audit-boundaries-quick` green (**720 passing, 1 skipped**, +5 new). Awaiting redeploy.

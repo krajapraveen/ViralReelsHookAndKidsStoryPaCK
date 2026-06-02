@@ -36,9 +36,17 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         ]
         response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
         
-        # Cross-Origin Isolation headers — required for SharedArrayBuffer (ffmpeg.wasm)
-        response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
-        response.headers["Cross-Origin-Embedder-Policy"] = "credentialless"
+        # P0 2026-06-PROD-FOLLOWUP — COEP/COOP REMOVED.
+        # These headers were set globally to enable SharedArrayBuffer
+        # for the optional BrowserVideoExport ffmpeg.wasm path, but
+        # they broke production trailer playback: Chrome blocked the
+        # R2-hosted .mp4 with
+        #   net::ERR_BLOCKED_BY_RESPONSE
+        #   (NotSameOriginAfterDefaultedToSameOriginByCoep)
+        # because R2 presigned URLs don't send Cross-Origin-Resource-Policy.
+        # BrowserVideoExport already guards on `typeof SharedArrayBuffer`
+        # and falls back to single-threaded ffmpeg.wasm. Pinned by
+        # backend/tests/test_photo_trailer_coep_playback_2026_06_prod.py.
         
         # HTTP Strict Transport Security (HSTS)
         # Force HTTPS for 1 year, include subdomains

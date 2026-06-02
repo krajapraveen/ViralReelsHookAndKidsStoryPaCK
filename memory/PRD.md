@@ -8,6 +8,17 @@ Evolve the platform from a standard AI content generator into a highly addictive
 
 ## What's Been Implemented
 
+### P0 PLAYBACK FIX: REMOVED GLOBAL COEP/COOP (prod followup #4) — Feb 2026
+**Status**: SHIPPED in preview. **boundary audit gate green (727 passing, +7 new)**. Awaiting redeploy.
+
+**Trigger**: Fifth prod strike — generation finally reached COMPLETED, but `<video>` failed with `net::ERR_BLOCKED_BY_RESPONSE.NotSameOriginAfterDefaultedToSameOriginByCoep`. R2 presigned URLs don't send Cross-Origin-Resource-Policy; under our global COEP `credentialless`, Chrome refused them.
+
+**Fix**: Removed `Cross-Origin-Embedder-Policy: credentialless` + `Cross-Origin-Opener-Policy: same-origin` from BOTH `backend/server.py` AND `backend/middleware/security.py` (two silent setters — bug-class elimination required removing both). Kept `Cross-Origin-Resource-Policy: cross-origin`. The optional `BrowserVideoExport` ffmpeg.wasm path already guards on `typeof SharedArrayBuffer` and degrades to single-threaded mode without SAB.
+
+**Pinned by**: `backend/tests/test_photo_trailer_coep_playback_2026_06_prod.py` (7 tests).
+
+
+
 ### P0 RenderValidationError attribute surface fix (prod followup #3) — Feb 2026
 **Status**: SHIPPED in preview. **boundary audit gate green (720 passing, +5 new)**. Awaiting redeploy.
 

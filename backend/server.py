@@ -376,11 +376,32 @@ async def security_headers_middleware(request: Request, call_next):
     ]
     response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
     
-    # Cross-Origin Isolation headers — required for SharedArrayBuffer (ffmpeg.wasm)
+    # Cross-Origin Isolation headers.
+    #
+    # P0 2026-06-PROD-FOLLOWUP — `Cross-Origin-Embedder-Policy: credentialless`
+    # was set globally to enable SharedArrayBuffer for the optional
+    # `BrowserVideoExport` ffmpeg.wasm path. In production this BROKE
+    # the primary photo-trailer playback feature: Chrome blocked the
+    # R2-hosted `.mp4` with
+    #
+    #     net::ERR_BLOCKED_BY_RESPONSE
+    #     (NotSameOriginAfterDefaultedToSameOriginByCoep)
+    #
+    # because R2 presigned URLs do not send a
+    # `Cross-Origin-Resource-Policy` header. The `<video>` element on
+    # the trailer-result page failed silently — user saw "Video failed
+    # to load. Tap reload or refresh the page."
+    #
+    # Resolution: REMOVE the global COEP / COOP headers. The trailer
+    # playback path (server-side ffmpeg render → R2 → owner-signed
+    # playback) is the production-critical path. `BrowserVideoExport`
+    # already has a `hasSAB` guard (line 51 of BrowserVideoExport.js)
+    # and degrades to single-threaded ffmpeg.wasm without SAB — slower,
+    # but functional. We keep `Cross-Origin-Resource-Policy: cross-origin`
+    # on the API responses themselves (R2 still won't honour CORP, but
+    # without COEP forcing it that no longer matters).
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=(self)"
     response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
-    response.headers["Cross-Origin-Embedder-Policy"] = "credentialless"
-    response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
     response.headers["Cross-Origin-Resource-Policy"] = "cross-origin"
     
     return response
