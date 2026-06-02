@@ -1,6 +1,52 @@
 # Visionary Suite - Changelog
 
 
+## 2026-06 — P0 Render-regression hardening: silent → loud failures
+
+**Status**: SHIPPED in preview. `make audit-boundaries-quick` green (**678 passing, 1 skipped**, +9 new). Awaiting redeploy.
+
+**Trigger**: krajapraveen production diagnose showed `audio_url_present=false` on all 4 failed Anime Intro trailers + empty `ffmpeg_stderr_tail` + last_progress stuck at "Stitching trailer". Strongly suggests TTS returning empty bytes (likely `EMERGENT_LLM_KEY` auth/quota issue in production), but the silent failure was leaking through to `RENDER_INVALID` at the end instead of failing loud at the actual stage.
+
+**Fixes shipped**:
+1. **`TTSEmptyResponseError`** + bytes threshold guard in `_tts()`:
+   - After 3 retries returning <1024 bytes (MP3 headers alone are ~100B; valid speech is >2KB), raise `TTSEmptyResponseError("OpenAI TTS returned empty audio after 3 retries — likely an EMERGENT_LLM_KEY auth / quota issue. Check the key's balance and that it has audio scope.")`.
+   - Pipeline catches this specifically at the gather-results branch, sets `failure_stage="GENERATING_VOICEOVER"`, persists `provider_error`, and calls `_fail(job_id, "TTS_EMPTY", ...)`. Production ops will now see `error_code=TTS_EMPTY` + `provider_error` populated in `/admin/diagnose-user` for an immediate actionable RCA — instead of waiting for the eventual `RENDER_INVALID`.
+
+2. **`_render_trailer` persists `render_validation_error`** on the job doc inside the `except RenderValidationError` block, BEFORE re-raising. The empty-stderr-tail mystery from the krajapraveen debug payload is now fixed at the source: ffprobe complaints land on the job doc.
+
+3. **New endpoint `GET /api/photo-trailer/admin/trailer-jobs/{job_id}`** with the canonical ops-requested 9-field shape:
+   - `current_stage`, `progress_percent`, `photos_count`, `audio_exists`, `output_video_exists`, `r2_uploaded`, `video_url`, `failure_reason`, `error_code`.
+   - `failure_reason` is composed by stacking `error_message` + `validation=<render_validation_error>` + `provider=<provider_error>` + `refund=<refund_error>` so a single curl tells ops which subsystem broke.
+
+4. **`ERROR_TO_STAGE` table** now maps `TTS_EMPTY` → `GENERATING_VOICEOVER` and `RENDER_INVALID` → `RENDERING_TRAILER` so the janitor stage-derivation logic handles them.
+
+5. **COMPLETED invariant** (already existed, now pinned by test): a job cannot reach `status=COMPLETED` without both `result_video_url` AND `result_video_key` set post-R2 upload. The existing `_finish()` enforces this; the new test makes regressions impossible.
+
+**Tests added** (`backend/tests/test_photo_trailer_render_hardening_2026_06.py`, 9 tests, all green):
+1. `TTSEmptyResponseError` class exists.
+2. `_tts()` checks 1024-byte threshold + raises the typed error.
+3. Pipeline routes `TTSEmptyResponseError` → `TTS_EMPTY` code + `GENERATING_VOICEOVER` stage.
+4. `_render_trailer` persists `render_validation_error` before re-raising.
+5. New admin endpoint has the canonical 9-field shape.
+6. `ERROR_TO_STAGE` includes `TTS_EMPTY` + `RENDER_INVALID`.
+7. Behavioural: endpoint composes `failure_reason` from all error fields.
+8. Non-admin tokens rejected (401/403).
+9. Unknown job IDs return 404.
+
+**What I cannot do from preview**:
+- Generate an actual MP4 from real photos. No photo input, no end-to-end UI flow.
+- Confirm prod's `EMERGENT_LLM_KEY` is the actual root cause. Confirmed-by-evidence requires a freshly failing prod job AFTER this redeploy. Then `GET /admin/trailer-jobs/{jid}` will return `failure_reason="...validation=audio duration 0.0s..., provider=OpenAI TTS returned 0 bytes..."` — at which point the fix is "rotate / top up production's EMERGENT_LLM_KEY".
+
+**Production operator runbook (after redeploy)**:
+1. Keep PAUSED.
+2. Restore krajapraveen's 60 credits via `POST /admin/credits/grant` with body `{"user_email":"krajapraveen@gmail.com","amount":60,"reason":"P0 manual repair for retry-orphan deduct on job 2282a6aa","reference_id":"manual_repair_2282a6aa_2026_06"}`.
+3. Generate ONE fresh trailer in staging while flag is unpaused for ONLY that test user (or via direct DB feature_flags toggle). Watch for `GET /admin/trailer-jobs/<jid>` payload:
+   - `failure_reason` containing "OpenAI TTS returned 0 bytes" → **fix is rotate `EMERGENT_LLM_KEY` in production env**.
+   - `output_video_exists: true` + `r2_uploaded: true` + `video_url: <signed>` → **MyTrailer works, unpause production**.
+4. Only unpause production after fresh 60s AND 90s trailers both come back with `output_video_exists: true`.
+
+
+
 ## 2026-06 — P0 Per-attempt refunds + retry-orphan repair + admin credit grant
 
 **Status**: SHIPPED in preview. `make audit-boundaries-quick` green (**669 passing, 1 skipped**, +6 new). Awaiting redeploy.

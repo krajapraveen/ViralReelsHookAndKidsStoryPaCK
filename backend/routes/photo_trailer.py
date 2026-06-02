@@ -1434,24 +1434,59 @@ async def _gen_scene_image(visual_prompt: str, hero_b64: str, villain_b64: Optio
 
     return await asyncio.get_event_loop().run_in_executor(IMAGE_EXECUTOR, _sync_call)
 
+class TTSEmptyResponseError(RuntimeError):
+    """OpenAI TTS via emergentintegrations returned <1024 bytes — likely a
+    rate-limited / unauthenticated response that the SDK swallows as
+    'success'. Raised so the failure surfaces at GENERATING_VOICEOVER
+    stage with an actionable error_code instead of leaking through to
+    a silent-audio MP4 that RenderValidationError catches 4 minutes later.
+
+    Born from the 2026-06 krajapraveen production regression: Anime Intro
+    trailers were failing because TTS bytes were empty → ffmpeg rendered
+    silent video → validator correctly rejected it → user saw 'RENDER_INVALID'
+    at the end instead of the actionable 'TTS empty — check EMERGENT_LLM_KEY'.
+    """
+
+
 async def _tts(narration: str, voice: str) -> bytes:
     """OpenAI TTS via emergentintegrations — runs on the AUDIO_EXECUTOR.
-    Light retry on transient upstream issues (rate limit, network reset)."""
+    Light retry on transient upstream issues (rate limit, network reset).
+    Raises TTSEmptyResponseError when ALL retries return <1024 bytes —
+    that response shape strongly indicates the SDK swallowed a 401/429/500."""
     from emergentintegrations.llm.openai import OpenAITextToSpeech
 
     def _sync_call() -> bytes:
-        last = None
+        last: Optional[BaseException] = None
+        empty_attempts = 0
         for attempt in range(3):
             try:
                 tts = OpenAITextToSpeech(api_key=EMERGENT_LLM_KEY)
-                return asyncio.run(tts.generate_speech(
+                out = asyncio.run(tts.generate_speech(
                     text=narration[:4000], model="tts-1", voice=voice))
+                # Empty-bytes guard. MP3 headers alone are ~100 bytes; valid
+                # audio for even a 2s narration is >2KB. 1024 is a safe floor.
+                if not out or len(out) < 1024:
+                    empty_attempts += 1
+                    log.warning(
+                        f"[tts] attempt {attempt+1}/3 returned {len(out or b'')} bytes — "
+                        f"treating as empty, retrying"
+                    )
+                    import time as _t
+                    _t.sleep(0.6 * (attempt + 1))
+                    continue
+                return out
             except Exception as e:
                 last = e
-                # Bounded backoff so 6 parallel TTS calls don't all hammer at once
                 import time as _t
                 _t.sleep(0.6 * (attempt + 1))
-        raise last  # type: ignore[misc]
+        if empty_attempts == 3:
+            raise TTSEmptyResponseError(
+                "OpenAI TTS returned empty audio after 3 retries — "
+                "likely an EMERGENT_LLM_KEY auth / quota issue. "
+                "Check the key's balance and that it has audio scope."
+            )
+        # Otherwise, we exited the loop because every attempt raised — surface it.
+        raise last if last else RuntimeError("TTS failed without specific cause")
 
     return await asyncio.get_event_loop().run_in_executor(AUDIO_EXECUTOR, _sync_call)
 
@@ -1680,10 +1715,23 @@ async def _render_trailer(job: dict, scenes_data: List[dict], tmp: str) -> str:
                      "-c:a", "copy", *meta_args, "-movflags", "+faststart", final])
     # P0-D 2026-05-16 — ffprobe validation: fail if audio is missing/short
     # (silent renders are a worse user experience than a clean failure).
+    # P0 2026-06 — persist the validation error string + a probe summary so
+    # the /admin/trailer-jobs/<id> endpoint can show ops the exact reason
+    # without re-running ffprobe.
     try:
         await _validate_render(final, expected_duration=float(job.get("duration_target_seconds", 0)))
     except RenderValidationError as e:
         log.error(f"[trailer {job_id}] RENDER_INVALID: {e}")
+        try:
+            await db.photo_trailer_jobs.update_one(
+                {"_id": job_id},
+                {"$set": {
+                    "render_validation_error": str(e)[:600],
+                    "last_validation_failed_at": _now(),
+                }},
+            )
+        except Exception:
+            pass  # never let the persistence error mask the original
         raise
     return final
 
@@ -1937,6 +1985,31 @@ async def _run_pipeline_inner(job_id: str):
                 for i in failed_idx:
                     log.error(f"[trailer {job_id}] scene {i+1} FAILED after retries: "
                               f"{type(results[i]).__name__}: {str(results[i])[:300]}")
+                # P0 2026-06 — if the failure is TTS empty-bytes (the canonical
+                # silent-failure mode we observed in production), surface it
+                # at GENERATING_VOICEOVER stage with TTS_EMPTY code so ops can
+                # immediately see "check EMERGENT_LLM_KEY" rather than waiting
+                # for the eventual RENDER_INVALID.
+                tts_empty = next(
+                    (i for i in failed_idx if isinstance(results[i], TTSEmptyResponseError)),
+                    None,
+                )
+                if tts_empty is not None:
+                    await _set_stage(job_id, "GENERATING_VOICEOVER")
+                    # Persist the actual provider error string on the job doc
+                    # so /admin/trailer-jobs/<id> can surface it next call.
+                    await db.photo_trailer_jobs.update_one(
+                        {"_id": job_id},
+                        {"$set": {
+                            "provider_error": str(results[tts_empty])[:500],
+                            "failure_stage": "GENERATING_VOICEOVER",
+                        }},
+                    )
+                    return await _fail(
+                        job_id, "TTS_EMPTY",
+                        "Voiceover generation returned empty audio. "
+                        "This is usually a temporary provider issue — please retry."
+                    )
                 return await _fail(
                     job_id, "IMAGE_GEN_FAIL",
                     f"Couldn't render scene {failed_idx[0]+1}/{total_scenes} after retries. Please retry.",
@@ -2910,10 +2983,71 @@ async def admin_repair_refunds(body: _RefundRepairIn, user: dict = Depends(get_a
 
 
 # ─── P0 Admin credit grant — safe, audited, idempotent ──────────────────────
-# Born from the 2026-06 incident where we needed to manually restore 60
-# credits to krajapraveen@gmail.com for a retry-orphan deduct that the
-# automated refund path missed. Hardcoded one-off scripts are how money bugs
-# compound; a proper endpoint with audit + idempotency is the right tool.
+
+# ─── P0 Admin trailer-job diagnostic — exact shape requested by ops ─────────
+# Born from the 2026-06 production incident where the generic /admin/jobs/{id}/
+# debug returned 30 fields but ops asked for a 9-field "is this video real?"
+# probe. Dedicated endpoint with the canonical shape so a single curl answers:
+#   • Did the user's photos arrive?       → photos_count > 0
+#   • Did TTS produce audio?              → audio_exists
+#   • Did ffmpeg write an MP4?            → output_video_exists
+#   • Did R2 receive it?                  → r2_uploaded
+#   • Can the user actually play it?      → video_url (signed)
+#   • If FAILED, why?                     → failure_reason
+
+
+@router.get("/admin/trailer-jobs/{job_id}")
+async def admin_trailer_job_summary(job_id: str, user: dict = Depends(get_admin_user)):
+    """P0 ops: 'is this trailer real?' probe with the canonical shape."""
+    j = await db.photo_trailer_jobs.find_one({"_id": job_id}, {"_id": 0})
+    if not j:
+        raise HTTPException(404, f"Job not found: {job_id}")
+
+    video_url = j.get("result_video_url") or j.get("video_storage_url")
+    video_key = j.get("result_video_key") or j.get("video_storage_key")
+    r2_uploaded = bool(video_key) and bool(video_url)
+    output_video_exists = r2_uploaded  # we never persist a URL without the upload
+
+    audio_exists = bool(j.get("audio_url")) or any(
+        s.get("audio_url") for s in (j.get("scenes") or [])
+    )
+    photos_count = 1 if j.get("hero_asset_id") else 0
+    photos_count += len(j.get("supporting_asset_ids") or [])
+
+    failure_reason: Optional[str] = None
+    if j.get("status") in ("FAILED", "CANCELLED"):
+        parts = [(j.get("error_message") or "")[:240]]
+        if j.get("render_validation_error"):
+            parts.append("validation=" + j["render_validation_error"][:160])
+        if j.get("provider_error"):
+            parts.append("provider=" + j["provider_error"][:160])
+        if j.get("refund_error"):
+            parts.append("refund=" + j["refund_error"][:160])
+        failure_reason = " | ".join(p for p in parts if p)
+
+    return {
+        "job_id": job_id,
+        "user_id": j.get("user_id"),
+        "status": j.get("status"),
+        "current_stage": j.get("current_stage"),
+        "failure_stage": j.get("failure_stage"),
+        "progress_percent": int(j.get("progress_percent") or 0),
+        "photos_count": photos_count,
+        "audio_exists": bool(audio_exists),
+        "output_video_exists": bool(output_video_exists),
+        "r2_uploaded": bool(r2_uploaded),
+        "video_url": video_url,
+        "video_key": video_key,
+        "failure_reason": failure_reason,
+        "error_code": j.get("error_code"),
+        "duration_target_seconds": j.get("duration_target_seconds"),
+        "template_id": j.get("template_id"),
+        "retry_count": int(j.get("retry_count") or 0),
+        "created_at": j.get("created_at"),
+        "completed_at": j.get("completed_at"),
+        "failed_at": j.get("failed_at"),
+    }
+
 
 class _CreditGrantIn(BaseModel):
     user_email: Optional[str] = None
@@ -3277,7 +3411,9 @@ async def admin_kpi_dashboard(
         "SCRIPT_FAIL":          "WRITING_TRAILER_SCRIPT",
         "IMAGE_GEN_FAIL":       "GENERATING_SCENES",
         "TTS_FAIL":             "GENERATING_VOICEOVER",
+        "TTS_EMPTY":            "GENERATING_VOICEOVER",
         "RENDER_FAIL":          "RENDERING_TRAILER",
+        "RENDER_INVALID":       "RENDERING_TRAILER",
         "RENDER_TIMEOUT":       "RENDERING_TRAILER",
         "UPLOAD_FAIL":          "RENDERING_TRAILER",
         "STALE_PIPELINE":       "JANITOR_STALE",

@@ -50,7 +50,8 @@ BOUNDARY_AUDIT_SUITES := \
 	backend/tests/test_photo_trailer_credit_integrity_2026_06.py \
 	backend/tests/test_photo_trailer_kill_switch_2026_06.py \
 	backend/tests/test_photo_trailer_long_running_copy_2026_06.py \
-	backend/tests/test_photo_trailer_per_attempt_refunds_2026_06.py
+	backend/tests/test_photo_trailer_per_attempt_refunds_2026_06.py \
+	backend/tests/test_photo_trailer_render_hardening_2026_06.py
 
 PYTEST := python -m pytest
 
