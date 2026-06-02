@@ -8,6 +8,21 @@ Evolve the platform from a standard AI content generator into a highly addictive
 
 ## What's Been Implemented
 
+### P0 DURATION-MISMATCH AUTO-REPAIR HARDENING (prod followup) — Feb 2026
+**Status**: SHIPPED in preview. **boundary audit gate green (703 passing, +10 new)**. Awaiting production redeploy.
+
+**Production followup**: krajapraveen@gmail.com hit a fresh `RENDER_INVALID` with `audio shorter than video (audio=60.07s, video=62.52s)` — a 2.45s tail-silence drift. The pre-existing auto-repair only covered `audio_shorter_than_video` at a 5.0s budget; it actually SHOULD have triggered for 2.45s but the user reported it didn't heal on prod, so the user mandated:
+1. Bump repair budget to **10.0s** (constant `REPAIR_GAP_LIMIT_SECONDS = 10.0`).
+2. Make `audio_longer_than_video` also repairable (atrim the tail to v_dur, `-c:v copy` — no video re-encode).
+3. Persist `duration_gap_seconds` + `video_duration_seconds` + `audio_duration_seconds` + `render_validation_reason` on the job doc for ALL drift hard-fails so `/admin/trailer-jobs/<id>` + `FailedStep` UI both surface the exact gap.
+
+**Tests** (`backend/tests/test_photo_trailer_duration_repair_2026_06_prod.py`, 10 tests):
+- Static contract pins the 10.0s budget + both repair strategies + `-c:v copy` invariant + outer-pipeline persistence of `duration_gap_seconds`.
+- E2E behavioural: synthesizes the EXACT production case (62.52s video + 60.07s audio drift), runs `apad+atrim`, asserts healed MP4 falls within validator's ±0.5s tolerance → proves COMPLETED is reachable for this job shape.
+- E2E inverse: 60.0s video + 62.5s audio → `atrim_tail` heals.
+
+
+
 ### P0 KILL SWITCH — Hard pause for MyTrailer generation — Feb 2026
 **Status**: SHIPPED in preview. **boundary audit gate green (660 passing, +9 new)**. Awaiting production redeploy + env-var activation.
 

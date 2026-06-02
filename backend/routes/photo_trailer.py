@@ -1834,12 +1834,23 @@ async def _render_trailer(job: dict, scenes_data: List[dict], tmp: str) -> str:
     # incident: 60s anime_intro rendered cleanly but TTS narration was
     # 60.07s and video was 62.52s — a 2.45s gap from outro/fade. Throwing
     # away a fully-rendered MP4 over a small tail-silence gap is hostile.
+    #
+    # P0 2026-06-PROD-FOLLOWUP — threshold bumped from 5.0s → 10.0s and
+    # the inverse drift (audio_longer_than_video) is now ALSO repairable
+    # by trimming the audio tail. User-mandated change after a second
+    # production failure: a 2.45s gap caused RENDER_INVALID instead of
+    # silently healing the way the user expected. Any gap inside the
+    # 10s window is treated as recoverable tail-silence drift.
+    #
     # Behaviour now:
-    #   • gap ≤ 0.5s   → pass (existing tolerance)
-    #   • gap ≤ 5.0s   → pad audio with silence via `apad`, re-validate
-    #   • gap > 5.0s   → genuine mismatch, hard-fail with full diagnostic
+    #   • gap ≤ 0.5s    → pass (existing validator tolerance)
+    #   • gap ≤ 10.0s   → repair + re-validate
+    #       - audio_shorter_than_video → apad audio with silence to v_dur
+    #       - audio_longer_than_video  → atrim audio tail to v_dur
+    #   • gap > 10.0s   → genuine mismatch, hard-fail with full diagnostic
     # The repair is one extra ffmpeg call into a sibling tmp file, then
     # we replace `final` so the caller sees a healed MP4.
+    REPAIR_GAP_LIMIT_SECONDS = 10.0  # pinned by tests
     expected_dur = float(job.get("duration_target_seconds", 0))
     repair_attempted = False
     repair_succeeded = False
@@ -1850,43 +1861,55 @@ async def _render_trailer(job: dict, scenes_data: List[dict], tmp: str) -> str:
     except RenderValidationError as e:
         gap = getattr(e, "gap_seconds", None) or 0.0
         repair_gap_seconds = round(float(gap), 3)
-        # Only attempt the silence-pad repair on audio_shorter_than_video
-        # with a sane gap. Other reasons (no_audio_stream, wrong codec,
-        # ffprobe_failed) are not repairable — surface them.
+        # Repairable reasons + a sane gap window. Other reasons
+        # (no_audio_stream, wrong codec, ffprobe_failed) are unrepairable.
+        v_dur_opt = getattr(e, "video_duration", None)
         repairable = (
-            e.reason == "audio_shorter_than_video"
-            and 0 < gap <= 5.0
-            and getattr(e, "video_duration", None)
+            e.reason in ("audio_shorter_than_video", "audio_longer_than_video")
+            and 0 < gap <= REPAIR_GAP_LIMIT_SECONDS
+            and v_dur_opt
         )
         if repairable:
             repair_attempted = True
-            repair_strategy = "apad_silence"
-            v_dur = float(e.video_duration)
-            log.warning(
-                f"[trailer {job_id}] audio short by {gap:.2f}s — "
-                f"auto-repairing via apad to {v_dur:.2f}s"
-            )
+            v_dur = float(v_dur_opt)
             repaired = os.path.join(os.path.dirname(final),
                                     "final_repaired.mp4")
-            try:
-                # Pad audio with silence to match video duration. We keep
-                # the original video stream byte-for-byte (-c:v copy) so we
-                # never re-encode a working render — only the audio track
-                # gets the trailing silence.
-                await _ffmpeg(
-                    [ffmpeg, "-y", "-i", final,
-                     "-af", f"apad,atrim=0:{v_dur + 0.05:.3f}",
-                     "-c:v", "copy", "-c:a", "aac", "-b:a", "160k",
-                     "-ar", "44100", "-movflags", "+faststart", repaired],
-                    output_path=repaired,
+            if e.reason == "audio_shorter_than_video":
+                repair_strategy = "apad_silence"
+                # Pad audio with silence then trim to video length. Keep the
+                # video stream byte-for-byte (-c:v copy) so we never
+                # re-encode a working render.
+                repair_cmd = [
+                    ffmpeg, "-y", "-i", final,
+                    "-af", f"apad,atrim=0:{v_dur + 0.05:.3f}",
+                    "-c:v", "copy", "-c:a", "aac", "-b:a", "160k",
+                    "-ar", "44100", "-movflags", "+faststart", repaired,
+                ]
+                log.warning(
+                    f"[trailer {job_id}] audio short by {gap:.2f}s — "
+                    f"auto-repairing via apad to {v_dur:.2f}s"
                 )
+            else:  # audio_longer_than_video
+                repair_strategy = "atrim_tail"
+                repair_cmd = [
+                    ffmpeg, "-y", "-i", final,
+                    "-af", f"atrim=0:{v_dur + 0.05:.3f},asetpts=PTS-STARTPTS",
+                    "-c:v", "copy", "-c:a", "aac", "-b:a", "160k",
+                    "-ar", "44100", "-movflags", "+faststart", repaired,
+                ]
+                log.warning(
+                    f"[trailer {job_id}] audio long by {gap:.2f}s — "
+                    f"auto-repairing via atrim to {v_dur:.2f}s"
+                )
+            try:
+                await _ffmpeg(repair_cmd, output_path=repaired)
                 await _validate_render(repaired, expected_duration=expected_dur)
                 # Repair succeeded — swap the path so downstream upload
                 # works on the healed file.
                 final = repaired
                 repair_succeeded = True
                 log.warning(
-                    f"[trailer {job_id}] auto-repair OK gap={gap:.2f}s strategy=apad_silence"
+                    f"[trailer {job_id}] auto-repair OK gap={gap:.2f}s strategy={repair_strategy}"
                 )
                 # Persist repair metadata for the admin diagnostic.
                 try:
@@ -1894,7 +1917,7 @@ async def _render_trailer(job: dict, scenes_data: List[dict], tmp: str) -> str:
                         {"_id": job_id},
                         {"$set": {
                             "auto_repaired": True,
-                            "repair_strategy": "apad_silence",
+                            "repair_strategy": repair_strategy,
                             "duration_gap_seconds": repair_gap_seconds,
                             "video_duration_seconds": round(v_dur, 3),
                             "audio_duration_seconds": round(
@@ -2323,7 +2346,28 @@ async def _run_pipeline_inner(job_id: str):
             # P0-D 2026-05-16 — final MP4 failed ffprobe (missing/short audio,
             # wrong codec, no streams). Refuse to mark COMPLETED with a broken
             # output. User gets a clean error + credit refund.
+            #
+            # P0 2026-06-PROD-FOLLOWUP — surface duration_gap_seconds in
+            # provider_error so the admin diagnostic + UI both expose the
+            # exact drift (auto-repair already tried and failed, so we
+            # know the gap exceeded the 10s window or was unrepairable).
             log.error(f"[trailer {job_id}] RENDER_INVALID: {e}")
+            try:
+                drift_update: Dict[str, Any] = {
+                    "render_validation_reason": e.reason,
+                    "render_validation_error": str(e)[:600],
+                }
+                if getattr(e, "video_duration", None) is not None:
+                    drift_update["video_duration_seconds"] = round(float(e.video_duration), 3)
+                if getattr(e, "audio_duration", None) is not None:
+                    drift_update["audio_duration_seconds"] = round(float(e.audio_duration or 0), 3)
+                if getattr(e, "gap_seconds", None) is not None:
+                    drift_update["duration_gap_seconds"] = round(float(e.gap_seconds), 3)
+                await db.photo_trailer_jobs.update_one(
+                    {"_id": job_id}, {"$set": drift_update},
+                )
+            except Exception:
+                pass
             return await _fail(
                 job_id, "RENDER_INVALID",
                 f"Final video failed quality check: {e}. Credits refunded — please retry.",

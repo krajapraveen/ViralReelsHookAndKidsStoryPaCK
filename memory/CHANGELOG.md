@@ -1,6 +1,42 @@
 # Visionary Suite - Changelog
 
 
+## 2026-06 — P0 Duration-mismatch auto-repair hardening (PROD FOLLOWUP)
+
+**Status**: SHIPPED in preview. `make audit-boundaries-quick` green (**703 passing, 1 skipped**, +10 new). Awaiting redeploy.
+
+**Trigger**: Second production failure for krajapraveen@gmail.com after the previous render-hardening deploy:
+```
+Failed during: RENDERING_TRAILER
+Error code:    RENDER_INVALID
+Details:       audio shorter than video (audio=60.07s, video=62.52s)   (gap = 2.45s)
+```
+The 2026-06 auto-repair existed but only covered `audio_shorter_than_video` at a 5.0s gap budget. The flow heads-up shipped, but the 2.45s gap should have healed silently — the user explicitly asked for the budget to be raised to 10.0s and both drift directions to repair.
+
+**Fixes shipped** (`/app/backend/routes/photo_trailer.py`):
+1. **Gap budget raised 5.0s → 10.0s** via `REPAIR_GAP_LIMIT_SECONDS = 10.0`. Pinned by test so it can't silently regress.
+2. **`audio_longer_than_video` is now repairable** via `atrim_tail` strategy (`atrim=0:v_dur+0.05,asetpts=PTS-STARTPTS` keeps `-c:v copy` — no video re-encode). Symmetric with the existing `apad_silence` strategy for the short-audio case.
+3. **Hard-fail branch now persists `duration_gap_seconds` + `video_duration_seconds` + `audio_duration_seconds` + `render_validation_reason`** on the job doc BEFORE calling `_fail()`. The admin `/admin/trailer-jobs/<id>` and UI `FailedStep` already surface these fields — they just weren't being written for ALL drift failures.
+
+**Tests added** (`backend/tests/test_photo_trailer_duration_repair_2026_06_prod.py`, 10 tests, all green):
+- Static contract pins `REPAIR_GAP_LIMIT_SECONDS = 10.0` and forbids a regressed `gap <= 5.0` gate.
+- Static contract pins both drift directions inside the `repairable` predicate.
+- Static contract pins `apad_silence` + `atrim_tail` strategy names + ffmpeg command shapes (`-c:v copy` enforced).
+- Static contract pins outer-pipeline persistence of `duration_gap_seconds` + `render_validation_reason` on hard-fail.
+- Validator-level: `RenderValidationError.gap_seconds` is computed for both reasons; the production 2.45s case lies inside the 10s budget.
+- E2E behavioural: synthesizes the EXACT production case (62.52s video + 60.07s audio drift), runs the `apad+atrim` repair, and asserts the healed MP4's audio/video durations align within the validator's ±0.5s tolerance — proving the COMPLETED path is reachable for this job shape.
+- E2E inverse: 60.0s video + 62.5s audio → `atrim_tail` heals within tolerance.
+- Admin endpoint surfaces `duration_gap_seconds`, `auto_repaired`, `repair_strategy`, `render_validation_reason`.
+
+**Production behaviour now**:
+- `gap ≤ 0.5s` → validator passes (existing tolerance).
+- `gap ≤ 10.0s` → auto-repair (`apad_silence` or `atrim_tail`), re-validate, COMPLETED with valid `video_url`. `auto_repaired=true` + `repair_strategy` persisted for ops visibility.
+- `gap > 10.0s` (or unrepairable reasons: `no_audio_stream`, `wrong_video_codec`, `ffprobe_failed`) → hard-fail with `error_code=RENDER_INVALID` + refund + full diagnostic payload including `duration_gap_seconds`.
+
+**Awaiting**: User redeploy + a real MyTrailer render to confirm production now reaches COMPLETED on the same job shape.
+
+
+
 ## 2026-06 — P0 Render-regression hardening: silent → loud failures
 
 **Status**: SHIPPED in preview. `make audit-boundaries-quick` green (**678 passing, 1 skipped**, +9 new). Awaiting redeploy.
