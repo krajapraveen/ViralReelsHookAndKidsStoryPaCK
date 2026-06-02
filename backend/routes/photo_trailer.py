@@ -1490,16 +1490,118 @@ async def _tts(narration: str, voice: str) -> bytes:
 
     return await asyncio.get_event_loop().run_in_executor(AUDIO_EXECUTOR, _sync_call)
 
-def _ffmpeg_run(args: List[str]) -> None:
-    res = subprocess.run(args, capture_output=True, text=True, timeout=600)
-    if res.returncode != 0:
-        log.error(f"ffmpeg cmd failed: {' '.join(args[:4])}... stderr: {res.stderr[-1200:]}")
-        raise RuntimeError(f"ffmpeg failed: {res.stderr[-600:]}")
+class FfmpegFailure(RuntimeError):
+    """Typed ffmpeg failure carrying the diagnostic payload ops needs.
+    Persisted to the job doc by the pipeline (`_run_pipeline_inner`) so the
+    admin diagnostic endpoint can surface it without re-running ffprobe."""
 
-async def _ffmpeg(args: List[str]) -> None:
+    def __init__(self, *, exit_code: Optional[int], stderr_tail: str,
+                 timeout_limit_seconds: int, render_duration_seconds: float,
+                 output_path: Optional[str], cmd_head: str):
+        super().__init__(f"ffmpeg failed (exit={exit_code}): {stderr_tail[-300:]}")
+        self.exit_code = exit_code
+        self.stderr_tail = stderr_tail
+        self.timeout_limit_seconds = timeout_limit_seconds
+        self.render_duration_seconds = render_duration_seconds
+        self.output_path = output_path
+        self.cmd_head = cmd_head
+
+
+def _ffprobe_duration_seconds(path: str) -> float:
+    """Return media duration in seconds via ffprobe. 0.0 on failure."""
+    try:
+        res = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", path],
+            capture_output=True, text=True, timeout=20,
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            return float(res.stdout.strip())
+    except Exception:
+        pass
+    return 0.0
+
+
+def _ffmpeg_run(
+    args: List[str],
+    *,
+    timeout_seconds: int = 600,
+    output_path: Optional[str] = None,
+) -> None:
+    """Run ffmpeg with bounded subprocess timeout + structured failure.
+
+    P0 2026-06 — Born from the krajapraveen production incident where
+    `RENDER_TIMEOUT` fired but the job doc had EMPTY `ffmpeg_stderr_tail`
+    so ops couldn't tell why ffmpeg got killed. This wrapper:
+
+      1. Times the subprocess wall-clock.
+      2. On TimeoutExpired/non-zero exit, raises FfmpegFailure carrying
+         exit_code, stderr_tail, timeout_limit, render_duration,
+         output_path. The pipeline persists those onto the job doc so
+         /admin/trailer-jobs/<id> shows ops the exact stderr in one curl.
+      3. If timeout fires BUT the MP4 already exists and is at least
+         1MB, treats it as a soft-success — the caller can validate
+         with ffprobe and continue. Don't burn a real-but-slow render.
+    """
+    started_at = time.monotonic()
+    try:
+        res = subprocess.run(
+            args, capture_output=True, text=True, timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as e:
+        duration = time.monotonic() - started_at
+        stderr_tail = (e.stderr or "")[-1500:] if isinstance(e.stderr, str) else (
+            (e.stderr or b"").decode("utf-8", errors="replace")[-1500:]
+        )
+        # ── Soft-success window: if the MP4 actually exists + is sane size,
+        # the caller can still validate + use it. Avoids penalizing a slow
+        # but successful render. Threshold = 1MB (a real trailer is multi-MB).
+        if output_path and os.path.exists(output_path) and os.path.getsize(output_path) >= 1_000_000:
+            log.warning(
+                f"[ffmpeg] timeout after {duration:.1f}s but output exists "
+                f"({os.path.getsize(output_path)/1e6:.1f}MB) — soft-success"
+            )
+            return
+        log.error(
+            f"[ffmpeg] timeout after {duration:.1f}s (limit={timeout_seconds}s) "
+            f"cmd={' '.join(args[:4])}..."
+        )
+        raise FfmpegFailure(
+            exit_code=None,  # killed by signal, no exit code
+            stderr_tail=stderr_tail or "<no stderr captured before kill>",
+            timeout_limit_seconds=timeout_seconds,
+            render_duration_seconds=round(duration, 2),
+            output_path=output_path,
+            cmd_head=" ".join(args[:4]),
+        )
+
+    duration = time.monotonic() - started_at
+    if res.returncode != 0:
+        log.error(
+            f"[ffmpeg] non-zero exit={res.returncode} after {duration:.1f}s "
+            f"cmd={' '.join(args[:4])}... stderr: {res.stderr[-1200:]}"
+        )
+        raise FfmpegFailure(
+            exit_code=res.returncode,
+            stderr_tail=res.stderr[-1500:],
+            timeout_limit_seconds=timeout_seconds,
+            render_duration_seconds=round(duration, 2),
+            output_path=output_path,
+            cmd_head=" ".join(args[:4]),
+        )
+
+
+async def _ffmpeg(
+    args: List[str],
+    *,
+    timeout_seconds: int = 600,
+    output_path: Optional[str] = None,
+) -> None:
     """Run ffmpeg in the dedicated RENDER_EXECUTOR — bounded so 5 simultaneous
     pipelines cannot all spawn ffmpeg processes at the same time."""
-    await asyncio.get_event_loop().run_in_executor(RENDER_EXECUTOR, _ffmpeg_run, args)
+    await asyncio.get_event_loop().run_in_executor(
+        RENDER_EXECUTOR, lambda: _ffmpeg_run(args, timeout_seconds=timeout_seconds, output_path=output_path),
+    )
 
 # ───────────────────── Motion engine (v2) ────────────────────────────────────
 # Spec: every scene must visibly move. ≥4 motion styles per 6-scene trailer.
@@ -2045,10 +2147,77 @@ async def _run_pipeline_inner(job_id: str):
                 timeout=render_budget_min * 60,
             )
         except asyncio.TimeoutError:
-            log.error(f"[trailer {job_id}] RENDER_TIMEOUT after {render_budget_min}min")
+            # P0 2026-06 — Soft-success window. asyncio.wait_for fired but the
+            # render may have legitimately just finished. If ffmpeg already
+            # wrote a valid MP4 to disk, we cannot lie and call this a
+            # failure — continue with upload/finalize from where it landed.
+            # Otherwise: this is a real RENDER_TIMEOUT — persist diagnostics
+            # then fail loud.
+            soft_success = False
+            try:
+                # The render helper writes to tmpdir/final.mp4 by convention;
+                # check that path before declaring a hard fail.
+                candidate = os.path.join(tmpdir, "final.mp4")
+                if os.path.exists(candidate) and os.path.getsize(candidate) >= 1_000_000:
+                    real_dur = _ffprobe_duration_seconds(candidate)
+                    expected = float(j.get("duration_target_seconds") or 0)
+                    if real_dur >= max(expected - 1.5, expected * 0.8):
+                        log.warning(
+                            f"[trailer {job_id}] render budget exceeded but MP4 "
+                            f"is valid ({os.path.getsize(candidate)/1e6:.1f}MB, "
+                            f"{real_dur:.1f}s) — proceeding with finalize"
+                        )
+                        final_path = candidate
+                        soft_success = True
+            except Exception as e:
+                log.warning(f"[trailer {job_id}] soft-success probe crashed: {e}")
+            if not soft_success:
+                log.error(f"[trailer {job_id}] RENDER_TIMEOUT after {render_budget_min}min")
+                await db.photo_trailer_jobs.update_one(
+                    {"_id": job_id},
+                    {"$set": {
+                        "render_timeout_limit_seconds": render_budget_min * 60,
+                        "render_failure_kind": "asyncio_wait_for_timeout",
+                    }},
+                )
+                return await _fail(
+                    job_id, "RENDER_TIMEOUT",
+                    f"Final render took longer than {render_budget_min} minutes. "
+                    "Credits refunded — please retry.",
+                )
+        except FfmpegFailure as e:
+            # P0 2026-06 — typed ffmpeg failure carries everything ops needs.
+            # Persist exit_code, stderr_tail, timeout_limit, render_duration,
+            # output_size onto the job doc so /admin/trailer-jobs/<id> can
+            # surface it without re-running ffprobe.
+            log.error(
+                f"[trailer {job_id}] FFMPEG_FAILURE exit={e.exit_code} "
+                f"duration={e.render_duration_seconds}s cmd={e.cmd_head}"
+            )
+            output_size_mb = None
+            try:
+                if e.output_path and os.path.exists(e.output_path):
+                    output_size_mb = round(os.path.getsize(e.output_path) / 1e6, 2)
+            except Exception:
+                pass
+            await db.photo_trailer_jobs.update_one(
+                {"_id": job_id},
+                {"$set": {
+                    "ffmpeg_exit_code": e.exit_code,
+                    "ffmpeg_stderr_tail": e.stderr_tail[-1500:],
+                    "render_timeout_limit_seconds": e.timeout_limit_seconds,
+                    "render_duration_seconds": e.render_duration_seconds,
+                    "output_file_size_mb": output_size_mb,
+                    "render_failure_kind": "ffmpeg_subprocess",
+                    "provider_error": (
+                        f"ffmpeg exit={e.exit_code} after "
+                        f"{e.render_duration_seconds}s: {e.stderr_tail[-300:]}"
+                    ),
+                }},
+            )
             return await _fail(
-                job_id, "RENDER_TIMEOUT",
-                f"Final render took longer than {render_budget_min} minutes. "
+                job_id, "RENDER_FAIL",
+                f"Final render failed (ffmpeg exit {e.exit_code}). "
                 "Credits refunded — please retry.",
             )
         except RenderValidationError as e:
@@ -2232,12 +2401,13 @@ async def _upload_video_bytes(data: bytes, name: str, user_id: str) -> tuple:
 #   P0-A 2026-05-16 — normalized to 10 minutes across ALL tiers so the
 #   janitor + heartbeat-extension window collapse to a single 10-min wall.
 STALE_MIN_BY_DURATION = {
-    20: 10,
-    45: 10,
-    60: 10,
-    90: 10,
+    20: 8,
+    30: 9,
+    45: 11,
+    60: 13,
+    90: 17,
 }
-STALE_THRESHOLD_DEFAULT_MIN = 10  # used when duration_target_seconds is missing
+STALE_THRESHOLD_DEFAULT_MIN = 13  # used when duration_target_seconds is missing
 
 # ─── HARD-MAX WALL-CLOCK BUDGETS (P0 — 2026-04-29 founder directive) ─────────
 # Heartbeat protection alone is dangerous: a hung subprocess that periodically
@@ -2246,28 +2416,37 @@ STALE_THRESHOLD_DEFAULT_MIN = 10  # used when duration_target_seconds is missing
 # spin forever. These are the absolute ceilings: once exceeded, the janitor
 # WILL reap regardless of heartbeat freshness.
 #
-# P0-A 2026-05-16 — founder directive: normalize to **10 minutes** wall-clock
-# for ALL duration tiers. Trailer pipeline that hasn't terminated within 10
-# minutes from enqueue is, by definition, broken — refund + fail loudly so
-# the user can retry instead of staring at a 88% bar.
+# P0 2026-06 — bumped per user mandate. The previous flat 10-minute ceiling
+# was IDENTICAL to the new 60s render budget, so any genuine slow render
+# would trip the janitor before ffmpeg finished. New ceilings give a 4–7
+# minute pad over the render-stage cap to cover script + image + tts +
+# upload + the new soft-success window.
 HARD_MAX_RUNTIME_BY_DURATION = {
-    20: 10,
-    45: 10,
-    60: 10,
-    90: 10,
+    20: 12,
+    30: 14,
+    45: 16,
+    60: 18,
+    90: 22,
 }
-HARD_MAX_RUNTIME_DEFAULT_MIN = 10
+HARD_MAX_RUNTIME_DEFAULT_MIN = 18
 
 # Per-stage timeouts for the longest-running pipeline stage (RENDERING_TRAILER
 # wraps ffmpeg stitch + music mix + watermark + R2 upload + vertical cut +
 # thumbnail). asyncio.wait_for fires RENDER_TIMEOUT if exceeded.
+#
+# P0 2026-06 — bumped per user mandate after krajapraveen incident: 60s
+# Anime Intro trailers were dying at the OLD 8-minute cap. Production-grade
+# CPU encoding of 6 motion-clips + music mix + watermark + R2 upload +
+# vertical cut + thumbnail genuinely takes 4–7 minutes for a 60s trailer
+# under load. New caps give 1.4× headroom so a slow node doesn't false-trip.
 RENDER_TIMEOUT_BY_DURATION = {
     20: 5,
+    30: 6,
     45: 8,
-    60: 8,
-    90: 12,
+    60: 10,
+    90: 14,
 }
-RENDER_TIMEOUT_DEFAULT_MIN = 8
+RENDER_TIMEOUT_DEFAULT_MIN = 10
 
 HEARTBEAT_LIVE_SECONDS = 180  # 3 min — if progress newer than this, job is alive
 JANITOR_INTERVAL_SECONDS = 120
@@ -3043,6 +3222,14 @@ async def admin_trailer_job_summary(job_id: str, user: dict = Depends(get_admin_
         "duration_target_seconds": j.get("duration_target_seconds"),
         "template_id": j.get("template_id"),
         "retry_count": int(j.get("retry_count") or 0),
+        # P0 2026-06 — render-stage diagnostics. Populated only for failures
+        # that reached RENDERING_TRAILER. None for upstream failures.
+        "ffmpeg_exit_code":           j.get("ffmpeg_exit_code"),
+        "ffmpeg_stderr_tail":         j.get("ffmpeg_stderr_tail"),
+        "render_timeout_limit_seconds": j.get("render_timeout_limit_seconds"),
+        "render_duration_seconds":    j.get("render_duration_seconds"),
+        "output_file_size_mb":        j.get("output_file_size_mb"),
+        "render_failure_kind":        j.get("render_failure_kind"),
         "created_at": j.get("created_at"),
         "completed_at": j.get("completed_at"),
         "failed_at": j.get("failed_at"),
