@@ -8,6 +8,17 @@ Evolve the platform from a standard AI content generator into a highly addictive
 
 ## What's Been Implemented
 
+### P0 SAME-ORIGIN VIDEO STREAMING PROXY (prod followup #5) — Feb 2026
+**Status**: SHIPPED in preview. **boundary audit gate green (756 passing, +29 new)**. Awaiting redeploy.
+
+**Trigger**: Sixth prod strike — raw R2 signed video URL returned 403 to Chrome despite working in curl. COEP removal alone didn't help. Cross-origin signed-URL `<video>` playback proved structurally unreliable across browsers.
+
+**Fix**: New endpoints `GET|HEAD /api/photo-trailer/jobs/{id}/video` (owner-only, JWT via header OR `?token=`) and `GET|HEAD /api/photo-trailer/share/{slug}/video` (public, slug-gated). Streams bytes from R2 through our backend in 1 MB chunks with full Range/206/416 support, correct `Content-Type: video/mp4`, `Accept-Ranges: bytes`, `Content-Length`, `Content-Range`, `Cache-Control: private, max-age=300`. Frontend `<video>` element now points at the same-origin URL — no more raw R2 hostnames anywhere in the playback or download flows.
+
+**Pinned by**: `backend/tests/test_photo_trailer_video_proxy_2026_06_prod.py` (29 tests).
+
+
+
 ### P0 PLAYBACK FIX: REMOVED GLOBAL COEP/COOP (prod followup #4) — Feb 2026
 **Status**: SHIPPED in preview. **boundary audit gate green (727 passing, +7 new)**. Awaiting redeploy.
 

@@ -1,6 +1,61 @@
 # Visionary Suite - Changelog
 
 
+## 2026-06 — P0 Same-origin video streaming proxy (PROD FOLLOWUP #5)
+
+**Status**: SHIPPED in preview. `make audit-boundaries-quick` green (**756 passing, 1 skipped**, +29 new). Awaiting redeploy.
+
+**Trigger**: Sixth production strike. Generation reached COMPLETED, COEP/COOP removed, but the raw R2 signed video URL **still** returned `403 Forbidden` to Chrome (despite working in `curl`). Cross-origin signed-URL playback proved structurally unreliable — Chrome's `<video>` element handling, R2 signed-URL CDN quirks, and signed-URL expiry races combined to a flaky path. Bug-class elimination required: stop putting raw R2 URLs into `<video src>` altogether.
+
+**Fix shipped**: same-origin streaming proxy that pipes bytes from R2 through our backend. Browser sees a vanilla same-origin URL.
+
+**New backend endpoints** (`backend/routes/photo_trailer.py`):
+- `GET|HEAD /api/photo-trailer/jobs/{job_id}/video?format=wide|vertical&download=true|false&token=<jwt>` — owner-only video stream.
+- `GET|HEAD /api/photo-trailer/share/{slug}/video?format=wide|vertical` — public share-page stream (slug-gated).
+
+**Endpoint contract** (pinned by 29 tests):
+- **Auth**: Authorization header OR `?token=<jwt>` query param (the `<video>` element can't send custom headers).
+- **Ownership**: enforced inside the DB query (`find_one({_id, user_id})`). Non-owner gets 404 — deliberately indistinguishable from "job doesn't exist."
+- **Range support**: `Range: bytes=START-END` → 206 Partial Content; `Range: bytes=START-` open-ended → 206; `Range: bytes=-N` suffix → 206; unsatisfiable → 416 with `Content-Range: bytes */TOTAL` per RFC 7233; malformed → falls back to 200 full body.
+- **Streaming**: 1 MB chunks via `botocore.StreamingBody.read()` in a thread-pool executor. Memory-bounded — never buffers the full file.
+- **Headers**: `Content-Type: video/mp4`, `Accept-Ranges: bytes`, `Content-Length`, `Content-Range` (ranged only), `Cache-Control: private, max-age=300` (or `public, max-age=300` for share-page), `ETag` when known.
+- **Download mode**: `?download=true` adds `Content-Disposition: attachment; filename="trailer_<id>.mp4"` so the browser auto-saves.
+- **HEAD**: returns same headers + 200, no body — used by the frontend for pre-flight ownership check before download navigation.
+- **R2 missing object**: 404 (not 500 — `head_object` errors are caught and translated).
+- **R2 client unavailable**: 503.
+
+**Frontend changes** (`frontend/src/pages/PhotoTrailerPage.jsx`):
+- `<video>` element now points at `${API}/api/photo-trailer/jobs/{id}/video?format=...&token=<jwt>&_v=<ts>` (same-origin).
+- Removed the raw-R2 signed URL pathway. The `/stream` endpoint is still called for the thumbnail signed URL + `has_vertical` flag.
+- Download button: HEAD pre-flight against the new endpoint, then `<a download>` + `Content-Disposition` attachment.
+- `window.location.href = url` SECURITY justification comment refreshed for the now-same-origin target.
+
+**Range parser** (`_parse_range_header`):
+- Open-ended `bytes=N-` → end = total-1.
+- Suffix `bytes=-N` → start = max(0, total-N).
+- Start past EOF → returns `(-1, -1)` so caller emits 416.
+- Malformed → returns `None` so caller falls back to 200.
+
+**Live smoke-test results**:
+```
+Unauthenticated GET                  → 401 ✓
+Invalid token                        → 401 ✓
+Valid token, wrong user (non-owner)  → 404 ✓ (not 403 — no leak)
+Valid token, owner, missing R2 obj   → 404 ✓
+Valid token, owner, PROCESSING job   → 400 ✓
+HEAD method                          → honored ✓
+```
+
+**Tests added** (`backend/tests/test_photo_trailer_video_proxy_2026_06_prod.py`, 29 tests, all green):
+- 11 Range parser unit tests (no header, full, open-ended, suffix, suffix-overflow, end-overflow, start-past-EOF→416, malformed, inverted, whitespace, Chrome-typical).
+- 12 endpoint-shape contract tests (route exists for GET+HEAD on both owner + public-share, accepts token query, enforces ownership, requires COMPLETED, sets all required headers, returns 206 for Range, 416 for unsatisfiable, 404 for missing object, sets Content-Disposition for download, chunk size bounded).
+- 4 frontend wiring tests (`<video src>` uses same-origin proxy, no raw R2 hostname, token query param carries JWT, download uses proxy).
+- 4 boundary fuzz tests.
+
+**Bug class fully eliminated**: no `<video>` or `<a download>` in this codebase will ever embed a raw R2 hostname again — pinned by test_no_raw_r2_url_in_video_src_path.
+
+
+
 ## 2026-06 — P0 Playback fix: removed global COEP/COOP (PROD FOLLOWUP #4)
 
 **Status**: SHIPPED in preview. `make audit-boundaries-quick` green (**727 passing, 1 skipped**, +7 new). Awaiting redeploy.

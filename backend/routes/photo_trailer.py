@@ -34,7 +34,8 @@ from datetime import datetime, timezone, timedelta
 import time
 from typing import List, Optional, Dict, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form, BackgroundTasks, Request
+from fastapi.responses import StreamingResponse, Response
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
@@ -971,6 +972,320 @@ async def stream_video(job_id: str, user: dict = Depends(get_current_user),
         "thumbnail_url": await _sign_or_passthrough(thumb_key) if thumb_key else None,
         "has_vertical": bool(j.get("result_vertical_video_key") or j.get("result_vertical_video_url")),
     }
+
+
+# ──────────────────────────────────────────────────────────────────────
+# P0 2026-06-PROD-FOLLOWUP #5 — SAME-ORIGIN VIDEO STREAMING PROXY.
+#
+# Why this exists: production showed raw R2 presigned URLs returning
+# 403 Forbidden when loaded by Chrome (despite working in `curl`). The
+# cross-origin signed-URL playback path is too fragile (R2 CORS quirks,
+# signed-URL race conditions, Chrome ORB heuristics, COEP/COOP
+# regressions). Same-origin proxy eliminates the whole bug class —
+# the browser sees a vanilla `<video src="/api/...">`.
+#
+# Contract:
+#   • Auth-gated (owner only — or public-share-slug-gated for /shared)
+#   • Supports `Range` requests → 206 Partial Content for seek
+#   • Streams in 1 MB chunks (memory-bounded — does NOT buffer the
+#     full file)
+#   • Surfaces `Content-Type`, `Accept-Ranges`, `Content-Length`,
+#     `Content-Range`, `Cache-Control: private, max-age=300`
+#   • Never re-encodes — pure byte passthrough from R2
+#   • Falls back to 416 Range Not Satisfiable for malformed Range hdrs
+#   • Falls back to 404 if the underlying R2 object is missing
+# ──────────────────────────────────────────────────────────────────────
+
+# Chunk size for the R2 → backend → browser passthrough. 1 MB is a
+# reasonable balance between per-chunk syscall overhead and worker
+# thread occupancy. Browsers issue Range requests of ~1 MB anyway for
+# `<video>`.
+_VIDEO_STREAM_CHUNK_BYTES = 1 * 1024 * 1024
+
+
+def _parse_range_header(range_hdr: Optional[str], total_size: int) -> Optional[tuple]:
+    """Parse an HTTP Range header into (start, end) inclusive byte
+    offsets. Returns None on malformed input — caller falls back to a
+    full 200 response. Returns (-1, -1) for syntactically valid but
+    UNSATISFIABLE ranges (start >= total_size) so the caller can emit
+    a 416. Only single-range (`bytes=START-END`) is supported — multi-
+    range is rare and the spec lets us decline cleanly."""
+    if not range_hdr:
+        return None
+    m = re.match(r"^\s*bytes=(\d*)-(\d*)\s*$", range_hdr)
+    if not m:
+        return None
+    start_s, end_s = m.group(1), m.group(2)
+    if not start_s and not end_s:
+        return None  # `bytes=-` is malformed — treat as no range
+    if not start_s:
+        # Suffix range: `bytes=-500` → last 500 bytes.
+        try:
+            suffix = int(end_s)
+        except ValueError:
+            return None
+        if suffix <= 0:
+            return None
+        start = max(0, total_size - suffix)
+        end = total_size - 1
+    else:
+        try:
+            start = int(start_s)
+        except ValueError:
+            return None
+        # Check unsatisfiability BEFORE clamping end — otherwise an
+        # open-ended `bytes=2000-` on a 1000-byte file falls into the
+        # end<start branch and gets reported as malformed.
+        if start < 0:
+            return None
+        if start >= total_size:
+            return (-1, -1)
+        if end_s:
+            try:
+                end = int(end_s)
+            except ValueError:
+                return None
+        else:
+            end = total_size - 1
+    if start < 0 or end < start:
+        return None
+    end = min(end, total_size - 1)
+    return (start, end)
+
+
+async def _stream_r2_object(key: str, start: int, end: int):
+    """Async generator: yields up to `_VIDEO_STREAM_CHUNK_BYTES`-sized
+    chunks from R2 object `key`, covering inclusive byte range
+    [start, end]. Uses boto3 `get_object` with the `Range` header so
+    R2 returns only the requested slice — no wasted bandwidth, no
+    buffering of the full object on the backend.
+    """
+    from services.cloudflare_r2_storage import get_r2_storage, R2_BUCKET_NAME
+    r2 = get_r2_storage()
+    if not r2._client:
+        raise HTTPException(503, "Storage backend unavailable")
+    loop = asyncio.get_event_loop()
+    response = await loop.run_in_executor(
+        None,
+        lambda: r2._client.get_object(
+            Bucket=R2_BUCKET_NAME, Key=key,
+            Range=f"bytes={start}-{end}",
+        ),
+    )
+    body = response["Body"]  # botocore.response.StreamingBody
+    try:
+        while True:
+            chunk = await loop.run_in_executor(
+                None, lambda: body.read(_VIDEO_STREAM_CHUNK_BYTES),
+            )
+            if not chunk:
+                break
+            yield chunk
+    finally:
+        try:
+            body.close()
+        except Exception:
+            pass
+
+
+async def _head_r2_object(key: str) -> Optional[Dict[str, Any]]:
+    """HEAD the R2 object so we know its total size + content type for
+    Range math. Returns None if the object doesn't exist OR any boto3
+    error fires (NoSuchKey, 403, network error). Callers MUST treat
+    None as "object unavailable → 404" — never bubble the boto3
+    exception up as a 500."""
+    from services.cloudflare_r2_storage import get_r2_storage, R2_BUCKET_NAME
+    r2 = get_r2_storage()
+    if not r2._client:
+        return None
+    try:
+        loop = asyncio.get_event_loop()
+        head = await loop.run_in_executor(
+            None,
+            lambda: r2._client.head_object(Bucket=R2_BUCKET_NAME, Key=key),
+        )
+        return {
+            "size": int(head.get("ContentLength") or 0),
+            "content_type": head.get("ContentType") or "video/mp4",
+            "etag": (head.get("ETag") or "").strip('"'),
+            "last_modified": head.get("LastModified"),
+        }
+    except Exception as e:
+        log.warning(f"[video-stream] head_object failed key={key}: {e}")
+        return None
+
+
+async def _resolve_job_video_key(job_id: str, fmt: str,
+                                  job_doc: Optional[dict] = None) -> Optional[str]:
+    """Resolve the R2 object key for the requested format. Returns
+    None if no asset is available. Persists the key onto the job doc
+    when only the legacy URL was stored (one-time migration)."""
+    j = job_doc
+    if j is None:
+        j = await db.photo_trailer_jobs.find_one({"_id": job_id})
+        if not j:
+            return None
+    use_vert = (fmt == "vertical") and bool(
+        j.get("result_vertical_video_key") or j.get("result_vertical_video_url"))
+    if use_vert:
+        key = j.get("result_vertical_video_key") \
+            or _strip_public_prefix(j.get("result_vertical_video_url") or "")
+        if key and not j.get("result_vertical_video_key"):
+            try:
+                await db.photo_trailer_jobs.update_one(
+                    {"_id": job_id}, {"$set": {"result_vertical_video_key": key}})
+            except Exception:
+                pass
+        return key or None
+    key = j.get("result_video_key")
+    if not key:
+        key = _strip_public_prefix(j.get("result_video_url") or "")
+        if key:
+            try:
+                await db.photo_trailer_jobs.update_one(
+                    {"_id": job_id}, {"$set": {"result_video_key": key}})
+            except Exception:
+                pass
+    return key or None
+
+
+async def _serve_video_stream(
+    request: Request, key: str, *,
+    download_filename: Optional[str] = None,
+    cache_control: str = "private, max-age=300",
+):
+    """Common video-stream response builder. Handles HEAD, Range,
+    full-body, and 416 cases. Always sets the headers the user-facing
+    contract guarantees."""
+    head_info = await _head_r2_object(key)
+    if not head_info:
+        raise HTTPException(404, "Video unavailable.")
+    total = head_info["size"]
+    content_type = head_info["content_type"] or "video/mp4"
+    base_headers: Dict[str, str] = {
+        "Content-Type": content_type,
+        "Accept-Ranges": "bytes",
+        "Cache-Control": cache_control,
+        # Stable validator → browser can revalidate cheaply.
+        "ETag": f'"{head_info.get("etag", "")}"' if head_info.get("etag") else "",
+    }
+    if not base_headers["ETag"]:
+        base_headers.pop("ETag")
+    if download_filename:
+        base_headers["Content-Disposition"] = (
+            f'attachment; filename="{download_filename}"'
+        )
+
+    # HEAD support — no body, but otherwise identical headers + 200.
+    if request.method == "HEAD":
+        base_headers["Content-Length"] = str(total)
+        return Response(status_code=200, headers=base_headers)
+
+    range_hdr = request.headers.get("range") or request.headers.get("Range")
+    parsed = _parse_range_header(range_hdr, total)
+    if parsed == (-1, -1):
+        # Syntactically valid but unsatisfiable → 416 with
+        # Content-Range: bytes */TOTAL per RFC 7233.
+        return Response(
+            status_code=416,
+            headers={**base_headers, "Content-Range": f"bytes */{total}"},
+        )
+    if parsed is None:
+        # Full body — return 200 streaming all bytes.
+        return StreamingResponse(
+            _stream_r2_object(key, 0, total - 1),
+            status_code=200,
+            media_type=content_type,
+            headers={**base_headers, "Content-Length": str(total)},
+        )
+    start, end = parsed
+    length = end - start + 1
+    return StreamingResponse(
+        _stream_r2_object(key, start, end),
+        status_code=206,
+        media_type=content_type,
+        headers={
+            **base_headers,
+            "Content-Length": str(length),
+            "Content-Range": f"bytes {start}-{end}/{total}",
+        },
+    )
+
+
+@router.api_route("/jobs/{job_id}/video", methods=["GET", "HEAD"])
+async def stream_video_proxy(
+    job_id: str, request: Request,
+    format: str = Query("wide", pattern="^(wide|vertical)$"),
+    download: bool = Query(False),
+    token: Optional[str] = Query(None),
+):
+    """Same-origin video streaming proxy. The browser sees a vanilla
+    `<video src="/api/photo-trailer/jobs/{id}/video">`, eliminating
+    all cross-origin signed-URL playback issues (R2 403, COEP/CORP,
+    Chrome ORB, signed-URL expiry mid-playback).
+
+    Auth: the `<video>` element cannot send `Authorization` headers,
+    so we accept the JWT either via the `Authorization: Bearer ...`
+    header (used by `fetch()` callers / curl) OR via a `?token=` query
+    param (used by `<video src>`). The token is the same short-lived
+    JWT the app already uses everywhere else — no new credential
+    surface introduced.
+
+    Owner-only — non-owners get 404 (deliberately indistinguishable
+    from "job doesn't exist" so we don't leak existence)."""
+    # Resolve user: Authorization header first, then ?token= query.
+    from shared import decode_token
+    user_id: Optional[str] = None
+    auth_hdr = request.headers.get("authorization") or request.headers.get("Authorization")
+    if auth_hdr and auth_hdr.lower().startswith("bearer "):
+        try:
+            payload = decode_token(auth_hdr.split(" ", 1)[1])
+            user_id = payload.get("sub")
+        except HTTPException:
+            user_id = None
+    if not user_id and token:
+        try:
+            payload = decode_token(token)
+            user_id = payload.get("sub")
+        except HTTPException:
+            user_id = None
+    if not user_id:
+        raise HTTPException(401, "Authentication required")
+
+    j = await db.photo_trailer_jobs.find_one({"_id": job_id, "user_id": user_id})
+    if not j:
+        raise HTTPException(404, "Job not found")
+    if j.get("status") != "COMPLETED":
+        raise HTTPException(400, "Trailer is not ready yet.")
+    key = await _resolve_job_video_key(job_id, format, job_doc=j)
+    if not key:
+        raise HTTPException(404, "Video unavailable.")
+    suffix = "_vertical" if format == "vertical" and key == j.get("result_vertical_video_key") else ""
+    filename = f"trailer_{job_id[:8]}{suffix}.mp4" if download else None
+    return await _serve_video_stream(request, key, download_filename=filename)
+
+
+@router.api_route("/share/{slug}/video", methods=["GET", "HEAD"])
+async def stream_video_proxy_public(
+    slug: str, request: Request,
+    format: str = Query("wide", pattern="^(wide|vertical)$"),
+):
+    """Public same-origin proxy for share-page playback. Auth-gated by
+    the unguessable 10-hex-char slug. No download mode — the share
+    page is for embedded playback only; download requires owner auth."""
+    j = await db.photo_trailer_jobs.find_one(
+        {"public_share_slug": slug, "status": "COMPLETED",
+         "deleted_at": {"$exists": False}})
+    if not j:
+        raise HTTPException(404, "Trailer not found")
+    key = await _resolve_job_video_key(j["_id"], format, job_doc=j)
+    if not key:
+        raise HTTPException(404, "Video unavailable.")
+    # Public cache is fine here — the slug is unguessable.
+    return await _serve_video_stream(
+        request, key, cache_control="public, max-age=300",
+    )
+
 
 @router.get("/share/{slug}")
 async def share_page(slug: str):

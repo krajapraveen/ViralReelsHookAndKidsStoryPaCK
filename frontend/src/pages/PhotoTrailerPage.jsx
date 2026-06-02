@@ -817,15 +817,31 @@ function ResultStep({ job, onCreateAnother, onBackToWizard }) {
     let cancelled = false;
     const load = async () => {
       try {
+        // P0 2026-06-PROD-FOLLOWUP #5 — SAME-ORIGIN STREAM URL.
+        // We still hit /stream to fetch the thumbnail signed URL + the
+        // `has_vertical` flag, but the VIDEO element now points at our
+        // OWN backend (/jobs/<id>/video) which proxies bytes from R2.
+        // The raw R2 signed URL caused 403s in Chrome despite working
+        // in curl — same-origin proxy eliminates the whole bug class.
         const r = await fetch(`${API}/api/photo-trailer/jobs/${job._id || job.job_id}/stream?format=${format}`,
                               { headers: authHeaders() });
         if (!r.ok) return;
         const j = await r.json();
         if (!cancelled) {
-          // Cache-bust so the SAME job_id + format never reuses a stale
-          // browser-cached MP4 from a previous regenerate.
-          const bust = (j.url && !j.url.includes('?')) ? '?' : '&';
-          setStreamUrl(j.url ? `${j.url}${bust}_v=${Date.now()}` : null);
+          // Build the same-origin video URL. The <video> element can't
+          // send Authorization headers, so we pass the JWT via ?token=.
+          // Cache-buster `_v` ensures a regenerated trailer is never
+          // served from a stale browser cache.
+          const jwt = (typeof window !== 'undefined' && window.localStorage)
+            ? (window.localStorage.getItem('auth_token') || window.localStorage.getItem('token') || '')
+            : '';
+          const jobId = job._id || job.job_id;
+          const sameOriginUrl =
+            `${API}/api/photo-trailer/jobs/${jobId}/video`
+            + `?format=${encodeURIComponent(format)}`
+            + (jwt ? `&token=${encodeURIComponent(jwt)}` : '')
+            + `&_v=${Date.now()}`;
+          setStreamUrl(sameOriginUrl);
           if (j.thumbnail_url) setThumbUrl(j.thumbnail_url);
           setHasVertical(!!j.has_vertical);
         }
@@ -936,69 +952,55 @@ function ResultStep({ job, onCreateAnother, onBackToWizard }) {
 
   const handleDownload = async (e) => {
     e.preventDefault();
-    // P0 fix (2026-04-29): the OLD impl did `window.open(j.url, '_blank')`
-    // AFTER an async fetch — popup blockers in Chrome / Safari silently kill
-    // popups that don't originate from a *synchronous* user gesture, which
-    // is exactly why the button "did nothing".
-    //
-    // Correct pattern (works in Chrome, Edge, Firefox, Safari):
-    //   1. Toast "Preparing download…" so the user sees feedback immediately
-    //   2. Always fetch a FRESH signed URL on click (handles 10+ min wait
-    //      where the previous `streamUrl` may have expired)
-    //   3. Trigger via temporary <a href download> element + programmatic
-    //      click — counts as a gesture continuation, no popup blocker
-    //   4. Safari treats `download` on cross-origin URLs as a hint only:
-    //      fall back to window.location assignment which always navigates
+    // P0 2026-06-PROD-FOLLOWUP #5 — SAME-ORIGIN DOWNLOAD.
+    // Download now hits our own backend proxy (`/jobs/<id>/video?
+    // download=true&token=<jwt>&format=<fmt>`) instead of a raw R2
+    // signed URL. The backend sets `Content-Disposition: attachment`
+    // so the browser auto-saves the file. This eliminates the
+    // popup-blocker / cross-origin / 403 surface that plagued the
+    // raw-R2 path.
     const fmt = format === 'vertical' ? 'vertical' : 'wide';
     const fname = `trailer_${(job._id || job.job_id || 'video').slice(0, 8)}${fmt === 'vertical' ? '_vertical' : ''}.mp4`;
     const prepToast = toast.loading('Preparing download…');
     try {
-      const r = await fetch(
-        `${API}/api/photo-trailer/jobs/${job._id || job.job_id}/stream?download=true&format=${fmt}`,
-        { headers: authHeaders() },
+      // Pre-flight HEAD so we surface ownership / availability errors
+      // BEFORE the browser fires the download navigation. (Avoids the
+      // ugly "file not found" download dialog.)
+      const headResp = await fetch(
+        `${API}/api/photo-trailer/jobs/${job._id || job.job_id}/video?format=${fmt}`,
+        { method: 'HEAD', headers: authHeaders() },
       );
-      if (!r.ok) {
-        let why = 'Could not start download';
-        try {
-          const errBody = await r.json();
-          why = errBody?.detail?.message || errBody?.detail || errBody?.message || why;
-          if (typeof why !== 'string') why = JSON.stringify(why);
-        } catch {}
-        toast.error(`Download failed · ${why}`, { id: prepToast });
+      if (!headResp.ok) {
+        toast.error(`Download failed · server returned ${headResp.status}`, { id: prepToast });
         return;
       }
-      const j = await r.json();
-      const url = j.url;
-      if (!url) {
-        toast.error('Download failed · server returned no link', { id: prepToast });
-        return;
-      }
-      // 1. Try the <a download> path (works for same-origin and most CDNs that
-      //    set Content-Disposition: attachment — our backend does this).
+      const jwt = (typeof window !== 'undefined' && window.localStorage)
+        ? (window.localStorage.getItem('auth_token') || window.localStorage.getItem('token') || '')
+        : '';
+      const url =
+        `${API}/api/photo-trailer/jobs/${job._id || job.job_id}/video`
+        + `?download=true&format=${encodeURIComponent(fmt)}`
+        + (jwt ? `&token=${encodeURIComponent(jwt)}` : '');
+      // <a download> is the cleanest path: same-origin, Content-Disposition
+      // attachment from our backend → browser auto-saves.
       try {
         const a = document.createElement('a');
         a.href = url;
         a.download = fname;
         a.rel = 'noopener';
-        // Safari needs the anchor to be in the DOM for the click() to fire
         a.style.display = 'none';
         document.body.appendChild(a);
         a.click();
-        // Yield once so Safari can pick up the click before we remove the node
         setTimeout(() => { try { document.body.removeChild(a); } catch {} }, 0);
         toast.success('Download started', { id: prepToast });
       } catch (clickErr) {
-        // 2. Hard fallback for older Safari / very locked-down WebKit:
-        //    just navigate the current tab to the signed URL. Browser will
-        //    serve it inline thanks to the backend's Content-Disposition.
-        // P0 2026-06 SECURITY — INTENTIONAL external navigation:
-        // `url` is a SHORT-LIVED SIGNED URL from our own backend
-        // (`/api/photo-trailer/download/...`). Sanitizing here would
-        // break the download path for Safari. Audited 2026-06.
         toast.success('Opening file…', { id: prepToast });
+        // SECURITY 2026-06 — INTENTIONAL navigation. `url` is a
+        // SAME-ORIGIN URL on our own backend
+        // (`/api/photo-trailer/jobs/<id>/video?download=true`),
+        // built locally — never user-supplied. Audited 2026-06.
         window.location.href = url;
       }
-      // Track for the funnel — we now know download conversion is real
       try { trackFunnel('photo_trailer_download_clicked', { meta: { format: fmt } }); } catch {}
     } catch (netErr) {
       toast.error(`Download failed · ${netErr?.message || 'network error'}`, { id: prepToast });
