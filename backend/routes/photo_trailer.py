@@ -1829,21 +1829,111 @@ async def _render_trailer(job: dict, scenes_data: List[dict], tmp: str) -> str:
     # P0 2026-06 — persist the validation error string + a probe summary so
     # the /admin/trailer-jobs/<id> endpoint can show ops the exact reason
     # without re-running ffprobe.
+    #
+    # P0 2026-06 — duration-mismatch AUTO-REPAIR. Born from production
+    # incident: 60s anime_intro rendered cleanly but TTS narration was
+    # 60.07s and video was 62.52s — a 2.45s gap from outro/fade. Throwing
+    # away a fully-rendered MP4 over a small tail-silence gap is hostile.
+    # Behaviour now:
+    #   • gap ≤ 0.5s   → pass (existing tolerance)
+    #   • gap ≤ 5.0s   → pad audio with silence via `apad`, re-validate
+    #   • gap > 5.0s   → genuine mismatch, hard-fail with full diagnostic
+    # The repair is one extra ffmpeg call into a sibling tmp file, then
+    # we replace `final` so the caller sees a healed MP4.
+    expected_dur = float(job.get("duration_target_seconds", 0))
+    repair_attempted = False
+    repair_succeeded = False
+    repair_gap_seconds: Optional[float] = None
+    repair_strategy: Optional[str] = None
     try:
-        await _validate_render(final, expected_duration=float(job.get("duration_target_seconds", 0)))
+        await _validate_render(final, expected_duration=expected_dur)
     except RenderValidationError as e:
-        log.error(f"[trailer {job_id}] RENDER_INVALID: {e}")
-        try:
-            await db.photo_trailer_jobs.update_one(
-                {"_id": job_id},
-                {"$set": {
-                    "render_validation_error": str(e)[:600],
-                    "last_validation_failed_at": _now(),
-                }},
+        gap = getattr(e, "gap_seconds", None) or 0.0
+        repair_gap_seconds = round(float(gap), 3)
+        # Only attempt the silence-pad repair on audio_shorter_than_video
+        # with a sane gap. Other reasons (no_audio_stream, wrong codec,
+        # ffprobe_failed) are not repairable — surface them.
+        repairable = (
+            e.reason == "audio_shorter_than_video"
+            and 0 < gap <= 5.0
+            and getattr(e, "video_duration", None)
+        )
+        if repairable:
+            repair_attempted = True
+            repair_strategy = "apad_silence"
+            v_dur = float(e.video_duration)
+            log.warning(
+                f"[trailer {job_id}] audio short by {gap:.2f}s — "
+                f"auto-repairing via apad to {v_dur:.2f}s"
             )
-        except Exception:
-            pass  # never let the persistence error mask the original
-        raise
+            repaired = os.path.join(os.path.dirname(final),
+                                    "final_repaired.mp4")
+            try:
+                # Pad audio with silence to match video duration. We keep
+                # the original video stream byte-for-byte (-c:v copy) so we
+                # never re-encode a working render — only the audio track
+                # gets the trailing silence.
+                await _ffmpeg(
+                    [ffmpeg, "-y", "-i", final,
+                     "-af", f"apad,atrim=0:{v_dur + 0.05:.3f}",
+                     "-c:v", "copy", "-c:a", "aac", "-b:a", "160k",
+                     "-ar", "44100", "-movflags", "+faststart", repaired],
+                    output_path=repaired,
+                )
+                await _validate_render(repaired, expected_duration=expected_dur)
+                # Repair succeeded — swap the path so downstream upload
+                # works on the healed file.
+                final = repaired
+                repair_succeeded = True
+                log.warning(
+                    f"[trailer {job_id}] auto-repair OK gap={gap:.2f}s strategy=apad_silence"
+                )
+                # Persist repair metadata for the admin diagnostic.
+                try:
+                    await db.photo_trailer_jobs.update_one(
+                        {"_id": job_id},
+                        {"$set": {
+                            "auto_repaired": True,
+                            "repair_strategy": "apad_silence",
+                            "duration_gap_seconds": repair_gap_seconds,
+                            "video_duration_seconds": round(v_dur, 3),
+                            "audio_duration_seconds": round(
+                                float(e.audio_duration or 0), 3
+                            ),
+                        }},
+                    )
+                except Exception:
+                    pass
+            except Exception as repair_err:
+                log.error(
+                    f"[trailer {job_id}] auto-repair FAILED "
+                    f"({type(repair_err).__name__}: {str(repair_err)[:200]}) — "
+                    f"surfacing original validation error"
+                )
+                # Fall through to the persistence + re-raise path below.
+        if not repair_succeeded:
+            log.error(f"[trailer {job_id}] RENDER_INVALID: {e}")
+            try:
+                update = {
+                    "render_validation_error": str(e)[:600],
+                    "render_validation_reason": e.reason,
+                    "last_validation_failed_at": _now(),
+                }
+                if getattr(e, "video_duration", None) is not None:
+                    update["video_duration_seconds"] = round(float(e.video_duration), 3)
+                if getattr(e, "audio_duration", None) is not None:
+                    update["audio_duration_seconds"] = round(float(e.audio_duration or 0), 3)
+                if repair_gap_seconds is not None:
+                    update["duration_gap_seconds"] = repair_gap_seconds
+                if repair_attempted:
+                    update["auto_repair_attempted"] = True
+                    update["repair_strategy"] = repair_strategy
+                await db.photo_trailer_jobs.update_one(
+                    {"_id": job_id}, {"$set": update},
+                )
+            except Exception:
+                pass  # never let the persistence error mask the original
+            raise
     return final
 
 
@@ -3239,6 +3329,16 @@ async def admin_trailer_job_summary(job_id: str, user: dict = Depends(get_admin_
         "render_duration_seconds":    j.get("render_duration_seconds"),
         "output_file_size_mb":        j.get("output_file_size_mb"),
         "render_failure_kind":        j.get("render_failure_kind"),
+        # P0 2026-06 — duration-mismatch repair telemetry. Surfaces the
+        # auto-repair pathway so ops can see "video was 62.5s, audio
+        # was 60.07s, gap 2.45s — auto-padded with silence to 62.55s".
+        "video_duration_seconds":     j.get("video_duration_seconds"),
+        "audio_duration_seconds":     j.get("audio_duration_seconds"),
+        "duration_gap_seconds":       j.get("duration_gap_seconds"),
+        "auto_repaired":              bool(j.get("auto_repaired")),
+        "auto_repair_attempted":      bool(j.get("auto_repair_attempted") or j.get("auto_repaired")),
+        "repair_strategy":            j.get("repair_strategy"),
+        "render_validation_reason":   j.get("render_validation_reason"),
         "created_at": j.get("created_at"),
         "completed_at": j.get("completed_at"),
         "failed_at": j.get("failed_at"),

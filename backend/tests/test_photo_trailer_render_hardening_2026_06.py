@@ -104,7 +104,11 @@ def test_tts_empty_failure_routes_to_voiceover_stage():
 def test_render_validation_error_persisted_to_job_doc():
     """`_render_trailer`'s validation-failure branch must write
     `render_validation_error` to the job doc BEFORE re-raising. Otherwise
-    the admin diagnostic can't surface the ffprobe complaint."""
+    the admin diagnostic can't surface the ffprobe complaint.
+
+    Implementation note: the auto-repair branch (P0 2026-06) lives inside
+    the same except block — we check that BOTH the persistence write AND
+    the re-raise exist within the except block."""
     src = TRAILER_PATH.read_text()
     m = re.search(
         r"async def _render_trailer\([^)]*\)[^:]*:(?P<body>.+?)(?=\nasync def |\ndef )",
@@ -115,14 +119,18 @@ def test_render_validation_error_persisted_to_job_doc():
     assert "render_validation_error" in body, (
         "_render_trailer must persist render_validation_error on validation failure."
     )
-    # And the write must happen inside the except/before-raise window.
-    except_block = re.search(
-        r"except RenderValidationError as e:(?P<eb>.+?)raise",
-        body, re.S,
-    )
-    assert except_block, "RenderValidationError except block must exist."
-    assert "render_validation_error" in except_block.group("eb"), (
-        "Persistence must happen inside the except block, before the re-raise."
+    # The persistence write MUST live inside `except RenderValidationError`.
+    except_idx = body.find("except RenderValidationError as e:")
+    assert except_idx != -1, "RenderValidationError except block must exist."
+    after_except = body[except_idx:]
+    persist_idx = after_except.find("render_validation_error")
+    # Find the OUTER `raise` (re-raise) — there may be intermediate inner
+    # raises within the auto-repair branch; we want the one at the end.
+    raise_positions = [m_.start() for m_ in re.finditer(r"\n            raise\b|\n        raise\b", after_except)]
+    assert raise_positions, "Re-raise must exist inside except block."
+    last_raise = raise_positions[-1]
+    assert 0 < persist_idx < last_raise, (
+        "Persistence must happen inside the except block, BEFORE the final re-raise."
     )
 
 

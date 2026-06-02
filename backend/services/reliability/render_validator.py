@@ -63,11 +63,34 @@ class RenderValidationError(Exception):
       • audio_longer_than_video
       • ffprobe_failed
       • ffprobe_non_json
+
+    For duration-mismatch failures (`audio_shorter_than_video` /
+    `audio_longer_than_video`) the instance also exposes:
+
+      • video_duration  (float seconds)
+      • audio_duration  (float seconds)
+      • gap_seconds     (positive float — |audio - video|)
+
+    P0 2026-06 — callers can use these to decide between hard-fail and
+    soft-repair (e.g. pad audio with silence when gap is small).
     """
 
-    def __init__(self, message: str, reason: str = "unknown") -> None:
+    def __init__(
+        self,
+        message: str,
+        reason: str = "unknown",
+        *,
+        video_duration: Optional[float] = None,
+        audio_duration: Optional[float] = None,
+    ) -> None:
         super().__init__(message)
         self.reason = reason
+        self.video_duration = video_duration
+        self.audio_duration = audio_duration
+        if video_duration is not None and audio_duration is not None:
+            self.gap_seconds = abs(float(video_duration) - float(audio_duration))
+        else:
+            self.gap_seconds = None
 
 
 def _resolve_ffprobe() -> Optional[str]:
@@ -175,11 +198,13 @@ async def validate_render(path: str, expected_duration: float = 0.0) -> dict:
             raise RenderValidationError(
                 f"audio shorter than video (audio={a_dur:.2f}s, video={v_dur:.2f}s)",
                 "audio_shorter_than_video",
+                video_duration=v_dur, audio_duration=a_dur,
             )
         if delta > 0.5:
             raise RenderValidationError(
                 f"audio longer than video (audio={a_dur:.2f}s, video={v_dur:.2f}s)",
                 "audio_longer_than_video",
+                video_duration=v_dur, audio_duration=a_dur,
             )
     logger.info(
         "[validate_render] OK video=%.2fs audio=%.2fs v_codec=%s a_codec=%s",
