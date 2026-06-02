@@ -1805,16 +1805,25 @@ async def _render_trailer(job: dict, scenes_data: List[dict], tmp: str) -> str:
     if music_path:
         if job_id:
             await _heartbeat(job_id, "Adding music")
-        await _ffmpeg([ffmpeg, "-y", "-i", stitched, "-stream_loop", "-1", "-i", music_path,
-                     "-filter_complex", wm_filter + ";[1:a]volume=0.18[m];[0:a][m]amix=inputs=2:duration=shortest[a]",
-                     "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
-                     "-c:a", "aac", "-b:a", "160k", "-ar", "44100", "-shortest",
-                     *meta_args, "-movflags", "+faststart", final])
+        await _ffmpeg(
+            [ffmpeg, "-y", "-i", stitched, "-stream_loop", "-1", "-i", music_path,
+             "-filter_complex", wm_filter + ";[1:a]volume=0.18[m];[0:a][m]amix=inputs=2:duration=shortest[a]",
+             "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
+             "-c:a", "aac", "-b:a", "160k", "-ar", "44100", "-shortest",
+             *meta_args, "-movflags", "+faststart", final],
+            # P0 2026-06 — pass `output_path` so the soft-success branch in
+            # `_ffmpeg_run` can validate a partially-completed MP4 if the
+            # subprocess gets killed near the finish line.
+            output_path=final,
+        )
     else:
-        await _ffmpeg([ffmpeg, "-y", "-i", stitched, "-vf", "drawtext=text='Visionary Suite':fontcolor=white@0.65:fontsize=18:"
-                     "x=w-tw-22:y=h-th-22:box=1:boxcolor=black@0.25:boxborderw=8",
+        await _ffmpeg(
+            [ffmpeg, "-y", "-i", stitched, "-vf", "drawtext=text='Visionary Suite':fontcolor=white@0.65:fontsize=18:"
+             "x=w-tw-22:y=h-th-22:box=1:boxcolor=black@0.25:boxborderw=8",
                      "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
-                     "-c:a", "copy", *meta_args, "-movflags", "+faststart", final])
+                     "-c:a", "copy", *meta_args, "-movflags", "+faststart", final],
+            output_path=final,
+        )
     # P0-D 2026-05-16 — ffprobe validation: fail if audio is missing/short
     # (silent renders are a worse user experience than a clean failure).
     # P0 2026-06 — persist the validation error string + a probe summary so
