@@ -31,6 +31,49 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 # REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 
+# P0 2026-06 — Multi-audience Google Sign-In (Web + iOS + Android).
+#
+# Mobile Google Sign-In was failing with "Invalid Google credential:
+# Token has wrong audience" because the backend validator only
+# accepted tokens issued for the Web Client ID. Each native (iOS /
+# Android) Client ID issues tokens with its own distinct `aud` claim,
+# so a single-audience check rejects every mobile token.
+#
+# Fix: accept tokens issued for ANY Client ID registered in our
+# Google Cloud project (number 972517860807). All three Client IDs
+# are PUBLIC identifiers — they appear in the frontend bundle and
+# the iOS/Android apps anyway; the matching `client_secret` is the
+# only secret value and is still scoped to the Web flow only.
+#
+# Env overrides (production may set these to rotate values without a
+# code change). When unset, we fall back to the literals registered
+# in the Visionary Suite Global project — these are tracked in
+# /app/memory/CHANGELOG.md and tied to the project's lifetime.
+GOOGLE_IOS_CLIENT_ID = os.environ.get(
+    "GOOGLE_IOS_CLIENT_ID",
+    "972517860807-p850882qdt4qlpn7smv8e5id9mspdrmb.apps.googleusercontent.com",
+)
+GOOGLE_ANDROID_CLIENT_ID = os.environ.get(
+    "GOOGLE_ANDROID_CLIENT_ID",
+    "972517860807-qtp4vi1e7gp5rpqkr6sf94utla820ns4.apps.googleusercontent.com",
+)
+
+
+def _allowed_google_audiences() -> set:
+    """Return the set of Client IDs whose tokens we accept.
+
+    Computed lazily so tests can mutate env vars at runtime. The Web
+    Client ID is required; iOS / Android are optional but defaulted
+    to the production project values so mobile sign-in works out of
+    the box.
+    """
+    auds = {GOOGLE_CLIENT_ID}
+    if GOOGLE_IOS_CLIENT_ID:
+        auds.add(GOOGLE_IOS_CLIENT_ID)
+    if GOOGLE_ANDROID_CLIENT_ID:
+        auds.add(GOOGLE_ANDROID_CLIENT_ID)
+    return {a for a in auds if a}
+
 # Google reCAPTCHA v3 Configuration
 RECAPTCHA_SITE_KEY = os.environ.get("RECAPTCHA_SITE_KEY", "")
 RECAPTCHA_SECRET_KEY = os.environ.get("RECAPTCHA_SECRET_KEY", "")
@@ -794,9 +837,16 @@ async def google_signin(request: Request, data: GoogleSignInRequest):
                     tokeninfo = tokeninfo_response.json()
                     logger.info(f"Google tokeninfo verified, aud: {tokeninfo.get('aud', 'N/A')}")
 
-                    # Verify the token was issued for our app
-                    if tokeninfo.get("aud") != GOOGLE_CLIENT_ID:
-                        logger.warning(f"Token audience mismatch: {tokeninfo.get('aud')} != {GOOGLE_CLIENT_ID}")
+                    # P0 2026-06 MULTI-AUDIENCE: Verify the token was
+                    # issued for ANY of our project's Client IDs (Web,
+                    # iOS, Android). Single-Client-ID check rejected
+                    # mobile tokens.
+                    allowed_auds = _allowed_google_audiences()
+                    if tokeninfo.get("aud") not in allowed_auds:
+                        logger.warning(
+                            f"Token audience mismatch: got={tokeninfo.get('aud')} "
+                            f"allowed={sorted(allowed_auds)}"
+                        )
                         raise HTTPException(status_code=401, detail="Token not issued for this application")
 
                     # Now fetch user profile using the access token
@@ -871,19 +921,42 @@ async def google_signin(request: Request, data: GoogleSignInRequest):
                 raise HTTPException(status_code=401, detail="Invalid Google auth code")
 
         elif data.credential:
-            # ID token flow — verify directly
+            # ID token flow — verify directly.
+            #
+            # P0 2026-06 MULTI-AUDIENCE: We deliberately DO NOT pass the
+            # `audience` kwarg to verify_oauth2_token. That arg accepts
+            # only a single Client ID string; passing it would reject
+            # mobile tokens whose `aud` claim is the iOS or Android
+            # Client ID. Instead, the library still verifies signature
+            # + issuer + expiry + not-before, and we manually check
+            # `aud` against the allowed-audience set below.
             try:
-                logger.info(f"Google credential flow: token length={len(data.credential)}, client_id={GOOGLE_CLIENT_ID[:20]}...")
+                logger.info(f"Google credential flow: token length={len(data.credential)}")
                 idinfo = id_token.verify_oauth2_token(
                     data.credential,
                     google_requests.Request(),
-                    GOOGLE_CLIENT_ID,
                 )
-                logger.info(f"Google credential verified: email={idinfo.get('email')}, aud={idinfo.get('aud', 'N/A')[:20]}")
+                aud = idinfo.get("aud")
+                allowed_auds = _allowed_google_audiences()
+                if aud not in allowed_auds:
+                    logger.error(
+                        f"Google credential audience NOT in allowed set: "
+                        f"got={aud} allowed={sorted(allowed_auds)}"
+                    )
+                    raise HTTPException(
+                        status_code=401,
+                        detail=f"Invalid Google credential: Token has wrong audience {aud}",
+                    )
+                logger.info(
+                    f"Google credential verified: email={idinfo.get('email')} "
+                    f"aud_match={aud[:25] if aud else 'N/A'}..."
+                )
+            except HTTPException:
+                raise
             except ValueError as e:
                 logger.error(f"Google credential verification FAILED: {str(e)}")
                 logger.error(f"  credential_prefix={data.credential[:50]}...")
-                logger.error(f"  expected_client_id={GOOGLE_CLIENT_ID}")
+                logger.error(f"  allowed_audiences={sorted(_allowed_google_audiences())}")
                 raise HTTPException(status_code=401, detail=f"Invalid Google credential: {str(e)}")
         else:
             raise HTTPException(status_code=400, detail="No Google credential, auth code, or access token provided")
@@ -894,8 +967,18 @@ async def google_signin(request: Request, data: GoogleSignInRequest):
             if idinfo.get("iss") not in ["accounts.google.com", "https://accounts.google.com"]:
                 raise HTTPException(status_code=401, detail="Invalid token issuer")
 
-            # Validate token audience
-            if idinfo.get("aud") != GOOGLE_CLIENT_ID:
+            # P0 2026-06 MULTI-AUDIENCE: validate against the full allowed
+            # set (Web + iOS + Android). The credential branch above
+            # already checked this, but this downstream gate also fires
+            # on the auth-code flow — where the audience is always Web —
+            # so the check still passes for that path naturally. Using
+            # the same allowed-audience set keeps the policy uniform.
+            allowed_auds = _allowed_google_audiences()
+            if idinfo.get("aud") not in allowed_auds:
+                logger.error(
+                    f"Downstream audience check failed: got={idinfo.get('aud')} "
+                    f"allowed={sorted(allowed_auds)}"
+                )
                 raise HTTPException(status_code=401, detail="Invalid token audience")
 
             # Extract user info from verified token

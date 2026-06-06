@@ -1,6 +1,42 @@
 # Visionary Suite - Changelog
 
 
+## 2026-06 — P0 Google Sign-In multi-audience validator (Mobile fix)
+
+**Status**: SHIPPED in preview. `make audit-boundaries-quick` green (**765 passing, 1 skipped**, +9 new). Awaiting redeploy.
+
+**Trigger**: iOS + Android mobile apps couldn't sign in with Google. Backend rejected every mobile ID token with `"Invalid Google credential: Token has wrong audience"`.
+
+**Root cause**: `id_token.verify_oauth2_token(credential, Request(), GOOGLE_CLIENT_ID)` was passing the **Web** Client ID as the single allowed audience. Each native Client ID (iOS / Android) issues tokens with its own `aud` claim — the library rejected them before our handler even ran.
+
+**Fix** (`backend/routes/auth.py`):
+- Added `GOOGLE_IOS_CLIENT_ID` + `GOOGLE_ANDROID_CLIENT_ID` env vars with project-bound fallbacks for the Visionary Suite Global project (number `972517860807`).
+- `_allowed_google_audiences()` returns the set of accepted Client IDs.
+- `id_token.verify_oauth2_token()` is now called **without** the `audience` kwarg (library validates signature + issuer + expiry + nbf), then manual `aud in allowed_set` check runs.
+- Three audience-check sites updated:
+  1. Credential ID-token flow (Web one-tap + iOS + Android).
+  2. Tokeninfo flow (access_token implicit).
+  3. Downstream post-verify gate (now uses allowed set, not single Web ID).
+- Auth-code flow at line 905 still passes `GOOGLE_CLIENT_ID` directly — code exchange uses `client_secret` and is Web-only by design. No change needed.
+
+**Allowed Client IDs** (Visionary Suite Global, project 972517860807):
+- `972517860807-cjgrpibkrg4n1ncdgs4kvmnqfpasgkao.apps.googleusercontent.com` (Web)
+- `972517860807-p850882qdt4qlpn7smv8e5id9mspdrmb.apps.googleusercontent.com` (iOS)
+- `972517860807-qtp4vi1e7gp5rpqkr6sf94utla820ns4.apps.googleusercontent.com` (Android)
+
+**Tests** (`backend/tests/test_google_signin_multi_audience_2026_06.py`, 9 tests, all green):
+- Set includes Web + iOS + Android.
+- Set excludes empty strings (no audience-weakening regression).
+- All Client IDs end in `.apps.googleusercontent.com`.
+- Credential branch `verify_oauth2_token` takes exactly 2 args (no 3rd positional that would single-audience-reject again).
+- Credential branch calls `_allowed_google_audiences()` AND checks `idinfo['aud']`.
+- Tokeninfo branch also uses the allowed set.
+- Downstream post-verify gate uses allowed set, not `aud != GOOGLE_CLIENT_ID`.
+- All Client IDs share project number `972517860807` (catches copy-paste mistakes).
+- Issuer check still enforced (loosening audience ≠ loosening issuer).
+
+
+
 ## 2026-06 — P0 Same-origin video streaming proxy (PROD FOLLOWUP #5)
 
 **Status**: SHIPPED in preview. `make audit-boundaries-quick` green (**756 passing, 1 skipped**, +29 new). Awaiting redeploy.

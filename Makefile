@@ -58,7 +58,8 @@ BOUNDARY_AUDIT_SUITES := \
 	backend/tests/test_photo_trailer_render_antiswallow_2026_06_prod.py \
 	backend/tests/test_photo_trailer_validation_error_shape_2026_06_prod.py \
 	backend/tests/test_photo_trailer_coep_playback_2026_06_prod.py \
-	backend/tests/test_photo_trailer_video_proxy_2026_06_prod.py
+	backend/tests/test_photo_trailer_video_proxy_2026_06_prod.py \
+	backend/tests/test_google_signin_multi_audience_2026_06.py
 
 PYTEST := python -m pytest
 

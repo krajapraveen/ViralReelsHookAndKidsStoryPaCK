@@ -8,6 +8,17 @@ Evolve the platform from a standard AI content generator into a highly addictive
 
 ## What's Been Implemented
 
+### P0 GOOGLE SIGN-IN MULTI-AUDIENCE (mobile fix) — Feb 2026
+**Status**: SHIPPED in preview. **boundary audit gate green (765 passing, +9 new)**. Awaiting redeploy.
+
+**Trigger**: Mobile iOS + Android Google Sign-In failed with "Token has wrong audience" because backend's `verify_oauth2_token` was hard-coded to the Web Client ID. Native mobile Client IDs issue tokens with distinct `aud` claims.
+
+**Fix**: `_allowed_google_audiences()` returns `{Web, iOS, Android}` Client IDs from the same Google Cloud project (972517860807). `verify_oauth2_token` is called without the `audience` kwarg (still verifies signature + issuer + expiry), then manual `aud in allowed_set` check. All three audience-check sites (credential, tokeninfo, downstream) updated. Auth-code (server-side exchange) flow unchanged — code exchange is web-only by design. Env vars `GOOGLE_IOS_CLIENT_ID` and `GOOGLE_ANDROID_CLIENT_ID` allow runtime rotation.
+
+**Pinned by**: `backend/tests/test_google_signin_multi_audience_2026_06.py` (9 tests).
+
+
+
 ### P0 SAME-ORIGIN VIDEO STREAMING PROXY (prod followup #5) — Feb 2026
 **Status**: SHIPPED in preview. **boundary audit gate green (756 passing, +29 new)**. Awaiting redeploy.
 
