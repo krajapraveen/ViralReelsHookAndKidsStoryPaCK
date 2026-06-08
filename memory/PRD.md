@@ -8,6 +8,17 @@ Evolve the platform from a standard AI content generator into a highly addictive
 
 ## What's Been Implemented
 
+### In-app Change Password (Profile → Security tab) — Feb 2026
+**Status**: SHIPPED in preview. **boundary audit gate green (780 passing, +15 new)**. Awaiting redeploy.
+
+**Trigger**: "Update Password" button was dead (no onClick). User wanted in-app password change (old → new + confirm) with full DB validation and NO email reset link.
+
+**Fix**: Backend endpoint `PUT /api/auth/password` already existed and was correct — it already does all the validations (current bcrypt verify, strength rules, != current, refuse Google accounts, hash + save, timestamp) and sends NO email. Wired the dead frontend button to call it with `handleChangePassword` + full client-side mirror validation + show/hide toggles + disabled-while-submitting + form-reset-on-success.
+
+**Pinned by**: `backend/tests/test_profile_change_password_2026_06.py` (15 tests including live HTTP E2E that proves new password authenticates after change and old password no longer does).
+
+
+
 ### P0 GOOGLE SIGN-IN MULTI-AUDIENCE (mobile fix) — Feb 2026
 **Status**: SHIPPED in preview. **boundary audit gate green (765 passing, +9 new)**. Awaiting redeploy.
 

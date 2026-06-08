@@ -1,6 +1,57 @@
 # Visionary Suite - Changelog
 
 
+## 2026-06 — In-app Change Password (Profile → Security tab)
+
+**Status**: SHIPPED in preview. `make audit-boundaries-quick` green (**780 passing, 1 skipped**, +15 new). Awaiting redeploy.
+
+**Trigger**: User reported "Update Password" button in Profile → Security tab does nothing — wanted in-app password change (old → new + confirm) with full DB validation, NO email reset link.
+
+**Diagnosis**:
+- Backend endpoint `PUT /api/auth/password` **already existed and was correct**: takes `currentPassword` + `newPassword`, verifies old against bcrypt hash, checks strength (8+ chars, upper+lower+digit+symbol, common-weak blocklist), refuses identical-as-current, refuses Google sign-in accounts, refuses missing password, hashes + saves + stamps `passwordChangedAt`. **No email is sent.**
+- Frontend Security tab rendered the 3 inputs (current/new/confirm) and the "Update Password" button — but the button had **no `onClick` handler**. It was completely dead. That's why the user thought the system was sending a reset email.
+
+**Fix shipped** (`frontend/src/pages/Profile.js`):
+- Added `handleChangePassword` that:
+  1. Validates all three fields are non-empty.
+  2. Validates `newPassword === confirmPassword`.
+  3. Validates `newPassword !== currentPassword`.
+  4. Mirrors backend strength rules client-side (8+ chars, upper, lower, digit, symbol, common-weak blocklist).
+  5. Calls `api.put('/api/auth/password', { currentPassword, newPassword })`.
+  6. On success: clears the form + `toast.success('Password changed successfully')`.
+  7. On failure: surfaces the exact backend error (e.g. "Current password is incorrect", "Cannot change password for Google sign-in accounts").
+- Added `data-testid` to all 3 inputs + 3 show/hide eye toggles + the submit button.
+- Added inline "Passwords do not match" hint that appears below the Confirm field as the user types.
+- Added `disabled={changingPassword}` + spinner on the submit button to block double-submit.
+- Added `autoComplete="current-password"` / `"new-password"` for browser password-manager compatibility.
+
+**What the user sees now**:
+1. Enter current password.
+2. Enter new password (with strength hint: "8+ chars · upper · lower · number · symbol").
+3. Confirm new password (with live mismatch hint).
+4. Click "Update Password".
+5. Toast confirms `"Password changed successfully"`, form clears, no email sent.
+
+**Tests added** (`backend/tests/test_profile_change_password_2026_06.py`, 15 tests, all green):
+- Backend live E2E:
+  - Unauthenticated → 401/403.
+  - Wrong current password → 400 with `"Current password is incorrect"`.
+  - Weak new password → 400 with strength error.
+  - Same as current → 400 with `"different from current"`.
+  - Valid change → 200; old password no longer authenticates; new password successfully logs in via `/api/auth/login`.
+- Frontend static contract:
+  - `handleChangePassword` exists.
+  - Calls `PUT /api/auth/password` (not POST, not `/forgot-password`).
+  - Does NOT send reset email (forbidden strings: `/forgot-password`, `/reset-password`, "reset link", "send reset").
+  - Submit button has `onClick={handleChangePassword}` + `data-testid="profile-change-password-btn"`.
+  - Submit button disabled while `changingPassword` flag is true.
+  - Client-side validation present (mismatch, same-as-current, strength).
+  - All 3 inputs have show/hide eye toggles with testids.
+  - Form resets on success (all three fields → `''`).
+- Backend schema: `PasswordChange` model has exactly `{currentPassword, newPassword}` — drift here is the silent-500 trap.
+
+
+
 ## 2026-06 — P0 Google Sign-In multi-audience validator (Mobile fix)
 
 **Status**: SHIPPED in preview. `make audit-boundaries-quick` green (**765 passing, 1 skipped**, +9 new). Awaiting redeploy.

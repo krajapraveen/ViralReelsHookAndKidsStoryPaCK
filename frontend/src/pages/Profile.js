@@ -59,6 +59,7 @@ export default function Profile() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
 
   useEffect(() => {
     fetchUserData();
@@ -197,6 +198,97 @@ export default function Profile() {
       toast.error(error.response?.data?.detail || 'Failed to update profile');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // P0 2026-06 — Change Password (in-app, no email reset link).
+  //
+  // Calls the existing, audited backend endpoint PUT /api/auth/password
+  // which:
+  //   1. Loads the user row from DB.
+  //   2. Refuses for Google-OAuth accounts (no password set).
+  //   3. Verifies currentPassword against the bcrypt hash in DB.
+  //   4. Validates newPassword strength (≥8 chars, upper+lower+digit+symbol,
+  //      not in common-weak list, ≤128 chars).
+  //   5. Refuses if newPassword equals currentPassword.
+  //   6. Hashes + saves; stamps passwordChangedAt.
+  // The backend does NOT send any email — purely DB-driven.
+  //
+  // Client-side validation here mirrors the backend rules so the user
+  // gets instant feedback before the round trip. The backend is still
+  // authoritative — never trust client-side validation alone.
+  const validateNewPassword = (pw) => {
+    if (!pw || pw.length < 8) return 'Password must be at least 8 characters long';
+    if (pw.length > 128) return 'Password too long (max 128 characters)';
+    if (!/[A-Z]/.test(pw)) return 'Password must contain at least one uppercase letter';
+    if (!/[a-z]/.test(pw)) return 'Password must contain at least one lowercase letter';
+    if (!/\d/.test(pw)) return 'Password must contain at least one number';
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(pw)) return 'Password must contain at least one special character';
+    const weak = ['password', '12345678', 'qwerty', 'admin', 'letmein'];
+    if (weak.includes(pw.toLowerCase())) return 'Password is too common. Please choose a stronger one.';
+    return null;
+  };
+
+  const handleChangePassword = async () => {
+    const { currentPassword, newPassword, confirmPassword } = formData;
+
+    // 1. Required fields.
+    if (!currentPassword) {
+      toast.error('Please enter your current password');
+      return;
+    }
+    if (!newPassword) {
+      toast.error('Please enter a new password');
+      return;
+    }
+    if (!confirmPassword) {
+      toast.error('Please confirm your new password');
+      return;
+    }
+
+    // 2. New + Confirm must match.
+    if (newPassword !== confirmPassword) {
+      toast.error('New password and confirm password do not match');
+      return;
+    }
+
+    // 3. New must differ from current.
+    if (newPassword === currentPassword) {
+      toast.error('New password must be different from current password');
+      return;
+    }
+
+    // 4. Strength rules (mirror backend).
+    const strengthErr = validateNewPassword(newPassword);
+    if (strengthErr) {
+      toast.error(strengthErr);
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      await api.put('/api/auth/password', {
+        currentPassword,
+        newPassword,
+      });
+      toast.success('Password changed successfully');
+      // Wipe the form so the next click on Security tab starts clean.
+      setFormData((prev) => ({
+        ...prev,
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      }));
+    } catch (error) {
+      // Backend surfaces specific reasons:
+      //   "Current password is incorrect"
+      //   "New password must be different from current password"
+      //   "Password must contain..." (strength)
+      //   "Cannot change password for Google sign-in accounts"
+      const detail = error?.response?.data?.detail || 'Failed to change password';
+      toast.error(detail);
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -670,11 +762,14 @@ export default function Profile() {
                       value={formData.currentPassword}
                       onChange={(e) => setFormData(prev => ({ ...prev, currentPassword: e.target.value }))}
                       className="mt-1 bg-slate-900/50 border-slate-600 text-white pr-10"
+                      data-testid="profile-current-password-input"
+                      autoComplete="current-password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowCurrentPassword(!showCurrentPassword)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                      data-testid="profile-current-password-toggle"
                     >
                       {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -682,25 +777,65 @@ export default function Profile() {
                 </div>
                 <div>
                   <Label className="text-slate-300">New Password</Label>
-                  <Input
-                    type="password"
-                    value={formData.newPassword}
-                    onChange={(e) => setFormData(prev => ({ ...prev, newPassword: e.target.value }))}
-                    className="mt-1 bg-slate-900/50 border-slate-600 text-white"
-                  />
+                  <div className="relative">
+                    <Input
+                      type={showNewPassword ? 'text' : 'password'}
+                      value={formData.newPassword}
+                      onChange={(e) => setFormData(prev => ({ ...prev, newPassword: e.target.value }))}
+                      className="mt-1 bg-slate-900/50 border-slate-600 text-white pr-10"
+                      data-testid="profile-new-password-input"
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                      data-testid="profile-new-password-toggle"
+                    >
+                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1.5">
+                    8+ chars · upper · lower · number · symbol
+                  </p>
                 </div>
                 <div>
                   <Label className="text-slate-300">Confirm New Password</Label>
-                  <Input
-                    type="password"
-                    value={formData.confirmPassword}
-                    onChange={(e) => setFormData(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                    className="mt-1 bg-slate-900/50 border-slate-600 text-white"
-                  />
+                  <div className="relative">
+                    <Input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      value={formData.confirmPassword}
+                      onChange={(e) => setFormData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                      className="mt-1 bg-slate-900/50 border-slate-600 text-white pr-10"
+                      data-testid="profile-confirm-password-input"
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                      data-testid="profile-confirm-password-toggle"
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  {formData.confirmPassword && formData.newPassword !== formData.confirmPassword && (
+                    <p className="text-xs text-rose-400 mt-1.5" data-testid="profile-password-mismatch">
+                      Passwords do not match
+                    </p>
+                  )}
                 </div>
-                <Button className="bg-purple-600 hover:bg-purple-700">
-                  <Lock className="w-4 h-4 mr-2" />
-                  Update Password
+                <Button
+                  className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={handleChangePassword}
+                  disabled={changingPassword}
+                  data-testid="profile-change-password-btn"
+                >
+                  {changingPassword ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Updating…</>
+                  ) : (
+                    <><Lock className="w-4 h-4 mr-2" /> Update Password</>
+                  )}
                 </Button>
               </div>
             </div>
