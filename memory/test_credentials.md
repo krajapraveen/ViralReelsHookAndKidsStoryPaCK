@@ -14,3 +14,10 @@
 - Email: admin@creatorstudio.ai
 - Password: Cr3@t0rStud!o#2026
 - Status: Unlimited credits
+
+## Apple App Store Reviewer
+- Email: apple-reviewer@visionary-suite.com
+- Password: Reviewer@VS2026
+- Status: 300 credits, role=user, emailVerified=true
+- ID: c1038771-1f8b-48cc-b142-7ccca9093a28
+- Created in PREVIEW DB only. Run `python -m scripts.create_apple_reviewer` (idempotent) to create/refresh on any environment.
