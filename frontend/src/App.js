@@ -124,6 +124,7 @@ const History = lazy(() => import('./pages/History'));
 const Billing = lazy(() => import('./pages/Billing'));
 const Profile = lazy(() => import('./pages/Profile'));
 const PrivacySettings = lazy(() => import('./pages/PrivacySettings'));
+const PublicPrivacySettings = lazy(() => import('./pages/PublicPrivacySettings'));
 const CopyrightInfo = lazy(() => import('./pages/CopyrightInfo'));
 const CreatorTools = lazy(() => import('./pages/CreatorTools'));
 const PaymentHistory = lazy(() => import('./pages/PaymentHistory'));
@@ -375,6 +376,7 @@ function App() {
         <Route path="/help" element={<L><UserManual /></L>} />
         <Route path="/privacy-policy" element={<L><PrivacyPolicy /></L>} />
         <Route path="/cookie-policy" element={<L><CookiePolicy /></L>} />
+        <Route path="/privacy-settings" element={<L><PublicPrivacySettings /></L>} />
         <Route path="/terms" element={<L><TermsOfService /></L>} />
         <Route path="/terms-of-service" element={<L><TermsOfService /></L>} />
 

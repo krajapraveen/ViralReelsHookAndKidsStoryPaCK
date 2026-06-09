@@ -43,13 +43,30 @@
         <meta property="twitter:description" content="Write a story, get a cinematic video in 90 seconds. Try free with 10 credits." />
         <meta property="twitter:image" content="https://www.visionary-suite.com/og-image.png" />
         
-        <!-- Google Analytics 4 -->
+        <!-- Google Analytics 4 - Consent Mode v2.
+             P0 2026-06 LEGAL — set ALL consent categories to DENIED by default
+             BEFORE gtag('config') runs. Otherwise GA fires before the user has
+             responded to the consent banner, violating GDPR / CCPA / DPDP 2023.
+             CookieConsent.js calls gtag('consent','update',{analytics_storage:
+             'granted'}) ONLY after the user clicks "Accept All" or toggles
+             analytics on in the banner. -->
         <script async src="https://www.googletagmanager.com/gtag/js?id=G-X4Y9E4QSF8"></script>
         <script>
             window.dataLayer = window.dataLayer || [];
             function gtag(){dataLayer.push(arguments);}
+            // Default-deny EVERYTHING until consent banner reports user choice.
+            gtag('consent', 'default', {
+                'ad_storage': 'denied',
+                'ad_user_data': 'denied',
+                'ad_personalization': 'denied',
+                'analytics_storage': 'denied',
+                'functionality_storage': 'denied',
+                'personalization_storage': 'denied',
+                'security_storage': 'granted',
+                'wait_for_update': 500
+            });
             gtag('js', new Date());
-            gtag('config', 'G-X4Y9E4QSF8');
+            gtag('config', 'G-X4Y9E4QSF8', { 'anonymize_ip': true });
         </script>
         
         <!-- Security Headers via Meta Tags -->
@@ -298,6 +315,12 @@
                     recordCrossOriginIframes: true,
                     capturePerformance: false,
                 },
+                // P0 2026-06 LEGAL — start in opted-out state until the
+                // CookieConsent banner reports a user choice. enableAnalytics()
+                // in CookieConsent.js calls posthog.opt_in_capturing() when
+                // the user grants analytics consent.
+                opt_out_capturing_by_default: true,
+                disable_session_recording: true,
             });
         </script>
     </body>

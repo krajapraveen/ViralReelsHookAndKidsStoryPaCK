@@ -70,9 +70,15 @@ export default function CookieConsent() {
         'analytics_storage': 'granted'
       });
     }
-    // Enable PostHog
+    // Enable PostHog (was opted-out by default in index.html — see
+    // opt_out_capturing_by_default and disable_session_recording flags).
     if (window.posthog) {
-      window.posthog.opt_in_capturing();
+      try { window.posthog.opt_in_capturing(); } catch {}
+      try {
+        if (typeof window.posthog.startSessionRecording === 'function') {
+          window.posthog.startSessionRecording();
+        }
+      } catch {}
     }
   };
 
@@ -187,6 +193,7 @@ export default function CookieConsent() {
               className="h-7 px-2 text-xs text-slate-400 hover:text-white transition-colors flex items-center gap-1"
               data-testid="cookie-customize-btn"
             >
+              <span>Customize</span>
               {showDetails ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
             </button>
           </div>

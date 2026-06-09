@@ -1,6 +1,101 @@
 # Visionary Suite - Changelog
 
 
+## 2026-06 — P0 Legal: platform-specific Privacy / Cookie Policy + consent enforcement
+
+**Status**: SHIPPED in preview. `make audit-boundaries-quick` green (**803 passing, 1 skipped**, +23 new). Awaiting redeploy.
+
+**Trigger**: Previous Privacy / Cookie Policy pages were generic templates — did not name Visionary Suite's actual AI features, did not disclose facial-image processing, did not cite GDPR Articles or India's DPDP Act 2023, did not include the user-ownership clause, did not enforce consent default-deny for analytics.
+
+**Approved values** (defaults locked in until a registered legal entity is formed):
+- Privacy contact: `privacy@visionary-suite.com`
+- Support contact: `support@visionary-suite.com`
+- Business location: India
+- Effective date: live deployment date (computed at render time)
+- Retention: generated projects retained until user deletes or account closes; 30-day soft-delete then permanent purge
+- Account deletion: 30-day soft + permanent thereafter where legally permissible
+
+**Privacy Policy rewrite** (`frontend/src/pages/PrivacyPolicy.js`, 21 sections, ~440 lines):
+1. Introduction (web + iOS + Android coverage statement).
+2. Information We Collect (account, content, AI generation, technical).
+3. **Facial Image Processing Disclosure** (dedicated section — no sale, no surveillance, no biometric ID, no law-enforcement use, used solely for requested outputs).
+4. Voice and Audio Processing.
+5. How We Use Your Information.
+6. **AI Service Providers** (named categories: AI model, cloud, auth, payment, analytics).
+7. Payment Information (no full card storage).
+8. Data Retention (30-day soft + permanent purge).
+9. Your Rights (access, correction, deletion, withdraw, portability, restriction, object).
+10. **GDPR** (named Articles 15, 16, 17, 18, 20, 21, 7(3)).
+11. **India DPDP Act 2023** (summary right, correction/erasure, grievance redressal, nomination right, consent withdrawal).
+12. Children's Privacy.
+13. Security (no marketing language — HTTPS, bcrypt, RBAC).
+14. **User Ownership** ("Visionary Suite does not claim ownership of user-uploaded content").
+15. AI-Generated Content Disclaimer.
+16. Account Deletion (30-day grace).
+17. Mobile Applications coverage.
+18. Cookies and Tracking.
+19. International Data Transfers.
+20. Changes to this Policy.
+21. Contact (privacy@ + support@ + India location).
+
+All 11 platform features explicitly named: Story Video Studio, Photo to Comic, Comic Storybook, Character Studio, Story Series, Reel Generator, Brand Kit, Bedtime Stories, Reaction GIF, Daily Viral Ideas, MyTrailer.
+
+**Cookie Policy rewrite** (`frontend/src/pages/CookiePolicy.js`, 10 sections):
+1. What Are Cookies (mobile equivalent identifiers covered).
+2. Essential / 3. Functional / 4. Analytics (named GA4 + PostHog with denied-by-default) / 5. Performance / 6. Third-Party (auth, analytics, payment, embedded services).
+7. Cookie Consent Banner (documents the three buttons: Accept All / Reject Non-Essential / Manage Preferences).
+8. Withdrawing or Changing Consent (link to `/privacy-settings`).
+9. Cookie Retention.
+10. Contact.
+
+**New public `/privacy-settings` route** (`frontend/src/pages/PublicPrivacySettings.js`):
+- Cookie-preferences manager for ALL visitors (auth or not — Article 7(3) GDPR requires withdrawal at parity with grant).
+- 4 toggles: Necessary (forced on), Analytics, Marketing, Preferences.
+- Buttons: Save Preferences, Accept All, Reject Non-Essential, Reset Banner.
+- IMMEDIATELY propagates choice to `gtag('consent', 'update', ...)` and `posthog.opt_in_capturing/opt_out_capturing` without page reload.
+- Authenticated users still reach `/app/privacy` for account-level data export / deletion (untouched).
+
+**Default-deny analytics** (critical compliance fix in `frontend/public/index.html`):
+- Google Consent Mode v2: `gtag('consent', 'default', { analytics_storage: 'denied', ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', functionality_storage: 'denied', personalization_storage: 'denied', security_storage: 'granted', wait_for_update: 500 })` BEFORE `gtag('config')`.
+- PostHog: `opt_out_capturing_by_default: true` + `disable_session_recording: true` on init. CookieConsent's `enableAnalytics()` calls `posthog.opt_in_capturing()` + `startSessionRecording()` only after consent.
+
+**Footer fix** (`frontend/src/pages/Landing.js`):
+- Stale `/privacy`, `/terms`, `/cookies` short paths replaced with `/privacy-policy`, `/terms-of-service`, `/cookie-policy`.
+- Added `/privacy-settings` link to footer for consent withdrawal.
+- All four footer links have `data-testid` for regression pinning.
+
+**Cookie consent banner** (`frontend/src/components/CookieConsent.js`):
+- Existing banner kept Accept All / Reject All / chevron-expand for granular toggles. Added visible "Customize" text label next to the chevron so the third choice is discoverable.
+
+**Tests added** (`backend/tests/test_legal_privacy_cookie_disclosures_2026_06.py`, 23 tests, all green):
+- All 11 platform features enumerated in Privacy Policy.
+- Facial-image disclosure: no sale, no surveillance, no biometric ID, no law-enforcement use, sole-purpose commitment.
+- Voice/audio rights disclosure.
+- AI provider categories named.
+- User-ownership literal clause present.
+- AI-generated content responsibility clause present.
+- Copyright responsibility lists copyright + trademark + publicity + privacy.
+- GDPR section cites Articles 15, 16, 17, 20.
+- DPDP Act section cites grievance redressal + nomination right.
+- Web + iOS + Android explicitly covered.
+- Privacy contact + support email present.
+- 30-day soft-delete + permanent purge present.
+- All 5 cookie categories present in Cookie Policy.
+- All 3 banner button labels documented.
+- `/privacy-settings` linked from Cookie Policy.
+- `gtag('consent', 'default', ...)` sets analytics_storage='denied'.
+- PostHog `opt_out_capturing_by_default: true`.
+- CookieConsent component exposes Accept All / Reject All / Customize.
+- CookieConsent default state is analytics: false / marketing: false.
+- All 4 routes registered: `/privacy-policy`, `/cookie-policy`, `/terms-of-service`, `/privacy-settings`.
+- Footer has all 4 testid links; stale `/privacy` + `/cookies` removed.
+- PublicPrivacySettings exposes all 4 toggles + 4 action buttons; necessary toggle hard-coded true.
+- PublicPrivacySettings immediately calls gtag consent update + posthog opt_in/out on save.
+
+**Smoke screenshot verified**: Privacy Policy page renders with feature list, facial-image disclosure, GDPR section, DPDP section, ownership clause all visible. Cookie banner displays Accept All / Reject All / Customize triple. Consent is default-deny.
+
+
+
 ## 2026-06 — In-app Change Password (Profile → Security tab)
 
 **Status**: SHIPPED in preview. `make audit-boundaries-quick` green (**780 passing, 1 skipped**, +15 new). Awaiting redeploy.

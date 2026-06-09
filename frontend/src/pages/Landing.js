@@ -946,17 +946,21 @@ export default function Landing() {
             <div>
               <h4 className="text-sm font-semibold text-white mb-3">Legal</h4>
               <div className="space-y-3">
-                <Link to="/privacy" className="block group">
+                <Link to="/privacy-policy" className="block group" data-testid="footer-privacy-link">
                   <span className="text-sm text-slate-400 group-hover:text-white transition-colors font-medium">Privacy Policy</span>
                   <p className="text-[11px] text-slate-600 leading-snug mt-0.5">How we protect your data and respect your privacy.</p>
                 </Link>
-                <Link to="/terms" className="block group">
+                <Link to="/terms-of-service" className="block group" data-testid="footer-terms-link">
                   <span className="text-sm text-slate-400 group-hover:text-white transition-colors font-medium">Terms of Service</span>
                   <p className="text-[11px] text-slate-600 leading-snug mt-0.5">Clear guidelines on using Visionary Suite responsibly and safely.</p>
                 </Link>
-                <Link to="/cookies" className="block group">
+                <Link to="/cookie-policy" className="block group" data-testid="footer-cookie-link">
                   <span className="text-sm text-slate-400 group-hover:text-white transition-colors font-medium">Cookie Policy</span>
                   <p className="text-[11px] text-slate-600 leading-snug mt-0.5">How we use cookies to improve your experience and performance.</p>
+                </Link>
+                <Link to="/privacy-settings" className="block group" data-testid="footer-privacy-settings-link">
+                  <span className="text-sm text-slate-400 group-hover:text-white transition-colors font-medium">Privacy Settings</span>
+                  <p className="text-[11px] text-slate-600 leading-snug mt-0.5">Update cookie preferences or withdraw consent at any time.</p>
                 </Link>
                 <Link to="/security" className="block group" data-testid="footer-security-link">
                   <span className="text-sm text-slate-400 group-hover:text-white transition-colors font-medium">Security</span>

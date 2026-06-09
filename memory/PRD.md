@@ -8,6 +8,19 @@ Evolve the platform from a standard AI content generator into a highly addictive
 
 ## What's Been Implemented
 
+### P0 LEGAL: PLATFORM-SPECIFIC PRIVACY/COOKIE POLICY + CONSENT ENFORCEMENT — Feb 2026
+**Status**: SHIPPED in preview. **boundary audit gate green (803 passing, +23 new)**.
+
+**Trigger**: Existing Privacy/Cookie pages were generic templates. User mandated platform-specific content tailored to Visionary Suite's AI workflows (facial-image processing, voice processing, AI provider transmission, user ownership, GDPR Articles, DPDP Act 2023).
+
+**Fix**: Full rewrite of `PrivacyPolicy.js` (21 sections naming all 11 platform features) + `CookiePolicy.js` (10 sections, 5 cookie categories) + new public `/privacy-settings` route for consent withdrawal at parity with consent grant (Article 7(3) GDPR). Critical: `gtag('consent', 'default', {...denied})` set BEFORE `gtag('config')` in `index.html`; PostHog initialized with `opt_out_capturing_by_default: true`. Footer links repaired (stale `/privacy`, `/cookies` → `/privacy-policy`, `/cookie-policy`).
+
+**Approved values**: privacy@ + support@ + India location + 30-day soft-delete + permanent purge.
+
+**Pinned by**: `backend/tests/test_legal_privacy_cookie_disclosures_2026_06.py` (23 tests).
+
+
+
 ### In-app Change Password (Profile → Security tab) — Feb 2026
 **Status**: SHIPPED in preview. **boundary audit gate green (780 passing, +15 new)**. Awaiting redeploy.
 
