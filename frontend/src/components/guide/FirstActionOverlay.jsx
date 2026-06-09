@@ -1,11 +1,28 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useProductGuide } from '../../contexts/ProductGuideContext';
 import { Play, ArrowRight, Sparkles, X } from 'lucide-react';
+
+// P0 Admin Panel fix (2026-06): Decode JWT to detect admin role reliably.
+// Reading only `localStorage.user` was fragile — if that object was missing,
+// stale, or wiped, the onboarding overlay would mount over the admin dashboard
+// and the entire content area appeared blank.
+function isAdminFromToken() {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return false;
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const role = String(payload.role || '').toUpperCase();
+    return role === 'ADMIN' || role === 'SUPERADMIN';
+  } catch {
+    return false;
+  }
+}
 
 export default function FirstActionOverlay() {
   const { progress, loading } = useProductGuide();
   const navigate = useNavigate();
+  const location = useLocation();
   const [show, setShow] = useState(false);
   const [animateIn, setAnimateIn] = useState(false);
 
@@ -13,16 +30,21 @@ export default function FirstActionOverlay() {
     if (loading) return;
     if (!progress) return;
 
+    // P0 Admin Panel fix (2026-06): Hard guard — never mount on admin routes.
+    // The admin dashboard must not be obscured by consumer onboarding.
+    if (location.pathname && location.pathname.startsWith('/app/admin')) return;
+
     const hasGenerated = (progress.total_generations || 0) > 0;
     const dismissed = progress.guide_dismissed;
     const overlayDismissed = sessionStorage.getItem('first_action_done');
     const permanentlyDismissed = localStorage.getItem('onboarding_dismissed');
 
-    // Skip for admin users
+    // Skip for admin users — check both stored user object AND JWT role claim.
     try {
       const user = JSON.parse(localStorage.getItem('user') || '{}');
-      if (user.role === 'ADMIN' || user.role === 'admin') return;
+      if (user.role === 'ADMIN' || user.role === 'admin' || user.role === 'SUPERADMIN') return;
     } catch { /* ignore */ }
+    if (isAdminFromToken()) return;
 
     if (!hasGenerated && !dismissed && !overlayDismissed && !permanentlyDismissed) {
       setShow(true);
@@ -30,7 +52,7 @@ export default function FirstActionOverlay() {
         requestAnimationFrame(() => setAnimateIn(true));
       });
     }
-  }, [progress, loading]);
+  }, [progress, loading, location.pathname]);
 
   if (!show) return null;
 

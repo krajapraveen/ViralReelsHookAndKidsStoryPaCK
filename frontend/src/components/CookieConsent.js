@@ -89,9 +89,16 @@ export default function CookieConsent() {
         'analytics_storage': 'denied'
       });
     }
-    // Disable PostHog
+    // Disable PostHog. Article 7(3) GDPR: withdrawal must be as easy as
+    // granting — stop capturing AND stop session recording immediately
+    // so no events fire for the remainder of the session.
     if (window.posthog) {
-      window.posthog.opt_out_capturing();
+      try { window.posthog.opt_out_capturing(); } catch {}
+      try {
+        if (typeof window.posthog.stopSessionRecording === 'function') {
+          window.posthog.stopSessionRecording();
+        }
+      } catch {}
     }
   };
 
@@ -186,14 +193,14 @@ export default function CookieConsent() {
               className="h-7 px-3 text-xs border-slate-600 text-slate-300 hover:bg-slate-800 rounded-lg"
               data-testid="cookie-reject-btn"
             >
-              Reject All
+              Reject Non-Essential
             </Button>
             <button
               onClick={() => setShowDetails(!showDetails)}
               className="h-7 px-2 text-xs text-slate-400 hover:text-white transition-colors flex items-center gap-1"
               data-testid="cookie-customize-btn"
             >
-              <span>Customize</span>
+              <span>Manage Preferences</span>
               {showDetails ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
             </button>
           </div>

@@ -264,12 +264,42 @@ def test_posthog_init_opts_out_by_default():
 
 
 def test_cookie_consent_banner_has_required_buttons():
-    """The CookieConsent component must expose all three banner choices."""
-    for label in ("Accept All", "Reject All", "Customize"):
-        # The banner uses 'Reject All' / 'Customize' (Manage Preferences synonym).
+    """The CookieConsent component must expose all three banner choices
+    using the exact legal-mandated labels."""
+    for label in ("Accept All", "Reject Non-Essential", "Manage Preferences"):
         assert label in COOKIE_CONSENT, (
-            f"CookieConsent component must expose `{label}` button."
+            f"CookieConsent component must expose `{label}` button label "
+            f"verbatim (legal-audit mandated wording)."
         )
+    # Stale wording must NOT linger — the legal audit explicitly rejected
+    # "Reject All" / "Customize" as too ambiguous about what is rejected.
+    assert ">Reject All<" not in COOKIE_CONSENT, (
+        "Legacy `Reject All` label must be replaced by `Reject Non-Essential`."
+    )
+    assert ">Customize<" not in COOKIE_CONSENT, (
+        "Legacy `Customize` label must be replaced by `Manage Preferences`."
+    )
+
+
+def test_cookie_consent_withdrawal_stops_session_recording():
+    """Article 7(3) GDPR + DPDP withdrawal parity: rejecting analytics
+    must immediately stop PostHog session recording, not just opt out
+    of event capture. Without this, recordings continue for the rest
+    of the session even after the user revokes consent."""
+    assert "stopSessionRecording" in COOKIE_CONSENT, (
+        "disableAnalytics must call posthog.stopSessionRecording() so "
+        "consent withdrawal is immediate and complete."
+    )
+
+
+def test_posthog_session_recording_disabled_by_default():
+    """Session recording must be opted-out at PostHog init. It only
+    starts after the user opts in via the consent banner. This is the
+    runtime counterpart of `opt_out_capturing_by_default: true`."""
+    assert "disable_session_recording: true" in INDEX_HTML, (
+        "PostHog init must include `disable_session_recording: true` "
+        "so recordings never start before consent."
+    )
 
 
 def test_cookie_consent_default_state_is_essential_only():

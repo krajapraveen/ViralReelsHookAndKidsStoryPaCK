@@ -6,6 +6,37 @@ Evolve the platform from a standard AI content generator into a highly addictive
 ## Production Domain
 - **Website**: https://www.visionary-suite.com
 
+
+### P0 ADMIN PANEL BLANK CONTENT (overlay obscuration fix) — Feb 2026
+**Status**: SHIPPED in preview. **boundary audit gate green (811 passed, 1 skipped)**.
+
+**Trigger**: Admin reported `/app/admin` was visually rendering the sidebar but the main content area was unreachable / blank. Root cause: global `FirstActionOverlay` + `PostValueOverlay` mounted unconditionally for every authenticated session and rendered a full-viewport modal (`fixed inset-0 z-[10500] bg-black/85 backdrop-blur-md`) over the admin dashboard. The pre-existing admin-skip guard relied solely on `JSON.parse(localStorage.getItem('user'))` — if that object was missing/stale, the guard was bypassed.
+
+**Fix (defense in depth)**:
+1. Hard route guard — both overlays now early-return when `pathname.startsWith('/app/admin')` (non-bypassable, path-based).
+2. JWT-based admin detection — both overlays now decode the JWT `role` claim and treat `ADMIN`/`SUPERADMIN` as admin in addition to the `localStorage.user.role` check. Protects the rest of the app shell if storage is desynced from the JWT.
+
+**Verified**: Live preview as `admin@creatorstudio.ai` — sidebar + Executive Dashboard + Growth Validation + Share Funnel + A/B Hero Test all render. Also verified with stale/wrong `localStorage.user.role='user'` — admin dashboard still renders (JWT guard active).
+
+**Pinned by**: `backend/tests/test_admin_panel_overlay_guard_2026_06.py` (6 tests). Registered in `/app/Makefile :: BOUNDARY_AUDIT_SUITES`.
+
+
+
+### P0 LEGAL CONSENT BANNER LABELS + WITHDRAWAL PARITY — Feb 2026
+**Status**: SHIPPED in preview. Audit gate green.
+
+**Trigger**: Legal audit mandated three exact banner labels — `Accept All`, `Reject Non-Essential`, `Manage Preferences` — to remove ambiguity about what is rejected. Prior labels (`Reject All` / `Customize`) were rejected. Article 7(3) GDPR + DPDP withdrawal-parity also required PostHog session recording to STOP immediately on consent withdrawal, not just opt-out of event capture.
+
+**Fix**:
+- `CookieConsent.js` button labels updated verbatim (`Reject Non-Essential`, `Manage Preferences`). Stale labels removed.
+- `disableAnalytics()` now also calls `posthog.stopSessionRecording()` so withdrawal is immediate and complete.
+- Defaults already correct: `gtag('consent', 'default', { analytics_storage: 'denied', ad_storage: 'denied' })` set before `gtag('config')`; PostHog initialized with `opt_out_capturing_by_default: true, disable_session_recording: true`. No GA/PostHog/session-recording events fire pre-consent.
+
+**Pinned by**: extended `backend/tests/test_legal_privacy_cookie_disclosures_2026_06.py` — new tests `test_cookie_consent_banner_has_required_buttons` (strict labels, no legacy strings), `test_cookie_consent_withdrawal_stops_session_recording`, `test_posthog_session_recording_disabled_by_default`.
+
+
+
+
 ## What's Been Implemented
 
 ### P0 LEGAL: PLATFORM-SPECIFIC PRIVACY/COOKIE POLICY + CONSENT ENFORCEMENT — Feb 2026

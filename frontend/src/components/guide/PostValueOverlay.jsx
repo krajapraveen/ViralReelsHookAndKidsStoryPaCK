@@ -1,9 +1,24 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useProductGuide } from '../../contexts/ProductGuideContext';
 import { useCredits } from '../../contexts/CreditContext';
 import { trackFunnel, incrementGenerationCount } from '../../utils/funnelTracker';
 import { Sparkles, ArrowRight, Share2, Film, X } from 'lucide-react';
+
+// P0 Admin Panel fix (2026-06): Decode JWT to detect admin role reliably.
+// Without this guard the post-value overlay could mount on /app/admin and
+// obscure the admin dashboard content area.
+function isAdminFromToken() {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return false;
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const role = String(payload.role || '').toUpperCase();
+    return role === 'ADMIN' || role === 'SUPERADMIN';
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Post-First-Value Overlay — shows after generation completes.
@@ -13,12 +28,24 @@ import { Sparkles, ArrowRight, Share2, Film, X } from 'lucide-react';
 export default function PostValueOverlay({ onTriggerPaywall }) {
   const { progress } = useProductGuide();
   const navigate = useNavigate();
+  const location = useLocation();
   const [show, setShow] = useState(false);
   const [animateIn, setAnimateIn] = useState(false);
   const [genCount, setGenCount] = useState(0);
 
   useEffect(() => {
     if (!progress) return;
+
+    // P0 Admin Panel fix (2026-06): Hard guard — never mount on admin routes.
+    if (location.pathname && location.pathname.startsWith('/app/admin')) return;
+
+    // Skip for admin users — JWT-based check is the source of truth.
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      if (user.role === 'ADMIN' || user.role === 'admin' || user.role === 'SUPERADMIN') return;
+    } catch { /* ignore */ }
+    if (isAdminFromToken()) return;
+
     const gens = progress.total_generations || 0;
     const lastShown = parseInt(sessionStorage.getItem('post_value_shown_at') || '0', 10);
 
@@ -51,7 +78,7 @@ export default function PostValueOverlay({ onTriggerPaywall }) {
         requestAnimationFrame(() => setAnimateIn(true));
       });
     }
-  }, [progress]);
+  }, [progress, location.pathname]);
 
   const close = useCallback((action) => {
     setAnimateIn(false);
