@@ -1662,3 +1662,156 @@ async def check_lock_status(email: str, master_key: str):
             "failedLoginAttempts": user.get("failedLoginAttempts", 0)
         }
     }
+
+
+
+# ─────────────────────────────────────────────────────────────────────
+# P0 2026-06 — Apple App Store reviewer account seed-or-refresh.
+#
+# Apple App Review requires a working demo credential. This endpoint
+# guarantees the reviewer account exists with the agreed password,
+# 300 credits floor, and zero lockout state — on whichever environment
+# it is called against. Idempotent: re-running it after a lockout
+# clears the lockout without ever doubling credits.
+#
+# Master-key-protected because it sets a known password on a known
+# email. Pinned by
+# tests/test_apple_reviewer_seed_endpoint_2026_06.py.
+# ─────────────────────────────────────────────────────────────────────
+
+
+APPLE_REVIEWER_EMAIL = "apple-reviewer@visionary-suite.com"
+APPLE_REVIEWER_PASSWORD = "Reviewer@VS2026"
+APPLE_REVIEWER_NAME = "Apple Reviewer"
+APPLE_REVIEWER_CREDIT_FLOOR = 300
+
+
+class SeedAppleReviewerRequest(BaseModel):
+    master_key: str = Field(..., description="Master unlock key for security")
+
+
+@router.post("/admin/seed-apple-reviewer")
+async def seed_apple_reviewer(data: SeedAppleReviewerRequest):
+    """Create-or-refresh the Apple App Store reviewer account.
+
+    Idempotent. On every call:
+      1. Creates the user if missing, with role=user, emailVerified=true.
+      2. Resets the password to the agreed APPLE_REVIEWER_PASSWORD.
+      3. Tops credits up to the APPLE_REVIEWER_CREDIT_FLOOR (never doubles).
+      4. Clears any account_lockouts records for the email.
+      5. Deletes failed login_activity records for the email.
+      6. Clears every user-level lock flag.
+
+    Returns the post-state user fields plus the cleared-record counts.
+    """
+    if data.master_key != MASTER_UNLOCK_KEY:
+        logger.warning("Invalid master key attempt for seed-apple-reviewer")
+        raise HTTPException(status_code=403, detail="Invalid master key")
+
+    email = APPLE_REVIEWER_EMAIL.lower()
+    now_iso = datetime.now(timezone.utc).isoformat()
+    hashed = hash_password(APPLE_REVIEWER_PASSWORD)
+
+    existing = await db.users.find_one({"email": email})
+    topup = 0
+
+    if existing:
+        user_id = existing["id"]
+        current_credits = int(existing.get("credits") or 0)
+        topup = max(0, APPLE_REVIEWER_CREDIT_FLOOR - current_credits)
+        await db.users.update_one(
+            {"id": user_id},
+            {
+                "$set": {
+                    "password": hashed,
+                    "name": APPLE_REVIEWER_NAME,
+                    "emailVerified": True,
+                    "credits_locked": False,
+                    "has_delayed_credits": False,
+                    "lastLogin": now_iso,
+                    "credits": max(current_credits, APPLE_REVIEWER_CREDIT_FLOOR),
+                    "locked": False,
+                    "lockUntil": None,
+                    "lockedUntil": None,
+                    "failedLoginAttempts": 0,
+                    "loginAttempts": 0,
+                    "accountLocked": False,
+                    "lastFailedLogin": None,
+                    "is_reviewer_account": True,
+                },
+                "$unset": {
+                    "lockExpiry": "",
+                    "lockReason": "",
+                    "lockoutUntil": "",
+                },
+            },
+        )
+        created = False
+    else:
+        user_id = str(uuid.uuid4())
+        await db.users.insert_one(
+            {
+                "id": user_id,
+                "email": email,
+                "name": APPLE_REVIEWER_NAME,
+                "password": hashed,
+                "role": "user",
+                "credits": APPLE_REVIEWER_CREDIT_FLOOR,
+                "emailVerified": True,
+                "createdAt": now_iso,
+                "lastLogin": now_iso,
+                "has_delayed_credits": False,
+                "credits_locked": False,
+                "verification_disabled_signup": True,
+                "plan_type": "free",
+                "subscription_status": "inactive",
+                "subscription_expires_at": None,
+                "topup_credits": 0,
+                "signup_bonus_granted": True,
+                "is_reviewer_account": True,
+            }
+        )
+        topup = APPLE_REVIEWER_CREDIT_FLOOR
+        created = True
+
+    if topup > 0:
+        await db.credit_ledger.insert_one(
+            {
+                "id": str(uuid.uuid4()),
+                "userId": user_id,
+                "amount": topup,
+                "type": "ADMIN_GRANT",
+                "description": (
+                    "Apple App Store reviewer "
+                    + ("initial allocation" if created else f"top-up to {APPLE_REVIEWER_CREDIT_FLOOR}")
+                ),
+                "createdAt": now_iso,
+            }
+        )
+
+    lockout_result = await db.account_lockouts.delete_many({"email": email})
+    activity_result = await db.login_activity.delete_many(
+        {"identifier": email, "status": "FAILED"}
+    )
+
+    final = await db.users.find_one({"email": email}, {"_id": 0, "password": 0})
+    logger.info(
+        "Apple reviewer seed-or-refresh: email=%s created=%s topup=%s "
+        "lockouts_cleared=%s failed_attempts_cleared=%s",
+        email,
+        created,
+        topup,
+        lockout_result.deleted_count,
+        activity_result.deleted_count,
+    )
+
+    return {
+        "success": True,
+        "created": created,
+        "email": email,
+        "user_id": user_id,
+        "credits": final.get("credits"),
+        "topup_applied": topup,
+        "lockouts_cleared": lockout_result.deleted_count,
+        "failed_attempts_cleared": activity_result.deleted_count,
+    }
