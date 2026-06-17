@@ -106,9 +106,21 @@ def test_apple_signin_uses_create_token_same_issuer(auth_src: str) -> None:
 def test_apple_verifier_pins_apple_constants(apple_src: str) -> None:
     assert 'APPLE_ISSUER = "https://appleid.apple.com"' in apple_src
     assert 'APPLE_JWKS_URL = "https://appleid.apple.com/auth/keys"' in apple_src
-    assert 'APPLE_AUDIENCE = os.environ.get("APPLE_BUNDLE_ID", "com.visionarysuite.app")' in apple_src, (
-        "Audience must default to the iOS bundle ID com.visionarysuite.app "
-        "and be overridable via APPLE_BUNDLE_ID env var."
+    # Multi-audience support is mandatory — the iOS bundle ID AND the
+    # web Services ID must both be accepted by a single backend endpoint.
+    assert 'def _resolve_audiences()' in apple_src, (
+        "Verifier must compute APPLE_AUDIENCES from the comma-separated "
+        "APPLE_AUDIENCES env var so iOS (bundle ID) and web (Services ID) "
+        "can coexist without code changes."
+    )
+    assert 'APPLE_AUDIENCES: list[str] = _resolve_audiences()' in apple_src
+    # Back-compat: APPLE_BUNDLE_ID is still honored when APPLE_AUDIENCES
+    # is unset.
+    assert 'os.environ.get("APPLE_BUNDLE_ID", "com.visionarysuite.app")' in apple_src
+    # PyJWT must be passed the full list, not a single audience.
+    assert 'audience=APPLE_AUDIENCES' in apple_src, (
+        "jwt.decode must receive APPLE_AUDIENCES (the list) so any of "
+        "the registered audiences is accepted."
     )
 
 
@@ -372,3 +384,178 @@ def test_route_returns_200_and_token_for_valid_apple_token(app_client, rsa_key_p
         assert k in body["user"], f"user object missing `{k}`"
     assert body["user"]["email"] == "newreviewer@privaterelay.appleid.com"
     assert body["user"]["role"] == "user"
+
+
+# ── 4. Multi-audience web-Services-ID behavior (Login + Signup web pages) ────
+
+
+def test_verifier_accepts_any_configured_audience(rsa_key_pair, patched_jwk_client, monkeypatch):
+    """The verifier must accept a token whose `aud` matches ANY of the
+    audiences in APPLE_AUDIENCES — not just the first. This is the
+    invariant the web Sign in with Apple flow depends on (the iOS app
+    sends bundle ID, the web sends Services ID, same backend endpoint
+    services both)."""
+    from services import apple_signin
+
+    # Patch in a multi-audience config the way prod deployment will
+    # set it: bundle ID (iOS) + Services ID (web).
+    monkeypatch.setattr(
+        apple_signin, "APPLE_AUDIENCES",
+        ["com.visionarysuite.app", "com.visionarysuite.web"],
+    )
+
+    # Token signed for the WEB Services ID — must verify.
+    web_token = _make_token(
+        rsa_key_pair, iss="https://appleid.apple.com",
+        aud="com.visionarysuite.web", exp_delta=600,
+        sub="001234.webuser.0001",
+    )
+    claims = apple_signin.verify_apple_identity_token(web_token)
+    assert claims["aud"] == "com.visionarysuite.web"
+
+    # Token signed for the iOS bundle ID on the same endpoint — must verify.
+    ios_token = _make_token(
+        rsa_key_pair, iss="https://appleid.apple.com",
+        aud="com.visionarysuite.app", exp_delta=600,
+        sub="001234.iosuser.0001",
+    )
+    claims_ios = apple_signin.verify_apple_identity_token(ios_token)
+    assert claims_ios["aud"] == "com.visionarysuite.app"
+
+
+def test_verifier_rejects_audience_not_in_list(rsa_key_pair, patched_jwk_client, monkeypatch):
+    from services import apple_signin
+
+    monkeypatch.setattr(
+        apple_signin, "APPLE_AUDIENCES",
+        ["com.visionarysuite.app", "com.visionarysuite.web"],
+    )
+
+    bad = _make_token(
+        rsa_key_pair, iss="https://appleid.apple.com",
+        aud="com.malicious.other", exp_delta=600,
+    )
+    with pytest.raises(apple_signin.AppleIdentityTokenError, match="audience"):
+        apple_signin.verify_apple_identity_token(bad)
+
+
+# ── 5. Login + Signup web pages render the Apple button ─────────────────────
+
+LOGIN_PAGE = BACKEND_ROOT.parent / "frontend/src/pages/Login.js"
+SIGNUP_PAGE = BACKEND_ROOT.parent / "frontend/src/pages/Signup.js"
+APPLE_HOOK = BACKEND_ROOT.parent / "frontend/src/hooks/useAppleSignIn.js"
+APPLE_DOMAIN_ASSOC = BACKEND_ROOT.parent / "frontend/public/.well-known/apple-developer-domain-association.txt"
+
+
+@pytest.fixture(scope="module")
+def login_src() -> str:
+    return LOGIN_PAGE.read_text()
+
+
+@pytest.fixture(scope="module")
+def signup_src() -> str:
+    return SIGNUP_PAGE.read_text()
+
+
+@pytest.fixture(scope="module")
+def apple_hook_src() -> str:
+    return APPLE_HOOK.read_text()
+
+
+def test_login_page_imports_apple_hook(login_src: str) -> None:
+    assert "import { useAppleSignIn } from '../hooks/useAppleSignIn';" in login_src, (
+        "Login.js must import the useAppleSignIn hook so the Continue "
+        "with Apple button can be rendered."
+    )
+
+
+def test_login_page_renders_apple_button(login_src: str) -> None:
+    assert 'data-testid="apple-signin-btn"' in login_src
+    assert 'data-testid="apple-signin-popup-btn"' in login_src
+    assert "Continue with Apple" in login_src, (
+        "Login.js must show the official 'Continue with Apple' label."
+    )
+    assert "apple.configured" in login_src, (
+        "Login.js must gate the Apple button on the hook's `configured` "
+        "flag so the button is hidden when REACT_APP_APPLE_SERVICES_ID "
+        "is not set (e.g. on staging before the Services ID is created)."
+    )
+
+
+def test_login_page_posts_identity_token_to_backend(login_src: str) -> None:
+    assert "/api/auth/apple-signin" in login_src, (
+        "Login.js must POST the identity_token to /api/auth/apple-signin."
+    )
+    # The same JWT-storage path must be used as Google so user.id, token,
+    # and the post-login return-path handling are identical.
+    apple_handler_start = login_src.index("handleAppleSuccess")
+    apple_handler = login_src[apple_handler_start : apple_handler_start + 4000]
+    assert "localStorage.setItem('token'" in apple_handler
+    assert "safeRedirectPath" in apple_handler
+
+
+def test_signup_page_imports_apple_hook(signup_src: str) -> None:
+    assert "import { useAppleSignIn } from '../hooks/useAppleSignIn';" in signup_src
+
+
+def test_signup_page_renders_apple_button(signup_src: str) -> None:
+    assert 'data-testid="apple-signup-btn"' in signup_src
+    assert 'data-testid="apple-signup-popup-btn"' in signup_src
+    assert "Continue with Apple" in signup_src
+    assert "apple.configured" in signup_src
+
+
+def test_signup_page_posts_identity_token_to_backend(signup_src: str) -> None:
+    assert "/api/auth/apple-signin" in signup_src
+    apple_handler_start = signup_src.index("handleAppleSuccess")
+    apple_handler = signup_src[apple_handler_start : apple_handler_start + 4000]
+    assert "localStorage.setItem('token'" in apple_handler
+
+
+# ── 6. Apple hook + SDK loading invariants ──────────────────────────────────
+
+
+def test_apple_hook_uses_official_apple_sdk(apple_hook_src: str) -> None:
+    assert "appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js" in apple_hook_src, (
+        "Hook must load the official Apple JS SDK URL."
+    )
+
+
+def test_apple_hook_uses_popup_mode(apple_hook_src: str) -> None:
+    assert "usePopup: true" in apple_hook_src, (
+        "Popup mode is required — redirect mode would need a backend "
+        "callback route + open-redirect protection."
+    )
+
+
+def test_apple_hook_reads_services_id_from_env(apple_hook_src: str) -> None:
+    assert "process.env.REACT_APP_APPLE_SERVICES_ID" in apple_hook_src
+    assert "process.env.REACT_APP_APPLE_REDIRECT_URI" in apple_hook_src
+
+
+def test_apple_hook_extracts_id_token_from_response(apple_hook_src: str) -> None:
+    """Apple JS SDK returns `{ authorization: { id_token, code, state }, user? }`.
+    The hook must extract id_token from that exact path."""
+    assert "response?.authorization?.id_token" in apple_hook_src or \
+           "response.authorization.id_token" in apple_hook_src, (
+        "Hook must read id_token from response.authorization.id_token."
+    )
+
+
+# ── 7. Domain-association file is present + has actionable instructions ─────
+
+
+def test_apple_domain_association_file_exists() -> None:
+    assert APPLE_DOMAIN_ASSOC.exists(), (
+        f"Apple requires the verification file at /.well-known/"
+        f"apple-developer-domain-association.txt. Expected at "
+        f"{APPLE_DOMAIN_ASSOC}."
+    )
+
+
+def test_apple_domain_association_file_has_placeholder_or_real_content() -> None:
+    """The file must either be the placeholder waiting for content, OR
+    the real Apple verification content. It must never be empty."""
+    content = APPLE_DOMAIN_ASSOC.read_text()
+    assert content.strip(), "Apple domain-association file must not be empty."
+

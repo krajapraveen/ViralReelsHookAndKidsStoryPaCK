@@ -38,10 +38,27 @@ from jwt import (
 APPLE_ISSUER = "https://appleid.apple.com"
 APPLE_JWKS_URL = "https://appleid.apple.com/auth/keys"
 
-# Audience = the iOS bundle identifier registered in App Store Connect.
-# Overridable via env so staging / future bundles can be supported
-# without a code change.
-APPLE_AUDIENCE = os.environ.get("APPLE_BUNDLE_ID", "com.visionarysuite.app")
+# Audiences accepted by this backend. The native iOS app uses the bundle ID;
+# the website uses the Services ID registered in Apple Developer Portal.
+# Configure via the comma-separated `APPLE_AUDIENCES` env (preferred), or
+# fall back to a single `APPLE_BUNDLE_ID` (legacy). The default value
+# preserves the native-iOS-only behavior the endpoint shipped with so that
+# nothing breaks if the env var is unset on existing deployments.
+def _resolve_audiences() -> list[str]:
+    raw = os.environ.get("APPLE_AUDIENCES")
+    if raw:
+        items = [a.strip() for a in raw.split(",") if a.strip()]
+        if items:
+            return items
+    legacy = os.environ.get("APPLE_BUNDLE_ID", "com.visionarysuite.app")
+    return [legacy]
+
+
+APPLE_AUDIENCES: list[str] = _resolve_audiences()
+# Back-compat alias — older code paths + tests reference APPLE_AUDIENCE
+# (singular). Keep it pointing at the first allowed audience so that
+# external uses still work.
+APPLE_AUDIENCE: str = APPLE_AUDIENCES[0]
 
 # PyJWKClient already keeps the fetched JWKS in-process. We share a
 # single instance across requests so the cache is hit; PyJWKClient is
@@ -90,11 +107,16 @@ def verify_apple_identity_token(identity_token: str) -> Dict[str, Any]:
         raise AppleIdentityTokenError("Malformed Apple identity token") from exc
 
     try:
+        # PyJWT accepts a list for `audience` and considers the token
+        # valid if ANY one of the configured audiences matches the
+        # token's `aud` claim. This is exactly the behavior we want
+        # to support both the native iOS bundle ID and the web
+        # Services ID with a single endpoint.
         claims: Dict[str, Any] = jwt.decode(
             identity_token,
             signing_key,
             algorithms=["RS256"],
-            audience=APPLE_AUDIENCE,
+            audience=APPLE_AUDIENCES,
             issuer=APPLE_ISSUER,
             options={
                 "require": ["iss", "aud", "exp", "sub"],

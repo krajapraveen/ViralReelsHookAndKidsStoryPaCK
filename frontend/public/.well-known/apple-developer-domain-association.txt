@@ -1,0 +1,17 @@
+REPLACE_THIS_ENTIRE_FILE_WITH_APPLE_VERIFICATION_CONTENT
+
+# How to fill this in:
+# 1. Go to Apple Developer Portal → Identifiers → your Services ID
+# 2. Edit "Sign In with Apple" → add visionary-suite.com to Domains
+# 3. Apple shows a "Download" button → click it to get the verification file
+# 4. Open that file in a text editor, copy its ENTIRE content
+# 5. Paste it as the complete content of this file (delete every line in this
+#    placeholder, including these instructions)
+# 6. Commit + redeploy
+# 7. Back in Apple Developer Portal, click "Verify" — it should turn green
+#
+# Apple does NOT allow redirects on this URL. The file must be served as
+# a single plain-text response at:
+#   https://visionary-suite.com/.well-known/apple-developer-domain-association.txt
+# (CRA serves /app/frontend/public/* as static assets at the site root,
+#  so this file's path on disk is correct as-is.)

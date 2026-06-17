@@ -12,6 +12,7 @@ import { linkSessionToUser } from '../utils/growthAnalytics';
 import { trackFunnel } from '../utils/funnelTracker';
 import { markActivated } from '../utils/activationSentinel';
 import { useGoogleLogin } from '@react-oauth/google';
+import { useAppleSignIn } from '../hooks/useAppleSignIn';
 import { safeRedirectPath } from '../utils/safeRedirect';
 
 export default function Login({ setAuth }) {
@@ -402,6 +403,97 @@ export default function Login({ setAuth }) {
     googleLogin();
   };
 
+  // ── Sign in with Apple (web) — popup flow ──────────────────────────────
+  // Mirrors handleGoogleSuccess: POST identity_token to the same backend
+  // multi-audience endpoint used by the native iOS app and store the
+  // returned `{ token, user }` exactly the same way.
+  const [appleLoading, setAppleLoading] = useState(false);
+  const [appleClicking, setAppleClicking] = useState(false);
+
+  const handleAppleSuccess = async ({ identityToken, authorizationCode, fullName, email }) => {
+    setAppleLoading(true);
+    setAppleClicking(false);
+    try {
+      const response = await api.post('/api/auth/apple-signin', {
+        identity_token: identityToken,
+        authorization_code: authorizationCode || undefined,
+        full_name: fullName || undefined,
+        email: email || undefined,
+      });
+      const { token, user } = response.data;
+      if (!token) throw new Error('No token in response');
+      localStorage.setItem('token', token);
+      if (user) {
+        localStorage.setItem('user', JSON.stringify(user));
+        localStorage.setItem('user_id', user.id || '');
+        analytics.trackLogin('apple_direct');
+        analytics.setUserId(user.id);
+        linkSessionToUser(user.id);
+      }
+      try {
+        trackFunnel('apple_signin_success', {
+          source_page: 'login',
+          meta: { user_id: user?.id, returning: !!user?.created_at },
+        });
+        trackFunnel('signup_success', {
+          source_page: 'login',
+          meta: { method: 'apple', user_id: user?.id },
+        });
+        markActivated();
+      } catch (_) { /* never block auth */ }
+      setAuth(true);
+      const rawParam =
+        searchParams.get('next') ||
+        searchParams.get('return') ||
+        localStorage.getItem('remix_return_url');
+      if (rawParam && localStorage.getItem('remix_return_url')) {
+        localStorage.removeItem('remix_return_url');
+      }
+      window.location.href = rawParam ? safeRedirectPath(rawParam) : '/app';
+    } catch (error) {
+      const msg = error?.response?.data?.detail || 'Apple sign-in failed. Please try again.';
+      toast.error(msg);
+      try {
+        trackFunnel('apple_signin_failed', {
+          source_page: 'login',
+          meta: { error: String(msg).slice(0, 200), status: error?.response?.status },
+        });
+      } catch (_) { /* noop */ }
+      setAppleLoading(false);
+    }
+  };
+
+  const apple = useAppleSignIn({
+    onSuccess: handleAppleSuccess,
+    onError: (err) => {
+      setAppleClicking(false);
+      setAppleLoading(false);
+      toast.error('Apple sign-in failed. Please try again.');
+      try {
+        trackFunnel('apple_signin_failed', {
+          source_page: 'login',
+          meta: { error: String(err?.type || err?.error || 'apple_error').slice(0, 200) },
+        });
+      } catch (_) { /* noop */ }
+    },
+    onCancel: () => {
+      setAppleClicking(false);
+      setAppleLoading(false);
+    },
+  });
+
+  const handleAppleClick = () => {
+    if (appleClicking || appleLoading || !apple.ready) return;
+    setAppleClicking(true);
+    try {
+      trackFunnel('apple_signin_clicked', {
+        source_page: 'login',
+        meta: { from: searchParams.get('from') || 'direct' },
+      });
+    } catch (_) { /* noop */ }
+    apple.signIn();
+  };
+
   // Check if email is valid for enabling submit button
   const isForgotEmailValid = forgotEmail.trim() && isValidEmail(forgotEmail.trim());
 
@@ -591,6 +683,27 @@ export default function Login({ setAuth }) {
                 Sign in with Google
               </button>
             </div>
+
+            {apple.configured && (
+              <div className="w-full mt-3 flex justify-center" data-testid="apple-signin-btn">
+                <button
+                  type="button"
+                  onClick={handleAppleClick}
+                  disabled={appleClicking || appleLoading || !apple.ready}
+                  className="w-full max-w-[380px] h-11 rounded-full border border-slate-700 bg-black hover:bg-slate-900 transition-colors flex items-center justify-center gap-3 text-sm font-medium text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                  data-testid="apple-signin-popup-btn"
+                  aria-label="Continue with Apple"
+                >
+                  <svg width="16" height="18" viewBox="0 0 16 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path
+                      d="M13.07 9.54c-.02-2.04 1.67-3.02 1.74-3.07-.95-1.39-2.43-1.58-2.96-1.6-1.26-.13-2.46.74-3.1.74-.65 0-1.63-.72-2.69-.7-1.38.02-2.66.81-3.37 2.05-1.44 2.5-.37 6.2 1.04 8.23.69.99 1.5 2.1 2.56 2.06 1.03-.04 1.42-.66 2.67-.66 1.25 0 1.6.66 2.69.64 1.11-.02 1.81-1 2.49-2 .78-1.14 1.1-2.25 1.12-2.31-.02-.01-2.14-.82-2.16-3.26zM11.07 3.51c.57-.69.95-1.65.85-2.6-.82.03-1.81.55-2.4 1.24-.53.61-.99 1.58-.87 2.52.91.07 1.85-.47 2.42-1.16z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                  Continue with Apple
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="mt-6 text-center">

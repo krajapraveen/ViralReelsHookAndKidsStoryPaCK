@@ -7,6 +7,47 @@ Evolve the platform from a standard AI content generator into a highly addictive
 - **Website**: https://www.visionary-suite.com
 
 
+### P0 SIGN IN WITH APPLE — Web (login + signup pages) — Feb 2026
+**Status**: SHIPPED in preview (button code rendered + hidden until Services ID is set). **boundary audit gate green (849 passed, 1 skipped — was 835, +14 web-flow tests)**.
+
+**Trigger**: User requested Apple sign-in on `visionary-suite.com` web alongside the native iOS app. Apple Sign-In on web requires a separate **Services ID** (distinct from the iOS bundle ID App ID), domain verification, and the JS SDK on the frontend.
+
+**Backend** (`services/apple_signin.py`):
+- Verifier now accepts **multiple audiences** via env-driven list. New `_resolve_audiences()` reads `APPLE_AUDIENCES` (comma-separated, preferred) or falls back to `APPLE_BUNDLE_ID` (legacy). `APPLE_AUDIENCE` kept as alias to `APPLE_AUDIENCES[0]` so existing callers + tests keep working.
+- `jwt.decode(..., audience=APPLE_AUDIENCES, ...)` — PyJWT accepts a list and approves the token if ANY one matches. iOS (bundle ID) and web (Services ID) coexist on the same `/api/auth/apple-signin` endpoint.
+
+**Frontend**:
+- `frontend/src/hooks/useAppleSignIn.js` — new reusable hook mirroring `useGoogleLogin`. Lazily loads Apple's official JS SDK (`appleid.cdn-apple.com/.../appleid.auth.js`), inits with `clientId=REACT_APP_APPLE_SERVICES_ID`, `redirectURI=REACT_APP_APPLE_REDIRECT_URI`, `usePopup=true`, CSRF `state` derived from `crypto.getRandomValues`. Exposes `{ ready, configured, signIn }`. Resolves with `{ identityToken, authorizationCode, fullName, email, state }` extracted from `response.authorization.id_token`.
+- `frontend/src/pages/Login.js` + `frontend/src/pages/Signup.js` — Apple button rendered immediately below the Google button. POSTs `identity_token` to `/api/auth/apple-signin`, stores `{token, user}` identically to the Google path (token + user in `localStorage`, analytics tracking, safe-redirect handling, funnel events `apple_signin_clicked` / `apple_signin_success` / `apple_signin_failed`).
+- Button is **gated on `apple.configured`** — hidden when `REACT_APP_APPLE_SERVICES_ID` is empty. Means the deploy is safe even before the Services ID is registered; user simply pastes the env var when ready.
+- Official "Continue with Apple" label + black pill button + Apple wordmark SVG (Apple's HIG spec).
+
+**Domain verification**:
+- `frontend/public/.well-known/apple-developer-domain-association.txt` — placeholder file with paste-instructions, served at the exact path Apple requires (HTTP 200 verified live, no redirects). When user gets the real content from Apple Developer Portal, they replace the placeholder and redeploy.
+
+**Env vars added**:
+- Backend `/app/backend/.env` — `APPLE_AUDIENCES=com.visionarysuite.app` (will be `com.visionarysuite.app,com.visionarysuite.web` once Services ID is created).
+- Frontend `/app/frontend/.env` — `REACT_APP_APPLE_SERVICES_ID=` and `REACT_APP_APPLE_REDIRECT_URI=` (empty placeholders).
+
+**To go live on web** (one-time, user-side):
+1. Apple Developer Portal → Identifiers → switch dropdown to **Services IDs** → create `com.visionarysuite.web` grouped under primary App ID `com.visionarysuite.app`. Enable Sign In with Apple → configure domains `visionary-suite.com`, `www.visionary-suite.com` + return URLs `https://visionary-suite.com/auth/apple/callback`, `https://www.visionary-suite.com/auth/apple/callback`.
+2. Download Apple's verification file → paste its content over the placeholder in `frontend/public/.well-known/apple-developer-domain-association.txt` → redeploy.
+3. Set frontend env: `REACT_APP_APPLE_SERVICES_ID=com.visionarysuite.web`, `REACT_APP_APPLE_REDIRECT_URI=https://visionary-suite.com/auth/apple/callback`.
+4. Set backend env: `APPLE_AUDIENCES=com.visionarysuite.app,com.visionarysuite.web`.
+5. Redeploy. Click "Verify" in Apple Developer Portal — domain turns green. Web button renders. Done.
+
+**Pinned by**: extended `backend/tests/test_apple_signin_endpoint_2026_06.py` (now 31 tests, was 17). New tests: multi-audience acceptance + rejection, Login/Signup imports + button presence + endpoint POST + JWT storage, hook uses official Apple SDK URL + popup mode + reads env vars + extracts `response.authorization.id_token`, domain-association file exists + non-empty.
+
+**Live HTTP verified on preview**:
+- `GET /.well-known/apple-developer-domain-association.txt` → HTTP 200, `text/plain`, 904 bytes ✅
+- `POST /api/auth/apple-signin` → still passes all 4 negative paths (422 missing, 401 malformed, 401 wrong-aud, 200 valid) ✅
+- Login page renders, Apple btn hidden (Services ID env empty) ✅
+- Signup page renders, Apple btn hidden ✅
+
+
+
+
+
 ### P0 SIGN IN WITH APPLE — Native iOS endpoint (App Store Guideline 4.8.0) — Feb 2026
 **Status**: SHIPPED in preview. **boundary audit gate green (835 passed, 1 skipped)**.
 
