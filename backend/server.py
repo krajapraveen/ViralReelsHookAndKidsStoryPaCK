@@ -360,17 +360,17 @@ async def security_headers_middleware(request: Request, call_next):
     # Content Security Policy (CSP) - Prevents XSS and other injection attacks
     csp_directives = [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://api.razorpay.com https://sdk.cashfree.com https://cdn.jsdelivr.net https://unpkg.com blob:",
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://api.razorpay.com https://sdk.cashfree.com https://cdn.jsdelivr.net https://unpkg.com https://appleid.cdn-apple.com blob:",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://appleid.cdn-apple.com",
         "font-src 'self' https://fonts.gstatic.com data:",
         "img-src 'self' data: blob: https: http:",
-        "connect-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://*.cashfree.com https://sdk.cashfree.com https://*.emergentagent.com wss: https: blob:",
-        "frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://*.cashfree.com https://sdk.cashfree.com https://auth.emergentagent.com",
+        "connect-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://*.cashfree.com https://sdk.cashfree.com https://*.emergentagent.com https://appleid.apple.com wss: https: blob:",
+        "frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://*.cashfree.com https://sdk.cashfree.com https://auth.emergentagent.com https://appleid.apple.com",
         "media-src 'self' blob: https:",
         "worker-src 'self' blob:",
         "object-src 'none'",
         "base-uri 'self'",
-        "form-action 'self'",
+        "form-action 'self' https://appleid.apple.com",
         "frame-ancestors 'none'",
         "upgrade-insecure-requests"
     ]

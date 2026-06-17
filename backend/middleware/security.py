@@ -22,15 +22,16 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # Allows resources from self, inline styles/scripts, and specific CDNs
         csp_directives = [
             "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com blob:",
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://appleid.cdn-apple.com blob:",
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://appleid.cdn-apple.com",
             "font-src 'self' https://fonts.gstatic.com data:",
             "img-src 'self' data: blob: https: http:",
             "media-src 'self' blob: https:",
-            "connect-src 'self' https: wss: blob:",
+            "connect-src 'self' https: wss: blob: https://appleid.apple.com",
             "worker-src 'self' blob:",
+            "frame-src 'self' https://appleid.apple.com",
             "frame-ancestors 'self'",
-            "form-action 'self'",
+            "form-action 'self' https://appleid.apple.com",
             "base-uri 'self'",
             "object-src 'none'"
         ]

@@ -559,3 +559,50 @@ def test_apple_domain_association_file_has_placeholder_or_real_content() -> None
     content = APPLE_DOMAIN_ASSOC.read_text()
     assert content.strip(), "Apple domain-association file must not be empty."
 
+
+
+# ── 8. CSP whitelists Apple's SDK + auth origins ─────────────────────────────
+#
+# 2026-06 production incident:
+#   The Apple JS SDK at `https://appleid.cdn-apple.com/.../appleid.auth.js`
+#   was blocked on visionary-suite.com with
+#     "Loading the script ... violates the following Content Security
+#      Policy directive: script-src 'self' 'unsafe-inline' ..."
+#   The script never loaded → AppleID.auth.init never ran → popup never
+#   opened → users saw the generic "Apple sign-in failed" toast.
+#
+#   The CSP is set in THREE places (frontend meta + two backend middlewares).
+#   ALL THREE must include Apple's origins or the bug recurs in whichever
+#   surface the user hits first. These tests pin every place.
+
+INDEX_HTML = BACKEND_ROOT.parent / "frontend/public/index.html"
+SERVER_PY = BACKEND_ROOT / "server.py"
+SECURITY_PY = BACKEND_ROOT / "middleware/security.py"
+
+
+def _csp_check(src_text: str, label: str) -> None:
+    """All three Apple-related origins must appear in the CSP source."""
+    assert "https://appleid.cdn-apple.com" in src_text, (
+        f"{label} CSP must whitelist https://appleid.cdn-apple.com in "
+        f"script-src — that is where Apple hosts appleid.auth.js. "
+        f"Without it the Apple SDK cannot load and Sign in with Apple "
+        f"on the web is fully broken."
+    )
+    assert "https://appleid.apple.com" in src_text, (
+        f"{label} CSP must whitelist https://appleid.apple.com in "
+        f"frame-src + form-action — that is the origin of the Apple "
+        f"sign-in popup. Without it the popup is blocked."
+    )
+
+
+def test_frontend_index_csp_allows_apple_sdk_and_popup() -> None:
+    _csp_check(INDEX_HTML.read_text(), "frontend/public/index.html")
+
+
+def test_backend_server_csp_allows_apple_sdk_and_popup() -> None:
+    _csp_check(SERVER_PY.read_text(), "backend/server.py")
+
+
+def test_backend_security_middleware_csp_allows_apple_sdk_and_popup() -> None:
+    _csp_check(SECURITY_PY.read_text(), "backend/middleware/security.py")
+
