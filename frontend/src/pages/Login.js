@@ -468,11 +468,30 @@ export default function Login({ setAuth }) {
     onError: (err) => {
       setAppleClicking(false);
       setAppleLoading(false);
-      toast.error('Apple sign-in failed. Please try again.');
+      const code = String(err?.type || err?.error || 'apple_error');
+      // Surface the actual Apple error code so misconfiguration (typo'd
+      // Services ID, redirect_uri mismatch, unverified domain) is
+      // diagnosable from the UI without digging into the console.
+      const friendly = {
+        apple_init_failed: 'Apple sign-in could not initialize. Check Services ID config.',
+        apple_sdk_load_failed: 'Could not load Apple sign-in. Check your network / ad-blocker.',
+        apple_not_ready: 'Apple sign-in not ready yet, please retry.',
+        apple_no_id_token: 'Apple returned no identity token. Check Services ID + return URL.',
+        invalid_client: 'Apple rejected the client_id. Verify REACT_APP_APPLE_SERVICES_ID matches the Services ID in Apple Developer Portal.',
+        invalid_redirect_uri: 'Apple rejected the redirect URL. Verify REACT_APP_APPLE_REDIRECT_URI matches one of the Return URLs registered on the Services ID.',
+        invalid_request: 'Apple rejected the sign-in request. Likely a redirect URL or domain-verification issue.',
+        popup_closed_by_user: 'Sign-in cancelled.',
+        user_cancelled_authorize: 'Sign-in cancelled.',
+      }[code] || `Apple sign-in failed (${code}). Please try again.`;
+      // Verbose log so the browser console always shows the raw error
+      // even when the toast is dismissed.
+      // eslint-disable-next-line no-console
+      console.error('[apple-signin] error', { code, raw: err });
+      toast.error(friendly);
       try {
         trackFunnel('apple_signin_failed', {
           source_page: 'login',
-          meta: { error: String(err?.type || err?.error || 'apple_error').slice(0, 200) },
+          meta: { error: code.slice(0, 200) },
         });
       } catch (_) { /* noop */ }
     },
