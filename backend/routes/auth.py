@@ -142,6 +142,20 @@ class GoogleSignInRequest(BaseModel):
     access_token: str = ""  # Google access token (implicit flow)
 
 
+class AppleSignInRequest(BaseModel):
+    """POST /api/auth/apple-signin body.
+
+    Apple only sends `full_name` and `email` on the FIRST sign-in
+    for a given (user, app) pair — subsequent sign-ins only carry
+    the `identity_token`. The optional fields are best-effort fallbacks
+    if the JWT does not include `email` (private-relay flows).
+    """
+    identity_token: str = Field(..., min_length=1, description="Apple-signed JWT identityToken")
+    authorization_code: Optional[str] = Field(None, description="Apple auth code (first sign-in only)")
+    full_name: Optional[str] = Field(None, max_length=120, description="User's full name (first sign-in only)")
+    email: Optional[EmailStr] = Field(None, description="User's email (first sign-in only)")
+
+
 class VerifyEmailRequest(BaseModel):
     token: TokenStr
 
@@ -1102,6 +1116,198 @@ async def google_signin(request: Request, data: GoogleSignInRequest):
     except Exception as e:
         logger.error(f"Google direct sign-in error: {type(e).__name__}: {str(e)}")
         raise HTTPException(status_code=500, detail="Google sign-in failed. Please try again.")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SIGN IN WITH APPLE — Native iOS identity-token verification
+#
+# Apple Guideline 4.8.0: any app offering Google Sign-In must also offer
+# Sign in with Apple. The native iOS app obtains an `identity_token` via
+# ASAuthorizationController and POSTs it here. Verification is performed
+# against Apple's JWKS in services/apple_signin.py. The response shape is
+# IDENTICAL to /api/auth/google-signin so the mobile app's existing auth
+# state machine works without changes.
+# Pinned by tests/test_apple_signin_endpoint_2026_06.py.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@router.post("/apple-signin")
+async def apple_signin(request: Request, data: AppleSignInRequest):
+    """Verify an Apple identity_token and issue a first-party JWT.
+
+    Linking strategy (mirrors google-signin):
+      1. Look up by Apple `sub` (stable per-user-per-app identifier).
+      2. If not found AND a verified email is present, look up by email
+         and link the Apple account to the existing record (this lets
+         a user who previously signed up with email or Google keep
+         their data when they switch to Sign in with Apple).
+      3. Otherwise create a new user.
+
+    On subsequent sign-ins Apple omits `email` and `name` — we never
+    overwrite existing values in that case.
+    """
+    from routes.login_activity import log_login_activity
+    from services.apple_signin import (
+        APPLE_AUDIENCE,
+        AppleIdentityTokenError,
+        verify_apple_identity_token,
+    )
+
+    try:
+        # 1-4. Verify signature + iss + aud + exp + sub presence.
+        try:
+            claims = verify_apple_identity_token(data.identity_token)
+        except AppleIdentityTokenError as exc:
+            logger.warning(f"Apple sign-in token verification failed: {exc}")
+            raise HTTPException(status_code=401, detail=str(exc))
+
+        apple_sub = claims["sub"]
+        token_email = (claims.get("email") or "").lower().strip()
+        token_email_verified = bool(claims.get("email_verified")) or str(
+            claims.get("email_verified")
+        ).lower() == "true"
+
+        # Body-supplied email is only used as a fallback on the very
+        # first sign-in (Apple omits the email claim when the user has
+        # previously authorized this app).
+        body_email = (data.email or "").lower().strip() if data.email else ""
+        email = token_email or body_email
+        # If the JWT did not declare verification but the body supplied
+        # the email on first sign-in, we still trust it because Apple
+        # only releases the email after the user explicitly approves it
+        # in the system sheet.
+        if token_email:
+            email_verified = token_email_verified
+        else:
+            email_verified = bool(body_email)  # first-sign-in body email
+
+        # Best-effort display name (Apple sends this only the first time).
+        full_name = (data.full_name or "").strip() if data.full_name else ""
+        if not full_name and email:
+            full_name = email.split("@")[0]
+
+        logger.info(
+            f"Apple sign-in attempt — sub={apple_sub[:8]}... email_present={bool(email)} "
+            f"aud={APPLE_AUDIENCE}"
+        )
+
+        # 5. Look up or create the user.
+        existing = None
+        if apple_sub:
+            existing = await db.users.find_one({"appleSub": apple_sub}, {"_id": 0})
+        if not existing and email:
+            existing = await db.users.find_one({"email": email}, {"_id": 0})
+
+        if existing:
+            # Subsequent sign-in (or first sign-in linking an existing
+            # email account). Never overwrite name/email — Apple won't
+            # resend them and we'd clobber user-edited values.
+            update_fields = {
+                "lastLogin": datetime.now(timezone.utc).isoformat(),
+                "appleSub": apple_sub,
+            }
+            if existing.get("authProvider") not in ("apple", "google"):
+                # Newly-linked Apple account on a previously email-only
+                # user — provider becomes apple and email is treated as
+                # verified (Apple verifies it for us).
+                update_fields["authProvider"] = "apple"
+                update_fields["emailVerified"] = True
+
+            await db.users.update_one(
+                {"id": existing["id"]},
+                {"$set": update_fields},
+            )
+
+            await log_login_activity(
+                request=request,
+                user_id=existing["id"],
+                identifier=existing.get("email", email or apple_sub),
+                status="SUCCESS",
+                auth_method="apple",
+            )
+
+            token = create_token(existing["id"], existing.get("role", "user"))
+            logger.info(f"Existing user Apple sign-in: id={existing['id']}")
+            return {
+                "token": token,
+                "user": {
+                    "id": existing["id"],
+                    "email": existing.get("email", email),
+                    "name": existing.get("name", full_name),
+                    "role": existing.get("role", "user"),
+                    "credits": existing.get("credits", 0),
+                    "picture": existing.get("picture", ""),
+                },
+            }
+
+        # 5c. Brand-new user.
+        user_id = str(uuid.uuid4())
+        new_user = {
+            "id": user_id,
+            "email": email,  # may be empty if user hid email AND first-sign-in body omitted it
+            "name": full_name or (email.split("@")[0] if email else "Apple User"),
+            "picture": "",
+            "password": "",
+            "role": "user",
+            "credits": 0,  # FREE-CREDIT POLICY REMOVED 2026-05-03
+            "authProvider": "apple",
+            "appleSub": apple_sub,
+            "emailVerified": email_verified,
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "lastLogin": datetime.now(timezone.utc).isoformat(),
+            "plan_type": "free",
+            "subscription_status": "inactive",
+            "subscription_expires_at": None,
+            "topup_credits": 0,
+            "signup_bonus_granted": False,
+        }
+        await db.users.insert_one(new_user)
+        await db.credit_ledger.insert_one({
+            "id": str(uuid.uuid4()),
+            "userId": user_id,
+            "amount": 0,
+            "type": "SIGNUP",
+            "description": "Account created via Sign in with Apple — subscription required",
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+        })
+        await log_login_activity(
+            request=request,
+            user_id=user_id,
+            identifier=email or apple_sub,
+            status="SUCCESS",
+            auth_method="apple",
+        )
+
+        token = create_token(user_id, "user")
+        logger.info(f"New Apple user registered: id={user_id} email_present={bool(email)}")
+        return {
+            "token": token,
+            "user": {
+                "id": user_id,
+                "email": new_user["email"],
+                "name": new_user["name"],
+                "role": "user",
+                "credits": 0,
+                "picture": "",
+            },
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Apple sign-in unexpected error: {type(e).__name__}: {str(e)}")
+        try:
+            await log_exception(
+                functionality="auth_apple",
+                error_type="APPLE_AUTH_ERROR",
+                error_message=str(e),
+                severity="ERROR",
+            )
+        except Exception as log_err:
+            logger.error(f"Failed to log Apple auth exception: {log_err}")
+        raise HTTPException(status_code=500, detail="Apple sign-in failed. Please try again.")
+
+
 
 
 @router.get("/me")

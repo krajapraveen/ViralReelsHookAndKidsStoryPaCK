@@ -7,6 +7,44 @@ Evolve the platform from a standard AI content generator into a highly addictive
 - **Website**: https://www.visionary-suite.com
 
 
+### P0 SIGN IN WITH APPLE — Native iOS endpoint (App Store Guideline 4.8.0) — Feb 2026
+**Status**: SHIPPED in preview. **boundary audit gate green (835 passed, 1 skipped)**.
+
+**Trigger**: Apple App Store rejected v1.0 of the iOS app under Guideline 4.8.0 because it offered Google Sign-In without offering Sign in with Apple. The mobile app already has the iOS-only button + the capability in the Apple Developer portal. Backend was the last blocker.
+
+**Endpoint**: `POST /api/auth/apple-signin` (public, no auth required). Body: `{ identity_token, authorization_code?, full_name?, email? }`. Response: `{ token, user }` — same shape as `/api/auth/google-signin` so the iOS auth state machine works unchanged.
+
+**Verification stack** (`backend/services/apple_signin.py`):
+1. PyJWKClient fetches + caches Apple's JWKS from `https://appleid.apple.com/auth/keys` (in-process cache, automatic key rotation handling).
+2. Picks the JWK whose `kid` matches the token header.
+3. Verifies RS256 signature with the matched RSA public key.
+4. Strict claim validation: `iss == https://appleid.apple.com`, `aud == APPLE_BUNDLE_ID` (env-overridable, default `com.visionarysuite.app`), `exp` in future, `sub` present. All four required via PyJWT `require` option + explicit defense-in-depth `exp` check.
+5. Any failure → `AppleIdentityTokenError` → HTTP 401 with safe message.
+
+**User-linking strategy** (mirrors google-signin):
+- Look up by `appleSub` first (stable per-user-per-app identifier).
+- Fallback: look up by email (links Apple to an existing email/Google account).
+- Otherwise: create new user with `authProvider=apple`, `appleSub=<sub>`, `emailVerified=<token claim>`, 0 credits (subscription-required policy).
+- On subsequent sign-ins Apple omits name/email — handler never overwrites existing values.
+
+**JWT issuance**: routes through the shared `create_token(user_id, role)` so the same secret + algorithm + payload shape is used for Google and Apple tokens. The mobile app sees identical `{token, user}` for both providers.
+
+**Live verification** (preview):
+- Missing `identity_token` → HTTP 422 ✅
+- Malformed token → HTTP 401 + `{"detail":"Malformed Apple identity token"}` ✅
+- Wrong audience → HTTP 401 ✅
+- Valid locally-signed token (mocked JWKS) → HTTP 200 + `{token, user}` with all 6 user fields ✅
+
+**Dependencies**: No new packages — `PyJWT==2.11.0` + `cryptography==46.0.4` + `httpx==0.28.1` were already in `requirements.txt`.
+
+**Pinned by**: `backend/tests/test_apple_signin_endpoint_2026_06.py` (17 tests) registered in `/app/Makefile :: BOUNDARY_AUDIT_SUITES`. Covers: endpoint registration, request schema (required `identity_token`), response shape match with google-signin, shared `create_token` issuance, Apple constants pinning, PyJWKClient caching, all 4 required claims, valid-token happy path, wrong-issuer, wrong-audience, expired, malformed, empty inputs, and all 4 HTTP probes (422 / 401 malformed / 401 wrong-aud / 200 valid).
+
+**To go live on production**: redeploy. Optionally set `APPLE_BUNDLE_ID=com.visionarysuite.app` in production env vars (the default already matches; env var is for future flexibility).
+
+
+
+
+
 ### P0 ADMIN PANEL BLANK CONTENT (overlay obscuration fix) — Feb 2026
 **Status**: SHIPPED in preview. **boundary audit gate green (811 passed, 1 skipped)**.
 
