@@ -64,7 +64,8 @@ BOUNDARY_AUDIT_SUITES := \
 	backend/tests/test_legal_privacy_cookie_disclosures_2026_06.py \
 	backend/tests/test_admin_panel_overlay_guard_2026_06.py \
 	backend/tests/test_apple_reviewer_seed_endpoint_2026_06.py \
-	backend/tests/test_apple_signin_endpoint_2026_06.py
+	backend/tests/test_apple_signin_endpoint_2026_06.py \
+	backend/tests/test_apple_iap_endpoints_2026_06.py
 
 PYTEST := python -m pytest
 

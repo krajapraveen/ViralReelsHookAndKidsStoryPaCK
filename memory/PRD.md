@@ -7,6 +7,65 @@ Evolve the platform from a standard AI content generator into a highly addictive
 - **Website**: https://www.visionary-suite.com
 
 
+### P0 APPLE IAP RECEIPT VALIDATION + WEBHOOK — Feb 2026
+**Status**: SHIPPED in preview (endpoints live, returning 503 pending Apple credentials). **boundary audit gate green (883 passed, 1 skipped, +31 new tests, 0 regressions)**.
+
+**Trigger**: Expo iOS client (v1.0.2) already POSTs to `/api/iap/apple/verify` after StoreKit 2 purchases. Backend endpoint needed to (a) verify JWS signature via Apple's App Store Server Library, (b) grant credits / activate subscription based on productId, (c) receive server-to-server notifications for renewals/refunds.
+
+**Endpoints**:
+- `POST /api/iap/apple/verify` — Bearer-JWT auth. Body: `{ platform, environment, productId, transactionId, originalTransactionId, jwsRepresentation, transactionReceipt }`. Response: `{ success, isConsumable, creditsGranted, subscriptionActive, tier, expiresAt, totalCredits, transactionId, alreadyProcessed }`.
+- `POST /api/iap/apple/webhook` — no auth (authenticity from JWS). App Store Server Notifications V2 (`{ signedPayload }`). Handles SUBSCRIBED, DID_RENEW, EXPIRED, REFUND, REVOKE, GRACE_PERIOD_EXPIRED. Always 200s on unknown types to avoid Apple's 3-day retry storm.
+
+**Verification stack** (`backend/services/apple_iap.py`):
+1. Apple's official `app-store-server-library==3.1.2` (PyJWT-based, ECDSA-signed JWS verification).
+2. Bundled Apple root CAs at `services/apple_certificates/` (Apple Computer Root, Apple Inc Root, Root CA G2, Root CA G3).
+3. `SignedDataVerifier` validates the JWS signature + X.509 chain against those roots offline (`enable_online_checks=False`).
+4. Extracts `product_id`, `transaction_id`, `original_transaction_id`, `bundle_id`, `expires_date`, `purchase_date`, `environment`.
+5. `AppStoreServerAPIClient` initialized with issuer_id + key_id + p8 private key (base64 or PEM), for optional future server-to-server calls.
+
+**Security invariants** (pinned by tests):
+- **Credit-grant decision uses ONLY the verified `product_id` from the JWS**, never the body-supplied one. Body/JWS mismatch → HTTP 400 (protects against downgraded-price replay).
+- **Bundle-ID guard** — the JWS's `bundle_id` must equal `APPSTORE_BUNDLE_ID`. Prevents cross-app receipt injection.
+- **Unknown productId → HTTP 400** — locked product catalogue: 4 consumables (60 / 150 / 400 / 800 credits) + 4 subscriptions (weekly / monthly / quarterly / yearly).
+
+**Idempotency (load-bearing)**:
+- `iap_transactions` collection stores one row per verified transaction. Verify replay short-circuits with `alreadyProcessed=true` (no double-grant).
+- Webhook dedupes on `(transactionId, notificationType)` — Apple retries deliveries for up to 3 days on any transient failure; without this guard a REFUND would deduct twice.
+- Credit grants use `award_credits` with `reference_id=apple_iap:<transactionId>`; refunds use `deduct_credits` with `reference_id=apple_iap_refund:<transactionId>` — separate ledger rows per grant + per refund.
+
+**Business rules**:
+- Consumable → `award_credits` (+N) + `iap_transactions` row.
+- Subscription → `award_credits` (+N period) + `users.plan_type = <tier>`, `subscription_status = active`, `subscription_expires_at`, `subscription_platform = 'apple'`.
+- Renewal via webhook → same as verify.
+- Refund via webhook → `subscription_status = 'refunded'` + `deduct_credits` (parity with grant).
+
+**Env vars added** (currently empty placeholders — endpoints return 503 gracefully until set):
+```
+APPSTORE_ISSUER_ID=      # from App Store Connect → Users and Access → Integrations
+APPSTORE_KEY_ID=         # ID of the In-App Purchase .p8 key
+APPSTORE_PRIVATE_KEY=    # full PEM contents (or base64-encoded — the service auto-decodes)
+APPSTORE_BUNDLE_ID=com.visionarysuite.app
+APPSTORE_ENVIRONMENT=production
+APPSTORE_APP_APPLE_ID=   # numeric App Store ID (required in production)
+```
+
+**Dependencies added**:
+- `app-store-server-library==3.1.2` (Apple's official Python library)
+- Transitive: `asn1==3.2.0`, `cattrs==26.1.0`, `enum-compat==0.0.3`, `pyOpenSSL==26.3.0`, `cryptography==49.0.0` (upgraded from 46.0.4)
+
+**Pinned by**: `backend/tests/test_apple_iap_endpoints_2026_06.py` (31 tests). Locks product catalogue byte-exactly, endpoint registration, auth guards (`verify` has Bearer, `webhook` does not), verified-productId-not-body invariant, bundle-ID guard, `iap_transactions` write pattern, `apple_iap:<txId>` reference format, all 4 Apple root CAs present + >300 bytes, official library import path, base64 private-key support, lazy singleton (missing env doesn't crash boot), plus 12 end-to-end route behavior tests (consumable grant, consumable replay, subscription activation, unknown product, bundle mismatch, body/JWS mismatch, bad JWS, webhook missing payload, webhook bad sig, DID_RENEW, REFUND deduct, unknown notification type still 200, DID_RENEW retry idempotency).
+
+**To go live on production**:
+1. Complete App Store Connect banking approval.
+2. App Store Connect → Users and Access → Integrations → Generate In-App Purchase key → download .p8, note Key ID + Issuer ID.
+3. Set `APPSTORE_ISSUER_ID`, `APPSTORE_KEY_ID`, `APPSTORE_PRIVATE_KEY`, `APPSTORE_APP_APPLE_ID` in production env → redeploy.
+4. App Store Connect → your app → App Information → Server Notifications URL: `https://visionary-suite.com/api/iap/apple/webhook` (both sandbox + production URL).
+5. Test one sandbox purchase → verify credit is granted → confirm webhook fires on next renewal.
+
+
+
+
+
 ### P0 SIGN IN WITH APPLE — Web (login + signup pages) — Feb 2026
 **Status**: SHIPPED in preview (button code rendered + hidden until Services ID is set). **boundary audit gate green (849 passed, 1 skipped — was 835, +14 web-flow tests)**.
 
