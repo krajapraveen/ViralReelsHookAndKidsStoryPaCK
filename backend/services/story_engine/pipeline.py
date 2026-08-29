@@ -985,6 +985,19 @@ async def _stage_scene_motion(job: dict) -> Dict:
     if not plans:
         return {"status": "failed", "error": "Failed to generate scene motion plans", "error_code": ErrorCode.MODEL_INVALID_RESPONSE.value}
 
+    requested_duration = int(job.get("duration_seconds") or 0)
+    if requested_duration in (30, 45, 60) and plans:
+        base_scene_duration = round(requested_duration / len(plans), 2)
+        assigned = 0.0
+        for index, plan in enumerate(plans):
+            if index == len(plans) - 1:
+                clip_duration = round(requested_duration - assigned, 2)
+            else:
+                clip_duration = base_scene_duration
+                assigned += clip_duration
+            plan["clip_duration_seconds"] = clip_duration
+            plan["target_total_duration_seconds"] = requested_duration
+
     await db.story_engine_jobs.update_one(
         {"job_id": job["job_id"]},
         {"$set": {"scene_motion_plans": plans}},
@@ -1204,12 +1217,85 @@ async def _stage_assembly(job: dict) -> Dict:
     if trigger_ok and os.path.exists(triggered_path):
         final_path = triggered_path
 
+    requested_duration = int(job.get("duration_seconds") or 0)
+    duration_validation = {"requested_duration_seconds": requested_duration or None}
+    if requested_duration in (30, 45, 60):
+        await update_heartbeat(db, job_id, "Validating video duration")
+        conformed_path = str(output_dir / f"se_{job_id[:8]}_{requested_duration}s.mp4")
+        duration_validation = await ffmpeg_assembly.conform_duration(
+            final_path,
+            conformed_path,
+            requested_duration,
+            tolerance=0.5,
+        )
+        duration_validation["requested_duration_seconds"] = requested_duration
+        if not duration_validation.get("ok"):
+            await db.story_engine_jobs.update_one(
+                {"job_id": job_id},
+                {"$set": {
+                    "duration_validation": duration_validation,
+                    "actual_duration_seconds": duration_validation.get("actual_duration_seconds"),
+                }},
+            )
+            return {
+                "status": "failed",
+                "error": duration_validation.get("error", "Video duration validation failed"),
+                "error_code": ErrorCode.RENDER_FAILED.value,
+            }
+        final_path = duration_validation.get("path", final_path)
+        await db.story_engine_jobs.update_one(
+            {"job_id": job_id},
+            {"$set": {
+                "duration_validation": duration_validation,
+                "actual_duration_seconds": duration_validation.get("actual_duration_seconds"),
+            }},
+        )
+    else:
+        actual_duration = await ffmpeg_assembly.get_duration_seconds(final_path)
+        duration_validation["actual_duration_seconds"] = actual_duration
+        await db.story_engine_jobs.update_one(
+            {"job_id": job_id},
+            {"$set": {"duration_validation": duration_validation, "actual_duration_seconds": actual_duration}},
+        )
+
     # Watermark end screen
     await update_heartbeat(db, job_id, "Adding brand watermark")
     watermarked_path = str(output_dir / f"se_{job_id[:8]}_watermarked.mp4")
     wm_ok = await ffmpeg_assembly.add_watermark_endscreen(final_path, watermarked_path)
     if wm_ok and os.path.exists(watermarked_path):
         final_path = watermarked_path
+
+    if requested_duration in (30, 45, 60):
+        await update_heartbeat(db, job_id, "Final duration validation")
+        final_conformed_path = str(output_dir / f"se_{job_id[:8]}_{requested_duration}s_final.mp4")
+        duration_validation = await ffmpeg_assembly.conform_duration(
+            final_path,
+            final_conformed_path,
+            requested_duration,
+            tolerance=0.5,
+        )
+        duration_validation["requested_duration_seconds"] = requested_duration
+        if not duration_validation.get("ok"):
+            await db.story_engine_jobs.update_one(
+                {"job_id": job_id},
+                {"$set": {
+                    "duration_validation": duration_validation,
+                    "actual_duration_seconds": duration_validation.get("actual_duration_seconds"),
+                }},
+            )
+            return {
+                "status": "failed",
+                "error": duration_validation.get("error", "Final video duration validation failed"),
+                "error_code": ErrorCode.RENDER_FAILED.value,
+            }
+        final_path = duration_validation.get("path", final_path)
+        await db.story_engine_jobs.update_one(
+            {"job_id": job_id},
+            {"$set": {
+                "duration_validation": duration_validation,
+                "actual_duration_seconds": duration_validation.get("actual_duration_seconds"),
+            }},
+        )
 
     await update_heartbeat(db, job_id, "Generating preview and thumbnails")
 
@@ -1253,6 +1339,8 @@ async def _stage_assembly(job: dict) -> Dict:
         "preview_url": preview_url,
         "thumbnail_url": poster_url,
         "thumbnail_small_url": thumb_url,
+        "actual_duration_seconds": duration_validation.get("actual_duration_seconds"),
+        "duration_validation": duration_validation,
     }
     if thumb_url:
         update_fields["media.thumbnail_small.url"] = thumb_url
@@ -1269,6 +1357,8 @@ async def _stage_assembly(job: dict) -> Dict:
         "status": "success",
         "output": {
             "output_url": output_url, "preview_url": preview_url,
+            "actual_duration_seconds": duration_validation.get("actual_duration_seconds"),
+            "duration_validation": duration_validation,
             "clips_stitched": len(clip_paths), "has_narration": bool(narration_path),
         },
     }

@@ -40,6 +40,12 @@ router = APIRouter(prefix="/story-engine", tags=["Story Engine"])
 # ═══════════════════════════════════════════════════════════════
 
 ANIMATION_STYLES = {
+    "cartoon": {"name": "Cartoon", "style_prompt": "2D cartoon animation style, vibrant colors, smooth lines, family-friendly"},
+    "cinematic": {"name": "Cinematic", "style_prompt": "cinematic animation style, dramatic lighting, polished camera movement, family-friendly"},
+    "anime": {"name": "Anime", "style_prompt": "anime art style, expressive characters, detailed backgrounds, Studio Ghibli inspired but original"},
+    "3d_animation": {"name": "3D Animation", "style_prompt": "3D rendered animation, smooth textures, warm lighting, Pixar-quality but original"},
+    "realistic": {"name": "Realistic", "style_prompt": "realistic cinematic illustration style, natural lighting, detailed environments, family-friendly"},
+    "kids_storybook": {"name": "Kids Storybook", "style_prompt": "children's storybook illustration style, soft shapes, warm colors, whimsical and safe"},
     "cartoon_2d": {"name": "2D Cartoon", "style_prompt": "2D cartoon animation style, vibrant colors, smooth lines, family-friendly"},
     "anime_style": {"name": "Anime", "style_prompt": "anime art style, expressive characters, detailed backgrounds, Studio Ghibli inspired but original"},
     "3d_pixar": {"name": "3D Animation", "style_prompt": "3D rendered animation, smooth textures, warm lighting, Pixar-quality but original"},
@@ -49,6 +55,12 @@ ANIMATION_STYLES = {
 }
 
 AGE_GROUPS = {
+    "preschool_3_5": {"name": "3-5 years", "max_scenes": 5},
+    "kids_6_10": {"name": "6-10 years", "max_scenes": 7},
+    "tweens_11_14": {"name": "11-14 years", "max_scenes": 8},
+    "teens": {"name": "Teens", "max_scenes": 10},
+    "family": {"name": "Family", "max_scenes": 8},
+    "general": {"name": "General", "max_scenes": 8},
     "toddler": {"name": "Toddlers (2-4)", "max_scenes": 4},
     "kids_5_8": {"name": "Kids (5-8)", "max_scenes": 6},
     "kids_9_12": {"name": "Tweens (9-12)", "max_scenes": 8},
@@ -301,6 +313,43 @@ def _make_presigned_url(stored_url: str) -> str:
         return stored_url
 
 
+def _absolute_media_url(req: Request, url: str) -> str:
+    if not url:
+        return None
+    if url.startswith("http://") or url.startswith("https://"):
+        return url
+    if url.startswith("/"):
+        base = str(req.base_url).rstrip("/")
+        return f"{base}{url}"
+    return url
+
+
+async def _validate_playback_url(url: str) -> dict:
+    """Fast playback URL validation for status responses; never blocks generation."""
+    if not url:
+        return {"ready": False, "reason": "missing_video_url"}
+    if not (url.startswith("http://") or url.startswith("https://")):
+        return {"ready": False, "reason": "invalid_url_format", "url": url}
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=2.5, follow_redirects=True) as client:
+            response = await client.head(url)
+            if response.status_code == 405:
+                response = await client.get(url, headers={"Range": "bytes=0-0"})
+        content_length = response.headers.get("content-length")
+        size = int(content_length) if content_length and content_length.isdigit() else None
+        return {
+            "ready": 200 <= response.status_code < 300 or response.status_code == 206,
+            "http_status": response.status_code,
+            "size_bytes": size,
+            "content_type": response.headers.get("content-type"),
+            "reason": None if 200 <= response.status_code < 300 or response.status_code == 206 else "url_not_200",
+        }
+    except Exception as exc:
+        logger.warning(f"[PLAYBACK_VALIDATE] URL validation failed: {exc}")
+        return {"ready": False, "reason": "url_validation_failed", "detail": str(exc)}
+
+
 def _legacy_compute_view_mode(status: str) -> str:
     """Compute view_mode for legacy pipeline_jobs based on status."""
     if status in ("COMPLETED", "PARTIAL"):
@@ -370,6 +419,7 @@ def _legacy_status_response(job: dict) -> dict:
             "age_group": job.get("age_group"),
             "voice_preset": job.get("voice_preset"),
             "story_text": job.get("story_text", ""),
+            "duration_seconds": job.get("duration_seconds"),
             "created_at": job.get("created_at"),
             "completed_at": job.get("completed_at"),
             "fallback": fallback_data,
@@ -602,6 +652,7 @@ class CreateEngineRequest(BaseModel):
     voice_preset: str = Field(default="narrator_warm")
     parent_video_id: Optional[str] = Field(default=None)
     quality_mode: str = Field(default="balanced")  # fast, balanced, high_quality
+    duration_seconds: Optional[int] = Field(default=None, ge=30, le=60)
     series_id: Optional[str] = Field(default=None)  # Story Series context
     episode_number: Optional[int] = Field(default=None)  # Episode number within the series
     challenge_id: Optional[str] = Field(default=None)  # Daily Challenge participation
@@ -673,6 +724,22 @@ async def create_engine_job(
             raise HTTPException(status_code=401, detail="Not authenticated")
         await _check_rate_limit(user_id)
 
+    validation_fields = {}
+    if request.animation_style not in ANIMATION_STYLES:
+        validation_fields["animation_style"] = "Unsupported style preset."
+    if request.age_group not in AGE_GROUPS:
+        validation_fields["age_group"] = "Unsupported audience category."
+    if request.quality_mode not in QUALITY_MODES:
+        validation_fields["quality_mode"] = "Unsupported generation mode."
+    if validation_fields:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": "validation_failed",
+                "fields": validation_fields,
+            },
+        )
+
     # ── First Video Free: skip credits if user has never completed a video ──
     is_first_video_free = False
     if not is_guest and current_user:
@@ -682,8 +749,7 @@ async def create_engine_job(
             is_first_video_free = True
             logger.info(f"[FIRST-FREE] User {user_id} qualifies for first video free")
 
-    # Map animation_style to style_id
-    style_id = request.animation_style if request.animation_style in ANIMATION_STYLES else "cartoon_2d"
+    style_id = request.animation_style
 
     # Full safety pipeline — sanitize story and title
     from services.rewrite_engine import process_safety_check
@@ -752,6 +818,22 @@ async def create_engine_job(
         "voice_preset": request.voice_preset,
         "quality_mode": request.quality_mode,
         "quality_config": quality_config,
+        "duration_seconds": request.duration_seconds,
+        "story_consistency": {
+            "character_bible_required": True,
+            "lock_main_character_description": True,
+            "lock_visual_style": True,
+            "reuse_reference_prompts": True,
+            "scene_prompt_identity_tokens": True,
+            "style_tokens": [style_id, request.animation_style],
+        },
+        "render_worker": {
+            "queue": os.environ.get("VIDEO_RENDER_QUEUE", "video_render"),
+            "workers": int(os.environ.get("VIDEO_RENDER_WORKERS", "2")),
+            "concurrency": int(os.environ.get("VIDEO_RENDER_CONCURRENCY", "2")),
+            "timeout_seconds": int(os.environ.get("VIDEO_RENDER_TIMEOUT_SECONDS", "900")),
+            "max_retries": int(os.environ.get("VIDEO_RENDER_MAX_RETRIES", "2")),
+        },
     }
     # Link to series if this is a series-driven creation
     if request.series_id:
@@ -858,8 +940,55 @@ async def create_engine_job(
     return response
 
 
+async def _get_render_queue_position(job: dict) -> Optional[int]:
+    """Return the dedicated video-render queue position for queued/rendering jobs."""
+    state = job.get("state")
+    if state not in {"QUEUED", "ASSEMBLING_VIDEO", "VALIDATING"}:
+        return None
+    created_at = job.get("created_at", "")
+    ahead = await db.story_engine_jobs.count_documents({
+        "state": {"$in": ["QUEUED", "ASSEMBLING_VIDEO", "VALIDATING"]},
+        "created_at": {"$lt": created_at},
+    })
+    return ahead + 1
+
+
+async def _get_or_create_story_share_url(job: dict, user_id: str) -> Optional[str]:
+    if not job.get("job_id") or not user_id:
+        return None
+    existing = await db.shares.find_one({"generationId": job["job_id"], "userId": user_id}, {"_id": 0})
+    base_url = os.environ.get("FRONTEND_URL", os.environ.get("BACKEND_PUBLIC_URL", "")).rstrip("/")
+    if existing:
+        return f"{base_url}/share/{existing['id']}" if base_url else f"/share/{existing['id']}"
+
+    import uuid
+    share_id = str(uuid.uuid4())[:12]
+    await db.shares.insert_one({
+        "id": share_id,
+        "generationId": job["job_id"],
+        "userId": user_id,
+        "type": "STORY",
+        "title": job.get("title", "Untitled"),
+        "preview": (job.get("story_text") or "")[:200],
+        "thumbnailUrl": job.get("thumbnail_url"),
+        "views": 0,
+        "shares": 0,
+        "forks": 0,
+        "storyContext": None,
+        "characters": [],
+        "tone": None,
+        "conflict": None,
+        "hookText": None,
+        "shareCaption": None,
+        "parentShareId": None,
+        "expiresAt": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat(),
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+    })
+    return f"{base_url}/share/{share_id}" if base_url else f"/share/{share_id}"
+
+
 @router.get("/status/{job_id}")
-async def get_status(job_id: str, current_user: dict = Depends(get_optional_user)):
+async def get_status(job_id: str, req: Request, current_user: dict = Depends(get_optional_user)):
     """Poll job progress. Returns frontend-compatible response shape.
     Falls back to legacy pipeline_jobs if not found in story_engine_jobs."""
     job = await db.story_engine_jobs.find_one({"job_id": job_id}, {"_id": 0})
@@ -906,9 +1035,32 @@ async def get_status(job_id: str, current_user: dict = Depends(get_optional_user
         })
 
     # Output URLs
-    output_url = _make_presigned_url(job.get("output_url"))
-    thumbnail_url = _make_presigned_url(job.get("thumbnail_url"))
-    preview_url = _make_presigned_url(job.get("preview_url"))
+    output_url = _absolute_media_url(req, _make_presigned_url(job.get("output_url")))
+    thumbnail_url = _absolute_media_url(req, _make_presigned_url(job.get("thumbnail_url")))
+    preview_url = _absolute_media_url(req, _make_presigned_url(job.get("preview_url")))
+    playback_url = output_url
+    playback_validation = await _validate_playback_url(playback_url) if state in {"READY", "PARTIAL_READY"} else {
+        "ready": False,
+        "reason": "not_terminal",
+    }
+    user_id = current_user.get("id") or str(current_user.get("_id"))
+    share_url = None
+    if state in {"READY", "PARTIAL_READY"} and playback_validation.get("ready"):
+        try:
+            share_url = await _get_or_create_story_share_url(job, user_id)
+        except Exception as share_err:
+            logger.warning(f"[STATUS] Failed to create share URL for {job_id[:8]}: {share_err}")
+    share_url = _absolute_media_url(req, share_url) if share_url else None
+    asset_ready = bool(playback_validation.get("ready") and playback_url and thumbnail_url and share_url)
+    response_progress = progress
+    response_status = legacy_status
+    response_stage = legacy_stage
+    response_step = get_label(JobState(state))
+    if state in {"READY", "PARTIAL_READY"} and not asset_ready:
+        response_progress = 98
+        response_status = "PROCESSING_VIDEO_URL"
+        response_stage = "processing_video_url"
+        response_step = "Finalizing video"
 
     # ETA and elapsed time calculation
     elapsed_seconds = 0
@@ -935,10 +1087,15 @@ async def get_status(job_id: str, current_user: dict = Depends(get_optional_user
         "job": {
             "job_id": job["job_id"],
             "title": job.get("title", "Untitled"),
-            "status": legacy_status,
-            "progress": progress,
-            "current_stage": legacy_stage,
-            "current_step": get_label(JobState(state)),
+            "status": response_status,
+            "progress": response_progress,
+            "current_stage": response_stage,
+            "current_step": response_step,
+            "video_url": playback_url if asset_ready else None,
+            "playback_url": playback_url if asset_ready else None,
+            "share_url": share_url if asset_ready else None,
+            "asset_ready": asset_ready,
+            "asset_validation": playback_validation,
             "output_url": output_url if can_dl else None,
             "thumbnail_url": thumbnail_url,
             "preview_url": preview_url,
@@ -957,6 +1114,20 @@ async def get_status(job_id: str, current_user: dict = Depends(get_optional_user
             "age_group": job.get("age_group", "kids_5_8"),
             "voice_preset": job.get("voice_preset", "narrator_warm"),
             "story_text": job.get("story_text", ""),
+            "duration_seconds": job.get("duration_seconds"),
+            "requested_duration_seconds": job.get("duration_seconds"),
+            "actual_duration_seconds": job.get("actual_duration_seconds"),
+            "actual_audio_duration_seconds": (job.get("duration_validation") or {}).get("actual_audio_duration_seconds"),
+            "duration_validation": job.get("duration_validation"),
+            "render_queue": {
+                "name": os.environ.get("VIDEO_RENDER_QUEUE", "video_render"),
+                "position": await _get_render_queue_position(job),
+                "workers": int(os.environ.get("VIDEO_RENDER_WORKERS", "2")),
+                "concurrency": int(os.environ.get("VIDEO_RENDER_CONCURRENCY", "2")),
+                "timeout_seconds": int(os.environ.get("VIDEO_RENDER_TIMEOUT_SECONDS", "900")),
+                "max_retries": int(os.environ.get("VIDEO_RENDER_MAX_RETRIES", "2")),
+                "dedicated": True,
+            },
             "created_at": job.get("created_at"),
             "completed_at": job.get("completed_at"),
             "fallback": None,

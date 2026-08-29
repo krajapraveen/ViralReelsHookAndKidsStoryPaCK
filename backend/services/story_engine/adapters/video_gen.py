@@ -118,9 +118,12 @@ async def generate_scene_clip(
         prompt = f"{prompt}, camera {camera.replace('_', ' ')}"
 
     full_prompt = f"{style_prompt}. {prompt}. Cinematic quality, smooth motion."
-    duration = min(int(scene_plan.get("clip_duration_seconds", 4)), 8)
-    if duration not in (4, 8, 12):
-        duration = 4
+    requested_duration = int(round(float(scene_plan.get("clip_duration_seconds", 4))))
+    # Sora currently supports coarse duration buckets. Preserve the selected
+    # product duration by choosing the nearest supported scene bucket, then the
+    # final assembly stage trims/pads to the exact 30/45/60 second contract.
+    supported_durations = (4, 8, 12)
+    duration = min(supported_durations, key=lambda value: abs(value - requested_duration))
 
     scene_num = scene_plan.get("scene_number", 0)
 
